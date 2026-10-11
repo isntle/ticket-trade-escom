@@ -81,9 +81,11 @@ function ContenidoApp() {
       rutaActual === '/recintos/distribucion';
 
     if (esRutaAdministrativa && rolActivo === 'asistente') {
-      const tieneRolAutorizado = usuarioActual.roles.some((r) =>
-        ['organizador', 'subdireccion', 'staff', 'admin'].includes(r)
-      );
+      const tieneRolAutorizado = usuarioActual
+        ? usuarioActual.roles.some((r) =>
+            ['organizador', 'subdireccion', 'staff', 'admin'].includes(r)
+          )
+        : false;
 
       return (
         <div className="max-w-2xl mx-auto px-4 py-16 text-center animate-in fade-in duration-200">
@@ -116,8 +118,10 @@ function ContenidoApp() {
                 <button
                   type="button"
                   onClick={() => {
-                    const primerRol = usuarioActual.roles.find((r) => r !== 'asistente');
-                    if (primerRol) cambiarRolActivo(primerRol);
+                    if (usuarioActual) {
+                      const primerRol = usuarioActual.roles.find((r) => r !== 'asistente');
+                      if (primerRol) cambiarRolActivo(primerRol);
+                    }
                   }}
                   className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#7a132b] hover:bg-[#620f23] text-white text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer"
                 >

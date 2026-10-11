@@ -43,8 +43,8 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
     recinto: Recinto;
   } | null>(null);
 
-  // Escala horaria de la jornada ESCOM (08:00 a 20:00 = 12 horas)
-  const horasJornada = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+  // Escala horaria del día ESCOM (08:00 a 20:00 = 12 horas)
+  const horasDelDia = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 
   // Separar recintos oficiales
   const recintosOficiales = listaRecintos.filter(
@@ -88,7 +88,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
   // Fechas de prueba rápidas para facilitar la evaluación
   const fechasRapidas = [
     { fecha: '2026-10-15', label: '15 Oct (Simposio IA)' },
-    { fecha: '2026-10-16', label: '16 Oct (Jornada 2)' },
+    { fecha: '2026-10-16', label: '16 Oct (Día 2)' },
     { fecha: '2026-10-20', label: '20 Oct (Feria Empleo)' },
     { fecha: '2026-10-22', label: '22 Oct (Taller DevOps)' },
     { fecha: '2026-10-24', label: '24 Oct (Hackathon Lab 3)' }
@@ -179,7 +179,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
             Recinto ESCOM
           </div>
           <div className="col-span-9 grid grid-cols-12 pr-4 text-neutral-500">
-            {horasJornada.slice(0, 12).map((h) => (
+            {horasDelDia.slice(0, 12).map((h) => (
               <span key={h} className="border-l border-neutral-200/80 first:border-0">
                 {String(h).padStart(2, '0')}:00
               </span>
@@ -280,7 +280,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                   {/* Indicador de libre si no hay eventos */}
                   {ocupaciones.length === 0 && (
                     <span className="text-[10px] text-neutral-300 font-mono pl-4 italic">
-                      Completamente disponible durante toda la jornada
+                      Completamente disponible durante todo el día
                     </span>
                   )}
                 </div>

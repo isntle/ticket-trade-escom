@@ -310,7 +310,9 @@ export const USUARIOS_INICIALES: Usuario[] = [
     roles: ['asistente', 'organizador'],
     rolActivo: 'organizador',
     numeroEmpleado: 'EMP-98214',
-    estaActivo: true
+    estaActivo: true,
+    esVerificado: true,
+    fechaRegistro: '2026-08-15T09:00:00Z'
   },
   {
     id: 'usr-carlos',
@@ -321,7 +323,9 @@ export const USUARIOS_INICIALES: Usuario[] = [
     roles: ['asistente'],
     rolActivo: 'asistente',
     boleta: '2022630412',
-    estaActivo: true
+    estaActivo: true,
+    esVerificado: true,
+    fechaRegistro: '2026-08-20T10:30:00Z'
   },
   {
     id: 'usr-subdireccion',
@@ -332,7 +336,9 @@ export const USUARIOS_INICIALES: Usuario[] = [
     roles: ['asistente', 'organizador', 'subdireccion'],
     rolActivo: 'subdireccion',
     numeroEmpleado: 'DIR-00412',
-    estaActivo: true
+    estaActivo: true,
+    esVerificado: true,
+    fechaRegistro: '2026-08-01T08:00:00Z'
   },
   {
     id: 'usr-andrea',
@@ -343,7 +349,10 @@ export const USUARIOS_INICIALES: Usuario[] = [
     roles: ['asistente', 'staff'],
     rolActivo: 'staff',
     numeroEmpleado: 'PAE-44910',
-    estaActivo: true
+    eventosAsignadosStaff: ['evt-simposio-ia', 'evt-hackathon-sistemas-distribuidos'],
+    estaActivo: true,
+    esVerificado: true,
+    fechaRegistro: '2026-08-25T11:15:00Z'
   },
   {
     id: 'usr-admin',
@@ -354,7 +363,9 @@ export const USUARIOS_INICIALES: Usuario[] = [
     roles: ['asistente', 'admin'],
     rolActivo: 'admin',
     numeroEmpleado: 'TEC-11002',
-    estaActivo: true
+    estaActivo: true,
+    esVerificado: true,
+    fechaRegistro: '2026-08-01T08:00:00Z'
   },
   {
     id: 'usr-externo',
@@ -368,7 +379,9 @@ export const USUARIOS_INICIALES: Usuario[] = [
     puestoContacto: 'Directora de Vinculación Universitaria',
     telefonoContacto: '55-5555-1234',
     nombreDocumento: 'convenio_ipn_techmx_2026.pdf',
-    estaActivo: true
+    estaActivo: true,
+    esVerificado: true,
+    fechaRegistro: '2026-09-01T14:20:00Z'
   }
 ];
 
@@ -786,35 +799,103 @@ export const EVENTOS_INICIALES: Evento[] = [
       {
         id: 'fec-simposio-d1',
         idEvento: 'evt-simposio-ia',
+        nombreDia: 'Día 1',
         fecha: '2026-10-15',
         horaInicio: '09:00',
         horaFin: '13:00',
         idRecinto: 'rec-auditorio',
         idArregloFinal: 'arr-simposio-d1-final',
         esFinalConfirmado: true,
-        ponentes: ['Dra. Elena Rostova (MIT)', 'M. en C. Roberto Silva (ESCOM)']
+        ponentes: ['Dra. Elena Rostova (MIT)', 'M. en C. Roberto Silva (ESCOM)'],
+        programa: [
+          {
+            hora: '09:00 - 09:30',
+            titulo: 'Registro y Ceremonia Inaugural con Autoridades de ESCOM',
+            ponente: 'Dirección y Subdirección ESCOM',
+            descripcion: 'Bienvenida oficial y entrega de gafetes a la comunidad politécnica.'
+          },
+          {
+            hora: '09:30 - 11:15',
+            titulo: 'Conferencia Magistral: Fronteras de Deep Learning y Redes Transformer Multimodales',
+            ponente: 'Dra. Elena Rostova (MIT CSAIL)',
+            descripcion: 'Nuevas arquitecturas de atención, inferencia distribuida y aplicaciones en visión artificial.'
+          },
+          {
+            hora: '11:15 - 11:45',
+            titulo: 'Receso y Networking Académico',
+            descripcion: 'Intercambio de experiencias y café en vestíbulo del Auditorio.'
+          },
+          {
+            hora: '11:45 - 13:00',
+            titulo: 'Panel: Estado del Arte en Aprendizaje Profundo en la Industria Tecnológica',
+            ponente: 'M. en C. Roberto Silva & Investigadores Invitados',
+            descripcion: 'Discusión abierta con preguntas y respuestas de los asistentes.'
+          }
+        ]
       },
       {
         id: 'fec-simposio-d2',
         idEvento: 'evt-simposio-ia',
+        nombreDia: 'Día 2',
         fecha: '2026-10-16',
         horaInicio: '09:00',
         horaFin: '13:00',
         idRecinto: 'rec-auditorio',
         idArregloFinal: 'arr-simposio-d2-final',
         esFinalConfirmado: true,
-        ponentes: ['Dr. Carlos Mendoza (CINVESTAV)']
+        ponentes: ['Dr. Carlos Mendoza (CINVESTAV)'],
+        programa: [
+          {
+            hora: '09:00 - 10:30',
+            titulo: 'Magistral: Modelos Generativos y Aprendizaje por Refuerzo Autónomo',
+            ponente: 'Dr. Carlos Mendoza (CINVESTAV Computación)',
+            descripcion: 'Optimización de políticas en entornos de simulación robótica de alta fidelidad.'
+          },
+          {
+            hora: '10:30 - 11:45',
+            titulo: 'Sesión de Ponencias Orales de Alumnos de Posgrado ESCOM',
+            ponente: 'Tesistas de Maestría y Doctorado',
+            descripcion: 'Exposición de proyectos de investigación aplicada y prototipos funcionales.'
+          },
+          {
+            hora: '11:45 - 13:00',
+            titulo: 'Mesa de Trabajo: Retos Éticos y Seguridad de Agentes Autónomos',
+            ponente: 'Dr. Carlos Mendoza & Academia de Sistemas',
+            descripcion: 'Gobernanza de modelos de lenguaje e impacto en la formación académica.'
+          }
+        ]
       },
       {
         id: 'fec-simposio-d3',
         idEvento: 'evt-simposio-ia',
+        nombreDia: 'Día 3',
         fecha: '2026-10-17',
         horaInicio: '10:00',
         horaFin: '14:00',
         idRecinto: 'rec-sala14',
         idArregloFinal: 'arr-simposio-d3-final',
         esFinalConfirmado: true,
-        ponentes: ['M. en C. Roberto Silva (ESCOM)']
+        ponentes: ['M. en C. Roberto Silva (ESCOM)'],
+        programa: [
+          {
+            hora: '10:00 - 11:30',
+            titulo: 'Demostración en Vivo: Implementación de Modelos Compactos en Edge Devices',
+            ponente: 'M. en C. Roberto Silva',
+            descripcion: 'Cuantización de pesos y despliegue sobre aceleradores empotrados.'
+          },
+          {
+            hora: '11:30 - 13:00',
+            titulo: 'Taller Interactivo de Benchmarking y Validación de Hiperparámetros',
+            ponente: 'Laboratorio de Sistemas Inteligentes',
+            descripcion: 'Ejercicios prácticos guiados para los asistentes registrados.'
+          },
+          {
+            hora: '13:00 - 14:00',
+            titulo: 'Clausura Oficial y Entrega de Reconocimientos con Valor Curricular',
+            ponente: 'Comité Organizador',
+            descripcion: 'Entrega de constancias académicas firmadas y cierre del simposio.'
+          }
+        ]
       }
     ]
   },
@@ -838,13 +919,39 @@ export const EVENTOS_INICIALES: Evento[] = [
       {
         id: 'fec-hackathon-d1',
         idEvento: 'evt-hackathon-sistemas-distribuidos',
+        nombreDia: 'Día 1',
         fecha: '2026-10-24',
         horaInicio: '09:00',
         horaFin: '15:00',
         idRecinto: 'rec-lab-3',
         idArregloFinal: 'arr-hackathon-lab3-final',
         esFinalConfirmado: true,
-        ponentes: ['Dra. Mónica Flores (NVIDIA Research)']
+        ponentes: ['Dra. Mónica Flores (NVIDIA Research)'],
+        programa: [
+          {
+            hora: '09:00 - 09:30',
+            titulo: 'Asignación de Estaciones de Cómputo y Credenciales del Clúster',
+            ponente: 'Staff Técnico Lab 3',
+            descripcion: 'Configuración de terminales Linux, variables de entorno CUDA y repositorios Git del reto.'
+          },
+          {
+            hora: '09:30 - 11:00',
+            titulo: 'Masterclass: Optimización de Kernels de Cómputo Paralelo en Arquitectura Ampere',
+            ponente: 'Dra. Mónica Flores',
+            descripcion: 'Patrones de acceso coalescente a memoria global, shared memory y perfiles con Nsight Compute.'
+          },
+          {
+            hora: '11:00 - 14:00',
+            titulo: 'Desafío Hackathon: Reducción de Latencia en Algoritmo de Detección en Tiempo Real',
+            descripcion: 'Fase de desarrollo intensivo y envío de soluciones al juez automatizado en servidor central.'
+          },
+          {
+            hora: '14:00 - 15:00',
+            titulo: 'Evaluación del Tablero de Posiciones y Premiación',
+            ponente: 'Comité de Evaluación NVIDIA & ESCOM',
+            descripcion: 'Análisis de benchmarks de velocidad y entrega de premios a los mejores equipos.'
+          }
+        ]
       }
     ]
   },
@@ -867,12 +974,31 @@ export const EVENTOS_INICIALES: Evento[] = [
       {
         id: 'fec-feria-d1',
         idEvento: 'evt-feria-empleo-ipn',
+        nombreDia: 'Día 1',
         fecha: '2026-10-20',
         horaInicio: '10:00',
         horaFin: '16:00',
         idRecinto: 'rec-auditorio',
         esFinalConfirmado: true,
-        ponentes: ['Comité de Vinculación ESCOM']
+        ponentes: ['Comité de Vinculación ESCOM'],
+        programa: [
+          {
+            hora: '10:00 - 11:30',
+            titulo: 'Apertura de Stands de Empleabilidad y Filtro de CVs',
+            descripcion: 'Recepción de estudiantes de últimos semestres y revisión de perfiles de LinkedIn y GitHub.'
+          },
+          {
+            hora: '11:30 - 13:00',
+            titulo: 'Charla: Qué buscan las Big Tech en las Entrevistas Técnicas para Egresados de ESCOM',
+            ponente: 'Tech Recruiters Invitados',
+            descripcion: 'Simulación de live-coding, resolución de problemas algorítmicos y preguntas de diseño.'
+          },
+          {
+            hora: '13:00 - 16:00',
+            titulo: 'Entrevistas On-Site y Pruebas Rápidas de Admisión',
+            descripcion: 'Entrevistas de 20 minutos con gerentes de ingeniería para residencias profesionales inmediatas.'
+          }
+        ]
       }
     ]
   },

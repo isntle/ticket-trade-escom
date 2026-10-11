@@ -103,13 +103,19 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         r.estado === 'apartado_temporal' &&
         r.tiempoExpiracionApartado &&
         r.tiempoExpiracionApartado > Date.now() &&
-        r.idUsuario !== usuarioActual.id &&
+        r.idUsuario !== usuarioActual?.id &&
         r.idAsiento
     )
     .map((r) => r.idAsiento!);
 
   // Manejo de clic en un asiento del mapa
   const manejarSeleccionAsiento = (asiento: ConfiguracionAsiento) => {
+    if (!usuarioActual) {
+      mostrarNotificacion('Inicia Sesión', 'Debes iniciar sesión para apartar un asiento.', 'error');
+      navigate('/login');
+      return;
+    }
+
     setErrorColision(null);
 
     // Si ya tenía un apartado, liberarlo
@@ -265,11 +271,11 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
                 <div className="space-y-2 border-t border-neutral-100 pt-3 text-neutral-600">
                   <div className="flex justify-between">
                     <span>Asistente registrado:</span>
-                    <span className="font-semibold text-neutral-900">{usuarioActual.nombre}</span>
+                    <span className="font-semibold text-neutral-900">{usuarioActual?.nombre || 'Asistente'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Correo institucional:</span>
-                    <span className="font-semibold text-neutral-900 truncate max-w-[170px]">{usuarioActual.correo}</span>
+                    <span className="font-semibold text-neutral-900 truncate max-w-[170px]">{usuarioActual?.correo || 'correo@ipn.mx'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Costo del boleto:</span>

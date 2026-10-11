@@ -124,6 +124,46 @@ export const GuiaEvaluacionDocente: React.FC<PropiedadesGuiaEvaluacionDocente> =
         {/* Panel con lista de escenarios */}
         {estaAbierto && (
           <div className="p-3 w-80 sm:w-96 max-h-[70vh] overflow-y-auto divide-y divide-neutral-100 text-xs">
+            <div className="p-2 bg-neutral-50 rounded-lg border border-neutral-200 mb-2">
+              <span className="text-[10px] font-bold text-[#7a132b] uppercase tracking-wider block">
+                Entregable Sprint 3: Identidad y Perfiles
+              </span>
+              <div className="grid grid-cols-2 gap-1 mt-1.5">
+                <button
+                  type="button"
+                  onClick={() => navegarA('/login')}
+                  className="px-2 py-1 bg-white border border-neutral-300 rounded text-[10px] font-medium text-neutral-700 hover:bg-neutral-100 text-left truncate"
+                >
+                  🔑 Login / Cierre
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navegarA('/registro')}
+                  className="px-2 py-1 bg-white border border-neutral-300 rounded text-[10px] font-medium text-neutral-700 hover:bg-neutral-100 text-left truncate"
+                >
+                  📝 Registro IPN/Ext
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navegarA('/recuperar-password')}
+                  className="px-2 py-1 bg-white border border-neutral-300 rounded text-[10px] font-medium text-neutral-700 hover:bg-neutral-100 text-left truncate"
+                >
+                  🔄 Recuperar Clave
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    cambiarUsuario('usr-admin');
+                    cambiarRolActivo('admin');
+                    navegarA('/admin');
+                  }}
+                  className="px-2 py-1 bg-white border border-neutral-300 rounded text-[10px] font-medium text-neutral-700 hover:bg-neutral-100 text-left truncate"
+                >
+                  ⚙️ Roles & Staff Eventos
+                </button>
+              </div>
+            </div>
+
             <div className="pb-2 text-[11px] text-neutral-500">
               Selecciona uno de los 7 escenarios de evaluación especificados para la entrega de Análisis y Diseño de Sistemas:
             </div>

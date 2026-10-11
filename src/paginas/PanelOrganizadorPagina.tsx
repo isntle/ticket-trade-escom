@@ -16,8 +16,12 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
   const [pestañaActiva, setPestañaActiva] = useState<'eventos' | 'solicitudes' | 'arreglos'>('eventos');
 
   // Filtrar eventos y solicitudes donde el usuario es el organizador
-  const misEventos = listaEventos.filter((e) => e.idOrganizador === usuarioActual.id);
-  const misSolicitudes = listaSolicitudes.filter((s) => s.idSolicitante === usuarioActual.id);
+  const misEventos = usuarioActual
+    ? listaEventos.filter((e) => e.idOrganizador === usuarioActual.id)
+    : [];
+  const misSolicitudes = usuarioActual
+    ? listaSolicitudes.filter((s) => s.idSolicitante === usuarioActual.id)
+    : [];
 
   const obtenerNombreRecinto = (idRecinto: string) => {
     const r = listaRecintos.find((rec) => rec.id === idRecinto);

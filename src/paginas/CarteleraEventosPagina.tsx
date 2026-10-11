@@ -94,7 +94,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
           </p>
         </div>
 
-        {usuarioActual.roles.includes('organizador') && (
+        {usuarioActual?.roles.includes('organizador') && (
           <button
             type="button"
             onClick={() => navigate('/solicitar-evento')}
@@ -212,6 +212,11 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
                         {eventoDestacado.fechas[0]?.fecha}
                       </span>
                       <span aria-hidden="true" className="text-neutral-300">·</span>
+                      <span className="font-mono text-neutral-700 font-semibold flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-neutral-400" />
+                        {eventoDestacado.fechas[0]?.horaInicio} - {eventoDestacado.fechas[0]?.horaFin} hrs
+                      </span>
+                      <span aria-hidden="true" className="text-neutral-300">·</span>
                       <span className="flex items-center gap-1 font-semibold text-neutral-800">
                         <MapPin className="w-3.5 h-3.5 text-neutral-400" />
                         {obtenerNombreRecinto(eventoDestacado.fechas[0]?.idRecinto || '')}
@@ -308,9 +313,13 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
 
                         <div className="p-5 space-y-2.5">
                           {/* Metadatos limpios */}
-                          <div className="flex items-center gap-2 text-[11px] text-neutral-500 font-mono">
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] text-neutral-500 font-mono">
                             <span className="font-bold text-[#7a132b]">
                               {fechaPrincipal?.fecha}
+                            </span>
+                            <span aria-hidden="true" className="text-neutral-300">·</span>
+                            <span>
+                              {fechaPrincipal?.horaInicio} - {fechaPrincipal?.horaFin} hrs
                             </span>
                             <span aria-hidden="true" className="text-neutral-300">·</span>
                             <span className="truncate">

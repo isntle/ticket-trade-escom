@@ -170,7 +170,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
               </h2>
               <p className="text-neutral-500 text-xs max-w-2xl">
                 {checklist.puedePublicar
-                  ? 'Cada jornada cuenta con recinto autorizado y versión final (1:1) confirmada de lugares. Puedes abrir taquilla inmediatamente.'
+                  ? 'Cada día cuenta con recinto autorizado y versión final (1:1) confirmada de lugares. Puedes abrir taquilla inmediatamente.'
                   : 'Revisa que cada sesión tenga su recinto asignado y su arreglo de lugares formalmente confirmado.'}
               </p>
             </div>
@@ -199,12 +199,12 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       {/* CUERPO PRINCIPAL: JORNADAS (IZQUIERDA) + CHECKLIST DETALLADO (DERECHA)   */}
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Columna Izquierda: Jornadas y Configuración de Butacas (8 COLS) */}
+        {/* Columna Izquierda: Días y Configuración de Butacas (8 COLS) */}
         <div className="lg:col-span-8 space-y-6">
           <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs space-y-4">
             <div>
               <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-wider">
-                Jornadas Programadas y Arreglos de Lugares (1:1)
+                Días Programados y Arreglos de Lugares (1:1)
               </h2>
               <p className="text-xs text-neutral-500 mt-0.5">
                 Para eventos con acceso controlado, cada fecha debe tener su distribución de butacas o estaciones confirmada.
@@ -224,7 +224,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-neutral-900 text-sm">
-                          Jornada {i + 1}: {fecha.fecha}
+                          Día {i + 1}: {fecha.fecha}
                         </span>
                         {tieneArregloConfirmado ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">

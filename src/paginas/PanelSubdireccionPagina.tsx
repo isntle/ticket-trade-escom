@@ -90,7 +90,7 @@ export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = (
       solicitudParaDictaminar.id,
       decisionDictamen,
       motivoRechazo,
-      usuarioActual.nombre
+      usuarioActual?.nombre || 'Subdirección'
     );
 
     setSolicitudParaDictaminar(null);
@@ -122,7 +122,7 @@ export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = (
       fechaFin: bloqueoIndefinido ? undefined : fechaFinBloqueo,
       horaFin: bloqueoIndefinido ? undefined : '18:00',
       esIndefinido: bloqueoIndefinido,
-      creadoPor: usuarioActual.nombre
+      creadoPor: usuarioActual?.nombre || 'Subdirección'
     });
 
     setModalNuevoBloqueo(false);

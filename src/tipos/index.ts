@@ -32,6 +32,19 @@ export interface Usuario {
   urlDocumento?: string;
   estaActivo: boolean;
   urlFoto?: string;
+  esVerificado?: boolean;
+  tokenRecuperacion?: string;
+  tokenExpiracion?: number;
+  eventosAsignadosStaff?: string[]; // IDs de eventos a los que este usuario está asignado como Staff de acceso
+  fechaRegistro?: string;
+}
+
+// Estructura de Permisos Granulares por Rol
+export interface PermisosPorRol {
+  rol: RolUsuario;
+  nombre: string;
+  descripcion: string;
+  permisos: string[];
 }
 
 // Estados del flujo de solicitudes
@@ -48,6 +61,8 @@ export interface ElementoFechaSolicitada {
   horaInicio: string; // HH:mm
   horaFin: string; // HH:mm
   idRecinto: string;
+  nombreDia?: string; // ej: "Día 1", "Día 2", etc.
+  actividadOPrograma?: string; // Descripción del programa de ese día
   fueraDeAnticipacion?: boolean;
 }
 
@@ -86,6 +101,13 @@ export interface FechaEvento {
   horaInicio: string;
   horaFin: string;
   idRecinto: string;
+  nombreDia?: string; // ej: "Día 1", "Día 2", etc.
+  programa?: Array<{
+    hora: string;
+    titulo: string;
+    ponente?: string;
+    descripcion?: string;
+  }>;
   idArregloFinal?: string;
   esFinalConfirmado: boolean;
   ponentes: string[];

@@ -14,7 +14,8 @@ import {
   ArrowRight,
   ShieldCheck,
   Zap,
-  Users
+  Users,
+  Lock
 } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
@@ -31,7 +32,25 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
   const { mostrarNotificacion } = useNotificaciones();
 
   const [codigoIngresado, setCodigoIngresado] = useState('');
-  const [eventoActivoId, setEventoActivoId] = useState('evt-simposio-ia');
+
+  // Eventos disponibles para este miembro de Staff (según sus eventos asignados o todos si es admin)
+  const eventosPermitidos = listaEventos.filter((ev) => {
+    if (!usuarioActual) return false;
+    if (usuarioActual.roles.includes('admin') || usuarioActual.roles.includes('subdireccion')) {
+      return true;
+    }
+    // Si tiene eventos asignados explícitamente, filtrar por ellos
+    if (usuarioActual.eventosAsignadosStaff && usuarioActual.eventosAsignadosStaff.length > 0) {
+      return usuarioActual.eventosAsignadosStaff.includes(ev.id);
+    }
+    // Si no tiene asignación específica aún, permitir el simposio por defecto
+    return ev.id === 'evt-simposio-ia';
+  });
+
+  const [eventoActivoId, setEventoActivoId] = useState(() => {
+    return eventosPermitidos[0]?.id || 'evt-simposio-ia';
+  });
+
   const [fechaActivaId, setFechaActivaId] = useState('fec-simposio-d1');
 
   // Resultado de escaneo activo (soft screen)
@@ -43,9 +62,16 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     horaRegistro?: string;
   } | null>(null);
 
-  const eventoSeleccionado = listaEventos.find((e) => e.id === eventoActivoId) || listaEventos[0];
+  const eventoSeleccionado =
+    listaEventos.find((e) => e.id === eventoActivoId) || eventosPermitidos[0] || listaEventos[0];
   const fechaSeleccionada =
     eventoSeleccionado?.fechas.find((f) => f.id === fechaActivaId) || eventoSeleccionado?.fechas[0];
+
+  // Verificación de si el staff tiene asignado este evento
+  const estaAsignadoAEvento =
+    usuarioActual?.roles.includes('admin') ||
+    usuarioActual?.roles.includes('subdireccion') ||
+    (usuarioActual?.eventosAsignadosStaff?.includes(eventoSeleccionado?.id || '') ?? true);
 
   // Cálculo de aforo e ingresos en vivo en puerta
   const boletosEvento = listaBoletos.filter((b) => b.idEvento === eventoSeleccionado?.id);
@@ -76,7 +102,16 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
   const ejecutarEscaneo = (codigoAProcesar: string) => {
     if (!codigoAProcesar.trim()) return;
 
-    const res = procesarCheckIn(codigoAProcesar.trim(), usuarioActual.nombre);
+    if (!estaAsignadoAEvento) {
+      mostrarNotificacion(
+        'Acceso Denegado',
+        'No estás asignado como Staff autorizado para este evento específico.',
+        'error'
+      );
+      return;
+    }
+
+    const res = procesarCheckIn(codigoAProcesar.trim(), usuarioActual?.nombre || 'Staff ESCOM');
     const ahora = new Date().toLocaleTimeString('es-MX', {
       hour: '2-digit',
       minute: '2-digit'
@@ -94,7 +129,38 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 py-6 min-h-[85vh] flex flex-col justify-between">
+    <div className="max-w-md mx-auto px-4 py-6 min-h-[85vh] flex flex-col justify-between animate-in fade-in duration-200">
+      {/* Selector de Evento Asignado al Staff */}
+      <div className="bg-white rounded-2xl border border-neutral-200 p-3 mb-4 shadow-2xs">
+        <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">
+          Evento en Control de Puerta:
+        </label>
+        <select
+          value={eventoActivoId}
+          onChange={(e) => {
+            setEventoActivoId(e.target.value);
+            const ev = listaEventos.find((item) => item.id === e.target.value);
+            if (ev && ev.fechas.length > 0) {
+              setFechaActivaId(ev.fechas[0].id);
+            }
+          }}
+          className="w-full text-xs font-bold text-neutral-800 bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 py-1.5 focus:border-[#7a132b]"
+        >
+          {eventosPermitidos.map((ev) => (
+            <option key={ev.id} value={ev.id}>
+              {ev.titulo}
+            </option>
+          ))}
+        </select>
+
+        {!estaAsignadoAEvento && (
+          <div className="mt-2 p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5 shrink-0" />
+            <span>No estás registrado como staff de este evento.</span>
+          </div>
+        )}
+      </div>
+
       {/* ========================================================================= */}
       {/* CASO A: PANTALLA DE RESULTADO ULTRA-ENFOCADA (Soft Green / Soft Red)     */}
       {/* ========================================================================= */}
@@ -185,13 +251,13 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
         /* ========================================================================= */
         /* CASO B: ESTADO INICIAL DE ESCANEO ACTIVO (Visor + Contador)               */
         /* ========================================================================= */
-        <div className="space-y-5 my-auto">
+        <div className="space-y-4 my-auto">
           {/* Identidad del Evento y Recinto */}
-          <div className="text-center space-y-1">
+          <div className="text-center space-y-0.5">
             <span className="text-[10px] font-bold tracking-widest text-[#7a132b] uppercase">
               Control de Acceso Operacional
             </span>
-            <h1 className="text-lg font-black text-neutral-900 line-clamp-1">
+            <h1 className="text-base font-black text-neutral-900 line-clamp-1">
               {eventoSeleccionado?.titulo}
             </h1>
             <div className="text-xs text-neutral-500 flex items-center justify-center gap-2">
@@ -199,12 +265,12 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
                 {fechaSeleccionada?.fecha}
               </span>
               <span aria-hidden="true" className="text-neutral-300">·</span>
-              <span className="font-semibold text-neutral-700">AUDITORIO</span>
+              <span className="font-semibold text-neutral-700">AUDITORIO ESCOM</span>
             </div>
           </div>
 
           {/* Contador de Ingresos en Puerta */}
-          <div className="bg-white rounded-2xl border border-neutral-200 p-4 shadow-xs">
+          <div className="bg-white rounded-2xl border border-neutral-200 p-3.5 shadow-xs">
             <div className="flex justify-between items-center text-xs mb-1.5">
               <span className="font-bold text-neutral-800 flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-[#7a132b]" />
@@ -223,19 +289,19 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
           </div>
 
           {/* Visor de Cámara Simulado con Guía de Enfoque QR */}
-          <div className="bg-neutral-950 rounded-3xl p-6 text-white text-center relative overflow-hidden shadow-md">
+          <div className="bg-neutral-950 rounded-3xl p-5 text-white text-center relative overflow-hidden shadow-md">
             {/* Esquinas guía del visor */}
-            <div className="relative w-56 h-56 mx-auto flex flex-col items-center justify-center">
-              <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl-xl" />
-              <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-white rounded-tr-xl" />
-              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-white rounded-bl-xl" />
-              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-white rounded-br-xl" />
+            <div className="relative w-48 h-48 mx-auto flex flex-col items-center justify-center">
+              <div className="absolute top-0 left-0 w-7 h-7 border-t-4 border-l-4 border-white rounded-tl-xl" />
+              <div className="absolute top-0 right-0 w-7 h-7 border-t-4 border-r-4 border-white rounded-tr-xl" />
+              <div className="absolute bottom-0 left-0 w-7 h-7 border-b-4 border-l-4 border-white rounded-bl-xl" />
+              <div className="absolute bottom-0 right-0 w-7 h-7 border-b-4 border-r-4 border-white rounded-br-xl" />
 
               {/* Línea roja láser de escaneo animada */}
               <div className="absolute inset-x-4 h-0.5 bg-rose-500 shadow-lg shadow-rose-500 animate-pulse" />
 
-              <Camera className="w-12 h-12 text-neutral-500 mb-2" />
-              <span className="text-xs font-mono tracking-wider text-neutral-300">
+              <Camera className="w-10 h-10 text-neutral-500 mb-2" />
+              <span className="text-[11px] font-mono tracking-wider text-neutral-300">
                 Apunta al código QR del asistente
               </span>
             </div>
@@ -288,7 +354,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       )}
 
       {/* Pie Operativo */}
-      <div className="pt-4 text-center">
+      <div className="pt-3 text-center">
         <button
           type="button"
           onClick={() => navigate('/staff/ocupacion')}

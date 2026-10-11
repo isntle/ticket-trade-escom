@@ -67,7 +67,7 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
   };
 
   const esSubdirector =
-    usuarioActual.roles.includes('subdireccion') || usuarioActual.roles.includes('admin');
+    (usuarioActual?.roles.includes('subdireccion') || usuarioActual?.roles.includes('admin')) ?? false;
 
   // Ejecutar autorización
   const manejarAutorizar = () => {
@@ -75,7 +75,7 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
       solicitud.id,
       'autorizada',
       undefined,
-      usuarioActual.nombre
+      usuarioActual?.nombre || 'Subdirección'
     );
     mostrarNotificacion(
       'Solicitud Autorizada',
@@ -99,7 +99,7 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
       solicitud.id,
       'rechazada',
       motivoRechazoInput.trim(),
-      usuarioActual.nombre
+      usuarioActual?.nombre || 'Subdirección'
     );
     setModalRechazoVisible(false);
     mostrarNotificacion(
@@ -228,11 +228,11 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
 
         {/* COLUMNA DERECHA: FECHAS, DISPONIBILIDAD Y DICTAMEN (6 COLS) */}
         <div className="lg:col-span-6 space-y-6">
-          {/* Jornadas Solicitadas y Cotejo de Disponibilidad */}
+          {/* Días Solicitados y Cotejo de Disponibilidad */}
           <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs space-y-4">
             <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-[#7a132b]" />
-              <span>Jornadas y Cotejo de Agenda en Recinto</span>
+              <span>Días Programados y Cotejo de Agenda en Recinto</span>
             </h3>
 
             <div className="space-y-3">
@@ -240,6 +240,7 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
                 const nombreRecinto = obtenerNombreRecinto(f.idRecinto);
                 const disp = verificarDisponibilidadRecinto(f.idRecinto, f.fecha, f.horaInicio, f.horaFin);
                 const ocupacionesDia = obtenerOcupacionesRecinto(f.idRecinto, f.fecha);
+                const etiquetaDia = f.nombreDia || `Día ${i + 1}`;
 
                 return (
                   <div
@@ -249,11 +250,16 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="font-bold text-neutral-900 text-sm">
-                          Jornada {i + 1}: {f.fecha}
+                          {etiquetaDia}: {f.fecha}
                         </div>
                         <div className="text-neutral-500 text-[11px] mt-0.5">
                           {f.horaInicio} a {f.horaFin} hrs · {nombreRecinto}
                         </div>
+                        {f.actividadOPrograma && (
+                          <div className="text-[11px] text-[#7a132b] font-medium mt-1">
+                            Programa previsto: {f.actividadOPrograma}
+                          </div>
+                        )}
                       </div>
 
                       {/* Estado de disponibilidad técnica */}

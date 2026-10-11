@@ -42,7 +42,7 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
   const { usuarioActual, rolActivo, cambiarRolActivo } = useAutenticacion();
 
   const puedeGestionar =
-    usuarioActual.roles.some((r) => ['organizador', 'subdireccion', 'admin'].includes(r));
+    usuarioActual?.roles.some((r) => ['organizador', 'subdireccion', 'admin'].includes(r)) ?? false;
 
   // Protección de rol: los alumnos/asistentes no ven esta herramienta
   if (!puedeGestionar || rolActivo === 'asistente') {

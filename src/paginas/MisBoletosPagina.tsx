@@ -38,7 +38,9 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
   );
 
   // Filtrar boletos del usuario actual
-  const misBoletos = listaBoletos.filter((b) => b.idUsuario === usuarioActual.id);
+  const misBoletos = usuarioActual
+    ? listaBoletos.filter((b) => b.idUsuario === usuarioActual.id)
+    : [];
 
   const manejarCancelarReservacion = (boleto: BoletoDigital) => {
     cancelarReservacion(boleto.idReservacion);
@@ -168,7 +170,7 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
                         {boleto.nombreUsuario}
                       </span>
                       <span className="text-[10px] font-mono text-neutral-500">
-                        {usuarioActual.boleta || 'Docente'}
+                        {usuarioActual?.boleta || 'Docente'}
                       </span>
                     </div>
                   </div>

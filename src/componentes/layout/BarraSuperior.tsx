@@ -9,7 +9,11 @@ import {
   Calendar,
   Ticket as IconoBoleto,
   Menu,
-  X
+  X,
+  LogIn,
+  LogOut,
+  UserPlus,
+  KeyRound
 } from 'lucide-react';
 import { useAutenticacion } from '../../contextos/AutenticacionContexto';
 import { useDatos } from '../../contextos/DatosContexto';
@@ -24,10 +28,12 @@ interface PropiedadesBarraSuperior {
 export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, navegarA }) => {
   const {
     usuarioActual,
+    estaAutenticado,
     rolActivo,
     cambiarRolActivo,
     todosLosUsuarios,
-    cambiarUsuario
+    cambiarUsuario,
+    cerrarSesion
   } = useAutenticacion();
 
   const { reiniciarDatosIniciales } = useDatos();
@@ -71,6 +77,13 @@ export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, 
     );
   };
 
+  const alCerrarSesion = () => {
+    cerrarSesion();
+    setMenuUsuarioAbierto(false);
+    mostrarNotificacion('Sesión Finalizada', 'Has cerrado tu sesión de forma segura.', 'informacion');
+    navegarA('/login');
+  };
+
   const alReiniciarDatos = () => {
     reiniciarDatosIniciales();
     mostrarNotificacion(
@@ -84,7 +97,7 @@ export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, 
     <header className="sticky top-0 z-40 bg-white border-b border-neutral-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Zona 1: Logo en tipografía destacada y color guinda (sin ícono de TT) */}
+          {/* Zona 1: Logo en tipografía destacada y color guinda */}
           <div className="flex items-center">
             <button
               type="button"
@@ -116,33 +129,37 @@ export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, 
               Cartelera
             </button>
 
-            <button
-              onClick={() => navegarA('/mis-reservaciones')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                rutaActual.startsWith('/mis-reservaciones')
-                  ? 'text-[#7a132b] bg-[#7a132b]/5'
-                  : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
-              }`}
-            >
-              Mis Boletos
-            </button>
-
-            {/* Opciones operativas para Organizadores, Subdirección y Administradores */}
-            {usuarioActual.roles.some((r) => ['organizador', 'subdireccion', 'admin'].includes(r)) && rolActivo !== 'asistente' && (
+            {estaAutenticado && (
               <button
-                onClick={() => navegarA('/distribucion')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
-                  rutaActual.startsWith('/distribucion') || rutaActual.startsWith('/arreglos')
+                onClick={() => navegarA('/mis-reservaciones')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                  rutaActual.startsWith('/mis-reservaciones')
                     ? 'text-[#7a132b] bg-[#7a132b]/5'
                     : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
                 }`}
               >
-                <Layers className="w-3.5 h-3.5 text-[#7a132b]" />
-                <span>Distribución de Espacios</span>
+                Mis Boletos
               </button>
             )}
 
-            {usuarioActual.roles.includes('organizador') && rolActivo !== 'asistente' && (
+            {/* Opciones operativas para Organizadores, Subdirección y Administradores */}
+            {usuarioActual &&
+              usuarioActual.roles.some((r) => ['organizador', 'subdireccion', 'admin'].includes(r)) &&
+              rolActivo !== 'asistente' && (
+                <button
+                  onClick={() => navegarA('/distribucion')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
+                    rutaActual.startsWith('/distribucion') || rutaActual.startsWith('/arreglos')
+                      ? 'text-[#7a132b] bg-[#7a132b]/5'
+                      : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5 text-[#7a132b]" />
+                  <span>Distribución de Espacios</span>
+                </button>
+              )}
+
+            {usuarioActual && usuarioActual.roles.includes('organizador') && rolActivo !== 'asistente' && (
               <button
                 onClick={() => {
                   cambiarRolActivo('organizador');
@@ -158,7 +175,7 @@ export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, 
               </button>
             )}
 
-            {usuarioActual.roles.includes('subdireccion') && (
+            {usuarioActual && usuarioActual.roles.includes('subdireccion') && (
               <button
                 onClick={() => {
                   cambiarRolActivo('subdireccion');
@@ -174,7 +191,7 @@ export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, 
               </button>
             )}
 
-            {usuarioActual.roles.includes('staff') && (
+            {usuarioActual && usuarioActual.roles.includes('staff') && (
               <button
                 onClick={() => {
                   cambiarRolActivo('staff');
@@ -190,7 +207,7 @@ export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, 
               </button>
             )}
 
-            {usuarioActual.roles.includes('admin') && (
+            {usuarioActual && usuarioActual.roles.includes('admin') && (
               <button
                 onClick={() => {
                   cambiarRolActivo('admin');
@@ -202,114 +219,145 @@ export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, 
                     : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
                 }`}
               >
-                Administración
+                Administración TI
               </button>
             )}
           </nav>
 
           {/* Zona 3: Selector de Rol y Perfil de Usuario */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Selector de Perspectivas del Usuario */}
-            <div className="hidden sm:flex items-center bg-neutral-100 p-0.5 rounded-lg border border-neutral-200">
-              {usuarioActual.roles.map((rol) => {
-                const activo = rolActivo === rol;
-                return (
-                  <button
-                    key={rol}
-                    type="button"
-                    onClick={() => alCambiarRol(rol)}
-                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                      activo
-                        ? 'bg-white text-neutral-900 shadow-2xs font-semibold'
-                        : 'text-neutral-500 hover:text-neutral-800'
-                    }`}
-                  >
-                    <span className="mr-1">{etiquetasRoles[rol].icono}</span>
-                    <span className="capitalize">{rol}</span>
-                  </button>
-                );
-              })}
-            </div>
+            {estaAutenticado && usuarioActual ? (
+              <>
+                {/* Selector de Perspectivas del Usuario */}
+                <div className="hidden sm:flex items-center bg-neutral-100 p-0.5 rounded-lg border border-neutral-200">
+                  {usuarioActual.roles.map((rol) => {
+                    const activo = rolActivo === rol;
+                    return (
+                      <button
+                        key={rol}
+                        type="button"
+                        onClick={() => alCambiarRol(rol)}
+                        className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                          activo
+                            ? 'bg-white text-neutral-900 shadow-2xs font-semibold'
+                            : 'text-neutral-500 hover:text-neutral-800'
+                        }`}
+                      >
+                        <span className="mr-1">{etiquetasRoles[rol].icono}</span>
+                        <span className="capitalize">{rol}</span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-              {/* Menú de Usuario (sin icono circular) */}
-              <div className="relative">
+                {/* Menú de Usuario */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setMenuUsuarioAbierto(!menuUsuarioAbierto)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 transition-colors cursor-pointer"
+                  >
+                    <div className="text-left">
+                      <div className="text-xs font-semibold text-neutral-900 leading-tight">
+                        {usuarioActual.nombre}
+                      </div>
+                      <div className="text-[10px] text-neutral-500 capitalize leading-none">
+                        {usuarioActual.afiliacion}
+                      </div>
+                    </div>
+                    <ChevronDown className="w-3.5 h-3.5 text-neutral-400 ml-1" />
+                  </button>
+
+                  {menuUsuarioAbierto && (
+                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-neutral-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                      <div className="px-4 py-2 border-b border-neutral-100">
+                        <p className="text-xs font-bold text-neutral-900">{usuarioActual.nombre}</p>
+                        <p className="text-[11px] text-neutral-500">{usuarioActual.correo}</p>
+                        {usuarioActual.boleta && (
+                          <p className="text-[11px] text-neutral-600 font-mono mt-0.5">Boleta: {usuarioActual.boleta}</p>
+                        )}
+                        {usuarioActual.numeroEmpleado && (
+                          <p className="text-[11px] text-neutral-600 font-mono mt-0.5">No. Empleado: {usuarioActual.numeroEmpleado}</p>
+                        )}
+                      </div>
+
+                      {/* Cambiar cuenta institucional de prueba */}
+                      <div className="px-3 py-2 border-b border-neutral-100">
+                        <div className="text-[10px] font-bold tracking-wider text-neutral-400 uppercase mb-1.5 flex items-center gap-1">
+                          <UserCheck className="w-3 h-3" />
+                          <span>Cambiar cuenta de prueba</span>
+                        </div>
+                        <div className="space-y-1">
+                          {todosLosUsuarios.map((u) => (
+                            <button
+                              key={u.id}
+                              onClick={() => alCambiarUsuario(u.id)}
+                              className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center justify-between ${
+                                u.id === usuarioActual.id
+                                  ? 'bg-[#7a132b]/10 text-[#7a132b] font-semibold'
+                                  : 'hover:bg-neutral-50 text-neutral-700'
+                              }`}
+                            >
+                              <span className="truncate">{u.nombre}</span>
+                              <span className="text-[10px] text-neutral-400 capitalize">{u.afiliacion}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="p-1 space-y-0.5">
+                        <button
+                          onClick={() => {
+                            setMenuUsuarioAbierto(false);
+                            navegarA('/perfil');
+                          }}
+                          className="w-full text-left px-3 py-2 rounded text-xs text-neutral-700 hover:bg-neutral-50 transition-colors flex items-center justify-between"
+                        >
+                          <span>Consultar y Editar Perfil</span>
+                          <span className="text-[10px] text-neutral-400">→</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setMenuUsuarioAbierto(false);
+                            alReiniciarDatos();
+                          }}
+                          className="w-full text-left px-3 py-1.5 rounded text-xs text-neutral-600 hover:bg-neutral-50 flex items-center gap-1.5 transition-colors"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Reiniciar datos iniciales</span>
+                        </button>
+                        <button
+                          onClick={alCerrarSesion}
+                          className="w-full text-left px-3 py-2 rounded text-xs text-rose-700 hover:bg-rose-50 flex items-center gap-1.5 transition-colors font-semibold border-t border-neutral-100 mt-1"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          <span>Cerrar Sesión</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setMenuUsuarioAbierto(!menuUsuarioAbierto)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 transition-colors cursor-pointer"
+                  onClick={() => navegarA('/login')}
+                  className="px-3.5 py-1.5 text-xs font-bold text-neutral-700 hover:text-neutral-900 border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors flex items-center gap-1.5"
                 >
-                  <div className="text-left">
-                    <div className="text-xs font-semibold text-neutral-900 leading-tight">
-                      {usuarioActual.nombre}
-                    </div>
-                    <div className="text-[10px] text-neutral-500 capitalize leading-none">
-                      {usuarioActual.afiliacion}
-                    </div>
-                  </div>
-                  <ChevronDown className="w-3.5 h-3.5 text-neutral-400 ml-1" />
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Iniciar Sesión</span>
                 </button>
-
-              {menuUsuarioAbierto && (
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-neutral-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                  <div className="px-4 py-2 border-b border-neutral-100">
-                    <p className="text-xs font-bold text-neutral-900">{usuarioActual.nombre}</p>
-                    <p className="text-[11px] text-neutral-500">{usuarioActual.correo}</p>
-                    {usuarioActual.boleta && (
-                      <p className="text-[11px] text-neutral-600 font-mono mt-0.5">Boleta: {usuarioActual.boleta}</p>
-                    )}
-                    {usuarioActual.numeroEmpleado && (
-                      <p className="text-[11px] text-neutral-600 font-mono mt-0.5">No. Empleado: {usuarioActual.numeroEmpleado}</p>
-                    )}
-                  </div>
-
-                  {/* Cambiar cuenta institucional de prueba */}
-                  <div className="px-3 py-2 border-b border-neutral-100">
-                    <div className="text-[10px] font-bold tracking-wider text-neutral-400 uppercase mb-1.5 flex items-center gap-1">
-                      <UserCheck className="w-3 h-3" />
-                      <span>Cambiar cuenta de prueba</span>
-                    </div>
-                    <div className="space-y-1">
-                      {todosLosUsuarios.map((u) => (
-                        <button
-                          key={u.id}
-                          onClick={() => alCambiarUsuario(u.id)}
-                          className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center justify-between ${
-                            u.id === usuarioActual.id
-                              ? 'bg-[#7a132b]/10 text-[#7a132b] font-semibold'
-                              : 'hover:bg-neutral-50 text-neutral-700'
-                          }`}
-                        >
-                          <span className="truncate">{u.nombre}</span>
-                          <span className="text-[10px] text-neutral-400 capitalize">{u.afiliacion}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="p-1">
-                    <button
-                      onClick={() => {
-                        setMenuUsuarioAbierto(false);
-                        navegarA('/perfil');
-                      }}
-                      className="w-full text-left px-3 py-2 rounded text-xs text-neutral-700 hover:bg-neutral-50 transition-colors"
-                    >
-                      Acreditación de Perfil
-                    </button>
-                    <button
-                      onClick={() => {
-                        setMenuUsuarioAbierto(false);
-                        alReiniciarDatos();
-                      }}
-                      className="w-full text-left px-3 py-2 rounded text-xs text-rose-700 hover:bg-rose-50 flex items-center gap-1.5 transition-colors"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Reiniciar datos iniciales</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => navegarA('/registro')}
+                  className="px-3.5 py-1.5 text-xs font-bold text-white bg-[#7a132b] hover:bg-[#620f23] rounded-lg transition-colors flex items-center gap-1.5 shadow-xs"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Registro</span>
+                </button>
+              </div>
+            )}
 
             {/* Botón de Menú Móvil */}
             <div className="flex md:hidden">
@@ -337,16 +385,18 @@ export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, 
           >
             Cartelera de Eventos
           </button>
-          <button
-            onClick={() => {
-              navegarA('/mis-reservaciones');
-              setMenuMovilAbierto(false);
-            }}
-            className="w-full text-left px-3 py-2 rounded text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-          >
-            Mis Boletos Digitales
-          </button>
-          {usuarioActual.roles.some((r) => ['organizador', 'subdireccion', 'admin'].includes(r)) && rolActivo !== 'asistente' && (
+          {estaAutenticado && (
+            <button
+              onClick={() => {
+                navegarA('/mis-reservaciones');
+                setMenuMovilAbierto(false);
+              }}
+              className="w-full text-left px-3 py-2 rounded text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              Mis Boletos Digitales
+            </button>
+          )}
+          {usuarioActual?.roles.some((r) => ['organizador', 'subdireccion', 'admin'].includes(r)) && rolActivo !== 'asistente' && (
             <button
               onClick={() => {
                 navegarA('/distribucion');
@@ -358,7 +408,7 @@ export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, 
               <span>Distribución de Espacios</span>
             </button>
           )}
-          {usuarioActual.roles.includes('organizador') && (
+          {usuarioActual?.roles.includes('organizador') && (
             <button
               onClick={() => {
                 cambiarRolActivo('organizador');
@@ -370,7 +420,7 @@ export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, 
               Panel de Organización
             </button>
           )}
-          {usuarioActual.roles.includes('subdireccion') && (
+          {usuarioActual?.roles.includes('subdireccion') && (
             <button
               onClick={() => {
                 cambiarRolActivo('subdireccion');
@@ -382,7 +432,7 @@ export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, 
               Dictamen Subdirección
             </button>
           )}
-          {usuarioActual.roles.includes('staff') && (
+          {usuarioActual?.roles.includes('staff') && (
             <button
               onClick={() => {
                 cambiarRolActivo('staff');
@@ -393,6 +443,59 @@ export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, 
             >
               Control de Acceso (Staff)
             </button>
+          )}
+          {usuarioActual?.roles.includes('admin') && (
+            <button
+              onClick={() => {
+                cambiarRolActivo('admin');
+                navegarA('/admin');
+                setMenuMovilAbierto(false);
+              }}
+              className="w-full text-left px-3 py-2 rounded text-sm font-medium text-rose-700 hover:bg-rose-50"
+            >
+              Administración TI
+            </button>
+          )}
+
+          {estaAutenticado ? (
+            <div className="pt-2 border-t border-neutral-100 flex gap-2">
+              <button
+                onClick={() => {
+                  navegarA('/perfil');
+                  setMenuMovilAbierto(false);
+                }}
+                className="flex-1 py-2 text-center text-xs font-bold text-neutral-800 bg-neutral-100 rounded-lg"
+              >
+                Mi Perfil
+              </button>
+              <button
+                onClick={alCerrarSesion}
+                className="flex-1 py-2 text-center text-xs font-bold text-rose-700 bg-rose-50 rounded-lg"
+              >
+                Cerrar Sesión
+              </button>
+            </div>
+          ) : (
+            <div className="pt-2 border-t border-neutral-100 flex gap-2">
+              <button
+                onClick={() => {
+                  navegarA('/login');
+                  setMenuMovilAbierto(false);
+                }}
+                className="flex-1 py-2 text-center text-xs font-bold text-neutral-800 bg-neutral-100 rounded-lg"
+              >
+                Iniciar Sesión
+              </button>
+              <button
+                onClick={() => {
+                  navegarA('/registro');
+                  setMenuMovilAbierto(false);
+                }}
+                className="flex-1 py-2 text-center text-xs font-bold text-white bg-[#7a132b] rounded-lg"
+              >
+                Registrarse
+              </button>
+            </div>
           )}
         </div>
       )}

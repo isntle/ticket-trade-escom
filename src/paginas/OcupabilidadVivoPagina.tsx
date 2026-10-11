@@ -125,7 +125,7 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
             >
               {eventoSeleccionado.fechas.map((f, i) => (
                 <option key={f.id} value={f.id}>
-                  Jornada {i + 1}: {f.fecha}
+                  Día {i + 1}: {f.fecha}
                 </option>
               ))}
             </select>
