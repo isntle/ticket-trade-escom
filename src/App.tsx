@@ -249,21 +249,26 @@ function ContenidoApp() {
     return <CarteleraEventosPagina navigate={navegarA} />;
   };
 
+  const esRutaAutenticacion = ['/login', '/registro', '/recuperar-password'].includes(rutaActual);
+
   return (
     <div className="min-h-screen flex flex-col bg-[#fafaf9] text-neutral-900 selection:bg-[#7a132b]/15 selection:text-[#7a132b]">
-      {/* Barra de Navegación Superior Institucional */}
-      <BarraSuperior rutaActual={rutaActual} navegarA={navegarA} />
+      {!esRutaAutenticacion && <BarraSuperior rutaActual={rutaActual} navegarA={navegarA} />}
 
       {/* Contenedor Dinámico de la Página */}
-      <div className="flex-1">
+      <main className={esRutaAutenticacion ? 'min-h-screen' : 'flex-1'}>
         {renderizarRuta()}
-      </div>
+      </main>
 
-      {/* Pie de Página Institucional ESCOM */}
-      <PieDePagina />
+      {!esRutaAutenticacion && (
+        <>
+          {/* Pie de Página Institucional ESCOM */}
+          <PieDePagina />
 
-      {/* Guía Flotante de Demostración para Evaluación de los 7 Escenarios */}
-      <GuiaDemostracion navegarA={navegarA} />
+          {/* Guía Flotante de Demostración para Evaluación de los 7 Escenarios */}
+          <GuiaDemostracion navegarA={navegarA} />
+        </>
+      )}
     </div>
   );
 }

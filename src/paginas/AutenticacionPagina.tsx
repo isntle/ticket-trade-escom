@@ -12,7 +12,9 @@ import {
   Building,
   GraduationCap,
   Briefcase,
-  Upload
+  Upload,
+  Ticket,
+  Sparkles
 } from 'lucide-react';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { useNotificaciones } from '../contextos/NotificacionesContexto';
@@ -147,6 +149,177 @@ export const AutenticacionPagina: React.FC<PropiedadesAutenticacion> = ({
     }
   };
 
+  // Acceso con una composición visual propia: identidad institucional a la izquierda
+  // y formulario tipo credencial/boleto a la derecha.
+  if (pestaña === 'login') {
+    return (
+      <div className="relative flex min-h-screen items-center overflow-hidden bg-[#f5f3f0] p-2.5 sm:p-4 animate-in fade-in duration-300">
+        <div className="pointer-events-none absolute -right-32 -top-32 h-80 w-80 rounded-full bg-[#7a132b]/[0.06] blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-40 -left-24 h-96 w-96 rounded-full bg-amber-200/20 blur-3xl" />
+
+        <div className="relative grid min-h-[calc(100vh-1.25rem)] w-full overflow-hidden rounded-[1.5rem] border border-white/80 bg-white shadow-[0_18px_55px_rgba(62,32,36,0.12)] sm:min-h-[calc(100vh-2rem)] lg:grid-cols-[0.92fr_1.08fr]">
+          <section className="order-2 relative isolate overflow-hidden bg-[#651127] px-7 py-8 text-white sm:px-10 sm:py-11 lg:order-1 lg:min-h-[calc(100vh-2rem)] lg:px-12 lg:py-12">
+            <div className="absolute -right-20 top-20 h-64 w-64 rounded-full border border-white/10" />
+            <div className="absolute -right-10 top-30 h-44 w-44 rounded-full border border-white/10" />
+            <div className="absolute bottom-8 left-8 h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_0_8px_rgba(252,211,77,0.12)]" />
+
+            <div className="relative flex h-full flex-col">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-white/10 shadow-inner">
+                  <Ticket className="h-5 w-5 text-amber-200" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-200/90">ESCOM · IPN</p>
+                  <p className="text-sm font-semibold tracking-tight">Ticket Trade</p>
+                </div>
+              </div>
+
+              <div className="mt-20 max-w-sm lg:mt-auto lg:mb-auto">
+                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3 py-1.5 text-[11px] font-medium text-white/80">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-200" />
+                  Tu agenda académica, en un solo lugar
+                </div>
+                <h1 className="max-w-sm text-4xl font-black leading-[1.02] tracking-[-0.04em] sm:text-5xl">
+                  Entra a la experiencia ESCOM.
+                </h1>
+                <p className="mt-5 max-w-xs text-sm leading-6 text-white/70">
+                  Consulta eventos, reserva tu lugar y lleva tus boletos digitales contigo.
+                </p>
+              </div>
+
+              <div className="mt-12 space-y-3 border-t border-white/15 pt-6 lg:mt-auto">
+                {[
+                  ['Acceso institucional', 'Una cuenta para toda tu actividad'],
+                  ['Boletos digitales', 'Tu entrada siempre disponible'],
+                  ['Agenda ESCOM', 'Eventos y recintos organizados']
+                ].map(([titulo, descripcion]) => (
+                  <div key={titulo} className="flex items-start gap-3">
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-200" />
+                    <div>
+                      <p className="text-xs font-semibold text-white/95">{titulo}</p>
+                      <p className="mt-0.5 text-[11px] text-white/55">{descripcion}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="order-1 flex items-center px-7 py-8 sm:px-12 sm:py-11 lg:order-2 lg:px-14 lg:py-14">
+            <div className="mx-auto w-full max-w-md">
+              <div className="mb-8">
+                <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#7a132b]">Acceso seguro</p>
+                <h2 className="text-3xl font-black tracking-[-0.035em] text-neutral-950">Iniciar sesión</h2>
+                <p className="mt-2 text-sm leading-6 text-neutral-500">Usa tus credenciales para continuar a Ticket Trade.</p>
+              </div>
+
+              <form onSubmit={manejarLogin} className="space-y-5">
+                <div>
+                  <label htmlFor="correo-login" className="mb-2 block text-xs font-bold text-neutral-700">
+                    Correo electrónico
+                  </label>
+                  <div className="relative">
+                    <Building className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                    <input
+                      id="correo-login"
+                      type="email"
+                      required
+                      placeholder="usuario@ipn.mx"
+                      value={correoLogin}
+                      onChange={(e) => setCorreoLogin(e.target.value)}
+                      className="w-full rounded-xl border border-neutral-200 bg-[#fafaf9] py-3 pl-10 pr-3.5 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-[#7a132b] focus:bg-white focus:ring-4 focus:ring-[#7a132b]/10"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label htmlFor="password-login" className="text-xs font-bold text-neutral-700">Contraseña</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCorreoRecuperar(correoLogin);
+                        setPestaña('recuperar');
+                      }}
+                      className="text-[11px] font-semibold text-[#7a132b] transition hover:text-[#4e0d20] hover:underline"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <KeyRound className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                    <input
+                      id="password-login"
+                      type={mostrarPasswordLogin ? 'text' : 'password'}
+                      required
+                      value={passwordLogin}
+                      onChange={(e) => setPasswordLogin(e.target.value)}
+                      className="w-full rounded-xl border border-neutral-200 bg-[#fafaf9] py-3 pl-10 pr-20 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-400 focus:border-[#7a132b] focus:bg-white focus:ring-4 focus:ring-[#7a132b]/10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setMostrarPasswordLogin(!mostrarPasswordLogin)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-neutral-400 transition hover:text-neutral-800"
+                    >
+                      {mostrarPasswordLogin ? 'Ocultar' : 'Mostrar'}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="group flex w-full items-center justify-center gap-2 rounded-xl bg-[#7a132b] py-3.5 text-sm font-bold text-white shadow-[0_10px_20px_rgba(122,19,43,0.18)] transition hover:-translate-y-0.5 hover:bg-[#630f23] hover:shadow-[0_14px_24px_rgba(122,19,43,0.24)] focus:outline-none focus:ring-4 focus:ring-[#7a132b]/20"
+                >
+                  <LogIn className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                  Ingresar al sistema
+                </button>
+              </form>
+
+              <div className="my-7 flex items-center gap-3">
+                <div className="h-px flex-1 bg-neutral-200" />
+                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-400">Accesos rápidos</span>
+                <div className="h-px flex-1 bg-neutral-200" />
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {todosLosUsuarios.slice(0, 4).map((usuario) => (
+                  <button
+                    key={usuario.id}
+                    type="button"
+                    onClick={() => {
+                      setCorreoLogin(usuario.correo);
+                      setPasswordLogin(usuario.password || 'Password123!');
+                    }}
+                    className="group rounded-xl border border-neutral-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-[#7a132b]/40 hover:bg-[#7a132b]/[0.03] focus:outline-none focus:ring-4 focus:ring-[#7a132b]/10"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#7a132b]/10 text-[10px] font-black text-[#7a132b]">
+                        {usuario.nombre.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-[11px] font-bold text-neutral-800">{usuario.nombre}</p>
+                        <p className="truncate text-[10px] text-neutral-400">{usuario.afiliacion}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-8 flex items-center justify-between rounded-xl bg-neutral-50 px-4 py-3 text-[11px]">
+                <span className="text-neutral-500">¿Aún no tienes cuenta?</span>
+                <button type="button" onClick={() => setPestaña('registro')} className="font-bold text-[#7a132b] hover:underline">
+                  Crear cuenta
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  const pestañaParaFormulario = pestaña as string;
+
   return (
     <div className="max-w-xl mx-auto px-4 py-10 sm:py-14 animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl border border-neutral-200 p-6 sm:p-10 shadow-sm">
@@ -168,7 +341,7 @@ export const AutenticacionPagina: React.FC<PropiedadesAutenticacion> = ({
               type="button"
               onClick={() => setPestaña('login')}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                pestaña === 'login'
+                pestañaParaFormulario === 'login'
                   ? 'bg-white text-neutral-900 shadow-2xs'
                   : 'text-neutral-500 hover:text-neutral-900'
               }`}
@@ -206,7 +379,7 @@ export const AutenticacionPagina: React.FC<PropiedadesAutenticacion> = ({
         {/* ========================================================================= */}
         {/* PESTAÑA 1: INICIO DE SESIÓN                                              */}
         {/* ========================================================================= */}
-        {pestaña === 'login' && (
+        {pestañaParaFormulario === 'login' && (
           <div className="space-y-6">
             <form onSubmit={manejarLogin} className="space-y-4 text-xs">
               <div>
