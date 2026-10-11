@@ -9,7 +9,7 @@ interface ContextoAutenticacionTipo {
   cambiarUsuario: (idUsuario: string) => void;
   todosLosUsuarios: Usuario[];
   tieneRol: (rol: RolUsuario) => boolean;
-  iniciarSesion: (correo: string) => boolean;
+  iniciarSesion: (correo: string, password?: string) => boolean;
   cerrarSesion: () => void;
   actualizarPerfil: (datos: Partial<Usuario>) => void;
   solicitarPermisoOrganizador: (
@@ -76,9 +76,9 @@ export const ProveedorAutenticacion: React.FC<{ children: React.ReactNode }> = (
     return usuarioActual.roles.includes(rol);
   };
 
-  const iniciarSesion = (correo: string): boolean => {
+  const iniciarSesion = (correo: string, password?: string): boolean => {
     const encontrado = usuarios.find((u) => u.correo.toLowerCase() === correo.toLowerCase());
-    if (encontrado) {
+    if (encontrado && (!encontrado.password || encontrado.password === password)) {
       cambiarUsuario(encontrado.id);
       return true;
     }

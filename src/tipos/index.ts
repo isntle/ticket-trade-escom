@@ -19,6 +19,7 @@ export interface Usuario {
   id: string;
   nombre: string;
   correo: string;
+  password?: string;
   afiliacion: TipoAfiliacion;
   roles: RolUsuario[];
   rolActivo: RolUsuario;
