@@ -15,7 +15,8 @@ import {
   Sparkles,
   ArrowRight,
   Ticket,
-  CalendarClock
+  CalendarClock,
+  BarChart3
 } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { useNotificaciones } from '../contextos/NotificacionesContexto';
@@ -261,6 +262,34 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
           >
             <CalendarClock className="w-3.5 h-3.5" />
             <span>Gestionar inscripciones</span>
+          </button>
+        </div>
+
+        <div className="mt-3 bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center shrink-0">
+              <BarChart3 className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-neutral-900">Panel de taquilla y participación</h3>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">
+                  CU-MT-09
+                </span>
+              </div>
+              <p className="text-xs text-neutral-500 mt-1 max-w-2xl">
+                Consulta aforo, disponibilidad, reservaciones, lista de espera y participación por sesión.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate(`/organizador/eventos/${evento.id}/taquilla-participacion`)}
+            className="px-4 py-2.5 bg-sky-700 hover:bg-sky-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>Consultar panel</span>
           </button>
         </div>
       </section>

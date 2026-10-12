@@ -21,6 +21,7 @@ import {
   ConfiguracionEventoPagina,
   GestionBoletosEspecialesPagina,
   GestionInscripcionesPagina,
+  PanelTaquillaParticipacionPagina,
   EditorArreglosPagina,
   DistribucionAsientosPagina,
   PanelSubdireccionPagina,
@@ -199,6 +200,12 @@ function ContenidoApp() {
       const segmentos = rutaActual.split('/');
       const idEvento = segmentos[3];
       return <GestionInscripcionesPagina eventId={idEvento} navigate={navegarA} />;
+    }
+
+    if (rutaActual.match(/^\/organizador\/eventos\/[^/]+\/taquilla-participacion$/)) {
+      const segmentos = rutaActual.split('/');
+      const idEvento = segmentos[3];
+      return <PanelTaquillaParticipacionPagina eventId={idEvento} navigate={navegarA} />;
     }
 
     if (
