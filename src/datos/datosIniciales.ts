@@ -807,6 +807,19 @@ export const EVENTOS_INICIALES: Evento[] = [
         idArregloFinal: 'arr-simposio-d1-final',
         esFinalConfirmado: true,
         ponentes: ['Dra. Elena Rostova (MIT)', 'M. en C. Roberto Silva (ESCOM)'],
+        estadoInscripciones: 'abiertas',
+        fechaLimiteInscripciones: '2026-10-15T08:00:00-06:00',
+        versionInscripciones: 1,
+        historialInscripciones: [
+          {
+            id: 'ins-inicial-simposio-d1',
+            estado: 'abiertas',
+            fechaCambio: '2026-09-25T10:05:00-06:00',
+            idResponsable: 'usr-silva',
+            responsable: 'M. en C. Roberto Silva',
+            causa: 'apertura_manual'
+          }
+        ],
         programa: [
           {
             hora: '09:00 - 09:30',
@@ -844,6 +857,19 @@ export const EVENTOS_INICIALES: Evento[] = [
         idArregloFinal: 'arr-simposio-d2-final',
         esFinalConfirmado: true,
         ponentes: ['Dr. Carlos Mendoza (CINVESTAV)'],
+        estadoInscripciones: 'abiertas',
+        fechaLimiteInscripciones: '2026-10-16T08:00:00-06:00',
+        versionInscripciones: 1,
+        historialInscripciones: [
+          {
+            id: 'ins-inicial-simposio-d2',
+            estado: 'abiertas',
+            fechaCambio: '2026-09-25T10:05:00-06:00',
+            idResponsable: 'usr-silva',
+            responsable: 'M. en C. Roberto Silva',
+            causa: 'apertura_manual'
+          }
+        ],
         programa: [
           {
             hora: '09:00 - 10:30',
@@ -876,6 +902,19 @@ export const EVENTOS_INICIALES: Evento[] = [
         idArregloFinal: 'arr-simposio-d3-final',
         esFinalConfirmado: true,
         ponentes: ['M. en C. Roberto Silva (ESCOM)'],
+        estadoInscripciones: 'cerradas',
+        fechaLimiteInscripciones: '2026-10-17T09:00:00-06:00',
+        versionInscripciones: 1,
+        historialInscripciones: [
+          {
+            id: 'ins-inicial-simposio-d3',
+            estado: 'cerradas',
+            fechaCambio: '2026-09-25T10:05:00-06:00',
+            idResponsable: 'usr-silva',
+            responsable: 'M. en C. Roberto Silva',
+            causa: 'cierre_manual'
+          }
+        ],
         programa: [
           {
             hora: '10:00 - 11:30',

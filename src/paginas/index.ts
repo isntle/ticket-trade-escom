@@ -13,6 +13,7 @@ export { DetalleSolicitudPagina } from './DetalleSolicitudPagina';
 export { PanelOrganizadorPagina } from './PanelOrganizadorPagina';
 export { ConfiguracionEventoPagina } from './ConfiguracionEventoPagina';
 export { GestionBoletosEspecialesPagina } from './GestionBoletosEspecialesPagina';
+export { GestionInscripcionesPagina } from './GestionInscripcionesPagina';
 export { EditorArreglosPagina } from './EditorArreglosPagina';
 export { DistribucionAsientosPagina } from './DistribucionAsientosPagina';
 export { PanelSubdireccionPagina } from './PanelSubdireccionPagina';

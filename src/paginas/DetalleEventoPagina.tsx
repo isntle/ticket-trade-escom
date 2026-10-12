@@ -135,6 +135,22 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
 
   // Manejo de registro directo para eventos de Acceso Libre o Registro
   const manejarRegistroDirecto = (fecha: FechaEvento) => {
+    const fechaLimite = fecha.fechaLimiteInscripciones
+      ? new Date(fecha.fechaLimiteInscripciones).getTime()
+      : new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime() - 60 * 60 * 1000;
+    const estadoInscripciones =
+      fecha.estadoInscripciones ||
+      (evento.estado === 'publicado' || evento.estado === 'en_curso' ? 'abiertas' : 'cerradas');
+
+    if (estadoInscripciones === 'cerradas' || fechaLimite <= Date.now()) {
+      mostrarNotificacion(
+        'Inscripciones cerradas',
+        'ERR-MT-02 · Esta sesión ya no admite nuevos registros.',
+        'advertencia'
+      );
+      return;
+    }
+
     if (!usuarioActual) {
       mostrarNotificacion('Inicia Sesión', 'Debes iniciar sesión para obtener un boleto.', 'error');
       navigate('/login');
@@ -310,6 +326,16 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
           {evento.fechas.map((fecha, indice) => {
             const nombreRecinto = obtenerNombreRecinto(fecha.idRecinto);
             const etiquetaDia = fecha.nombreDia || `Día ${indice + 1}`;
+            const fechaLimite = fecha.fechaLimiteInscripciones
+              ? new Date(fecha.fechaLimiteInscripciones).getTime()
+              : new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime() - 60 * 60 * 1000;
+            const estadoInscripciones =
+              fecha.estadoInscripciones ||
+              (evento.estado === 'publicado' || evento.estado === 'en_curso'
+                ? 'abiertas'
+                : 'cerradas');
+            const inscripcionesAbiertas =
+              estadoInscripciones === 'abiertas' && fechaLimite > Date.now();
             // Expandido por defecto el primer día o si el usuario dio clic
             const expandido = diasExpandidos[fecha.id] ?? (indice === 0 || !!fecha.programa);
 
@@ -327,6 +353,15 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                       </span>
                       <span className="font-extrabold text-neutral-900 text-base sm:text-lg">
                         {fecha.fecha}
+                      </span>
+                      <span
+                        className={`px-2 py-1 rounded-md border text-[10px] font-black tracking-wide ${
+                          inscripcionesAbiertas
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                            : 'bg-neutral-100 border-neutral-300 text-neutral-700'
+                        }`}
+                      >
+                        INSCRIPCIONES {inscripcionesAbiertas ? 'ABIERTAS' : 'CERRADAS'}
                       </span>
                     </div>
 
@@ -350,7 +385,12 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
 
                   {/* Acción de Registro para este día específico */}
                   <div className="flex items-center gap-3 shrink-0">
-                    {evento.modalidadAsistencia === 'controlado' ? (
+                    {!inscripcionesAbiertas ? (
+                      <div className="px-5 py-2.5 bg-neutral-100 border border-neutral-300 text-neutral-600 rounded-xl text-xs font-bold inline-flex items-center gap-2">
+                        <Lock className="w-4 h-4" />
+                        <span>Inscripciones cerradas</span>
+                      </div>
+                    ) : evento.modalidadAsistencia === 'controlado' ? (
                       <button
                         type="button"
                         onClick={() => navigate(`/eventos/${evento.id}/reservar?dateId=${fecha.id}`)}

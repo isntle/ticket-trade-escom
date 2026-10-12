@@ -93,6 +93,18 @@ export interface SolicitudEvento {
 // Estados del ciclo de vida de un evento
 export type EstadoEvento = 'borrador' | 'configuracion' | 'publicado' | 'en_curso' | 'finalizado' | 'cancelado';
 
+// Estado operativo de la taquilla para una sesión concreta
+export type EstadoInscripciones = 'abiertas' | 'cerradas';
+
+export interface RegistroCambioInscripciones {
+  id: string;
+  estado: EstadoInscripciones;
+  fechaCambio: string;
+  idResponsable: string;
+  responsable: string;
+  causa: 'apertura_manual' | 'cierre_manual' | 'cierre_automatico';
+}
+
 // Fecha individual de un evento (No son sinónimos)
 export interface FechaEvento {
   id: string;
@@ -111,6 +123,10 @@ export interface FechaEvento {
   idArregloFinal?: string;
   esFinalConfirmado: boolean;
   ponentes: string[];
+  estadoInscripciones?: EstadoInscripciones;
+  fechaLimiteInscripciones?: string;
+  versionInscripciones?: number;
+  historialInscripciones?: RegistroCambioInscripciones[];
 }
 
 // Categorías temáticas de eventos ESCOM

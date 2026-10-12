@@ -20,6 +20,7 @@ import {
   PanelOrganizadorPagina,
   ConfiguracionEventoPagina,
   GestionBoletosEspecialesPagina,
+  GestionInscripcionesPagina,
   EditorArreglosPagina,
   DistribucionAsientosPagina,
   PanelSubdireccionPagina,
@@ -192,6 +193,12 @@ function ContenidoApp() {
       const segmentos = rutaActual.split('/');
       const idEvento = segmentos[3];
       return <GestionBoletosEspecialesPagina eventId={idEvento} navigate={navegarA} />;
+    }
+
+    if (rutaActual.match(/^\/organizador\/eventos\/[^/]+\/inscripciones$/)) {
+      const segmentos = rutaActual.split('/');
+      const idEvento = segmentos[3];
+      return <GestionInscripcionesPagina eventId={idEvento} navigate={navegarA} />;
     }
 
     if (

@@ -14,7 +14,8 @@ import {
   XCircle,
   Sparkles,
   ArrowRight,
-  Ticket
+  Ticket,
+  CalendarClock
 } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { useNotificaciones } from '../contextos/NotificacionesContexto';
@@ -232,6 +233,34 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
           >
             <Ticket className="w-3.5 h-3.5" />
             <span>Gestionar boletos</span>
+          </button>
+        </div>
+
+        <div className="mt-3 bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+              <CalendarClock className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-neutral-900">Apertura y cierre de inscripciones</h3>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">
+                  CU-MT-08
+                </span>
+              </div>
+              <p className="text-xs text-neutral-500 mt-1 max-w-2xl">
+                Abre o cierra la taquilla por sesión y consulta el historial de cambios.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate(`/organizador/eventos/${evento.id}/inscripciones`)}
+            className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
+          >
+            <CalendarClock className="w-3.5 h-3.5" />
+            <span>Gestionar inscripciones</span>
           </button>
         </div>
       </section>

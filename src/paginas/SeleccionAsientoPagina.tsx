@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, ArrowLeft, CheckCircle, AlertTriangle, ShieldCheck, Ticket } from 'lucide-react';
+import { Clock, ArrowLeft, CheckCircle, AlertTriangle, ShieldCheck, Ticket, Lock } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { useNotificaciones } from '../contextos/NotificacionesContexto';
@@ -86,6 +86,42 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
           textoAccion="Volver al detalle del evento"
           alHacerAccion={() => navigate(`/eventos/${eventId}`)}
         />
+      </div>
+    );
+  }
+
+  const fechaLimiteInscripciones = fecha.fechaLimiteInscripciones
+    ? new Date(fecha.fechaLimiteInscripciones).getTime()
+    : new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime() - 60 * 60 * 1000;
+  const estadoInscripciones =
+    fecha.estadoInscripciones ||
+    (evento.estado === 'publicado' || evento.estado === 'en_curso' ? 'abiertas' : 'cerradas');
+
+  if (estadoInscripciones === 'cerradas' || fechaLimiteInscripciones <= Date.now()) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
+        <button
+          type="button"
+          onClick={() => navigate(`/eventos/${eventId}`)}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Volver a detalles del evento
+        </button>
+        <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-xs">
+          <div className="w-12 h-12 rounded-xl bg-neutral-100 text-neutral-600 flex items-center justify-center mb-4">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h1 className="text-xl font-black text-neutral-900">Inscripciones cerradas</h1>
+          <p className="text-sm text-neutral-500 mt-1 mb-5">
+            La sesión del {fecha.fecha}, de {fecha.horaInicio} a {fecha.horaFin} hrs, ya no admite nuevas reservaciones.
+          </p>
+          <AlertaMensaje
+            tipo="advertencia"
+            titulo="ERR-MT-02 · Reservaciones no disponibles"
+            mensaje="Las reservaciones y boletos existentes continúan vigentes. Consulta otra sesión o vuelve al detalle del evento."
+          />
+        </div>
       </div>
     );
   }
