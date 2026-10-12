@@ -19,6 +19,7 @@ import {
   DetalleSolicitudPagina,
   PanelOrganizadorPagina,
   ConfiguracionEventoPagina,
+  GestionBoletosEspecialesPagina,
   EditorArreglosPagina,
   DistribucionAsientosPagina,
   PanelSubdireccionPagina,
@@ -185,6 +186,12 @@ function ContenidoApp() {
       const idEvento = segmentos[3];
       const idFecha = segmentos[5];
       return <EditorArreglosPagina eventId={idEvento} dateId={idFecha} navigate={navegarA} />;
+    }
+
+    if (rutaActual.match(/^\/organizador\/eventos\/[^/]+\/boletos-especiales$/)) {
+      const segmentos = rutaActual.split('/');
+      const idEvento = segmentos[3];
+      return <GestionBoletosEspecialesPagina eventId={idEvento} navigate={navegarA} />;
     }
 
     if (

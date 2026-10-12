@@ -251,6 +251,9 @@ export interface Reservacion {
 // Estados del boleto emitido
 export type EstadoBoleto = 'valido' | 'utilizado' | 'cancelado';
 
+// Categorías de acreditación emitidas directamente por el Organizador
+export type TipoBoletoEspecial = 'organizador' | 'staff' | 'vip';
+
 // Boleto Digital con Código QR
 export interface BoletoDigital {
   id: string;
@@ -267,6 +270,12 @@ export interface BoletoDigital {
   etiquetaAsiento?: string;
   codigoQr: string;
   estado: EstadoBoleto;
+  esEspecial?: boolean;
+  tipoEspecial?: TipoBoletoEspecial;
+  emitidoPor?: string;
+  motivoInvalidacion?: string;
+  fechaInvalidacion?: string;
+  invalidadoPor?: string;
   fechaCheckIn?: string;
   revisadoPor?: string;
   fechaEmision: string;

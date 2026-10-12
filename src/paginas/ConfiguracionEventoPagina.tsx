@@ -13,7 +13,8 @@ import {
   CheckCircle2,
   XCircle,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Ticket
 } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { useNotificaciones } from '../contextos/NotificacionesContexto';
@@ -194,6 +195,46 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
           </div>
         </div>
       )}
+
+      {/* Operaciones del Motor de Taquilla */}
+      <section className="mb-8">
+        <div className="mb-3">
+          <span className="text-[10px] font-bold text-[#7a132b] uppercase tracking-wider">
+            Subsistema 03 · Motor de Taquilla
+          </span>
+          <h2 className="text-base font-extrabold text-neutral-900 mt-0.5">
+            Operación de boletaje del evento
+          </h2>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#7a132b]/10 text-[#7a132b] flex items-center justify-center shrink-0">
+              <Ticket className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-neutral-900">Boletos especiales</h3>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">
+                  CU-MT-07
+                </span>
+              </div>
+              <p className="text-xs text-neutral-500 mt-1 max-w-2xl">
+                Genera e invalida acreditaciones QR para Comité Organizador, Staff de apoyo e invitados VIP.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate(`/organizador/eventos/${evento.id}/boletos-especiales`)}
+            className="px-4 py-2.5 bg-[#7a132b] hover:bg-[#620f23] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
+          >
+            <Ticket className="w-3.5 h-3.5" />
+            <span>Gestionar boletos</span>
+          </button>
+        </div>
+      </section>
 
       {/* ========================================================================= */}
       {/* CUERPO PRINCIPAL: JORNADAS (IZQUIERDA) + CHECKLIST DETALLADO (DERECHA)   */}

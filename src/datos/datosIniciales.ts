@@ -1307,6 +1307,9 @@ export const BOLETOS_INICIALES: BoletoDigital[] = [
     etiquetaAsiento: 'A-5 (VIP)',
     codigoQr: 'TT-ESCOM-IA26-VIP-A5-VALIDO',
     estado: 'valido',
+    esEspecial: true,
+    tipoEspecial: 'vip',
+    emitidoPor: 'Mtro. Fernando Silva Reyes',
     fechaEmision: '2026-09-26T14:21:00Z'
   },
   {

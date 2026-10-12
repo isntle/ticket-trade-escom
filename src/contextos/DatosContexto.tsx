@@ -7,6 +7,7 @@ import {
   BloqueoRecinto,
   Reservacion,
   BoletoDigital,
+  TipoBoletoEspecial,
   EntradaListaEspera,
   RegistroEscaneo,
   ResultadoDisponibilidadRecinto,
@@ -95,6 +96,22 @@ interface ContextoDatosTipo {
     idReservacion: string
   ) => { exito: boolean; boleto?: BoletoDigital; error?: string };
   cancelarReservacion: (idReservacion: string) => void;
+
+  emitirBoletosEspeciales: (datos: {
+    idEvento: string;
+    idFechaEvento: string;
+    tipo: TipoBoletoEspecial;
+    cantidad: number;
+    nombreBase: string;
+    correoDestino: string;
+    emitidoPor: string;
+  }) => { exito: boolean; boletos?: BoletoDigital[]; error?: string };
+
+  invalidarBoletoEspecial: (
+    idBoleto: string,
+    motivo: string,
+    invalidadoPor: string
+  ) => { exito: boolean; error?: string };
 
   unirseAListaDeEspera: (
     idEvento: string,
@@ -881,6 +898,114 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const emitirBoletosEspeciales = (datos: {
+    idEvento: string;
+    idFechaEvento: string;
+    tipo: TipoBoletoEspecial;
+    cantidad: number;
+    nombreBase: string;
+    correoDestino: string;
+    emitidoPor: string;
+  }): { exito: boolean; boletos?: BoletoDigital[]; error?: string } => {
+    const evento = listaEventos.find((e) => e.id === datos.idEvento);
+    const fecha = evento?.fechas.find((f) => f.id === datos.idFechaEvento);
+    const recinto = listaRecintos.find((r) => r.id === fecha?.idRecinto);
+
+    if (!evento || !fecha) {
+      return { exito: false, error: 'El evento o la sesión seleccionada no existe.' };
+    }
+
+    if (evento.estado === 'cancelado' || evento.estado === 'finalizado') {
+      return {
+        exito: false,
+        error: 'No se pueden emitir boletos para un evento cancelado o finalizado.'
+      };
+    }
+
+    if (!Number.isInteger(datos.cantidad) || datos.cantidad < 1 || datos.cantidad > 20) {
+      return { exito: false, error: 'La cantidad debe estar entre 1 y 20 boletos.' };
+    }
+
+    if (!datos.nombreBase.trim() || !datos.correoDestino.trim()) {
+      return { exito: false, error: 'Indica el nombre de referencia y el correo de destino.' };
+    }
+
+    const ahora = Date.now();
+    const prefijo = datos.tipo.toUpperCase();
+    const boletosNuevos: BoletoDigital[] = Array.from({ length: datos.cantidad }, (_, indice) => {
+      const consecutivo = indice + 1;
+      const sufijo = `${ahora.toString(36)}-${consecutivo}`;
+      const nombreUsuario =
+        datos.cantidad === 1
+          ? datos.nombreBase.trim()
+          : `${datos.nombreBase.trim()} ${consecutivo}`;
+
+      return {
+        id: `bol-esp-${sufijo}`,
+        idReservacion: `res-esp-${sufijo}`,
+        idEvento: evento.id,
+        idFechaEvento: fecha.id,
+        idUsuario: `acreditacion-${datos.tipo}-${sufijo}`,
+        nombreUsuario,
+        correoUsuario: datos.correoDestino.trim(),
+        tituloEvento: evento.titulo,
+        fechaEvento: fecha.fecha,
+        horaEvento: `${fecha.horaInicio} - ${fecha.horaFin}`,
+        nombreRecinto: recinto?.nombre || 'Recinto ESCOM',
+        etiquetaAsiento: `${prefijo}-${String(consecutivo).padStart(2, '0')}`,
+        codigoQr: `TT-ESCOM-${evento.id.toUpperCase()}-${prefijo}-${sufijo.toUpperCase()}`,
+        estado: 'valido',
+        esEspecial: true,
+        tipoEspecial: datos.tipo,
+        emitidoPor: datos.emitidoPor,
+        fechaEmision: new Date(ahora + indice).toISOString()
+      };
+    });
+
+    setListaBoletos((previos) => [...boletosNuevos, ...previos]);
+    return { exito: true, boletos: boletosNuevos };
+  };
+
+  const invalidarBoletoEspecial = (
+    idBoleto: string,
+    motivo: string,
+    invalidadoPor: string
+  ): { exito: boolean; error?: string } => {
+    const boleto = listaBoletos.find((b) => b.id === idBoleto && b.esEspecial);
+
+    if (!boleto) {
+      return { exito: false, error: 'No se encontró el boleto especial seleccionado.' };
+    }
+
+    if (boleto.estado === 'utilizado') {
+      return { exito: false, error: 'Un boleto que ya fue utilizado no puede invalidarse.' };
+    }
+
+    if (boleto.estado === 'cancelado') {
+      return { exito: false, error: 'El boleto ya se encuentra invalidado.' };
+    }
+
+    if (!motivo.trim()) {
+      return { exito: false, error: 'Es necesario registrar el motivo de invalidación.' };
+    }
+
+    setListaBoletos((previos) =>
+      previos.map((b) =>
+        b.id === idBoleto
+          ? {
+              ...b,
+              estado: 'cancelado',
+              motivoInvalidacion: motivo.trim(),
+              fechaInvalidacion: new Date().toISOString(),
+              invalidadoPor
+            }
+          : b
+      )
+    );
+
+    return { exito: true };
+  };
+
   const unirseAListaDeEspera = (
     idEvento: string,
     idFechaEvento: string,
@@ -1096,6 +1221,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         liberarApartadoAsiento,
         confirmarReservacion,
         cancelarReservacion,
+        emitirBoletosEspeciales,
+        invalidarBoletoEspecial,
         unirseAListaDeEspera,
         procesarCheckIn,
         crearBloqueoRecinto,
