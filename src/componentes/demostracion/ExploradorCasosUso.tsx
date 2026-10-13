@@ -21,6 +21,7 @@ interface PropiedadesExploradorCasosUso {
 }
 
 type IdSubequipo = 'identidad' | 'organizacion' | 'taquilla' | 'checkin';
+type EstadoCaso = 'comprobable' | 'parcial' | 'pendiente';
 
 interface CasoDeUso {
   id: string;
@@ -28,7 +29,8 @@ interface CasoDeUso {
   actor: string;
   interfaz: string;
   descripcion: string;
-  ruta: string;
+  ruta?: string;
+  estado?: EstadoCaso;
 }
 
 interface Subequipo {
@@ -40,7 +42,8 @@ interface Subequipo {
   casos: CasoDeUso[];
 }
 
-const SUBEQUIPOS: Subequipo[] = [
+/* Catálogo anterior conservado temporalmente como referencia histórica.
+const SUBEQUIPOS_ANTERIOR: Subequipo[] = [
   {
     id: 'identidad',
     nombre: 'Identidad y perfiles',
@@ -247,6 +250,96 @@ const SUBEQUIPOS: Subequipo[] = [
   }
 ];
 
+*/
+
+const SUBEQUIPOS: Subequipo[] = [
+  {
+    id: 'identidad',
+    nombre: 'Identidad y perfiles',
+    resumen: 'Los 8 casos CU-ID del documento de Sprint 3.',
+    icono: ShieldCheck,
+    color: 'text-[#7a132b] bg-[#7a132b]/10 border-[#7a132b]/20',
+    casos: [
+      { id: 'CU-ID01', nombre: 'Registrar cuenta de usuario', actor: 'Visitante', interfaz: 'UI-02 · Registro y acreditación', descripcion: 'El visitante captura sus datos, elige su afiliación y crea una cuenta sin recibir automáticamente habilitación documental.', ruta: '/registro', estado: 'parcial' },
+      { id: 'CU-ID02', nombre: 'Confirmar correo electrónico', actor: 'Titular de cuenta', interfaz: 'UI-02 · Registro y acreditación', descripcion: 'El titular valida el token de confirmación y puede solicitar un reenvío dentro de los límites establecidos.', ruta: '/registro', estado: 'pendiente' },
+      { id: 'CU-ID03', nombre: 'Iniciar y cerrar sesión', actor: 'Visitante o usuario registrado', interfaz: 'UI-01 · Inicio de sesión institucional', descripcion: 'El usuario captura sus credenciales, accede con el rol permitido y puede cerrar la sesión activa.', ruta: '/login', estado: 'parcial' },
+      { id: 'CU-ID04', nombre: 'Recuperar y cambiar contraseña', actor: 'Titular de cuenta', interfaz: 'UI-03 · Recuperación de acceso', descripcion: 'El titular solicita un código de recuperación y define una nueva contraseña cuando el token es válido.', ruta: '/recuperar-password', estado: 'parcial' },
+      { id: 'CU-ID05', nombre: 'Gestionar perfil y cambio de correo', actor: 'Usuario registrado', interfaz: 'UI-04 · Perfil de usuario', descripcion: 'El usuario consulta y edita los datos permitidos de su perfil y solicita la confirmación de un nuevo correo.', ruta: '/perfil', estado: 'parcial' },
+      { id: 'CU-ID06', nombre: 'Gestionar expediente de verificación documental', actor: 'Usuario registrado', interfaz: 'UI-04 · Perfil de usuario', descripcion: 'El usuario integra o corrige evidencias para solicitar la revisión documental que le permite obtener facultades adicionales.', ruta: '/perfil', estado: 'pendiente' },
+      { id: 'CU-ID07', nombre: 'Evaluar expediente y revocar o renovar verificación', actor: 'Subdirección', interfaz: 'UI-05 · Revisión de expedientes', descripcion: 'Subdirección revisa evidencias, registra un dictamen y puede revocar o renovar una verificación con motivo.', ruta: '/subdireccion', estado: 'pendiente' },
+      { id: 'CU-ID08', nombre: 'Gestionar restricciones y asignación de roles', actor: 'Subdirección o Administrador', interfaz: 'UI-70 · Administración técnica de usuarios', descripcion: 'El actor autorizado restringe solicitudes o administra roles, estado de cuenta y asociación de Staff a eventos.', ruta: '/admin', estado: 'comprobable' }
+    ]
+  },
+  {
+    id: 'organizacion',
+    nombre: 'Organización y recintos',
+    resumen: 'Los 27 casos CU-OR del documento de Sprint 3.',
+    icono: Building2,
+    color: 'text-indigo-700 bg-indigo-50 border-indigo-200',
+    casos: [
+      { id: 'CU-OR-01', nombre: 'Preparar borrador de solicitud', actor: 'Organizador', interfaz: 'UI-20 · Solicitud formal de evento', descripcion: 'El organizador captura los datos del evento, sesiones, horarios y recintos para preparar un borrador.', ruta: '/solicitar-evento', estado: 'comprobable' },
+      { id: 'CU-OR-02', nombre: 'Consultar historial de solicitudes propias', actor: 'Organizador', interfaz: 'UI-21 · Detalle y dictamen de solicitud', descripcion: 'El organizador consulta las solicitudes que ha creado y abre el detalle de una de ellas.', ruta: '/organizador', estado: 'parcial' },
+      { id: 'CU-OR-03', nombre: 'Revisar y resolver solicitud ordinaria', actor: 'Subdirección', interfaz: 'UI-50 · Bandeja de dictamen de Subdirección', descripcion: 'Subdirección revisa una solicitud ordinaria y registra el dictamen correspondiente.', ruta: '/subdireccion', estado: 'comprobable' },
+      { id: 'CU-OR-04', nombre: 'Consultar catálogo y detalle de recintos', actor: 'Organizador', interfaz: 'UI-20 · Selector y disponibilidad de recintos', descripcion: 'El organizador consulta los recintos disponibles, sus características y la ocupación para elegir uno compatible.', ruta: '/solicitar-evento', estado: 'parcial' },
+      { id: 'CU-OR-05', nombre: 'Configurar arreglo de asientos', actor: 'Organizador', interfaz: 'UI-35 · Editor de distribución de lugares', descripcion: 'El organizador configura el arreglo de lugares asociado a una fecha y recinto.', ruta: '/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos', estado: 'comprobable' },
+      { id: 'CU-OR-06.1', nombre: 'Enviar solicitud ordinaria', actor: 'Organizador', interfaz: 'UI-20 · Solicitud formal de evento', descripcion: 'El organizador valida el borrador y envía una solicitud ordinaria para revisión institucional.', ruta: '/solicitar-evento', estado: 'parcial' },
+      { id: 'CU-OR-06.2', nombre: 'Enviar solicitud extraordinaria', actor: 'Organizador', interfaz: 'UI-20 · Solicitud formal de evento', descripcion: 'El organizador envía una solicitud extraordinaria con la justificación obligatoria cuando no cumple la anticipación requerida.', ruta: '/solicitar-evento', estado: 'parcial' },
+      { id: 'CU-OR-07', nombre: 'Editar solicitud en revisión', actor: 'Organizador', interfaz: 'UI-21 · Detalle y dictamen de solicitud', descripcion: 'El organizador consulta una solicitud en revisión y edita los datos que todavía pueden modificarse.', ruta: '/organizador/solicitudes/sol-simposio-ia', estado: 'parcial' },
+      { id: 'CU-OR-08', nombre: 'Corregir solicitud devuelta', actor: 'Organizador', interfaz: 'UI-21 · Detalle y dictamen de solicitud', descripcion: 'El organizador revisa las observaciones de devolución y corrige la solicitud antes de reenviarla.', ruta: '/organizador/solicitudes/sol-simposio-ia', estado: 'pendiente' },
+      { id: 'CU-OR-09', nombre: 'Cancelar solicitud pendiente', actor: 'Organizador', interfaz: 'UI-21 · Detalle y dictamen de solicitud', descripcion: 'El organizador solicita la cancelación de una solicitud que todavía no ha sido resuelta.', ruta: '/organizador/solicitudes/sol-simposio-ia', estado: 'pendiente' },
+      { id: 'CU-OR-10', nombre: 'Atender solicitud extraordinaria', actor: 'Subdirección', interfaz: 'UI-50 · Bandeja de dictamen de Subdirección', descripcion: 'Subdirección revisa una solicitud extraordinaria y registra la decisión institucional con su justificación.', ruta: '/subdireccion', estado: 'parcial' },
+      { id: 'CU-OR-11', nombre: 'Crear evento propio con autoaprobación', actor: 'Organizador verificado', interfaz: 'UI-30 · Panel de organización', descripcion: 'El organizador verificado crea un evento propio cuando las reglas de autoaprobación lo permiten.', ruta: '/organizador', estado: 'pendiente' },
+      { id: 'CU-OR-12', nombre: 'Aplicar excepción de anticipación', actor: 'Subdirección', interfaz: 'UI-53 · Creación directa de evento oficial', descripcion: 'Subdirección registra una excepción motivada a la regla de anticipación de una solicitud.', ruta: '/subdireccion?tab=evento_directo', estado: 'pendiente' },
+      { id: 'CU-OR-15', nombre: 'Configurar arreglo del recinto', actor: 'Organizador', interfaz: 'UI-35 · Editor de distribución de lugares', descripcion: 'El organizador modifica la distribución de lugares del recinto para una fecha concreta.', ruta: '/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos', estado: 'comprobable' },
+      { id: 'CU-OR-16', nombre: 'Gestionar versiones de arreglos', actor: 'Organizador', interfaz: 'UI-35 · Editor de distribución de lugares', descripcion: 'El organizador consulta y administra las versiones guardadas de un arreglo.', ruta: '/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos', estado: 'parcial' },
+      { id: 'CU-OR-17', nombre: 'Establecer versión final del arreglo', actor: 'Organizador', interfaz: 'UI-35 · Editor de distribución de lugares', descripcion: 'El organizador valida y confirma una versión final de lugares para habilitar el acceso controlado.', ruta: '/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos', estado: 'comprobable' },
+      { id: 'CU-OR-18', nombre: 'Consultar constancia operativa', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador consulta la constancia y el estado operativo de un evento aprobado.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'parcial' },
+      { id: 'CU-OR-19', nombre: 'Modificar información de un evento aprobado', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador modifica la información permitida de un evento aprobado respetando sus restricciones.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'parcial' },
+      { id: 'CU-OR-20', nombre: 'Reprogramar fecha u horario de un evento', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador propone un cambio de fecha u horario y el sistema valida sus restricciones.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
+      { id: 'CU-OR-21', nombre: 'Cambiar recinto de una fecha aprobada', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador propone otro recinto para una fecha aprobada y el sistema verifica disponibilidad y compatibilidad.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
+      { id: 'CU-OR-22', nombre: 'Retirar una fecha o sesión sin compromisos', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador retira una fecha o sesión cuando no existen reservaciones o compromisos que lo impidan.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
+      { id: 'CU-OR-23', nombre: 'Cancelar evento aprobado', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador inicia la cancelación de un evento aprobado y el sistema aplica las reglas de afectación.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
+      { id: 'CU-OR-24', nombre: 'Cancelar una fecha o sesión de un evento', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador cancela una sola fecha o sesión y el sistema conserva las demás cuando corresponde.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
+      { id: 'CU-OR-25', nombre: 'Resolver fecha suspendida por bloqueo institucional', actor: 'Organizador o Subdirección', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El actor autorizado revisa una fecha suspendida y registra una resolución compatible con el bloqueo institucional.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
+      { id: 'CU-OR-26', nombre: 'Administrar catálogo de recintos', actor: 'Administrador o Subdirección', interfaz: 'UI-20 · Catálogo y disponibilidad de recintos', descripcion: 'El actor autorizado administra los datos, capacidad y estado operativo de los recintos.', ruta: '/solicitar-evento', estado: 'pendiente' },
+      { id: 'CU-OR-27', nombre: 'Gestionar ocupaciones internas', actor: 'Subdirección', interfaz: 'UI-51 · Agenda multi-recinto de ocupación', descripcion: 'Subdirección registra y consulta ocupaciones internas que afectan la disponibilidad de los recintos.', ruta: '/subdireccion?tab=agenda', estado: 'parcial' },
+      { id: 'CU-OR-28', nombre: 'Gestionar bloqueos institucionales', actor: 'Subdirección', interfaz: 'UI-52 · Gestión de bloqueos extraordinarios', descripcion: 'Subdirección crea, consulta y mantiene bloqueos institucionales de recintos.', ruta: '/subdireccion?tab=bloqueos', estado: 'comprobable' }
+    ]
+  },
+  {
+    id: 'taquilla',
+    nombre: 'Motor de taquilla',
+    resumen: 'Los 9 casos CU-MT del documento de Sprint 3.',
+    icono: Ticket,
+    color: 'text-amber-800 bg-amber-50 border-amber-200',
+    casos: [
+      { id: 'CU-MT-01', nombre: 'Explorar cartelera y consultar detalle de evento', actor: 'Asistente o visitante', interfaz: 'UI-10 y UI-11 · Cartelera y ficha técnica', descripcion: 'El asistente explora la cartelera, filtra eventos y consulta el detalle con fechas, horarios, recintos y programa.', ruta: '/eventos', estado: 'comprobable' },
+      { id: 'CU-MT-02', nombre: 'Registrar intención de asistencia', actor: 'Asistente', interfaz: 'UI-11 · Ficha técnica del evento', descripcion: 'El asistente expresa su intención de asistir a una sesión antes de reservar un lugar, cuando el evento lo permite.', ruta: '/eventos/evt-simposio-ia', estado: 'pendiente' },
+      { id: 'CU-MT-03', nombre: 'Reservar lugar en sesión', actor: 'Asistente', interfaz: 'UI-40 · Taquilla y selección de lugar', descripcion: 'El asistente selecciona un lugar, obtiene un apartado temporal y confirma la reservación de la sesión.', ruta: '/eventos/evt-simposio-ia/reservar?dateId=fec-simposio-d1', estado: 'comprobable' },
+      { id: 'CU-MT-04', nombre: 'Participar en lista de espera', actor: 'Asistente', interfaz: 'UI-11 · Ficha técnica del evento', descripcion: 'El asistente se incorpora a la lista de espera cuando una sesión no tiene cupo y consulta su posición.', ruta: '/eventos/evt-simposio-ia', estado: 'pendiente' },
+      { id: 'CU-MT-05', nombre: 'Consultar mis boletos e historial', actor: 'Asistente', interfaz: 'UI-41 · Mis boletos digitales', descripcion: 'El asistente consulta sus boletos vigentes, cancelados y el código QR de cada reservación.', ruta: '/mis-reservaciones', estado: 'comprobable' },
+      { id: 'CU-MT-06', nombre: 'Cancelar reservación activa', actor: 'Asistente', interfaz: 'UI-41 · Mis boletos digitales', descripcion: 'El asistente cancela una reservación propia y libera el lugar para la disponibilidad o lista de espera.', ruta: '/mis-reservaciones', estado: 'comprobable' },
+      { id: 'CU-MT-07', nombre: 'Gestionar boletos especiales', actor: 'Organizador, Staff o VIP', interfaz: 'UI-30 · Panel de organización', descripcion: 'El personal autorizado administra boletos especiales para organizadores, Staff o invitados VIP.', ruta: '/organizador', estado: 'pendiente' },
+      { id: 'CU-MT-08', nombre: 'Gestionar apertura y cierre de inscripciones', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador configura las condiciones y el periodo de apertura o cierre de inscripciones.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'parcial' },
+      { id: 'CU-MT-09', nombre: 'Consultar panel de taquilla y participación', actor: 'Organizador', interfaz: 'UI-30 · Panel de organización', descripcion: 'El organizador consulta indicadores de reservaciones, participación y lista de espera de sus eventos.', ruta: '/organizador', estado: 'pendiente' }
+    ]
+  },
+  {
+    id: 'checkin',
+    nombre: 'Check-in',
+    resumen: 'Los 5 casos CUCI del documento de Sprint 3.',
+    icono: ScanLine,
+    color: 'text-emerald-800 bg-emerald-50 border-emerald-200',
+    casos: [
+      { id: 'CUCI1', nombre: 'Seleccionar sesión para control de acceso', actor: 'Staff u Organizador', interfaz: 'UI-60 · Escáner de acceso', descripcion: 'El operador selecciona el evento y la sesión que quedarán asociadas al lector de acceso.', ruta: '/staff', estado: 'comprobable' },
+      { id: 'CUCI2', nombre: 'Registrar entrada mediante código QR', actor: 'Staff u Organizador', interfaz: 'UI-60 · Escáner de acceso', descripcion: 'El operador valida el QR, comprueba que el boleto sea vigente y registra la entrada una sola vez.', ruta: '/staff', estado: 'parcial' },
+      { id: 'CUCI2.1', nombre: 'Registrar entrada mediante identificador manual', actor: 'Staff u Organizador', interfaz: 'UI-60 · Escáner de acceso', descripcion: 'El operador captura manualmente el identificador impreso cuando la lectura de cámara no está disponible.', ruta: '/staff', estado: 'comprobable' },
+      { id: 'CUCI3', nombre: 'Consultar historial de accesos', actor: 'Organizador, Subdirección o Administrador', interfaz: 'UI-61 · Monitor de ocupabilidad', descripcion: 'El actor autorizado consulta el historial de entradas registradas para auditar la asistencia del evento.', ruta: '/staff/ocupacion?eventId=evt-simposio-ia&dateId=fec-simposio-d1', estado: 'pendiente' },
+      { id: 'CUCI4', nombre: 'Presentar boleto en el acceso', actor: 'Asistente', interfaz: 'UI-41 · Mis boletos digitales', descripcion: 'El asistente consulta y presenta el QR o identificador de su boleto; el registro lo realiza el operador.', ruta: '/mis-reservaciones', estado: 'comprobable' }
+    ]
+  }
+];
+
 const ESCENARIOS = [
   { id: 'A', titulo: 'Registro y acreditación', descripcion: 'Formulario con validaciones para alumnos, profesores, administrativos y externos.', ruta: '/perfil', usuario: 'usr-carlos', rol: 'asistente' as const },
   { id: 'B', titulo: 'Solicitud excepcional', descripcion: 'Solicitud con una fecha menor a siete días y justificación para Subdirección.', ruta: '/solicitar-evento', usuario: 'usr-silva', rol: 'organizador' as const },
@@ -261,7 +354,7 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ na
   const [estaAbierto, setEstaAbierto] = useState(false);
   const [vista, setVista] = useState<'casos' | 'escenarios'>('casos');
   const [subequipoActivo, setSubequipoActivo] = useState<IdSubequipo>('identidad');
-  const [casoActivo, setCasoActivo] = useState<string | null>('CU-AUT-01');
+  const [casoActivo, setCasoActivo] = useState<string | null>('CU-ID01');
   const [escenarioActivo, setEscenarioActivo] = useState<string | null>(null);
   const { cambiarUsuario, cambiarRolActivo } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
@@ -281,7 +374,9 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ na
 
   const abrirPantalla = (caso: CasoDeUso) => {
     setCasoActivo(caso.id);
-    navegarA(caso.ruta);
+    if (caso.ruta) {
+      navegarA(caso.ruta);
+    }
   };
 
   const ejecutarEscenario = (escenario: (typeof ESCENARIOS)[number]) => {
@@ -387,6 +482,16 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ na
                 <div className="space-y-2">
                   {equipo.casos.map((caso) => {
                     const activo = caso.id === casoSeleccionado.id;
+                    const etiquetaEstado = caso.estado === 'comprobable'
+                      ? 'Comprobable'
+                      : caso.estado === 'parcial'
+                      ? 'Parcial'
+                      : 'Pendiente';
+                    const colorEstado = caso.estado === 'comprobable'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : caso.estado === 'parcial'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-neutral-100 text-neutral-500 border-neutral-200';
                     return (
                       <div key={caso.id} className={`rounded-xl border transition ${activo ? 'border-[#7a132b]/35 bg-[#7a132b]/[0.035]' : 'border-neutral-200 bg-white'}`}>
                         <button
@@ -399,7 +504,12 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ na
                               <span className="font-mono text-[10px] font-bold text-[#7a132b]">{caso.id}</span>
                               <span className="text-xs font-bold text-neutral-900">{caso.nombre}</span>
                             </span>
-                            <span className="block text-[11px] leading-4 text-neutral-500">{caso.interfaz}</span>
+                            <span className="flex flex-wrap items-center gap-1.5 text-[11px] leading-4 text-neutral-500">
+                              <span>{caso.interfaz}</span>
+                              <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${colorEstado}`}>
+                                {etiquetaEstado}
+                              </span>
+                            </span>
                           </span>
                           {activo ? <ChevronUp className="mt-0.5 h-4 w-4 shrink-0 text-[#7a132b]" /> : <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-neutral-400" />}
                         </button>
@@ -410,13 +520,17 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ na
                               <div className="rounded-lg bg-white px-2.5 py-2"><span className="block font-bold text-neutral-400">Pantalla relacionada</span><span className="text-neutral-700">{caso.interfaz}</span></div>
                             </div>
                             <p className="mt-2 text-xs leading-5 text-neutral-600">{caso.descripcion}</p>
-                            <button
-                              type="button"
-                              onClick={() => abrirPantalla(caso)}
-                              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-[#7a132b] px-3 py-2 text-[11px] font-bold text-white transition hover:bg-[#620f23] focus:outline-none focus:ring-4 focus:ring-[#7a132b]/15"
-                            >
-                              <ExternalLink className="h-3.5 w-3.5" /> Ver pantalla relacionada
-                            </button>
+                            {caso.ruta ? (
+                              <button
+                                type="button"
+                                onClick={() => abrirPantalla(caso)}
+                                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-[#7a132b] px-3 py-2 text-[11px] font-bold text-white transition hover:bg-[#620f23] focus:outline-none focus:ring-4 focus:ring-[#7a132b]/15"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" /> Ver pantalla relacionada
+                              </button>
+                            ) : (
+                              <p className="mt-3 text-[11px] font-semibold text-neutral-500">No hay una pantalla implementada para este caso.</p>
+                            )}
                           </div>
                         )}
                       </div>
