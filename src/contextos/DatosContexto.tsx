@@ -7,6 +7,8 @@ import {
   BloqueoRecinto,
   Reservacion,
   BoletoDigital,
+  TipoBoletoEspecial,
+  EstadoInscripciones,
   EntradaListaEspera,
   RegistroIntencionAsistencia,
   RegistroEscaneo,
@@ -107,13 +109,38 @@ interface ContextoDatosTipo {
   ) => { exito: boolean; registro?: RegistroIntencionAsistencia; error?: string };
   cancelarIntencionAsistencia: (idRegistro: string) => void;
 
+  emitirBoletosEspeciales: (datos: {
+    idEvento: string;
+    idFechaEvento: string;
+    tipo: TipoBoletoEspecial;
+    cantidad: number;
+    nombreBase: string;
+    correoDestino: string;
+    emitidoPor: string;
+  }) => { exito: boolean; boletos?: BoletoDigital[]; error?: string };
+
+  invalidarBoletoEspecial: (
+    idBoleto: string,
+    motivo: string,
+    invalidadoPor: string
+  ) => { exito: boolean; error?: string };
+
+  cambiarEstadoInscripciones: (datos: {
+    idEvento: string;
+    idsFechaEvento: string[];
+    nuevoEstado: EstadoInscripciones;
+    idOrganizador: string;
+    nombreOrganizador: string;
+    versionesEsperadas?: Record<string, number>;
+  }) => { exito: boolean; sesionesActualizadas?: number; error?: string };
+
   unirseAListaDeEspera: (
     idEvento: string,
     idFechaEvento: string,
     idUsuario: string,
     nombreUsuario: string,
     correoUsuario: string
-  ) => EntradaListaEspera;
+  ) => { exito: boolean; entrada?: EntradaListaEspera; error?: string };
 
   procesarCheckIn: (
     codigoQr: string,
@@ -134,6 +161,42 @@ interface ContextoDatosTipo {
 
 const ContextoDatos = createContext<ContextoDatosTipo | undefined>(undefined);
 const CLAVE_ALMACEN_DATOS = 'tt_datos_almacen_escom_v7';
+
+const obtenerFechaLimiteInscripciones = (fecha: Evento['fechas'][0]): number => {
+  if (fecha.fechaLimiteInscripciones) {
+    return new Date(fecha.fechaLimiteInscripciones).getTime();
+  }
+  return new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime() - 60 * 60 * 1000;
+};
+
+const obtenerEstadoInscripciones = (
+  fecha: Evento['fechas'][0],
+  estadoEvento: Evento['estado']
+): EstadoInscripciones =>
+  fecha.estadoInscripciones ||
+  (estadoEvento === 'publicado' || estadoEvento === 'en_curso' ? 'abiertas' : 'cerradas');
+
+const bloqueoAfectaSesion = (
+  bloqueo: BloqueoRecinto,
+  fecha: Evento['fechas'][0]
+): boolean => {
+  const aplicaRecinto =
+    bloqueo.idRecinto === fecha.idRecinto ||
+    bloqueo.idRecinto === 'todos' ||
+    Boolean(bloqueo.idsRecintos?.includes(fecha.idRecinto));
+
+  if (!aplicaRecinto || fecha.fecha < bloqueo.fechaInicio) return false;
+  if (bloqueo.esIndefinido) return true;
+
+  const fechaFin = bloqueo.fechaFin || bloqueo.fechaInicio;
+  const horaInicio = bloqueo.horaInicio || '00:00';
+  const horaFin = bloqueo.horaFin || '23:59';
+  return (
+    fecha.fecha <= fechaFin &&
+    fecha.horaInicio < horaFin &&
+    fecha.horaFin > horaInicio
+  );
+};
 
 export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [listaEventos, setListaEventos] = useState<Evento[]>(() => {
@@ -244,6 +307,73 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     }, 15000);
     return () => clearInterval(intervalo);
   }, []);
+
+  // Cierre automático al alcanzar la fecha límite configurada para cada sesión.
+  useEffect(() => {
+    const cerrarSesionesVencidas = () => {
+      const ahora = Date.now();
+      const idsVencidas = listaEventos.flatMap((evento) =>
+        evento.fechas
+          .filter(
+            (fecha) =>
+              obtenerEstadoInscripciones(fecha, evento.estado) === 'abiertas' &&
+              obtenerFechaLimiteInscripciones(fecha) <= ahora
+          )
+          .map((fecha) => fecha.id)
+      );
+
+      if (idsVencidas.length === 0) return;
+      const conjuntoVencidas = new Set(idsVencidas);
+      const fechaCambio = new Date(ahora).toISOString();
+
+      setListaEventos((previos) =>
+        previos.map((evento) => ({
+          ...evento,
+          fechas: evento.fechas.map((fecha) => {
+            if (!conjuntoVencidas.has(fecha.id)) return fecha;
+            return {
+              ...fecha,
+              estadoInscripciones: 'cerradas',
+              versionInscripciones: (fecha.versionInscripciones || 0) + 1,
+              historialInscripciones: [
+                ...(fecha.historialInscripciones || []),
+                {
+                  id: `ins-auto-${fecha.id}-${ahora}`,
+                  estado: 'cerradas',
+                  fechaCambio,
+                  idResponsable: 'sistema',
+                  responsable: 'Sistema Ticket Trade',
+                  causa: 'cierre_automatico'
+                }
+              ]
+            };
+          })
+        }))
+      );
+
+      setListaReservaciones((previas) =>
+        previas.map((reservacion) =>
+          conjuntoVencidas.has(reservacion.idFechaEvento) &&
+          reservacion.estado === 'apartado_temporal'
+            ? { ...reservacion, estado: 'cancelada' }
+            : reservacion
+        )
+      );
+
+      setListaEspera((previas) =>
+        previas.map((entrada) =>
+          conjuntoVencidas.has(entrada.idFechaEvento) &&
+          (entrada.estado === 'esperando' || entrada.estado === 'notificado')
+            ? { ...entrada, estado: 'cancelado' }
+            : entrada
+        )
+      );
+    };
+
+    cerrarSesionesVencidas();
+    const intervalo = setInterval(cerrarSesionesVencidas, 60000);
+    return () => clearInterval(intervalo);
+  }, [listaEventos]);
 
   // Validación de disponibilidad física y logística de recinto (Colchón de ±30 minutos + Clases en laboratorios + Bloqueos)
   const verificarDisponibilidadRecinto = (
@@ -764,6 +894,22 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     correoUsuario: string
   ): { exito: boolean; reservacion?: Reservacion; error?: string } => {
     const ahora = Date.now();
+    const eventoTaquilla = listaEventos.find((evento) => evento.id === idEvento);
+    const fechaTaquilla = eventoTaquilla?.fechas.find((fecha) => fecha.id === idFechaEvento);
+
+    if (!eventoTaquilla || !fechaTaquilla) {
+      return { exito: false, error: 'La sesión seleccionada ya no se encuentra disponible.' };
+    }
+
+    if (
+      obtenerEstadoInscripciones(fechaTaquilla, eventoTaquilla.estado) === 'cerradas' ||
+      obtenerFechaLimiteInscripciones(fechaTaquilla) <= ahora
+    ) {
+      return {
+        exito: false,
+        error: 'ERR-MT-02 · Las inscripciones de esta sesión están CERRADAS.'
+      };
+    }
 
     // Validar si el asiento ya se encuentra tomado o apartado
     const colision = listaReservaciones.find(
@@ -826,6 +972,13 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       return { exito: false, error: 'Reservación no encontrada.' };
     }
 
+    if (res.estado !== 'apartado_temporal') {
+      return {
+        exito: false,
+        error: 'El apartado ya no se encuentra activo. Verifica el estado de las inscripciones.'
+      };
+    }
+
     if (
       res.estado === 'apartado_temporal' &&
       res.tiempoExpiracionApartado &&
@@ -840,6 +993,20 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const evento = listaEventos.find((e) => e.id === res.idEvento);
     const fecha = evento?.fechas.find((f) => f.id === res.idFechaEvento);
     const recinto = listaRecintos.find((v) => v.id === fecha?.idRecinto);
+
+    if (!evento || !fecha) {
+      return { exito: false, error: 'La sesión asociada con el apartado ya no existe.' };
+    }
+
+    if (
+      obtenerEstadoInscripciones(fecha, evento.estado) === 'cerradas' ||
+      obtenerFechaLimiteInscripciones(fecha) <= Date.now()
+    ) {
+      return {
+        exito: false,
+        error: 'ERR-MT-02 · Las inscripciones se cerraron antes de confirmar el apartado.'
+      };
+    }
 
     const idBoleto = `bol-${Date.now().toString(36)}`;
     const codigoQr = `TT-ESCOM-${evento?.id.toUpperCase()}-${res.etiquetaAsiento || 'GEN'}-${Date.now().toString(36).toUpperCase()}`;
@@ -893,15 +1060,303 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       );
     }
 
-    // Si había lista de espera para esta fecha, notificar al primer lugar
-    const siguienteEnFila = listaEspera.find(
-      (w) => w.idFechaEvento === res.idFechaEvento && w.estado === 'esperando'
+    // Solo generar una nueva oferta si la taquilla continúa abierta.
+    const evento = listaEventos.find((elemento) => elemento.id === res.idEvento);
+    const fecha = evento?.fechas.find((elemento) => elemento.id === res.idFechaEvento);
+    const inscripcionesAbiertas =
+      evento &&
+      fecha &&
+      obtenerEstadoInscripciones(fecha, evento.estado) === 'abiertas' &&
+      obtenerFechaLimiteInscripciones(fecha) > Date.now();
+
+    if (inscripcionesAbiertas) {
+      const siguienteEnFila = listaEspera.find(
+        (w) => w.idFechaEvento === res.idFechaEvento && w.estado === 'esperando'
+      );
+      if (siguienteEnFila) {
+        setListaEspera((previas) =>
+          previas.map((w) => (w.id === siguienteEnFila.id ? { ...w, estado: 'notificado' } : w))
+        );
+      }
+    }
+  };
+
+  const emitirBoletosEspeciales = (datos: {
+    idEvento: string;
+    idFechaEvento: string;
+    tipo: TipoBoletoEspecial;
+    cantidad: number;
+    nombreBase: string;
+    correoDestino: string;
+    emitidoPor: string;
+  }): { exito: boolean; boletos?: BoletoDigital[]; error?: string } => {
+    const evento = listaEventos.find((e) => e.id === datos.idEvento);
+    const fecha = evento?.fechas.find((f) => f.id === datos.idFechaEvento);
+    const recinto = listaRecintos.find((r) => r.id === fecha?.idRecinto);
+
+    if (!evento || !fecha) {
+      return { exito: false, error: 'El evento o la sesión seleccionada no existe.' };
+    }
+
+    if (evento.estado === 'cancelado' || evento.estado === 'finalizado') {
+      return {
+        exito: false,
+        error: 'No se pueden emitir boletos para un evento cancelado o finalizado.'
+      };
+    }
+
+    if (
+      obtenerEstadoInscripciones(fecha, evento.estado) === 'cerradas' ||
+      obtenerFechaLimiteInscripciones(fecha) <= Date.now()
+    ) {
+      return {
+        exito: false,
+        error: 'ERR-MT-02 · Las inscripciones están CERRADAS para esta sesión.'
+      };
+    }
+
+    const bloqueo = listaBloqueos.find((elemento) => bloqueoAfectaSesion(elemento, fecha));
+    if (bloqueo) {
+      return {
+        exito: false,
+        error: `ERR-TR-10 · SUSPENDIDO: ${bloqueo.titulo}.`
+      };
+    }
+
+    if (!Number.isInteger(datos.cantidad) || datos.cantidad < 1 || datos.cantidad > 20) {
+      return { exito: false, error: 'La cantidad debe estar entre 1 y 20 boletos.' };
+    }
+
+    if (!datos.nombreBase.trim() || !datos.correoDestino.trim()) {
+      return { exito: false, error: 'Indica el nombre de referencia y el correo de destino.' };
+    }
+
+    const ahora = Date.now();
+    const prefijo = datos.tipo.toUpperCase();
+    const boletosNuevos: BoletoDigital[] = Array.from({ length: datos.cantidad }, (_, indice) => {
+      const consecutivo = indice + 1;
+      const sufijo = `${ahora.toString(36)}-${consecutivo}`;
+      const nombreUsuario =
+        datos.cantidad === 1
+          ? datos.nombreBase.trim()
+          : `${datos.nombreBase.trim()} ${consecutivo}`;
+
+      return {
+        id: `bol-esp-${sufijo}`,
+        idReservacion: `res-esp-${sufijo}`,
+        idEvento: evento.id,
+        idFechaEvento: fecha.id,
+        idUsuario: `acreditacion-${datos.tipo}-${sufijo}`,
+        nombreUsuario,
+        correoUsuario: datos.correoDestino.trim(),
+        tituloEvento: evento.titulo,
+        fechaEvento: fecha.fecha,
+        horaEvento: `${fecha.horaInicio} - ${fecha.horaFin}`,
+        nombreRecinto: recinto?.nombre || 'Recinto ESCOM',
+        etiquetaAsiento: `${prefijo}-${String(consecutivo).padStart(2, '0')}`,
+        codigoQr: `TT-ESCOM-${evento.id.toUpperCase()}-${prefijo}-${sufijo.toUpperCase()}`,
+        estado: 'valido',
+        esEspecial: true,
+        tipoEspecial: datos.tipo,
+        emitidoPor: datos.emitidoPor,
+        fechaEmision: new Date(ahora + indice).toISOString()
+      };
+    });
+
+    setListaBoletos((previos) => [...boletosNuevos, ...previos]);
+    return { exito: true, boletos: boletosNuevos };
+  };
+
+  const invalidarBoletoEspecial = (
+    idBoleto: string,
+    motivo: string,
+    invalidadoPor: string
+  ): { exito: boolean; error?: string } => {
+    const boleto = listaBoletos.find((b) => b.id === idBoleto && b.esEspecial);
+
+    if (!boleto) {
+      return { exito: false, error: 'No se encontró el boleto especial seleccionado.' };
+    }
+
+    if (boleto.estado === 'utilizado') {
+      return { exito: false, error: 'Un boleto que ya fue utilizado no puede invalidarse.' };
+    }
+
+    if (boleto.estado === 'cancelado') {
+      return { exito: false, error: 'El boleto ya se encuentra invalidado.' };
+    }
+
+    if (!motivo.trim()) {
+      return { exito: false, error: 'Es necesario registrar el motivo de invalidación.' };
+    }
+
+    setListaBoletos((previos) =>
+      previos.map((b) =>
+        b.id === idBoleto
+          ? {
+              ...b,
+              estado: 'cancelado',
+              motivoInvalidacion: motivo.trim(),
+              fechaInvalidacion: new Date().toISOString(),
+              invalidadoPor
+            }
+          : b
+      )
     );
-    if (siguienteEnFila) {
+
+    return { exito: true };
+  };
+
+  const cambiarEstadoInscripciones = (datos: {
+    idEvento: string;
+    idsFechaEvento: string[];
+    nuevoEstado: EstadoInscripciones;
+    idOrganizador: string;
+    nombreOrganizador: string;
+    versionesEsperadas?: Record<string, number>;
+  }): { exito: boolean; sesionesActualizadas?: number; error?: string } => {
+    const evento = listaEventos.find((elemento) => elemento.id === datos.idEvento);
+    const idsUnicas = [...new Set(datos.idsFechaEvento)];
+
+    if (!evento) {
+      return { exito: false, error: 'ERR-TR-03 · El evento seleccionado no existe.' };
+    }
+
+    if (evento.idOrganizador !== datos.idOrganizador) {
+      return {
+        exito: false,
+        error: 'ERR-TR-02 · No estás autorizado para administrar las inscripciones de este evento.'
+      };
+    }
+
+    if (idsUnicas.length === 0) {
+      return { exito: false, error: 'Selecciona al menos una sesión para continuar.' };
+    }
+
+    if (evento.estado === 'cancelado' || evento.estado === 'finalizado') {
+      return {
+        exito: false,
+        error: `ERR-TR-10 · El evento se encuentra ${evento.estado.toUpperCase()}.`
+      };
+    }
+
+    if (datos.nuevoEstado === 'abiertas' && evento.estado !== 'publicado') {
+      return {
+        exito: false,
+        error: 'ERR-TR-10 · El evento debe estar PUBLICADO antes de abrir inscripciones.'
+      };
+    }
+
+    const ahora = Date.now();
+    const sesiones = idsUnicas.map((idFecha) =>
+      evento.fechas.find((fecha) => fecha.id === idFecha)
+    );
+
+    if (sesiones.some((fecha) => !fecha)) {
+      return { exito: false, error: 'ERR-TR-03 · Una de las sesiones ya no existe.' };
+    }
+
+    for (const fecha of sesiones) {
+      if (!fecha) continue;
+      const estadoActual = obtenerEstadoInscripciones(fecha, evento.estado);
+      const versionActual = fecha.versionInscripciones || 0;
+      const versionEsperada = datos.versionesEsperadas?.[fecha.id];
+
+      if (versionEsperada !== undefined && versionEsperada !== versionActual) {
+        return {
+          exito: false,
+          error: 'ERR-TR-08 · El estado fue modificado mientras realizabas la operación. Recarga y vuelve a intentarlo.'
+        };
+      }
+
+      if (estadoActual === datos.nuevoEstado) {
+        return {
+          exito: false,
+          error: `ERR-TR-10 · Las inscripciones de ${fecha.nombreDia || fecha.fecha} ya están ${estadoActual.toUpperCase()}.`
+        };
+      }
+
+      if (datos.nuevoEstado === 'abiertas') {
+        const bloqueo = listaBloqueos.find((elemento) => bloqueoAfectaSesion(elemento, fecha));
+        if (bloqueo) {
+          return {
+            exito: false,
+            error: `ERR-TR-10 · SUSPENDIDO: ${bloqueo.titulo}. No es posible abrir inscripciones.`
+          };
+        }
+
+        const finSesion = new Date(`${fecha.fecha}T${fecha.horaFin}:00`).getTime();
+        if (finSesion <= ahora) {
+          return {
+            exito: false,
+            error: `ERR-TR-10 · La sesión ${fecha.nombreDia || fecha.fecha} ya está FINALIZADA.`
+          };
+        }
+
+        if (obtenerFechaLimiteInscripciones(fecha) <= ahora) {
+          return {
+            exito: false,
+            error: `ERR-TR-10 · La fecha límite de ${fecha.nombreDia || fecha.fecha} ya fue alcanzada.`
+          };
+        }
+      }
+    }
+
+    const conjuntoIds = new Set(idsUnicas);
+    const fechaCambio = new Date(ahora).toISOString();
+    const causa = datos.nuevoEstado === 'abiertas' ? 'apertura_manual' : 'cierre_manual';
+
+    setListaEventos((previos) =>
+      previos.map((elemento) =>
+        elemento.id !== evento.id
+          ? elemento
+          : {
+              ...elemento,
+              fechas: elemento.fechas.map((fecha) =>
+                !conjuntoIds.has(fecha.id)
+                  ? fecha
+                  : {
+                      ...fecha,
+                      estadoInscripciones: datos.nuevoEstado,
+                      versionInscripciones: (fecha.versionInscripciones || 0) + 1,
+                      historialInscripciones: [
+                        ...(fecha.historialInscripciones || []),
+                        {
+                          id: `ins-${fecha.id}-${ahora}`,
+                          estado: datos.nuevoEstado,
+                          fechaCambio,
+                          idResponsable: datos.idOrganizador,
+                          responsable: datos.nombreOrganizador,
+                          causa
+                        }
+                      ]
+                    }
+              )
+            }
+      )
+    );
+
+    if (datos.nuevoEstado === 'cerradas') {
+      setListaReservaciones((previas) =>
+        previas.map((reservacion) =>
+          conjuntoIds.has(reservacion.idFechaEvento) &&
+          reservacion.estado === 'apartado_temporal'
+            ? { ...reservacion, estado: 'cancelada' }
+            : reservacion
+        )
+      );
+
+      // Se cierra la oferta activa, pero se conserva la posición para una posible reapertura.
       setListaEspera((previas) =>
-        previas.map((w) => (w.id === siguienteEnFila.id ? { ...w, estado: 'notificado' } : w))
+        previas.map((entrada) =>
+          conjuntoIds.has(entrada.idFechaEvento) && entrada.estado === 'notificado'
+            ? { ...entrada, estado: 'esperando' }
+            : entrada
+        )
       );
     }
+
+    return { exito: true, sesionesActualizadas: idsUnicas.length };
   };
 
   const registrarIntencionAsistencia = (
@@ -949,7 +1404,24 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     idUsuario: string,
     nombreUsuario: string,
     correoUsuario: string
-  ): EntradaListaEspera => {
+  ): { exito: boolean; entrada?: EntradaListaEspera; error?: string } => {
+    const evento = listaEventos.find((elemento) => elemento.id === idEvento);
+    const fecha = evento?.fechas.find((elemento) => elemento.id === idFechaEvento);
+
+    if (!evento || !fecha) {
+      return { exito: false, error: 'La sesión seleccionada ya no existe.' };
+    }
+
+    if (
+      obtenerEstadoInscripciones(fecha, evento.estado) === 'cerradas' ||
+      obtenerFechaLimiteInscripciones(fecha) <= Date.now()
+    ) {
+      return {
+        exito: false,
+        error: 'ERR-MT-02 · La lista de espera no admite incorporaciones porque las inscripciones están CERRADAS.'
+      };
+    }
+
     const actuales = listaEspera.filter((w) => w.idFechaEvento === idFechaEvento);
     const entrada: EntradaListaEspera = {
       id: `esp-${Date.now().toString(36)}`,
@@ -963,7 +1435,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       estado: 'esperando'
     };
     setListaEspera((previas) => [...previas, entrada]);
-    return entrada;
+    return { exito: true, entrada };
   };
 
   // Procesamiento de Check-In en Puerta para Staff
@@ -1162,6 +1634,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         cancelarReservacion,
         registrarIntencionAsistencia,
         cancelarIntencionAsistencia,
+        emitirBoletosEspeciales,
+        invalidarBoletoEspecial,
+        cambiarEstadoInscripciones,
         unirseAListaDeEspera,
         procesarCheckIn,
         crearBloqueoRecinto,

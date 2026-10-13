@@ -158,9 +158,23 @@ const obtenerNombreRecinto = (idRecinto: string) => {
     return r ? r.nombre : 'Recinto ESCOM';
   };
 
-  // === INICIO CÓDIGO CU-MT-02 ===
-// 1. Función que se dispara al dar clic en el botón (Paso 1 a 6)
+  // Inicia el registro de intención de asistencia para el día seleccionado.
   const iniciarRegistroDirecto = (fecha: FechaEvento) => {
+    const fechaLimite = fecha.fechaLimiteInscripciones
+      ? new Date(fecha.fechaLimiteInscripciones).getTime()
+      : new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime() - 60 * 60 * 1000;
+    const estadoInscripciones =
+      fecha.estadoInscripciones ||
+      (evento.estado === 'publicado' || evento.estado === 'en_curso' ? 'abiertas' : 'cerradas');
+
+    if (estadoInscripciones === 'cerradas' || fechaLimite <= Date.now()) {
+      mostrarNotificacion(
+        'Inscripciones cerradas',
+        'ERR-MT-02 · Esta sesión ya no admite nuevos registros.',
+        'advertencia'
+      );
+      return;
+    }
     if (!usuarioActual) {
       mostrarNotificacion('Inicia Sesión', 'Debes iniciar sesión para registrar tu asistencia.', 'error');
       navigate('/login');
@@ -409,6 +423,16 @@ const obtenerNombreRecinto = (idRecinto: string) => {
           {evento.fechas.map((fecha, indice) => {
             const nombreRecinto = obtenerNombreRecinto(fecha.idRecinto);
             const etiquetaDia = fecha.nombreDia || `Día ${indice + 1}`;
+            const fechaLimite = fecha.fechaLimiteInscripciones
+              ? new Date(fecha.fechaLimiteInscripciones).getTime()
+              : new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime() - 60 * 60 * 1000;
+            const estadoInscripciones =
+              fecha.estadoInscripciones ||
+              (evento.estado === 'publicado' || evento.estado === 'en_curso'
+                ? 'abiertas'
+                : 'cerradas');
+            const inscripcionesAbiertas =
+              estadoInscripciones === 'abiertas' && fechaLimite > Date.now();
             // Expandido por defecto el primer día o si el usuario dio clic
             const expandido = diasExpandidos[fecha.id] ?? (indice === 0 || !!fecha.programa);
             // === INICIO TRAYECTORIA D: Verificar registro previo ===
@@ -437,6 +461,15 @@ const obtenerNombreRecinto = (idRecinto: string) => {
                       <span className="font-extrabold text-neutral-900 text-base sm:text-lg">
                         {fecha.fecha}
                       </span>
+                      <span
+                        className={`px-2 py-1 rounded-md border text-[10px] font-black tracking-wide ${
+                          inscripcionesAbiertas
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                            : 'bg-neutral-100 border-neutral-300 text-neutral-700'
+                        }`}
+                      >
+                        INSCRIPCIONES {inscripcionesAbiertas ? 'ABIERTAS' : 'CERRADAS'}
+                      </span>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-600 pt-0.5">
@@ -459,8 +492,7 @@ const obtenerNombreRecinto = (idRecinto: string) => {
 
                   {/* Acción de Registro para este día específico */}
                   <div className="flex items-center gap-3 shrink-0">
-                    
-                    {(evento.estado as string) === 'cancelado' || (evento.estado as string) === 'suspendido' || inscripcionCerrada ? (
+                    {(evento.estado as string) === 'cancelado' || (evento.estado as string) === 'suspendido' || !inscripcionesAbiertas ? (
                       <button
                         type="button"
                         disabled
@@ -468,7 +500,7 @@ const obtenerNombreRecinto = (idRecinto: string) => {
                       >
                         <Lock className="w-4 h-4" />
                         <span>
-                          {inscripcionCerrada 
+                          {!inscripcionesAbiertas
                             ? 'Inscripciones Cerradas' 
                             : 'Inscripciones Bloqueadas'}
                         </span>

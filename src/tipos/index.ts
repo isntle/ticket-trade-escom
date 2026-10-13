@@ -94,6 +94,18 @@ export interface SolicitudEvento {
 // Estados del ciclo de vida de un evento
 export type EstadoEvento = 'borrador' | 'configuracion' | 'publicado' | 'en_curso' | 'finalizado' | 'cancelado';
 
+// Estado operativo de la taquilla para una sesión concreta
+export type EstadoInscripciones = 'abiertas' | 'cerradas';
+
+export interface RegistroCambioInscripciones {
+  id: string;
+  estado: EstadoInscripciones;
+  fechaCambio: string;
+  idResponsable: string;
+  responsable: string;
+  causa: 'apertura_manual' | 'cierre_manual' | 'cierre_automatico';
+}
+
 // Fecha individual de un evento (No son sinónimos)
 export interface FechaEvento {
   id: string;
@@ -112,6 +124,10 @@ export interface FechaEvento {
   idArregloFinal?: string;
   esFinalConfirmado: boolean;
   ponentes: string[];
+  estadoInscripciones?: EstadoInscripciones;
+  fechaLimiteInscripciones?: string;
+  versionInscripciones?: number;
+  historialInscripciones?: RegistroCambioInscripciones[];
 }
 
 // Categorías temáticas de eventos ESCOM
@@ -255,6 +271,9 @@ export interface Reservacion {
 // Estados del boleto emitido
 export type EstadoBoleto = 'valido' | 'utilizado' | 'cancelado';
 
+// Categorías de acreditación emitidas directamente por el Organizador
+export type TipoBoletoEspecial = 'organizador' | 'staff' | 'vip';
+
 // Boleto Digital con Código QR
 export interface BoletoDigital {
   id: string;
@@ -271,6 +290,12 @@ export interface BoletoDigital {
   etiquetaAsiento?: string;
   codigoQr: string;
   estado: EstadoBoleto;
+  esEspecial?: boolean;
+  tipoEspecial?: TipoBoletoEspecial;
+  emitidoPor?: string;
+  motivoInvalidacion?: string;
+  fechaInvalidacion?: string;
+  invalidadoPor?: string;
   fechaCheckIn?: string;
   revisadoPor?: string;
   fechaEmision: string;
