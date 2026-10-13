@@ -19,5 +19,5 @@ export { AlertaMensaje } from './ui/AlertaMensaje';
 export { EstadoVacio } from './ui/EstadoVacio';
 
 // Demostración y Evaluación
-export { GuiaEvaluacionDocente, GuiaEvaluacionDocente as GuiaDemostracion } from './demostracion/GuiaEvaluacionDocente';
+export { ExploradorCasosUso, ExploradorCasosUso as GuiaDemostracion } from './demostracion/ExploradorCasosUso';
 export { ModalComparadorArreglos } from './arreglos/ModalComparadorArreglos';

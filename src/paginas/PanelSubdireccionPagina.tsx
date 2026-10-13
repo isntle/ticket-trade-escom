@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CheckCircle,
   XCircle,
@@ -24,9 +24,10 @@ import { SolicitudEvento, Recinto } from '../tipos';
 
 interface PropiedadesPanelSubdireccion {
   navigate: (ruta: string) => void;
+  initialTab?: 'solicitudes' | 'agenda' | 'bloqueos' | 'evento_directo';
 }
 
-export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = ({ navigate }) => {
+export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = ({ navigate, initialTab = 'solicitudes' }) => {
   const {
     listaSolicitudes,
     listaRecintos,
@@ -41,7 +42,16 @@ export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = (
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
 
-  const [pestañaActiva, setPestañaActiva] = useState<'solicitudes' | 'agenda' | 'bloqueos' | 'evento_directo'>('solicitudes');
+  const [pestañaActiva, setPestañaActiva] = useState<'solicitudes' | 'agenda' | 'bloqueos' | 'evento_directo'>(initialTab);
+
+  useEffect(() => {
+    setPestañaActiva(initialTab);
+  }, [initialTab]);
+
+  const cambiarPestaña = (pestaña: 'solicitudes' | 'agenda' | 'bloqueos' | 'evento_directo') => {
+    setPestañaActiva(pestaña);
+    navigate(`/subdireccion?tab=${pestaña}`);
+  };
 
   // Estados para dictamen de solicitud
   const [solicitudParaDictaminar, setSolicitudParaDictaminar] = useState<SolicitudEvento | null>(null);
@@ -65,9 +75,6 @@ export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = (
   const [descripcionEventoDirecto, setDescripcionEventoDirecto] = useState('');
   const [fechaEventoDirecto, setFechaEventoDirecto] = useState('2026-10-26');
   const [recintoEventoDirecto, setRecintoEventoDirecto] = useState('rec-auditorio');
-
-  // Fecha para inspección de agenda multi-recinto
-  const [fechaAgenda, setFechaAgenda] = useState('2026-10-15');
 
   const solicitudesPendientes = listaSolicitudes.filter((s) => s.estado === 'en_revision');
   const solicitudesHistorial = listaSolicitudes.filter((s) => s.estado !== 'en_revision');
@@ -204,7 +211,7 @@ export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = (
       <div className="flex items-center gap-4 border-b border-neutral-200 mb-6">
         <button
           type="button"
-          onClick={() => setPestañaActiva('solicitudes')}
+          onClick={() => cambiarPestaña('solicitudes')}
           className={`pb-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
             pestañaActiva === 'solicitudes'
               ? 'border-[#7a132b] text-[#7a132b]'
@@ -221,7 +228,7 @@ export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = (
 
         <button
           type="button"
-          onClick={() => setPestañaActiva('agenda')}
+          onClick={() => cambiarPestaña('agenda')}
           className={`pb-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
             pestañaActiva === 'agenda'
               ? 'border-[#7a132b] text-[#7a132b]'
@@ -234,7 +241,7 @@ export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = (
 
         <button
           type="button"
-          onClick={() => setPestañaActiva('bloqueos')}
+          onClick={() => cambiarPestaña('bloqueos')}
           className={`pb-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
             pestañaActiva === 'bloqueos'
               ? 'border-[#7a132b] text-[#7a132b]'
@@ -247,7 +254,7 @@ export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = (
 
         <button
           type="button"
-          onClick={() => setPestañaActiva('evento_directo')}
+          onClick={() => cambiarPestaña('evento_directo')}
           className={`pb-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
             pestañaActiva === 'evento_directo'
               ? 'border-[#7a132b] text-[#7a132b]'
@@ -427,7 +434,7 @@ export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = (
       {/* Pestaña: Agenda Multi-Recinto */}
       {pestañaActiva === 'agenda' && (
         <div className="space-y-6">
-          <VisorDisponibilidadRecintos fechaSeleccionada={fechaAgenda} />
+          <VisorDisponibilidadRecintos />
         </div>
       )}
 

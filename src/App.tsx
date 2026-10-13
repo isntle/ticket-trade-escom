@@ -7,7 +7,7 @@ import { ProveedorNotificaciones } from './contextos';
 import { ShieldAlert, ArrowLeft, UserCheck } from 'lucide-react';
 
 // Componentes de Estructura y Navegación
-import { BarraSuperior, PieDePagina, GuiaDemostracion } from './componentes';
+import { BarraSuperior, PieDePagina, ExploradorCasosUso } from './componentes';
 
 // Páginas de los 4 Subsistemas de Ticket Trade ESCOM
 import {
@@ -70,22 +70,41 @@ function ContenidoApp() {
   // Mapeo declarativo de rutas de la aplicación
   const renderizarRuta = () => {
     // Protección de rutas administrativas para Alumnos / Asistentes
-    const esRutaAdministrativa =
+    const esRutaOrganizador =
       rutaActual.startsWith('/organizador') ||
-      rutaActual.startsWith('/subdireccion') ||
-      rutaActual.startsWith('/staff') ||
-      rutaActual.startsWith('/admin') ||
       rutaActual === '/distribucion' ||
       rutaActual === '/arreglos' ||
       rutaActual === '/editor-asientos' ||
       rutaActual === '/recintos/distribucion';
 
-    if (esRutaAdministrativa && rolActivo === 'asistente') {
+    const esRutaSubdireccion = rutaActual.startsWith('/subdireccion');
+    const esRutaAdministracion = rutaActual.startsWith('/admin');
+    const esRutaStaff = rutaActual === '/staff' || rutaActual.startsWith('/staff/');
+    const esRutaAdministrativa = esRutaOrganizador || esRutaSubdireccion || esRutaAdministracion || esRutaStaff;
+
+    const rolesPermitidos: string[] = esRutaAdministracion
+      ? ['admin']
+      : esRutaSubdireccion
+      ? ['subdireccion', 'admin']
+      : esRutaStaff && rutaActual.startsWith('/staff/ocupacion')
+      ? ['staff', 'organizador', 'admin']
+      : esRutaStaff
+      ? ['staff', 'admin']
+      : ['organizador', 'subdireccion', 'admin'];
+
+    const tieneRolActivoAutorizado = rolesPermitidos.includes(rolActivo);
+
+    if (esRutaAdministrativa && !tieneRolActivoAutorizado) {
       const tieneRolAutorizado = usuarioActual
-        ? usuarioActual.roles.some((r) =>
-            ['organizador', 'subdireccion', 'staff', 'admin'].includes(r)
-          )
+        ? usuarioActual.roles.some((r) => rolesPermitidos.includes(r))
         : false;
+      const nombreModulo = esRutaAdministracion
+        ? 'Administrador TI'
+        : esRutaSubdireccion
+        ? 'Subdirección'
+        : esRutaStaff
+        ? 'Staff de acceso'
+        : 'Organizador';
 
       return (
         <div className="max-w-2xl mx-auto px-4 py-16 text-center animate-in fade-in duration-200">
@@ -97,12 +116,11 @@ function ContenidoApp() {
               Control de Accesos ESCOM
             </span>
             <h2 className="text-xl sm:text-2xl font-black text-neutral-900 mt-1 mb-3">
-              Módulo Reservado para Organizadores y Personal
+              Módulo reservado para {nombreModulo}
             </h2>
             <p className="text-sm text-neutral-600 mb-6 leading-relaxed max-w-lg mx-auto">
-              La distribución física de asientos, gestión de recintos y configuraciones espaciales están
-              restringidas a comités organizadores acreditados y a la Subdirección. Tu sesión activa está en modo{' '}
-              <strong className="text-neutral-900 font-bold">Alumno / Asistente</strong>.
+              Tu sesión activa no tiene el rol requerido para consultar este módulo. La aplicación respeta los permisos
+              definidos para cada subequipo y conserva tu información sin realizar cambios.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -119,14 +137,14 @@ function ContenidoApp() {
                   type="button"
                   onClick={() => {
                     if (usuarioActual) {
-                      const primerRol = usuarioActual.roles.find((r) => r !== 'asistente');
+                      const primerRol = usuarioActual.roles.find((r) => rolesPermitidos.includes(r));
                       if (primerRol) cambiarRolActivo(primerRol);
                     }
                   }}
                   className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#7a132b] hover:bg-[#620f23] text-white text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
-                  <span>Cambiar a Perspectiva de Organizador</span>
+                  <span>Cambiar a Perspectiva Autorizada</span>
                 </button>
               ) : (
                 <button
@@ -208,7 +226,11 @@ function ContenidoApp() {
 
     // Operaciones Institucionales de Subdirección
     if (rutaActual.startsWith('/subdireccion')) {
-      return <PanelSubdireccionPagina navigate={navegarA} />;
+      const tab = parametrosUrl.get('tab');
+      const pestañaInicial = ['solicitudes', 'agenda', 'bloqueos', 'evento_directo'].includes(tab || '')
+        ? (tab as 'solicitudes' | 'agenda' | 'bloqueos' | 'evento_directo')
+        : 'solicitudes';
+      return <PanelSubdireccionPagina navigate={navegarA} initialTab={pestañaInicial} />;
     }
 
     // -------------------------------------------------------------
@@ -265,8 +287,8 @@ function ContenidoApp() {
           {/* Pie de Página Institucional ESCOM */}
           <PieDePagina />
 
-          {/* Guía Flotante de Demostración para Evaluación de los 7 Escenarios */}
-          <GuiaDemostracion navegarA={navegarA} />
+          {/* Explorador académico de casos de uso y escenarios de demostración */}
+          <ExploradorCasosUso navegarA={navegarA} />
         </>
       )}
     </div>

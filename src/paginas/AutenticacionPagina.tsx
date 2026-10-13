@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ArrowLeft,
   UserCheck,
@@ -46,6 +46,14 @@ export const AutenticacionPagina: React.FC<PropiedadesAutenticacion> = ({
 
   // Pestaña actual: 'login' | 'registro' | 'recuperar'
   const [pestaña, setPestaña] = useState<'login' | 'registro' | 'recuperar'>(view);
+
+  // Mantener la pestaña visible sincronizada con la ruta actual.
+  useEffect(() => {
+    setPestaña(view);
+    if (view !== 'recuperar') {
+      setPasoRecuperacion('solicitar');
+    }
+  }, [view]);
 
   // Estados para Login
   const [correoLogin, setCorreoLogin] = useState('rsilva@ipn.mx');
@@ -144,6 +152,7 @@ export const AutenticacionPagina: React.FC<PropiedadesAutenticacion> = ({
       setCorreoLogin(correoRecuperar);
       setPasswordLogin(nuevoPassword);
       setPasoRecuperacion('solicitar');
+      navigate('/login');
     } else {
       mostrarNotificacion('Error de Restablecimiento', res.mensaje, 'error');
     }
@@ -240,6 +249,7 @@ export const AutenticacionPagina: React.FC<PropiedadesAutenticacion> = ({
                       onClick={() => {
                         setCorreoRecuperar(correoLogin);
                         setPestaña('recuperar');
+                        navigate('/recuperar-password');
                       }}
                       className="text-[11px] font-semibold text-[#7a132b] transition hover:text-[#4e0d20] hover:underline"
                     >
@@ -307,7 +317,14 @@ export const AutenticacionPagina: React.FC<PropiedadesAutenticacion> = ({
 
               <div className="mt-8 flex items-center justify-between rounded-xl bg-neutral-50 px-4 py-3 text-[11px]">
                 <span className="text-neutral-500">¿Aún no tienes cuenta?</span>
-                <button type="button" onClick={() => setPestaña('registro')} className="font-bold text-[#7a132b] hover:underline">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPestaña('registro');
+                    navigate('/registro');
+                  }}
+                  className="font-bold text-[#7a132b] hover:underline"
+                >
                   Crear cuenta
                 </button>
               </div>
@@ -339,7 +356,10 @@ export const AutenticacionPagina: React.FC<PropiedadesAutenticacion> = ({
           <div className="flex bg-neutral-100 p-1 rounded-xl mt-6 border border-neutral-200">
             <button
               type="button"
-              onClick={() => setPestaña('login')}
+              onClick={() => {
+                setPestaña('login');
+                navigate('/login');
+              }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 pestañaParaFormulario === 'login'
                   ? 'bg-white text-neutral-900 shadow-2xs'
@@ -351,7 +371,10 @@ export const AutenticacionPagina: React.FC<PropiedadesAutenticacion> = ({
             </button>
             <button
               type="button"
-              onClick={() => setPestaña('registro')}
+              onClick={() => {
+                setPestaña('registro');
+                navigate('/registro');
+              }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 pestaña === 'registro'
                   ? 'bg-white text-neutral-900 shadow-2xs'
@@ -363,7 +386,10 @@ export const AutenticacionPagina: React.FC<PropiedadesAutenticacion> = ({
             </button>
             <button
               type="button"
-              onClick={() => setPestaña('recuperar')}
+              onClick={() => {
+                setPestaña('recuperar');
+                navigate('/recuperar-password');
+              }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 pestaña === 'recuperar'
                   ? 'bg-white text-neutral-900 shadow-2xs'
