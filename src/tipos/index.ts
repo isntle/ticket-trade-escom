@@ -33,6 +33,7 @@ export interface Usuario {
   estaActivo: boolean;
   urlFoto?: string;
   esVerificado?: boolean;
+  correoConfirmado?: boolean;
   tokenRecuperacion?: string;
   tokenExpiracion?: number;
   eventosAsignadosStaff?: string[]; // IDs de eventos a los que este usuario está asignado como Staff de acceso
@@ -135,6 +136,9 @@ export interface Evento {
   etiquetas: string[];
   aforoMaximo?: number;
   fechaPublicacion?: string;
+  inscripcionesAbiertas?: boolean;
+  fechaCierreInscripcion?: string;
+  publicoPermitido?: RolUsuario[];
 }
 
 // Tipos de recintos físicos en ESCOM
@@ -242,7 +246,7 @@ export interface Reservacion {
   idAsiento?: string;
   etiquetaAsiento?: string;
   estado: EstadoReservacion;
-  tiempoExpiracionApartado?: number; // epoch ms (temporizador de 10 min)
+  tiempoExpiracionApartado?: number; // epoch ms (temporizador de 2 min)
   fechaCreacion: string;
   fechaConfirmacion?: string;
   idBoleto?: string;
@@ -283,6 +287,18 @@ export interface EntradaListaEspera {
   posicionFila: number;
   fechaCreacion: string;
   estado: 'esperando' | 'notificado' | 'convertido' | 'cancelado';
+}
+
+// Intención de asistencia para eventos de entrada libre.
+// No representa una reservación, no descuenta aforo y no genera boleto.
+export interface RegistroIntencionAsistencia {
+  id: string;
+  idEvento: string;
+  idFechaEvento: string;
+  idUsuario: string;
+  nombreUsuario: string;
+  correoUsuario: string;
+  fechaRegistro: string;
 }
 
 // Resultado del escaneo de acceso

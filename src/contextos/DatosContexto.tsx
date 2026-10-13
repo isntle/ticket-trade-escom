@@ -8,6 +8,7 @@ import {
   Reservacion,
   BoletoDigital,
   EntradaListaEspera,
+  RegistroIntencionAsistencia,
   RegistroEscaneo,
   ResultadoDisponibilidadRecinto,
   ListaVerificacionPublicacion,
@@ -39,6 +40,7 @@ interface ContextoDatosTipo {
   listaReservaciones: Reservacion[];
   listaBoletos: BoletoDigital[];
   listaEspera: EntradaListaEspera[];
+  listaIntencionesAsistencia: RegistroIntencionAsistencia[];
   bitacoraEscaneos: RegistroEscaneo[];
   listaClasesRegulares: HorarioClaseRegular[];
 
@@ -95,6 +97,15 @@ interface ContextoDatosTipo {
     idReservacion: string
   ) => { exito: boolean; boleto?: BoletoDigital; error?: string };
   cancelarReservacion: (idReservacion: string) => void;
+
+  registrarIntencionAsistencia: (
+    idEvento: string,
+    idFechaEvento: string,
+    idUsuario: string,
+    nombreUsuario: string,
+    correoUsuario: string
+  ) => { exito: boolean; registro?: RegistroIntencionAsistencia; error?: string };
+  cancelarIntencionAsistencia: (idRegistro: string) => void;
 
   unirseAListaDeEspera: (
     idEvento: string,
@@ -162,6 +173,11 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     return g ? JSON.parse(g) : [];
   });
 
+  const [listaIntencionesAsistencia, setListaIntencionesAsistencia] = useState<RegistroIntencionAsistencia[]>(() => {
+    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_intenciones_asistencia`);
+    return g ? JSON.parse(g) : [];
+  });
+
   const [bitacoraEscaneos, setBitacoraEscaneos] = useState<RegistroEscaneo[]>(() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_escaneos`);
     return g ? JSON.parse(g) : BITACORA_INICIAL_ESCANEOS;
@@ -199,10 +215,17 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [listaEspera]);
 
   useEffect(() => {
+    localStorage.setItem(
+      `${CLAVE_ALMACEN_DATOS}_intenciones_asistencia`,
+      JSON.stringify(listaIntencionesAsistencia)
+    );
+  }, [listaIntencionesAsistencia]);
+
+  useEffect(() => {
     localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_escaneos`, JSON.stringify(bitacoraEscaneos));
   }, [bitacoraEscaneos]);
 
-  // Limpieza periódica de apartados temporales vencidos (10 minutos)
+  // Limpieza periódica de apartados temporales vencidos (2 minutos)
   useEffect(() => {
     const intervalo = setInterval(() => {
       const ahora = Date.now();
@@ -730,7 +753,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     setListaArreglos((previos) => previos.filter((a) => a.id !== idArreglo));
   };
 
-  // Apartado Temporal de Asiento (10 Minutos)
+  // Apartado Temporal de Asiento (2 minutos)
   const apartarAsiento = (
     idEvento: string,
     idFechaEvento: string,
@@ -781,7 +804,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       idAsiento,
       etiquetaAsiento,
       estado: 'apartado_temporal',
-      tiempoExpiracionApartado: ahora + 10 * 60 * 1000, // 10 minutos
+      tiempoExpiracionApartado: ahora + 2 * 60 * 1000, // 2 minutos
       fechaCreacion: new Date().toISOString()
     };
 
@@ -810,7 +833,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     ) {
       return {
         exito: false,
-        error: 'El tiempo límite de 10 minutos ha expirado. Por favor, selecciona tu asiento nuevamente.'
+        error: 'El tiempo límite de 2 minutos ha expirado. Por favor, selecciona tu asiento nuevamente.'
       };
     }
 
@@ -879,6 +902,45 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         previas.map((w) => (w.id === siguienteEnFila.id ? { ...w, estado: 'notificado' } : w))
       );
     }
+  };
+
+  const registrarIntencionAsistencia = (
+    idEvento: string,
+    idFechaEvento: string,
+    idUsuario: string,
+    nombreUsuario: string,
+    correoUsuario: string
+  ): { exito: boolean; registro?: RegistroIntencionAsistencia; error?: string } => {
+    const yaExiste = listaIntencionesAsistencia.some(
+      (registro) =>
+        registro.idEvento === idEvento &&
+        registro.idFechaEvento === idFechaEvento &&
+        registro.idUsuario === idUsuario
+    );
+
+    if (yaExiste) {
+      return {
+        exito: false,
+        error: 'Ya tienes una intención de asistencia registrada para esta sesión.'
+      };
+    }
+
+    const registro: RegistroIntencionAsistencia = {
+      id: `int-${Date.now().toString(36)}`,
+      idEvento,
+      idFechaEvento,
+      idUsuario,
+      nombreUsuario,
+      correoUsuario,
+      fechaRegistro: new Date().toISOString()
+    };
+
+    setListaIntencionesAsistencia((previas) => [registro, ...previas]);
+    return { exito: true, registro };
+  };
+
+  const cancelarIntencionAsistencia = (idRegistro: string) => {
+    setListaIntencionesAsistencia((previas) => previas.filter((registro) => registro.id !== idRegistro));
   };
 
   const unirseAListaDeEspera = (
@@ -1061,6 +1123,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     setListaReservaciones(RESERVACIONES_INICIALES);
     setListaBoletos(BOLETOS_INICIALES);
     setListaEspera([]);
+    setListaIntencionesAsistencia([]);
     setBitacoraEscaneos(BITACORA_INICIAL_ESCANEOS);
   };
 
@@ -1075,6 +1138,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         listaReservaciones,
         listaBoletos,
         listaEspera,
+        listaIntencionesAsistencia,
         bitacoraEscaneos,
         listaClasesRegulares,
         verificarDisponibilidadRecinto,
@@ -1096,6 +1160,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         liberarApartadoAsiento,
         confirmarReservacion,
         cancelarReservacion,
+        registrarIntencionAsistencia,
+        cancelarIntencionAsistencia,
         unirseAListaDeEspera,
         procesarCheckIn,
         crearBloqueoRecinto,
