@@ -21,6 +21,12 @@ interface PropiedadesCarteleraEventos {
   navigate: (ruta: string) => void;
 }
 
+const tieneSesionFutura = (evento: Evento): boolean =>
+  evento.fechas.some((fecha) => {
+    const finSesion = new Date(`${fecha.fecha}T${fecha.horaFin}:00`);
+    return !Number.isNaN(finSesion.getTime()) && finSesion >= new Date();
+  });
+
 export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ navigate }) => {
   const { listaEventos, listaRecintos } = useDatos();
   const { usuarioActual } = useAutenticacion();
@@ -43,6 +49,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
     return listaEventos.filter((evento) => {
       if (evento.estado !== 'publicado') return false;
       if (evento.visibilidad === 'privado') return false;
+      if (!tieneSesionFutura(evento)) return false;
 
       // Filtro de búsqueda por título, descripción o ponentes
       const coincideBusqueda =
@@ -160,7 +167,12 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
       </div>
 
       {/* === INICIO CÓDIGO TRAYECTORIA A === */}
-      {listaEventos.filter(e => e.estado === 'publicado' && e.visibilidad !== 'privado').length === 0 ? (
+      {!listaEventos.some(
+        (evento) =>
+          evento.estado === 'publicado' &&
+          evento.visibilidad !== 'privado' &&
+          tieneSesionFutura(evento)
+      ) ? (
         <EstadoVacio
           icono={<Calendar className="w-8 h-8 text-neutral-400" />}
           titulo="Sin eventos próximos"

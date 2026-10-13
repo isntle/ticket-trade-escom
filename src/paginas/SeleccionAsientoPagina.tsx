@@ -83,7 +83,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
 // === INICIO TRAYECTORIA A: Elegibilidad denegada ===
   
 // 1. Validar correo confirmado
-  if (usuarioActual && (usuarioActual as any).correoConfirmado === false) {
+  if (usuarioActual && usuarioActual.correoConfirmado === false) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16">
         <EstadoVacio
@@ -97,7 +97,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   }
 
   // 2. Validar elegibilidad de público permitido
-  const publicoPermitido = (evento as any)?.publicoPermitido;
+  const publicoPermitido = evento?.publicoPermitido;
   if (usuarioActual && publicoPermitido && Array.isArray(publicoPermitido) && publicoPermitido.length > 0) {
     const esElegible = usuarioActual.roles.some(rol => publicoPermitido.includes(rol));
     if (!esElegible) {
@@ -118,10 +118,9 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
 
   // === INICIO TRAYECTORIA B: Inscripciones cerradas ===
 // === INICIO TRAYECTORIA C (CU-MT-02): Validar cierre de inscripciones ===
-  const inscripcionesAbiertas = (evento as any)?.inscripcionesAbiertas !== false;
-  const limiteInscripcion = (evento as any)?.fechaCierreInscripcion;
+  const inscripcionesAbiertas = evento?.inscripcionesAbiertas !== false;
+  const limiteInscripcion = evento?.fechaCierreInscripcion;
   const inscripcionVencida = limiteInscripcion ? new Date(limiteInscripcion) < new Date() : false;
-  const inscripcionCerrada = !inscripcionesAbiertas || inscripcionVencida;
   // === FIN TRAYECTORIA C ===
   if (!inscripcionesAbiertas || inscripcionVencida) {
     return (
@@ -178,8 +177,11 @@ if (!evento || !fecha) {
 
     if (!usuarioActual || !fecha) return false;
     
-    // Obtenemos las reservaciones activas del usuario
-    const reservacionesActivas = (usuarioActual as any).reservaciones?.filter((r: any) => r.estado === 'activa') || [];
+    const reservacionesActivas = listaReservaciones.filter(
+      (reservacion) =>
+        reservacion.idUsuario === usuarioActual.id &&
+        reservacion.estado === 'confirmada'
+    );
     
     // Convertimos la hora (ej. "14:30") a minutos desde la medianoche para comparar fácil
     const aMinutos = (horaStr: string) => {
@@ -195,7 +197,7 @@ if (!evento || !fecha) {
     for (const res of reservacionesActivas) {
       // Necesitamos buscar la fecha en listaEventos porque el historial solo guarda IDs
       for (const evt of listaEventos) {
-        const fechaExistente = evt.fechas.find(f => f.id === res.idFecha);
+        const fechaExistente = evt.fechas.find((f) => f.id === res.idFechaEvento);
         if (fechaExistente) {
           // Si es el mismo día (misma fecha literal, ej. "12 Nov 2026")
           if (fechaExistente.fecha === fecha.fecha) {
@@ -225,6 +227,20 @@ if (!evento || !fecha) {
 
     setErrorColision(null);
 
+    const yaTieneReservacionEnLaSesion = listaReservaciones.some(
+      (reservacion) =>
+        reservacion.idUsuario === usuarioActual.id &&
+        reservacion.idFechaEvento === dateId &&
+        reservacion.estado === 'confirmada'
+    );
+
+    if (yaTieneReservacionEnLaSesion) {
+      const mensaje = 'Ya tienes una reservación confirmada para esta sesión.';
+      setErrorColision(mensaje);
+      mostrarNotificacion('Reservación duplicada', mensaje, 'error');
+      return;
+    }
+
     // === INICIO TRAYECTORIA E: Verificación al elegir butaca ===
     const choque = tieneSuperposicion();
     if (choque) {
@@ -251,10 +267,7 @@ if (!evento || !fecha) {
       usuarioActual.correo
     );
 
-if (resultado.exito && resultado.reservacion) {
-      // Ajustamos la expiración exactamente a 2 minutos (120,000 ms) según Trayectoria D
-      resultado.reservacion.tiempoExpiracionApartado = Date.now() + 2 * 60 * 1000;
-
+    if (resultado.exito && resultado.reservacion) {
       setAsientoSeleccionado(asiento);
       setReservacionActiva(resultado.reservacion);
       mostrarNotificacion(
@@ -311,6 +324,35 @@ if (resultado.exito && resultado.reservacion) {
       return; // Detenemos la acción
     }
     // === FIN TRAYECTORIA E ===
+
+    const capacidad = evento.aforoMaximo ?? recinto?.capacidad;
+    const lugaresOcupados = listaReservaciones.filter(
+      (reservacion) =>
+        reservacion.idFechaEvento === dateId &&
+        reservacion.estado === 'confirmada'
+    ).length;
+
+    if (capacidad !== undefined && lugaresOcupados >= capacidad) {
+      setConfirmando(false);
+      setErrorColision('Cupo general agotado. Ya no hay lugares disponibles en esta sesión.');
+      mostrarNotificacion('Cupo agotado', 'No hay lugares disponibles en esta sesión.', 'error');
+      return;
+    }
+
+    const yaTieneReservacionEnLaSesion = listaReservaciones.some(
+      (reservacion) =>
+        reservacion.idUsuario === usuarioActual.id &&
+        reservacion.idFechaEvento === dateId &&
+        reservacion.estado === 'confirmada'
+    );
+
+    if (yaTieneReservacionEnLaSesion) {
+      const mensaje = 'Ya tienes una reservación confirmada para esta sesión.';
+      setConfirmando(false);
+      setErrorColision(mensaje);
+      mostrarNotificacion('Reservación duplicada', mensaje, 'error');
+      return;
+    }
 
     // Intentar apartar un lugar general de forma indivisible (Paso C-4)
     const resultadoApartado = apartarAsiento(
@@ -381,7 +423,7 @@ if (resultado.exito && resultado.reservacion) {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Cronómetro de Apartado de 10 Minutos */}
+            {/* Cronómetro de apartado de 2 minutos */}
             {segundosRestantes !== null && (
               <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl text-amber-900 shrink-0">
                 <Clock className="w-5 h-5 text-amber-600 animate-pulse" />
@@ -438,8 +480,6 @@ if (resultado.exito && resultado.reservacion) {
         </div>
       )}
 
-      {
-      }
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Mapa Interactivo o Mensaje de Cupo General (Trayectoria C) */}

@@ -36,7 +36,13 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
   accessKey,
   navigate
 }) => {
-  const { listaEventos, listaRecintos, apartarAsiento, confirmarReservacion } = useDatos();
+  const {
+    listaEventos,
+    listaRecintos,
+    listaIntencionesAsistencia,
+    registrarIntencionAsistencia,
+    cancelarIntencionAsistencia
+  } = useDatos();
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
 
@@ -61,16 +67,13 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
   const evento = listaEventos.find((e) => e.id === eventId);
 
   // === INICIO TRAYECTORIA C (CU-MT-02): Validar cierre de inscripciones ===
-  const inscripcionesAbiertas = (evento as any)?.inscripcionesAbiertas !== false;
-  const limiteInscripcion = (evento as any)?.fechaCierreInscripcion;
+  const inscripcionesAbiertas = evento?.inscripcionesAbiertas !== false;
+  const limiteInscripcion = evento?.fechaCierreInscripcion;
   const inscripcionVencida = limiteInscripcion ? new Date(limiteInscripcion) < new Date() : false;
   const inscripcionCerrada = !inscripcionesAbiertas || inscripcionVencida;
-  // === FIN TRAYECTORIA C === 
+  // === FIN TRAYECTORIA C ===
   
   // === INICIO VALIDACIÓN DE PRECONDICIONES ===
-  const tieneFechasFuturas = evento?.fechas.some((fecha) => {
-    return true; 
-  });
   const debeOcultarse = 
     !evento || 
     ((evento.estado as string) !== 'publicado' && 
@@ -159,14 +162,14 @@ const obtenerNombreRecinto = (idRecinto: string) => {
 // 1. Función que se dispara al dar clic en el botón (Paso 1 a 6)
   const iniciarRegistroDirecto = (fecha: FechaEvento) => {
     if (!usuarioActual) {
-      mostrarNotificacion('Inicia Sesión', 'Debes iniciar sesión para obtener un boleto.', 'error');
+      mostrarNotificacion('Inicia Sesión', 'Debes iniciar sesión para registrar tu asistencia.', 'error');
       navigate('/login');
       return;
     }
 
     // === INICIO TRAYECTORIA A: Cuenta no confirmada ===
     // Validamos si la propiedad de correo confirmado es falsa o no existe
-    if ((usuarioActual as any).correoConfirmado === false) {
+    if (usuarioActual.correoConfirmado === false) {
       mostrarNotificacion(
         'Acción restringida', 
         'Confirma tu correo electrónico para realizar esta acción.', 
@@ -177,8 +180,7 @@ const obtenerNombreRecinto = (idRecinto: string) => {
     // === FIN TRAYECTORIA A ===
     
 // === INICIO TRAYECTORIA B: Usuario no elegible ===
-    // Asumimos que el evento tiene una lista de roles permitidos. Usamos 'as any' para evitar regaños de TypeScript.
-    const publicoPermitido = (evento as any).publicoPermitido;
+    const publicoPermitido = evento.publicoPermitido;
 
     // Si la lista existe y no está vacía, validamos. (Si no existe, asumimos que es abierto a todo público)
     if (publicoPermitido && Array.isArray(publicoPermitido) && publicoPermitido.length > 0) {
@@ -205,46 +207,51 @@ const obtenerNombreRecinto = (idRecinto: string) => {
   const confirmarRegistroDirecto = () => {
     if (!usuarioActual || !fechaSeleccionadaParaLibre) return;
     
-    setMostrarConfirmacionLibre(false);
     setProcesandoRegistro(true);
-    
-    // Aquí asumo que "evento" no es nulo gracias a la validación de arriba, por eso le pongo "!"
-    const resultadoApartado = apartarAsiento(
-      evento!.id, 
+
+    const resultado = registrarIntencionAsistencia(
+      evento!.id,
       fechaSeleccionadaParaLibre.id,
-      `gen-${Date.now()}`,
-      'General',
       usuarioActual.id,
       usuarioActual.nombre,
       usuarioActual.correo
     );
 
-    if (resultadoApartado.exito && resultadoApartado.reservacion) {
-      const confirmacion = confirmarReservacion(resultadoApartado.reservacion.id);
-      setProcesandoRegistro(false);
-      if (confirmacion.exito) {
-        // Mensaje OK-MT-05
-        mostrarNotificacion(
-          'Registro completado',
-          'Registraste tu intención de asistir a la sesión.',
-          'exito'
-        );
-        navigate('/mis-reservaciones');
-      }
+    setProcesandoRegistro(false);
+    setMostrarConfirmacionLibre(false);
+
+    if (resultado.exito) {
+      mostrarNotificacion(
+        'Registro completado',
+        'Registraste tu intención de asistir a la sesión. No se generó un boleto.',
+        'exito'
+      );
     } else {
-      setProcesandoRegistro(false);
-      mostrarNotificacion('Error al registrar', resultadoApartado.error || 'No fue posible guardar la operación.', 'error');
+      mostrarNotificacion(
+        'No fue posible registrar la asistencia',
+        resultado.error || 'No fue posible guardar la operación.',
+        'error'
+      );
     }
   };
 
   // 3. Función para cancelar un registro existente (Trayectoria D)
   const cancelarRegistroLibre = (idFecha: string) => {
+    const registro = listaIntencionesAsistencia.find(
+      (intencion) =>
+        intencion.idEvento === evento.id &&
+        intencion.idFechaEvento === idFecha &&
+        intencion.idUsuario === usuarioActual?.id
+    );
+
+    if (!registro) return;
+
+    cancelarIntencionAsistencia(registro.id);
     mostrarNotificacion(
       'Registro cancelado',
       'Tu intención de asistencia ha sido retirada exitosamente (OK-MT-06).',
       'exito'
     );
-    // Para reflejar el cambio visual, tendríamos que actualizar el estado global o forzar un re-render
   };
   // === FIN CÓDIGO CU-MT-02 ===
 
@@ -278,8 +285,6 @@ const obtenerNombreRecinto = (idRecinto: string) => {
               </span>
               <InsigniaEstado estado={evento.modalidadAsistencia} />
               <InsigniaEstado estado={evento.visibilidad} />
-              {
-              }
               {(evento.estado as string) === 'cancelado' && (
                 <span className="px-2.5 py-0.5 rounded bg-red-600/90 backdrop-blur-xs text-white text-xs font-bold uppercase tracking-wider border border-red-500/50 shadow-sm flex items-center gap-1.5">
                   <Shield className="w-3.5 h-3.5" />
@@ -292,8 +297,6 @@ const obtenerNombreRecinto = (idRecinto: string) => {
                   SUSPENDIDO
                 </span>
               )}
-              {
-              }
             </div>
             <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight">{evento.titulo}</h1>
             <p className="text-xs sm:text-sm text-neutral-300 mt-1">
@@ -377,7 +380,7 @@ const obtenerNombreRecinto = (idRecinto: string) => {
 
             {/* Aviso de gratuidad institucional */}
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-[11px] leading-snug">
-              ✓ Evento politécnico sin costo ni pasarelas de pago. La reservación es directa mediante tu cuenta institucional.
+              ✓ Evento politécnico sin costo ni pasarelas de pago. El acceso se gestiona mediante tu cuenta institucional.
             </div>
           </div>
         </div>
@@ -410,8 +413,13 @@ const obtenerNombreRecinto = (idRecinto: string) => {
             const expandido = diasExpandidos[fecha.id] ?? (indice === 0 || !!fecha.programa);
             // === INICIO TRAYECTORIA D: Verificar registro previo ===
             // Validamos si el usuario actual ya tiene una reservación para esta fecha específica
-            const yaRegistrado = usuarioActual 
-              ? (usuarioActual as any).reservaciones?.some((res: any) => res.idFecha === fecha.id && res.estado === 'activa')
+            const yaRegistrado = usuarioActual
+              ? listaIntencionesAsistencia.some(
+                  (intencion) =>
+                    intencion.idEvento === evento.id &&
+                    intencion.idFechaEvento === fecha.id &&
+                    intencion.idUsuario === usuarioActual.id
+                )
               : false;
             // === FIN TRAYECTORIA D ===
             return (
@@ -452,7 +460,6 @@ const obtenerNombreRecinto = (idRecinto: string) => {
                   {/* Acción de Registro para este día específico */}
                   <div className="flex items-center gap-3 shrink-0">
                     
-                    {}
                     {(evento.estado as string) === 'cancelado' || (evento.estado as string) === 'suspendido' || inscripcionCerrada ? (
                       <button
                         type="button"
@@ -501,7 +508,6 @@ const obtenerNombreRecinto = (idRecinto: string) => {
                         /* === FIN TRAYECTORIA D === */
                       )
                     )}
-                    {}
                   </div>
                 </div>
 
