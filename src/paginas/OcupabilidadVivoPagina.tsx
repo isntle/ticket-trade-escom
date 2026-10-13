@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Users, CheckCircle, Clock, MapPin, RefreshCw } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { MapaAsientos } from '../componentes/asientos/MapaAsientos';
@@ -29,6 +29,23 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
   const [idFechaSeleccionada, setIdFechaSeleccionada] = useState<string>(() => {
     return initialDateId || eventoSeleccionado?.fechas[0]?.id || '';
   });
+
+  // Sincronizar los parámetros de la ruta con los selectores cuando el monitor
+  // se abre desde otro caso de uso sin desmontar la página.
+  useEffect(() => {
+    const eventoInicial =
+      (initialEventId && eventosPublicados.some((evento) => evento.id === initialEventId)
+        ? initialEventId
+        : eventosPublicados[0]?.id) || '';
+    const datosEventoInicial = eventosPublicados.find((evento) => evento.id === eventoInicial);
+    const fechaInicial =
+      (initialDateId && datosEventoInicial?.fechas.some((fecha) => fecha.id === initialDateId)
+        ? initialDateId
+        : datosEventoInicial?.fechas[0]?.id) || '';
+
+    setIdEventoSeleccionado((actual) => (actual === eventoInicial ? actual : eventoInicial));
+    setIdFechaSeleccionada((actual) => (actual === fechaInicial ? actual : fechaInicial));
+  }, [initialEventId, initialDateId, listaEventos]);
 
   const fechaSeleccionada = eventoSeleccionado?.fechas.find((f) => f.id === idFechaSeleccionada) || eventoSeleccionado?.fechas[0];
   const recinto = listaRecintos.find((r) => r.id === fechaSeleccionada?.idRecinto);

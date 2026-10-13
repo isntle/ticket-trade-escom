@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   QrCode,
   CheckCircle,
@@ -51,7 +51,9 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     return eventosPermitidos[0]?.id || 'evt-simposio-ia';
   });
 
-  const [fechaActivaId, setFechaActivaId] = useState('fec-simposio-d1');
+  const [fechaActivaId, setFechaActivaId] = useState(() => {
+    return eventosPermitidos[0]?.fechas[0]?.id || 'fec-simposio-d1';
+  });
 
   // Resultado de escaneo activo (soft screen)
   const [ultimoResultado, setUltimoResultado] = useState<{
@@ -66,6 +68,23 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     listaEventos.find((e) => e.id === eventoActivoId) || eventosPermitidos[0] || listaEventos[0];
   const fechaSeleccionada =
     eventoSeleccionado?.fechas.find((f) => f.id === fechaActivaId) || eventoSeleccionado?.fechas[0];
+
+  // Mantener la selección válida cuando cambia el usuario activo o la asignación de eventos.
+  useEffect(() => {
+    const eventoValido = eventosPermitidos.some((evento) => evento.id === eventoActivoId);
+    const eventoActual = eventoValido
+      ? eventosPermitidos.find((evento) => evento.id === eventoActivoId)
+      : eventosPermitidos[0];
+
+    if (!eventoValido && eventoActual) {
+      setEventoActivoId(eventoActual.id);
+    }
+
+    const fechaValida = eventoActual?.fechas.some((fecha) => fecha.id === fechaActivaId);
+    if (!fechaValida) {
+      setFechaActivaId(eventoActual?.fechas[0]?.id || '');
+    }
+  }, [eventoActivoId, eventosPermitidos, fechaActivaId]);
 
   // Verificación de si el staff tiene asignado este evento
   const estaAsignadoAEvento =
@@ -111,7 +130,11 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       return;
     }
 
-    const res = procesarCheckIn(codigoAProcesar.trim(), usuarioActual?.nombre || 'Staff ESCOM');
+    const res = procesarCheckIn(
+      codigoAProcesar.trim(),
+      usuarioActual?.nombre || 'Staff ESCOM',
+      fechaSeleccionada?.id
+    );
     const ahora = new Date().toLocaleTimeString('es-MX', {
       hour: '2-digit',
       minute: '2-digit'
@@ -152,6 +175,24 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
             </option>
           ))}
         </select>
+
+        {eventoSeleccionado && eventoSeleccionado.fechas.length > 1 && (
+          <div className="mt-2 flex items-center gap-2">
+            <Calendar className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+            <select
+              value={fechaSeleccionada?.id || ''}
+              onChange={(e) => setFechaActivaId(e.target.value)}
+              className="flex-1 text-xs font-semibold text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 py-1.5 focus:border-[#7a132b]"
+              aria-label="Sesión del evento que se está validando"
+            >
+              {eventoSeleccionado.fechas.map((fecha, indice) => (
+                <option key={fecha.id} value={fecha.id}>
+                  Día {indice + 1}: {fecha.fecha} · {fecha.horaInicio}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {!estaAsignadoAEvento && (
           <div className="mt-2 p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] flex items-center gap-1.5">
