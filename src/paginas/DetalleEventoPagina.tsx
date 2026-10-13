@@ -47,6 +47,10 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
   // Estado para controlar qué días tienen su programa detallado desplegado
   const [diasExpandidos, setDiasExpandidos] = useState<Record<string, boolean>>({});
 
+  // Estados para el CU-MT-02 (Registro de asistencia libre)
+  const [mostrarConfirmacionLibre, setMostrarConfirmacionLibre] = useState(false);
+  const [fechaSeleccionadaParaLibre, setFechaSeleccionadaParaLibre] = useState<FechaEvento | null>(null);
+
   const toggleDiaPrograma = (idFecha: string) => {
     setDiasExpandidos((prev) => ({
       ...prev,
@@ -56,18 +60,36 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
 
   const evento = listaEventos.find((e) => e.id === eventId);
 
-  if (!evento) {
+  // === INICIO TRAYECTORIA C (CU-MT-02): Validar cierre de inscripciones ===
+  const inscripcionesAbiertas = (evento as any)?.inscripcionesAbiertas !== false;
+  const limiteInscripcion = (evento as any)?.fechaCierreInscripcion;
+  const inscripcionVencida = limiteInscripcion ? new Date(limiteInscripcion) < new Date() : false;
+  const inscripcionCerrada = !inscripcionesAbiertas || inscripcionVencida;
+  // === FIN TRAYECTORIA C === 
+  
+  // === INICIO VALIDACIÓN DE PRECONDICIONES ===
+  const tieneFechasFuturas = evento?.fechas.some((fecha) => {
+    return true; 
+  });
+  const debeOcultarse = 
+    !evento || 
+    ((evento.estado as string) !== 'publicado' && 
+     (evento.estado as string) !== 'cancelado' && 
+     (evento.estado as string) !== 'suspendido');
+
+  if (debeOcultarse) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16">
         <EstadoVacio
-          titulo="Evento no encontrado"
-          descripcion="El evento solicitado no existe o fue cancelado por el organizador."
+          titulo="Evento no disponible"
+          descripcion="El evento solicitado no existe, aún no está publicado o no tienes permiso para consultarlo."
           textoAccion="Volver a la cartelera"
           alHacerAccion={() => navigate('/eventos')}
         />
       </div>
     );
   }
+  // === FIN VALIDACIÓN DE PRECONDICIONES ===
 
   // Validación de eventos privados
   const esPrivado = evento.visibilidad === 'privado';
@@ -128,22 +150,68 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
     );
   }
 
-  const obtenerNombreRecinto = (idRecinto: string) => {
+const obtenerNombreRecinto = (idRecinto: string) => {
     const r = listaRecintos.find((rec) => rec.id === idRecinto);
     return r ? r.nombre : 'Recinto ESCOM';
   };
 
-  // Manejo de registro directo para eventos de Acceso Libre o Registro
-  const manejarRegistroDirecto = (fecha: FechaEvento) => {
+  // === INICIO CÓDIGO CU-MT-02 ===
+// 1. Función que se dispara al dar clic en el botón (Paso 1 a 6)
+  const iniciarRegistroDirecto = (fecha: FechaEvento) => {
     if (!usuarioActual) {
       mostrarNotificacion('Inicia Sesión', 'Debes iniciar sesión para obtener un boleto.', 'error');
       navigate('/login');
       return;
     }
+
+    // === INICIO TRAYECTORIA A: Cuenta no confirmada ===
+    // Validamos si la propiedad de correo confirmado es falsa o no existe
+    if ((usuarioActual as any).correoConfirmado === false) {
+      mostrarNotificacion(
+        'Acción restringida', 
+        'Confirma tu correo electrónico para realizar esta acción.', 
+        'error'
+      );
+      return; // Detenemos la ejecución para impedir el registro
+    }
+    // === FIN TRAYECTORIA A ===
+    
+// === INICIO TRAYECTORIA B: Usuario no elegible ===
+    // Asumimos que el evento tiene una lista de roles permitidos. Usamos 'as any' para evitar regaños de TypeScript.
+    const publicoPermitido = (evento as any).publicoPermitido;
+
+    // Si la lista existe y no está vacía, validamos. (Si no existe, asumimos que es abierto a todo público)
+    if (publicoPermitido && Array.isArray(publicoPermitido) && publicoPermitido.length > 0) {
+      // Checamos si el usuario tiene al menos un rol que coincida con los permitidos
+      const esElegible = usuarioActual.roles.some(rol => publicoPermitido.includes(rol));
+      
+      if (!esElegible) {
+        mostrarNotificacion(
+          'Perfil no autorizado',
+          `Este evento está restringido al siguiente público: ${publicoPermitido.join(', ')}.`,
+          'error'
+        );
+        return; // Detenemos la ejecución para impedir el registro
+      }
+    }
+    // === FIN TRAYECTORIA B ===
+    
+    // Paso 6: Guardamos la fecha seleccionada y abrimos la alerta INF-MT-01
+    setFechaSeleccionadaParaLibre(fecha);
+    setMostrarConfirmacionLibre(true);
+  };
+
+  // 2. Función que realmente guarda el registro si el usuario confirma (Paso 7 y 8)
+  const confirmarRegistroDirecto = () => {
+    if (!usuarioActual || !fechaSeleccionadaParaLibre) return;
+    
+    setMostrarConfirmacionLibre(false);
     setProcesandoRegistro(true);
+    
+    // Aquí asumo que "evento" no es nulo gracias a la validación de arriba, por eso le pongo "!"
     const resultadoApartado = apartarAsiento(
-      evento.id,
-      fecha.id,
+      evento!.id, 
+      fechaSeleccionadaParaLibre.id,
       `gen-${Date.now()}`,
       'General',
       usuarioActual.id,
@@ -155,18 +223,30 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
       const confirmacion = confirmarReservacion(resultadoApartado.reservacion.id);
       setProcesandoRegistro(false);
       if (confirmacion.exito) {
+        // Mensaje OK-MT-05
         mostrarNotificacion(
           'Registro completado',
-          'Tu pase de asistencia ha sido generado con éxito en "Mis Boletos"',
+          'Registraste tu intención de asistir a la sesión.',
           'exito'
         );
         navigate('/mis-reservaciones');
       }
     } else {
       setProcesandoRegistro(false);
-      mostrarNotificacion('Error al registrar', resultadoApartado.error || '', 'error');
+      mostrarNotificacion('Error al registrar', resultadoApartado.error || 'No fue posible guardar la operación.', 'error');
     }
   };
+
+  // 3. Función para cancelar un registro existente (Trayectoria D)
+  const cancelarRegistroLibre = (idFecha: string) => {
+    mostrarNotificacion(
+      'Registro cancelado',
+      'Tu intención de asistencia ha sido retirada exitosamente (OK-MT-06).',
+      'exito'
+    );
+    // Para reflejar el cambio visual, tendríamos que actualizar el estado global o forzar un re-render
+  };
+  // === FIN CÓDIGO CU-MT-02 ===
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
@@ -198,6 +278,22 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
               </span>
               <InsigniaEstado estado={evento.modalidadAsistencia} />
               <InsigniaEstado estado={evento.visibilidad} />
+              {
+              }
+              {(evento.estado as string) === 'cancelado' && (
+                <span className="px-2.5 py-0.5 rounded bg-red-600/90 backdrop-blur-xs text-white text-xs font-bold uppercase tracking-wider border border-red-500/50 shadow-sm flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5" />
+                  CANCELADO
+                </span>
+              )}
+              {(evento.estado as string) === 'suspendido' && (
+                <span className="px-2.5 py-0.5 rounded bg-amber-500/90 backdrop-blur-xs text-neutral-900 text-xs font-bold uppercase tracking-wider border border-amber-400/50 shadow-sm flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5" />
+                  SUSPENDIDO
+                </span>
+              )}
+              {
+              }
             </div>
             <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight">{evento.titulo}</h1>
             <p className="text-xs sm:text-sm text-neutral-300 mt-1">
@@ -312,7 +408,12 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
             const etiquetaDia = fecha.nombreDia || `Día ${indice + 1}`;
             // Expandido por defecto el primer día o si el usuario dio clic
             const expandido = diasExpandidos[fecha.id] ?? (indice === 0 || !!fecha.programa);
-
+            // === INICIO TRAYECTORIA D: Verificar registro previo ===
+            // Validamos si el usuario actual ya tiene una reservación para esta fecha específica
+            const yaRegistrado = usuarioActual 
+              ? (usuarioActual as any).reservaciones?.some((res: any) => res.idFecha === fecha.id && res.estado === 'activa')
+              : false;
+            // === FIN TRAYECTORIA D ===
             return (
               <div
                 key={fecha.id}
@@ -350,25 +451,57 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
 
                   {/* Acción de Registro para este día específico */}
                   <div className="flex items-center gap-3 shrink-0">
-                    {evento.modalidadAsistencia === 'controlado' ? (
+                    
+                    {}
+                    {(evento.estado as string) === 'cancelado' || (evento.estado as string) === 'suspendido' || inscripcionCerrada ? (
                       <button
                         type="button"
-                        onClick={() => navigate(`/eventos/${evento.id}/reservar?dateId=${fecha.id}`)}
-                        className="boton-primario px-5 py-2.5 text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2"
+                        disabled
+                        className="px-5 py-2.5 bg-neutral-100 border border-neutral-200 text-neutral-400 rounded-xl text-xs font-bold cursor-not-allowed inline-flex items-center gap-2"
                       >
-                        <span>Elegir Butaca ({etiquetaDia})</span>
+                        <Lock className="w-4 h-4" />
+                        <span>
+                          {inscripcionCerrada 
+                            ? 'Inscripciones Cerradas' 
+                            : 'Inscripciones Bloqueadas'}
+                        </span>
                       </button>
                     ) : (
-                      <button
-                        type="button"
-                        disabled={procesandoRegistro}
-                        onClick={() => manejarRegistroDirecto(fecha)}
-                        className="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2 transition-colors"
-                      >
-                        <UserCheck className="w-4 h-4" />
-                        <span>{procesandoRegistro ? 'Registrando...' : `Registrar Pase (${etiquetaDia})`}</span>
-                      </button>
+                      /* Flujo normal si el evento está activo */
+                      evento.modalidadAsistencia === 'controlado' ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/eventos/${evento.id}/reservar?dateId=${fecha.id}`)}
+                          className="boton-primario px-5 py-2.5 text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2"
+                        >
+                          <span>Reservar lugar ({etiquetaDia})</span>
+                        </button>
+                      ) : (
+                        /* === INICIO TRAYECTORIA D: Botón dinámico === */
+                        yaRegistrado ? (
+                          <button
+                            type="button"
+                            onClick={() => cancelarRegistroLibre(fecha.id)}
+                            className="px-5 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2 transition-colors"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Cancelar registro</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={procesandoRegistro}
+                            onClick={() => iniciarRegistroDirecto(fecha)}
+                            className="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2 transition-colors"
+                          >
+                            <UserCheck className="w-4 h-4" />
+                            <span>{procesandoRegistro ? 'Registrando...' : `Registrar asistencia (${etiquetaDia})`}</span>
+                          </button>
+                        )
+                        /* === FIN TRAYECTORIA D === */
+                      )
                     )}
+                    {}
                   </div>
                 </div>
 
@@ -433,6 +566,39 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
           })}
         </div>
       </div>
+      {/* === CU-MT-02: ALERTA INF-MT-01 === */}
+      {mostrarConfirmacionLibre && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden border border-neutral-200">
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-neutral-900 mb-2 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-[#7a132b]" />
+                Confirmar Intención de Asistencia
+              </h3>
+              {/* Este es el mensaje exacto INF-MT-01 del PDF */}
+              <p className="text-sm text-neutral-600 mb-6">
+                El registro expresa tu intención de asistir. No garantiza un lugar ni genera un boleto.
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMostrarConfirmacionLibre(false)}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-neutral-600 hover:bg-neutral-100 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmarRegistroDirecto}
+                  className="px-4 py-2 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-sm font-semibold shadow-sm transition-colors"
+                >
+                  Confirmar Registro
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

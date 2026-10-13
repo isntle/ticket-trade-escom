@@ -159,11 +159,18 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
         </div>
       </div>
 
-      {eventosFiltrados.length === 0 ? (
+      {/* === INICIO CÓDIGO TRAYECTORIA A === */}
+      {listaEventos.filter(e => e.estado === 'publicado' && e.visibilidad !== 'privado').length === 0 ? (
         <EstadoVacio
-          icono={<Calendar className="w-8 h-8" />}
-          titulo="No se encontraron eventos"
-          descripcion="Intenta modificar los filtros de búsqueda o categoría seleccionados."
+          icono={<Calendar className="w-8 h-8 text-neutral-400" />}
+          titulo="Sin eventos próximos"
+          descripcion="Actualmente no hay eventos próximos en la cartelera."
+        />
+      ) : eventosFiltrados.length === 0 ? (
+        <EstadoVacio
+          icono={<Search className="w-8 h-8 text-neutral-400" />}
+          titulo="Sin resultados"
+          descripcion="No se encontraron resultados con los filtros seleccionados."
           textoAccion="Restablecer filtros"
           alHacerAccion={() => {
             setTerminoBusqueda('');
@@ -173,6 +180,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
         />
       ) : (
         <div className="space-y-10">
+          {/* === FIN CÓDIGO TRAYECTORIA A === */}
           {/* ========================================================================= */}
           {/* 2. EVENTO DESTACADO (HERO EDITORIAL CARD)                                */}
           {/* ========================================================================= */}
@@ -261,7 +269,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
                       }}
                       className="boton-primario px-5 py-2.5 text-xs font-bold inline-flex items-center gap-2 cursor-pointer shadow-xs"
                     >
-                      <span>Ver Detalles y Reservar</span>
+                      <span>Consultar detalle del evento</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
