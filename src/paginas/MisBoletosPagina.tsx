@@ -261,9 +261,9 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
                 />
               </div>
 
-              <div className="mt-3 font-mono text-xs font-extrabold text-[#7a132b] break-all px-2">
+              <div className="mt-3 text-left"><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-neutral-500">Identificador para captura manual</span><div className="font-mono text-xs font-extrabold text-[#7a132b] break-all px-2">
                 {boletoSeleccionado.codigoQr}
-              </div>
+              </div></div>
 
               <div className="mt-4 pt-3 border-t border-neutral-200 text-left text-xs space-y-1">
                 <div className="font-bold text-neutral-900 text-sm line-clamp-1">

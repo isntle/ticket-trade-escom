@@ -170,7 +170,7 @@ const obtenerNombreRecinto = (idRecinto: string) => {
     if (estadoInscripciones === 'cerradas' || fechaLimite <= Date.now()) {
       mostrarNotificacion(
         'Inscripciones cerradas',
-        'ERR-MT-02 · Esta sesión ya no admite nuevos registros.',
+        'ERR-MT-02 · Este día ya no admite nuevos registros.',
         'advertencia'
       );
       return;
@@ -237,7 +237,7 @@ const obtenerNombreRecinto = (idRecinto: string) => {
     if (resultado.exito) {
       mostrarNotificacion(
         'Registro completado',
-        'Registraste tu intención de asistir a la sesión. No se generó un boleto.',
+        'Registraste tu intención de asistir este día. No se generó un boleto.',
         'exito'
       );
     } else {

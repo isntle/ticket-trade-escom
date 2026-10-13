@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { BrowserQRCodeReader, IScannerControls } from '@zxing/browser';
 import {
   QrCode,
   CheckCircle,
@@ -27,24 +28,24 @@ interface PropiedadesEscaneoStaff {
 }
 
 export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate }) => {
-  const { listaBoletos, procesarCheckIn, bitacoraEscaneos, listaEventos } = useDatos();
+  const { listaBoletos, procesarCheckIn, listaEventos, listaRecintos } = useDatos();
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
 
   const [codigoIngresado, setCodigoIngresado] = useState('');
+  const [errorCamara, setErrorCamara] = useState('');
+  const [camaraActiva, setCamaraActiva] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const controlesCamara = useRef<IScannerControls | null>(null);
+  const lectorQr = useRef(new BrowserQRCodeReader());
+  const leyendoQr = useRef(false);
+  const intentosRecientes = useRef<number[]>([]);
 
-  // Eventos disponibles para este miembro de Staff (según sus eventos asignados o todos si es admin)
+  // Solo eventos propios del organizador o asignados explícitamente al Staff.
   const eventosPermitidos = listaEventos.filter((ev) => {
     if (!usuarioActual) return false;
-    if (usuarioActual.roles.includes('admin') || usuarioActual.roles.includes('subdireccion')) {
-      return true;
-    }
-    // Si tiene eventos asignados explícitamente, filtrar por ellos
-    if (usuarioActual.eventosAsignadosStaff && usuarioActual.eventosAsignadosStaff.length > 0) {
-      return usuarioActual.eventosAsignadosStaff.includes(ev.id);
-    }
-    // Si no tiene asignación específica aún, permitir el simposio por defecto
-    return ev.id === 'evt-simposio-ia';
+    return (usuarioActual.roles.includes('organizador') && ev.idOrganizador === usuarioActual.id) ||
+      (usuarioActual.roles.includes('staff') && Boolean(usuarioActual.eventosAsignadosStaff?.includes(ev.id)));
   });
 
   const [eventoActivoId, setEventoActivoId] = useState(() => {
@@ -87,39 +88,54 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
   }, [eventoActivoId, eventosPermitidos, fechaActivaId]);
 
   // Verificación de si el staff tiene asignado este evento
-  const estaAsignadoAEvento =
-    usuarioActual?.roles.includes('admin') ||
-    usuarioActual?.roles.includes('subdireccion') ||
-    (usuarioActual?.eventosAsignadosStaff?.includes(eventoSeleccionado?.id || '') ?? true);
+  const estaAsignadoAEvento = Boolean(usuarioActual && eventoSeleccionado &&
+    ((usuarioActual.roles.includes('organizador') && eventoSeleccionado.idOrganizador === usuarioActual.id) ||
+    (usuarioActual.roles.includes('staff') && usuarioActual.eventosAsignadosStaff?.includes(eventoSeleccionado.id))));
 
   // Cálculo de aforo e ingresos en vivo en puerta
-  const boletosEvento = listaBoletos.filter((b) => b.idEvento === eventoSeleccionado?.id);
-  const totalEmitidos = boletosEvento.length || 120;
+  const boletosEvento = listaBoletos.filter((b) => b.idEvento === eventoSeleccionado?.id && b.idFechaEvento === fechaSeleccionada?.id);
+  const totalEmitidos = boletosEvento.length;
   const totalIngresados = boletosEvento.filter((b) => b.estado === 'utilizado').length;
-  const porcentajeIngreso = Math.round((totalIngresados / totalEmitidos) * 100);
+  const porcentajeIngreso = totalEmitidos ? Math.round((totalIngresados / totalEmitidos) * 100) : 0;
+  const recintoSeleccionado = listaRecintos.find((recinto) => recinto.id === fechaSeleccionada?.idRecinto);
 
-  // Códigos de prueba prefabricados para demostración instantánea
-  const codigosDemostracion = [
-    {
-      etiqueta: 'Boleto Válido (Carlos Méndez · C-7)',
-      codigo: 'TT-ESCOM-IA26-D1-C7-VALIDO'
-    },
-    {
-      etiqueta: 'Boleto VIP Válido (Mariana Morales · A-5)',
-      codigo: 'TT-ESCOM-IA26-VIP-A5-VALIDO'
-    },
-    {
-      etiqueta: 'Boleto YA UTILIZADO (Fraude / Duplicado)',
-      codigo: 'TT-ESCOM-IA26-D2-D8-YAUSADO'
-    },
-    {
-      etiqueta: 'Código No Emitido / Inválido',
-      codigo: 'QR-FALSO-ESCOM-999'
+  useEffect(() => () => controlesCamara.current?.stop(), []);
+
+  const iniciarCamara = async () => {
+    setErrorCamara('');
+    try {
+      const video = videoRef.current;
+      if (!video) return;
+      controlesCamara.current = await lectorQr.current.decodeFromVideoDevice(undefined, video, (resultado) => {
+        if (!resultado || leyendoQr.current) return;
+        leyendoQr.current = true;
+        controlesCamara.current?.stop();
+        setCamaraActiva(false);
+        ejecutarEscaneo(resultado.getText());
+        window.setTimeout(() => { leyendoQr.current = false; }, 800);
+      });
+      setCamaraActiva(true);
+    } catch {
+      setErrorCamara('No se pudo abrir la cámara. Revisa el permiso del navegador o captura el identificador manualmente.');
+      setCamaraActiva(false);
     }
-  ];
+  };
 
-  const ejecutarEscaneo = (codigoAProcesar: string) => {
+  const ejecutarEscaneo = (codigoAProcesar: string, validarFormatoManual = false) => {
     if (!codigoAProcesar.trim()) return;
+    if (validarFormatoManual && !/^TT-[A-Z0-9-]{8,}$/i.test(codigoAProcesar.trim())) {
+      mostrarNotificacion('Identificador no válido', 'El código debe tener formato Ticket Trade (TT-…) y al menos 11 caracteres.', 'advertencia');
+      return;
+    }
+    const ahoraMs = Date.now();
+    intentosRecientes.current = intentosRecientes.current.filter((instante) => ahoraMs - instante < 60_000);
+    if (intentosRecientes.current.length >= 5) {
+      mostrarNotificacion('Límite de intentos', 'Espera un minuto antes de volver a validar boletos.', 'advertencia');
+      return;
+    }
+    intentosRecientes.current.push(ahoraMs);
+    controlesCamara.current?.stop();
+    setCamaraActiva(false);
 
     if (!estaAsignadoAEvento) {
       mostrarNotificacion(
@@ -133,7 +149,9 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     const res = procesarCheckIn(
       codigoAProcesar.trim(),
       usuarioActual?.nombre || 'Staff ESCOM',
-      fechaSeleccionada?.id
+      fechaSeleccionada?.id,
+      usuarioActual || undefined,
+      eventoSeleccionado?.id
     );
     const ahora = new Date().toLocaleTimeString('es-MX', {
       hour: '2-digit',
@@ -150,6 +168,10 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
   const limpiarParaSiguiente = () => {
     setUltimoResultado(null);
   };
+
+  if (eventosPermitidos.length === 0) {
+    return <main className="mx-auto max-w-xl px-4 py-20 text-center"><div className="rounded-3xl border border-neutral-200 bg-white p-8"><Lock className="mx-auto h-10 w-10 text-amber-700"/><h1 className="mt-4 text-xl font-black">No hay eventos asignados</h1><p className="mt-2 text-sm text-neutral-600">Para operar el lector, tu cuenta debe ser el organizador responsable o estar asignada como Staff al evento.</p><button type="button" onClick={() => navigate('/eventos')} className="mt-5 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-bold text-white">Volver a eventos</button></div></main>;
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 py-6 min-h-[85vh] flex flex-col justify-between animate-in fade-in duration-200">
@@ -183,7 +205,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
               value={fechaSeleccionada?.id || ''}
               onChange={(e) => setFechaActivaId(e.target.value)}
               className="flex-1 text-xs font-semibold text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 py-1.5 focus:border-[#7a132b]"
-              aria-label="Sesión del evento que se está validando"
+              aria-label="Día del evento que se está validando"
             >
               {eventoSeleccionado.fechas.map((fecha, indice) => (
                 <option key={fecha.id} value={fecha.id}>
@@ -305,8 +327,10 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
               <span className="font-mono font-semibold text-neutral-800">
                 {fechaSeleccionada?.fecha}
               </span>
+                <span aria-hidden="true" className="text-neutral-300">·</span>
+                <span>{fechaSeleccionada?.horaInicio}–{fechaSeleccionada?.horaFin} h</span>
               <span aria-hidden="true" className="text-neutral-300">·</span>
-              <span className="font-semibold text-neutral-700">AUDITORIO ESCOM</span>
+                <span className="font-semibold text-neutral-700">{recintoSeleccionado?.nombre || 'Recinto por confirmar'}</span>
             </div>
           </div>
 
@@ -329,80 +353,58 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
             </div>
           </div>
 
-          {/* Visor de Cámara Simulado con Guía de Enfoque QR */}
+          {/* Lector real por cámara */}
           <div className="bg-neutral-950 rounded-3xl p-5 text-white text-center relative overflow-hidden shadow-md">
-            {/* Esquinas guía del visor */}
-            <div className="relative w-48 h-48 mx-auto flex flex-col items-center justify-center">
-              <div className="absolute top-0 left-0 w-7 h-7 border-t-4 border-l-4 border-white rounded-tl-xl" />
-              <div className="absolute top-0 right-0 w-7 h-7 border-t-4 border-r-4 border-white rounded-tr-xl" />
-              <div className="absolute bottom-0 left-0 w-7 h-7 border-b-4 border-l-4 border-white rounded-bl-xl" />
-              <div className="absolute bottom-0 right-0 w-7 h-7 border-b-4 border-r-4 border-white rounded-br-xl" />
-
-              {/* Línea roja láser de escaneo animada */}
-              <div className="absolute inset-x-4 h-0.5 bg-rose-500 shadow-lg shadow-rose-500 animate-pulse" />
-
-              <Camera className="w-10 h-10 text-neutral-500 mb-2" />
-              <span className="text-[11px] font-mono tracking-wider text-neutral-300">
-                Apunta al código QR del asistente
-              </span>
-            </div>
+            <video ref={videoRef} className={`w-full max-h-64 rounded-xl object-cover ${camaraActiva ? '' : 'hidden'}`} muted playsInline />
+            {!camaraActiva && <div className="py-8"><Camera className="w-10 h-10 text-neutral-400 mx-auto mb-2" /><p className="text-xs">Lectura de QR con la cámara del dispositivo</p></div>}
+            <button type="button" disabled={!estaAsignadoAEvento} onClick={() => camaraActiva ? (controlesCamara.current?.stop(), setCamaraActiva(false)) : void iniciarCamara()} className="mt-3 rounded-xl bg-white px-4 py-2 text-xs font-bold text-neutral-900 disabled:opacity-50">{camaraActiva ? 'Detener cámara' : 'Activar cámara'}</button>
+            {errorCamara && <p role="alert" className="mt-2 text-xs text-rose-200">{errorCamara}</p>}
           </div>
 
           {/* Ingreso Manual de Código o Simulador Rápido */}
           <div className="bg-white rounded-2xl border border-neutral-200 p-4 shadow-xs space-y-3">
-            <span className="text-xs font-bold text-neutral-800 block">
-              Prueba Rápida o Ingreso Manual:
+              <span className="text-xs font-bold text-neutral-800 block">
+              Identificador del boleto:
             </span>
 
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                ejecutarEscaneo(codigoIngresado);
+                ejecutarEscaneo(codigoIngresado, true);
               }}
               className="flex gap-2"
             >
               <input
                 type="text"
+                required
+                minLength={11}
+                maxLength={128}
                 value={codigoIngresado}
+                disabled={!estaAsignadoAEvento}
                 onChange={(e) => setCodigoIngresado(e.target.value)}
-                placeholder="Ingresar código QR (ej: TT-ESCOM-...)"
+                placeholder="Pega el identificador TT-…"
                 className="flex-1 px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-mono focus:outline-none focus:border-[#7a132b]"
               />
               <button
                 type="submit"
+                disabled={!estaAsignadoAEvento}
                 className="px-4 py-2 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
               >
                 Validar
               </button>
             </form>
 
-            {/* Botones de simulación directa de casos de uso reales */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              {codigosDemostracion.map((item, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => ejecutarEscaneo(item.codigo)}
-                  className="p-2 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-xl text-[10px] font-semibold text-neutral-700 text-left transition-colors cursor-pointer truncate"
-                  title={item.codigo}
-                >
-                  {item.etiqueta}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       )}
 
       {/* Pie Operativo */}
       <div className="pt-3 text-center">
-        <button
-          type="button"
-          onClick={() => navigate('/staff/ocupacion')}
-          className="text-xs font-semibold text-[#7a132b] hover:underline cursor-pointer"
-        >
-          Ver Mapa de Ocupabilidad en Vivo de la Sala →
-        </button>
+        {usuarioActual?.roles.some((rol) => ['organizador', 'subdireccion', 'admin'].includes(rol)) ? (
+          <button type="button" onClick={() => navigate('/staff/historial')} className="text-xs font-semibold text-[#7a132b] hover:underline cursor-pointer">Consultar historial de accesos →</button>
+        ) : (
+          <button type="button" onClick={() => navigate('/staff/ocupacion')} className="text-xs font-semibold text-[#7a132b] hover:underline cursor-pointer">Ver ocupación de la sala →</button>
+        )}
       </div>
     </div>
   );

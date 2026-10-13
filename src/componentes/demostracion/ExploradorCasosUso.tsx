@@ -277,7 +277,7 @@ const SUBEQUIPOS: Subequipo[] = [
     icono: Building2,
     color: 'text-indigo-700 bg-indigo-50 border-indigo-200',
     casos: [
-      { id: 'CU-OR-01', nombre: 'Preparar borrador de solicitud', actor: 'Organizador', interfaz: 'UI-20 · Solicitud formal de evento', descripcion: 'El organizador captura los datos del evento, sesiones, horarios y recintos para preparar un borrador.', ruta: '/solicitar-evento', estado: 'comprobable' },
+      { id: 'CU-OR-01', nombre: 'Preparar borrador de solicitud', actor: 'Organizador', interfaz: 'UI-20 · Solicitud formal de evento', descripcion: 'El organizador captura los datos del evento, días, horarios y recintos para preparar un borrador.', ruta: '/solicitar-evento', estado: 'comprobable' },
       { id: 'CU-OR-02', nombre: 'Consultar historial de solicitudes propias', actor: 'Organizador', interfaz: 'UI-21 · Detalle y dictamen de solicitud', descripcion: 'El organizador consulta las solicitudes que ha creado y abre el detalle de una de ellas.', ruta: '/organizador', estado: 'parcial' },
       { id: 'CU-OR-03', nombre: 'Revisar y resolver solicitud ordinaria', actor: 'Subdirección', interfaz: 'UI-50 · Bandeja de dictamen de Subdirección', descripcion: 'Subdirección revisa una solicitud ordinaria y registra el dictamen correspondiente.', ruta: '/subdireccion', estado: 'comprobable' },
       { id: 'CU-OR-04', nombre: 'Consultar catálogo y detalle de recintos', actor: 'Organizador', interfaz: 'UI-20 · Selector y disponibilidad de recintos', descripcion: 'El organizador consulta los recintos disponibles, sus características y la ocupación para elegir uno compatible.', ruta: '/solicitar-evento', estado: 'parcial' },
@@ -297,9 +297,9 @@ const SUBEQUIPOS: Subequipo[] = [
       { id: 'CU-OR-19', nombre: 'Modificar información de un evento aprobado', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador modifica la información permitida de un evento aprobado respetando sus restricciones.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'parcial' },
       { id: 'CU-OR-20', nombre: 'Reprogramar fecha u horario de un evento', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador propone un cambio de fecha u horario y el sistema valida sus restricciones.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
       { id: 'CU-OR-21', nombre: 'Cambiar recinto de una fecha aprobada', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador propone otro recinto para una fecha aprobada y el sistema verifica disponibilidad y compatibilidad.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
-      { id: 'CU-OR-22', nombre: 'Retirar una fecha o sesión sin compromisos', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador retira una fecha o sesión cuando no existen reservaciones o compromisos que lo impidan.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
+      { id: 'CU-OR-22', nombre: 'Retirar un día sin compromisos', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador retira un día cuando no existen reservaciones o compromisos que lo impidan.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
       { id: 'CU-OR-23', nombre: 'Cancelar evento aprobado', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador inicia la cancelación de un evento aprobado y el sistema aplica las reglas de afectación.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
-      { id: 'CU-OR-24', nombre: 'Cancelar una fecha o sesión de un evento', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador cancela una sola fecha o sesión y el sistema conserva las demás cuando corresponde.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
+      { id: 'CU-OR-24', nombre: 'Cancelar un día de un evento', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador cancela un solo día y el sistema conserva los demás cuando corresponde.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
       { id: 'CU-OR-25', nombre: 'Resolver fecha suspendida por bloqueo institucional', actor: 'Organizador o Subdirección', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El actor autorizado revisa una fecha suspendida y registra una resolución compatible con el bloqueo institucional.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
       { id: 'CU-OR-26', nombre: 'Administrar catálogo de recintos', actor: 'Administrador o Subdirección', interfaz: 'UI-20 · Catálogo y disponibilidad de recintos', descripcion: 'El actor autorizado administra los datos, capacidad y estado operativo de los recintos.', ruta: '/solicitar-evento', estado: 'pendiente' },
       { id: 'CU-OR-27', nombre: 'Gestionar ocupaciones internas', actor: 'Subdirección', interfaz: 'UI-51 · Agenda multi-recinto de ocupación', descripcion: 'Subdirección registra y consulta ocupaciones internas que afectan la disponibilidad de los recintos.', ruta: '/subdireccion?tab=agenda', estado: 'parcial' },
@@ -314,14 +314,14 @@ const SUBEQUIPOS: Subequipo[] = [
     color: 'text-amber-800 bg-amber-50 border-amber-200',
     casos: [
       { id: 'CU-MT-01', nombre: 'Explorar cartelera y consultar detalle de evento', actor: 'Asistente o visitante', interfaz: 'UI-10 y UI-11 · Cartelera y ficha técnica', descripcion: 'El asistente explora la cartelera, filtra eventos y consulta el detalle con fechas, horarios, recintos y programa.', ruta: '/eventos', estado: 'comprobable' },
-      { id: 'CU-MT-02', nombre: 'Registrar intención de asistencia', actor: 'Asistente', interfaz: 'UI-11 · Ficha técnica del evento', descripcion: 'El asistente expresa su intención de asistir a una sesión antes de reservar un lugar, cuando el evento lo permite.', ruta: '/eventos/evt-simposio-ia', estado: 'pendiente' },
-      { id: 'CU-MT-03', nombre: 'Reservar lugar en sesión', actor: 'Asistente', interfaz: 'UI-40 · Taquilla y selección de lugar', descripcion: 'El asistente selecciona un lugar, obtiene un apartado temporal y confirma la reservación de la sesión.', ruta: '/eventos/evt-simposio-ia/reservar?dateId=fec-simposio-d1', estado: 'comprobable' },
-      { id: 'CU-MT-04', nombre: 'Participar en lista de espera', actor: 'Asistente', interfaz: 'UI-11 · Ficha técnica del evento', descripcion: 'El asistente se incorpora a la lista de espera cuando una sesión no tiene cupo y consulta su posición.', ruta: '/eventos/evt-simposio-ia', estado: 'pendiente' },
+      { id: 'CU-MT-02', nombre: 'Registrar intención de asistencia', actor: 'Asistente', interfaz: 'UI-11 · Ficha técnica del evento', descripcion: 'El asistente expresa su intención de asistir un día antes de reservar un lugar, cuando el evento lo permite.', ruta: '/eventos/evt-simposio-ia', estado: 'pendiente' },
+      { id: 'CU-MT-03', nombre: 'Reservar lugar en un día', actor: 'Asistente', interfaz: 'UI-40 · Taquilla y selección de lugar', descripcion: 'El asistente selecciona un lugar, obtiene un apartado temporal y confirma la reservación del día.', ruta: '/eventos/evt-simposio-ia/reservar?dateId=fec-simposio-d1', estado: 'comprobable' },
+      { id: 'CU-MT-04', nombre: 'Participar en lista de espera', actor: 'Asistente', interfaz: 'UI-11 · Ficha técnica del evento', descripcion: 'El asistente se incorpora a la lista de espera cuando un día no tiene cupo y consulta su posición.', ruta: '/eventos/evt-simposio-ia', estado: 'pendiente' },
       { id: 'CU-MT-05', nombre: 'Consultar mis boletos e historial', actor: 'Asistente', interfaz: 'UI-41 · Mis boletos digitales', descripcion: 'El asistente consulta sus boletos vigentes, cancelados y el código QR de cada reservación.', ruta: '/mis-reservaciones', estado: 'comprobable' },
       { id: 'CU-MT-06', nombre: 'Cancelar reservación activa', actor: 'Asistente', interfaz: 'UI-41 · Mis boletos digitales', descripcion: 'El asistente cancela una reservación propia y libera el lugar para la disponibilidad o lista de espera.', ruta: '/mis-reservaciones', estado: 'comprobable' },
-      { id: 'CU-MT-07', nombre: 'Gestionar boletos especiales', actor: 'Organizador, Staff o VIP', interfaz: 'UI-30 · Panel de organización', descripcion: 'El personal autorizado administra boletos especiales para organizadores, Staff o invitados VIP.', ruta: '/organizador', estado: 'pendiente' },
-      { id: 'CU-MT-08', nombre: 'Gestionar apertura y cierre de inscripciones', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador configura las condiciones y el periodo de apertura o cierre de inscripciones.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'parcial' },
-      { id: 'CU-MT-09', nombre: 'Consultar panel de taquilla y participación', actor: 'Organizador', interfaz: 'UI-30 · Panel de organización', descripcion: 'El organizador consulta indicadores de reservaciones, participación y lista de espera de sus eventos.', ruta: '/organizador', estado: 'pendiente' }
+      { id: 'CU-MT-07', nombre: 'Gestionar boletos especiales', actor: 'Organizador', interfaz: 'UI-62 · Gestión de boletos especiales', descripcion: 'El organizador emite y puede invalidar boletos de organización, Staff o invitados VIP.', ruta: '/organizador/eventos/evt-simposio-ia/boletos-especiales', estado: 'comprobable' },
+      { id: 'CU-MT-08', nombre: 'Gestionar apertura y cierre de inscripciones', actor: 'Organizador', interfaz: 'UI-63 · Inscripciones por día', descripcion: 'El organizador abre o cierra las inscripciones de uno o varios días del evento.', ruta: '/organizador/eventos/evt-simposio-ia/inscripciones', estado: 'comprobable' },
+      { id: 'CU-MT-09', nombre: 'Consultar panel de taquilla y participación', actor: 'Organizador', interfaz: 'UI-64 · Panel por día', descripcion: 'El organizador consulta indicadores de taquilla y participación, desglosados por día.', ruta: '/organizador/eventos/evt-simposio-ia/taquilla-participacion', estado: 'comprobable' }
     ]
   },
   {
@@ -331,10 +331,10 @@ const SUBEQUIPOS: Subequipo[] = [
     icono: ScanLine,
     color: 'text-emerald-800 bg-emerald-50 border-emerald-200',
     casos: [
-      { id: 'CUCI1', nombre: 'Seleccionar sesión para control de acceso', actor: 'Staff u Organizador', interfaz: 'UI-60 · Escáner de acceso', descripcion: 'El operador selecciona el evento y la sesión que quedarán asociadas al lector de acceso.', ruta: '/staff', estado: 'comprobable' },
-      { id: 'CUCI2', nombre: 'Registrar entrada mediante código QR', actor: 'Staff u Organizador', interfaz: 'UI-60 · Escáner de acceso', descripcion: 'El operador valida el QR, comprueba que el boleto sea vigente y registra la entrada una sola vez.', ruta: '/staff', estado: 'parcial' },
-      { id: 'CUCI2.1', nombre: 'Registrar entrada mediante identificador manual', actor: 'Staff u Organizador', interfaz: 'UI-60 · Escáner de acceso', descripcion: 'El operador captura manualmente el identificador impreso cuando la lectura de cámara no está disponible.', ruta: '/staff', estado: 'comprobable' },
-      { id: 'CUCI3', nombre: 'Consultar historial de accesos', actor: 'Organizador, Subdirección o Administrador', interfaz: 'UI-61 · Monitor de ocupabilidad', descripcion: 'El actor autorizado consulta el historial de entradas registradas para auditar la asistencia del evento.', ruta: '/staff/ocupacion?eventId=evt-simposio-ia&dateId=fec-simposio-d1', estado: 'pendiente' },
+      { id: 'CUCI1', nombre: 'Seleccionar día para control de acceso', actor: 'Staff u Organizador', interfaz: 'IU-CI01 · Selección de evento y día', descripcion: 'El operador elige un evento autorizado y el día cuyas entradas va a controlar.', ruta: '/staff', estado: 'comprobable' },
+      { id: 'CUCI2', nombre: 'Registrar entrada mediante código QR', actor: 'Staff u Organizador', interfaz: 'IU-CI02 · Lector de boletos', descripcion: 'El operador escanea el QR y el sistema valida vigencia, día, horario, permisos y uso previo antes de registrar la entrada.', ruta: '/staff', estado: 'comprobable' },
+      { id: 'CUCI2.1', nombre: 'Registrar entrada mediante identificador manual', actor: 'Staff u Organizador', interfaz: 'IU-CI02 · Lector de boletos', descripcion: 'El operador captura manualmente el identificador impreso cuando la lectura de cámara no está disponible.', ruta: '/staff', estado: 'comprobable' },
+      { id: 'CUCI3', nombre: 'Consultar historial de accesos', actor: 'Organizador, Subdirección o Administrador', interfaz: 'IU-CI04 · Historial de accesos', descripcion: 'El actor autorizado consulta, filtra y audita los intentos de entrada registrados.', ruta: '/staff/historial', estado: 'comprobable' },
       { id: 'CUCI4', nombre: 'Presentar boleto en el acceso', actor: 'Asistente', interfaz: 'UI-41 · Mis boletos digitales', descripcion: 'El asistente consulta y presenta el QR o identificador de su boleto; el registro lo realiza el operador.', ruta: '/mis-reservaciones', estado: 'comprobable' }
     ]
   }
@@ -482,16 +482,6 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ na
                 <div className="space-y-2">
                   {equipo.casos.map((caso) => {
                     const activo = caso.id === casoSeleccionado.id;
-                    const etiquetaEstado = caso.estado === 'comprobable'
-                      ? 'Comprobable'
-                      : caso.estado === 'parcial'
-                      ? 'Parcial'
-                      : 'Pendiente';
-                    const colorEstado = caso.estado === 'comprobable'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : caso.estado === 'parcial'
-                      ? 'bg-amber-50 text-amber-700 border-amber-200'
-                      : 'bg-neutral-100 text-neutral-500 border-neutral-200';
                     return (
                       <div key={caso.id} className={`rounded-xl border transition ${activo ? 'border-[#7a132b]/35 bg-[#7a132b]/[0.035]' : 'border-neutral-200 bg-white'}`}>
                         <button
@@ -506,9 +496,6 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ na
                             </span>
                             <span className="flex flex-wrap items-center gap-1.5 text-[11px] leading-4 text-neutral-500">
                               <span>{caso.interfaz}</span>
-                              <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${colorEstado}`}>
-                                {etiquetaEstado}
-                              </span>
                             </span>
                           </span>
                           {activo ? <ChevronUp className="mt-0.5 h-4 w-4 shrink-0 text-[#7a132b]" /> : <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-neutral-400" />}

@@ -71,7 +71,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
       <div className="max-w-4xl mx-auto px-4 py-16">
         <EstadoVacio
           titulo="Arreglo de asientos no encontrado"
-          descripcion="No existen borradores de distribución de asientos para esta fecha de sesión."
+          descripcion="No existen borradores de distribución de asientos para este día del evento."
           textoAccion="Volver al evento"
           alHacerAccion={() => navigate(`/organizador/eventos/${eventId}`)}
         />

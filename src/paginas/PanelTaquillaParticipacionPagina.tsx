@@ -426,7 +426,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
   };
 
   const tarjetas = [
-    { etiqueta: 'Aforo total', valor: totales.aforo, ayuda: 'Lugares en las sesiones', icono: Users, color: 'text-neutral-700 bg-neutral-100' },
+    { etiqueta: 'Aforo total', valor: totales.aforo, ayuda: 'Lugares por día', icono: Users, color: 'text-neutral-700 bg-neutral-100' },
     { etiqueta: 'Disponibles', valor: totales.disponibles, ayuda: 'Lugares aún libres', icono: CheckCircle2, color: 'text-emerald-700 bg-emerald-50' },
     { etiqueta: 'Reservaciones activas', valor: totales.reservaciones, ayuda: 'Confirmadas en taquilla', icono: Ticket, color: 'text-sky-700 bg-sky-50' },
     { etiqueta: 'Cancelaciones', valor: totales.cancelaciones, ayuda: 'Reservaciones canceladas', icono: UserX, color: 'text-rose-700 bg-rose-50' },
@@ -512,7 +512,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
               onChange={(e) => setIdSesion(e.target.value)}
               className="mt-1 w-full px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs normal-case font-semibold text-neutral-800 focus:outline-none"
             >
-              <option value="todas">Todas las sesiones</option>
+              <option value="todas">Todos los días</option>
               {evento.fechas.map((fecha, indice) => (
                 <option key={fecha.id} value={fecha.id}>
                   {fecha.nombreDia || `Día ${indice + 1}`} · {fecha.fecha}
@@ -528,7 +528,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
               className="mt-1 w-full px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs normal-case font-semibold text-neutral-800 focus:outline-none"
             >
               <option value="todas">Todo el evento</option>
-              <option value="proximas">Próximas sesiones</option>
+              <option value="proximas">Próximos días</option>
               <option value="finalizadas">Sesiones finalizadas</option>
             </select>
           </label>
@@ -566,7 +566,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
         <AlertaMensaje
           tipo="advertencia"
           titulo="INF-OR-06 · SUSPENDIDO"
-          mensaje="Una o más sesiones están suspendidas por un bloqueo institucional. Los datos históricos pueden seguir consultándose."
+          mensaje="Uno o más días están suspendidos por un bloqueo institucional. Los datos históricos pueden seguir consultándose."
           className="mb-5"
         />
       )}
@@ -574,7 +574,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
         <AlertaMensaje
           tipo="informacion"
           titulo="INF-TR-01 · Sin resultados"
-          mensaje="No hay sesiones que coincidan con el periodo y la modalidad seleccionados. Modifica o elimina los filtros."
+          mensaje="No hay días que coincidan con el periodo y la modalidad seleccionados. Modifica o elimina los filtros."
           className="mb-5"
         />
       )}
@@ -663,11 +663,11 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
       <section className="bg-white border border-neutral-200 rounded-2xl shadow-xs overflow-hidden mb-5">
         <div className="p-5 border-b border-neutral-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-extrabold text-neutral-900">Resumen por sesión</h2>
-            <p className="text-[11px] text-neutral-500 mt-0.5">Los aforos se suman por sesión, no como personas únicas.</p>
+            <h2 className="text-sm font-extrabold text-neutral-900">Resumen por día</h2>
+            <p className="text-[11px] text-neutral-500 mt-0.5">Los aforos se suman por día, no como personas únicas.</p>
           </div>
           <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-            {metricasSesiones.length} sesión(es)
+            {metricasSesiones.length} día(s)
           </span>
         </div>
         <div className="overflow-x-auto">
@@ -717,7 +717,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
               {metricasSesiones.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-5 py-8 text-center text-neutral-500">
-                    INF-TR-01 · No hay sesiones que coincidan con los filtros.
+                    INF-TR-01 · No hay días que coincidan con los filtros.
                   </td>
                 </tr>
               )}

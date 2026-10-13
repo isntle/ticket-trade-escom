@@ -26,6 +26,7 @@ import {
   DistribucionAsientosPagina,
   PanelSubdireccionPagina,
   EscaneoStaffPagina,
+  HistorialAccesosPagina,
   OcupabilidadVivoPagina,
   AdministracionUsuariosPagina,
   PerfilUsuarioPagina,
@@ -89,10 +90,12 @@ function ContenidoApp() {
       ? ['admin']
       : esRutaSubdireccion
       ? ['subdireccion', 'admin']
+      : esRutaStaff && rutaActual === '/staff/historial'
+      ? ['organizador', 'subdireccion', 'admin']
       : esRutaStaff && rutaActual.startsWith('/staff/ocupacion')
       ? ['staff', 'organizador', 'admin']
       : esRutaStaff
-      ? ['staff', 'admin']
+      ? ['staff', 'organizador', 'admin']
       : ['organizador', 'subdireccion', 'admin'];
 
     const tieneRolActivoAutorizado = rolesPermitidos.includes(rolActivo);
@@ -259,6 +262,10 @@ function ContenidoApp() {
     // -------------------------------------------------------------
     if (rutaActual === '/staff' || rutaActual === '/staff/checkin') {
       return <EscaneoStaffPagina navigate={navegarA} />;
+    }
+
+    if (rutaActual === '/staff/historial') {
+      return <HistorialAccesosPagina navigate={navegarA} />;
     }
 
     if (rutaActual.startsWith('/staff/ocupacion')) {

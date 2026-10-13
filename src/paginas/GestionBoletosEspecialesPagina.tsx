@@ -111,6 +111,10 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
     );
   }
 
+  if (!usuarioActual || !usuarioActual.roles.includes('organizador') || usuarioActual.id !== evento.idOrganizador) {
+    return <div className="mx-auto max-w-3xl px-4 py-16 text-center"><h1 className="text-xl font-black">Acceso restringido</h1><p className="mt-2 text-sm text-neutral-600">Solo el organizador responsable puede administrar los boletos especiales de este evento.</p><button className="mt-5 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-bold text-white" onClick={() => navigate('/organizador')}>Volver a mis eventos</button></div>;
+  }
+
   const fechaSeleccionada = evento.fechas.find((fecha) => fecha.id === idFechaEvento);
   const totalActivos = boletosEspeciales.filter((boleto) => boleto.estado === 'valido').length;
   const totalUtilizados = boletosEspeciales.filter((boleto) => boleto.estado === 'utilizado').length;
@@ -144,7 +148,8 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
       cantidad,
       nombreBase,
       correoDestino,
-      emitidoPor: usuarioActual?.nombre || 'Organizador acreditado'
+      emitidoPor: usuarioActual?.nombre || 'Organizador acreditado',
+      idOrganizador: usuarioActual?.id || ''
     });
 
     if (!resultado.exito || !resultado.boletos) {

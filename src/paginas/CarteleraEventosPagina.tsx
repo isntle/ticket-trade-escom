@@ -270,7 +270,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
                   {/* Acciones de la tarjeta destacada */}
                   <div className="pt-4 border-t border-neutral-100 flex items-center justify-between">
                     <span className="text-xs font-mono text-neutral-400">
-                      {eventoDestacado.fechas.length} sesión(es) programada(s)
+                      {eventoDestacado.fechas.length} día(s) programado(s)
                     </span>
 
                     <button

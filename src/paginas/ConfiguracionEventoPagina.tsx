@@ -174,7 +174,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
               <p className="text-neutral-500 text-xs max-w-2xl">
                 {checklist.puedePublicar
                   ? 'Cada día cuenta con recinto autorizado y versión final (1:1) confirmada de lugares. Puedes abrir taquilla inmediatamente.'
-                  : 'Revisa que cada sesión tenga su recinto asignado y su arreglo de lugares formalmente confirmado.'}
+                  : 'Revisa que cada día tenga su recinto asignado y su arreglo de lugares formalmente confirmado.'}
               </p>
             </div>
 
@@ -250,7 +250,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                 </span>
               </div>
               <p className="text-xs text-neutral-500 mt-1 max-w-2xl">
-                Abre o cierra la taquilla por sesión y consulta el historial de cambios.
+                Abre o cierra la taquilla por día y consulta el historial de cambios.
               </p>
             </div>
           </div>
@@ -278,7 +278,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                 </span>
               </div>
               <p className="text-xs text-neutral-500 mt-1 max-w-2xl">
-                Consulta aforo, disponibilidad, reservaciones, lista de espera y participación por sesión.
+                Consulta aforo, disponibilidad, reservaciones, lista de espera y participación por día.
               </p>
             </div>
           </div>
@@ -435,7 +435,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                   <div className="font-semibold text-neutral-900">Distribución de Asientos (1:1)</div>
                   <div className="text-neutral-500 text-[11px]">
                     {checklist.todasLasFechasTienenVersionFinal
-                      ? 'Versión oficial confirmada en cada sesión'
+                      ? 'Versión oficial confirmada en cada día'
                       : 'Faltan fechas por confirmar su distribución'}
                   </div>
                 </div>

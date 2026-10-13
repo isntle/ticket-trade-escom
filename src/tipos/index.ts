@@ -333,7 +333,10 @@ export type ResultadoEscaneo =
   | 'evento_invalido'
   | 'fecha_invalida'
   | 'cancelado'
-  | 'inexistente';
+  | 'inexistente'
+  | 'no_autorizado'
+  | 'fuera_de_horario'
+  | 'suspendido';
 
 // Bitácora de escaneos de check-in en puerta
 export interface RegistroEscaneo {

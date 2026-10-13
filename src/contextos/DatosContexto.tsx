@@ -16,7 +16,8 @@ import {
   ListaVerificacionPublicacion,
   ConfiguracionAsiento,
   HorarioClaseRegular,
-  OcupacionAgenda
+  OcupacionAgenda,
+  Usuario
 } from '../tipos';
 import {
   EVENTOS_INICIALES,
@@ -32,6 +33,7 @@ import {
   generarAsientosSala14,
   generarEstacionesLaboratorio
 } from '../datos/datosIniciales';
+import { generarIdentificadorQr } from '../utilidades/identificadores';
 
 interface ContextoDatosTipo {
   listaEventos: Evento[];
@@ -117,6 +119,7 @@ interface ContextoDatosTipo {
     nombreBase: string;
     correoDestino: string;
     emitidoPor: string;
+    idOrganizador: string;
   }) => { exito: boolean; boletos?: BoletoDigital[]; error?: string };
 
   invalidarBoletoEspecial: (
@@ -145,7 +148,9 @@ interface ContextoDatosTipo {
   procesarCheckIn: (
     codigoQr: string,
     escaneadoPor: string,
-    idFechaEventoObjetivo?: string
+    idFechaEventoObjetivo?: string,
+    operador?: Usuario,
+    idEventoObjetivo?: string
   ) => {
     exito: boolean;
     resultado: RegistroEscaneo['resultado'];
@@ -1009,7 +1014,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     const idBoleto = `bol-${Date.now().toString(36)}`;
-    const codigoQr = `TT-ESCOM-${evento?.id.toUpperCase()}-${res.etiquetaAsiento || 'GEN'}-${Date.now().toString(36).toUpperCase()}`;
+    const codigoQr = `TT-${generarIdentificadorQr()}`;
 
     const nuevoBoleto: BoletoDigital = {
       id: idBoleto,
@@ -1089,13 +1094,18 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     nombreBase: string;
     correoDestino: string;
     emitidoPor: string;
+    idOrganizador: string;
   }): { exito: boolean; boletos?: BoletoDigital[]; error?: string } => {
     const evento = listaEventos.find((e) => e.id === datos.idEvento);
     const fecha = evento?.fechas.find((f) => f.id === datos.idFechaEvento);
     const recinto = listaRecintos.find((r) => r.id === fecha?.idRecinto);
 
     if (!evento || !fecha) {
-      return { exito: false, error: 'El evento o la sesión seleccionada no existe.' };
+      return { exito: false, error: 'El evento o el día seleccionado no existe.' };
+    }
+
+    if (!datos.idOrganizador || evento.idOrganizador !== datos.idOrganizador) {
+      return { exito: false, error: 'Solo el organizador responsable puede emitir boletos especiales.' };
     }
 
     if (evento.estado === 'cancelado' || evento.estado === 'finalizado') {
@@ -1111,7 +1121,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     ) {
       return {
         exito: false,
-        error: 'ERR-MT-02 · Las inscripciones están CERRADAS para esta sesión.'
+        error: 'ERR-MT-02 · Las inscripciones están cerradas para este día.'
       };
     }
 
@@ -1123,6 +1133,11 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       };
     }
 
+    const inicioDia = new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime();
+    if (inicioDia - Date.now() < 60 * 60 * 1000) {
+      return { exito: false, error: 'La emisión debe realizarse al menos una hora antes del inicio del día.' };
+    }
+
     if (!Number.isInteger(datos.cantidad) || datos.cantidad < 1 || datos.cantidad > 20) {
       return { exito: false, error: 'La cantidad debe estar entre 1 y 20 boletos.' };
     }
@@ -1131,11 +1146,18 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       return { exito: false, error: 'Indica el nombre de referencia y el correo de destino.' };
     }
 
+    const aforoDia = evento.aforoMaximo || recinto?.capacidad || 0;
+    const confirmadas = listaReservaciones.filter((reserva) => reserva.idFechaEvento === fecha.id && reserva.estado === 'confirmada').length;
+    const especialesActivos = listaBoletos.filter((boleto) => boleto.idFechaEvento === fecha.id && boleto.esEspecial && boleto.estado !== 'cancelado').length;
+    if (!aforoDia || confirmadas + especialesActivos + datos.cantidad > aforoDia) {
+      return { exito: false, error: 'La cantidad solicitada supera los lugares disponibles para este día.' };
+    }
+
     const ahora = Date.now();
     const prefijo = datos.tipo.toUpperCase();
     const boletosNuevos: BoletoDigital[] = Array.from({ length: datos.cantidad }, (_, indice) => {
       const consecutivo = indice + 1;
-      const sufijo = `${ahora.toString(36)}-${consecutivo}`;
+      const sufijo = generarIdentificadorQr();
       const nombreUsuario =
         datos.cantidad === 1
           ? datos.nombreBase.trim()
@@ -1154,7 +1176,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         horaEvento: `${fecha.horaInicio} - ${fecha.horaFin}`,
         nombreRecinto: recinto?.nombre || 'Recinto ESCOM',
         etiquetaAsiento: `${prefijo}-${String(consecutivo).padStart(2, '0')}`,
-        codigoQr: `TT-ESCOM-${evento.id.toUpperCase()}-${prefijo}-${sufijo.toUpperCase()}`,
+        codigoQr: `TT-${sufijo}`,
         estado: 'valido',
         esEspecial: true,
         tipoEspecial: datos.tipo,
@@ -1442,7 +1464,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
   const procesarCheckIn = (
     codigoQr: string,
     escaneadoPor: string,
-    idFechaEventoObjetivo?: string
+    idFechaEventoObjetivo?: string,
+    operador?: Usuario,
+    idEventoObjetivo?: string
   ): {
     exito: boolean;
     resultado: RegistroEscaneo['resultado'];
@@ -1450,6 +1474,34 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     mensaje: string;
   } => {
     const boleto = listaBoletos.find((b) => b.codigoQr.trim() === codigoQr.trim());
+    const registrarRechazo = (resultado: RegistroEscaneo['resultado'], mensaje: string) => {
+      if (!boleto) return;
+      const registro: RegistroEscaneo = {
+        id: `esc-${Date.now()}`,
+        idBoleto: boleto.id,
+        idEvento: boleto.idEvento,
+        idFechaEvento: boleto.idFechaEvento,
+        fechaEscaneo: new Date().toISOString(),
+        escaneadoPor,
+        resultado,
+        nombreAsistente: boleto.nombreUsuario,
+        etiquetaAsiento: boleto.etiquetaAsiento,
+        notas: mensaje
+      };
+      setBitacoraEscaneos((previas) => [registro, ...previas]);
+    };
+
+    const eventoObjetivo = listaEventos.find((evento) => evento.id === (boleto?.idEvento || idEventoObjetivo));
+    const puedeOperar = Boolean(
+      operador?.estaActivo && eventoObjetivo && (
+        (operador.roles.includes('organizador') && eventoObjetivo.idOrganizador === operador.id) ||
+        (operador.roles.includes('staff') && operador.eventosAsignadosStaff?.includes(eventoObjetivo.id))
+      )
+    );
+
+    if (!puedeOperar) {
+      return { exito: false, resultado: 'no_autorizado', boleto, mensaje: 'No tienes autorización para registrar accesos en este evento.' };
+    }
 
     if (!boleto) {
       const bitacora: RegistroEscaneo = {
@@ -1529,8 +1581,37 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         exito: false,
         resultado: 'fecha_invalida',
         boleto,
-        mensaje: `FECHA INCORRECTA: Este boleto es para la sesión del ${boleto.fechaEvento}, no para la sesión actual.`
+        mensaje: `FECHA INCORRECTA: Este boleto es para el día ${boleto.fechaEvento}, no para el día seleccionado.`
       };
+    }
+
+    const fechaObjetivo = eventoObjetivo?.fechas.find((fecha) => fecha.id === boleto.idFechaEvento);
+    if (!eventoObjetivo || !fechaObjetivo) {
+      const mensaje = 'El evento o el día asociado al boleto ya no existe.';
+      registrarRechazo('evento_invalido', mensaje);
+      return { exito: false, resultado: 'evento_invalido', boleto, mensaje };
+    }
+    const bloqueo = fechaObjetivo && listaBloqueos.find((elemento) => bloqueoAfectaSesion(elemento, fechaObjetivo));
+    if (eventoObjetivo?.estado === 'cancelado' || bloqueo) {
+      const mensaje = bloqueo ? `Día suspendido: ${bloqueo.titulo}.` : 'El evento está cancelado.';
+      registrarRechazo('suspendido', mensaje);
+      return { exito: false, resultado: 'suspendido', boleto, mensaje };
+    }
+
+    if (eventoObjetivo?.modalidadAsistencia !== 'controlado') {
+      const mensaje = 'Este evento no utiliza control de acceso mediante boleto.';
+      registrarRechazo('evento_invalido', mensaje);
+      return { exito: false, resultado: 'evento_invalido', boleto, mensaje };
+    }
+
+    if (fechaObjetivo) {
+      const inicio = new Date(`${fechaObjetivo.fecha}T${fechaObjetivo.horaInicio}:00`).getTime() - 30 * 60 * 1000;
+      const fin = new Date(`${fechaObjetivo.fecha}T${fechaObjetivo.horaFin}:00`).getTime();
+      if (Date.now() < inicio || Date.now() >= fin) {
+        const mensaje = 'El acceso se habilita 30 minutos antes del inicio y cierra al terminar la actividad.';
+        registrarRechazo('fuera_de_horario', mensaje);
+        return { exito: false, resultado: 'fuera_de_horario', boleto, mensaje };
+      }
     }
 
     // Boleto válido: Registrar ingreso exitoso

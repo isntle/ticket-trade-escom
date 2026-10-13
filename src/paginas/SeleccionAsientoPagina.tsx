@@ -183,7 +183,7 @@ if (!evento || !fecha) {
           <AlertaMensaje
             tipo="advertencia"
             titulo="ERR-MT-02 · Reservaciones no disponibles"
-            mensaje="Las reservaciones y boletos existentes continúan vigentes. Consulta otra sesión o vuelve al detalle del evento."
+            mensaje="Las reservaciones y boletos existentes continúan vigentes. Consulta otro día o vuelve al detalle del evento."
           />
         </div>
       </div>
@@ -271,7 +271,7 @@ if (!evento || !fecha) {
     );
 
     if (yaTieneReservacionEnLaSesion) {
-      const mensaje = 'Ya tienes una reservación confirmada para esta sesión.';
+      const mensaje = 'Ya tienes una reservación confirmada para este día.';
       setErrorColision(mensaje);
       mostrarNotificacion('Reservación duplicada', mensaje, 'error');
       return;
@@ -370,8 +370,8 @@ if (!evento || !fecha) {
 
     if (capacidad !== undefined && lugaresOcupados >= capacidad) {
       setConfirmando(false);
-      setErrorColision('Cupo general agotado. Ya no hay lugares disponibles en esta sesión.');
-      mostrarNotificacion('Cupo agotado', 'No hay lugares disponibles en esta sesión.', 'error');
+      setErrorColision('Cupo general agotado. Ya no hay lugares disponibles este día.');
+      mostrarNotificacion('Cupo agotado', 'No hay lugares disponibles este día.', 'error');
       return;
     }
 
@@ -383,7 +383,7 @@ if (!evento || !fecha) {
     );
 
     if (yaTieneReservacionEnLaSesion) {
-      const mensaje = 'Ya tienes una reservación confirmada para esta sesión.';
+      const mensaje = 'Ya tienes una reservación confirmada para este día.';
       setConfirmando(false);
       setErrorColision(mensaje);
       mostrarNotificacion('Reservación duplicada', mensaje, 'error');
@@ -419,8 +419,8 @@ if (!evento || !fecha) {
     } else {
       setConfirmando(false);
       // Trayectoria F: Cupo general agotado -> ERR-MT-03
-      setErrorColision('Cupo general agotado. Ya no hay lugares disponibles en esta sesión.');
-      mostrarNotificacion('Cupo agotado', 'No hay lugares disponibles en esta sesión.', 'error');
+      setErrorColision('Cupo general agotado. Ya no hay lugares disponibles este día.');
+      mostrarNotificacion('Cupo agotado', 'No hay lugares disponibles este día.', 'error');
     }
   };
   // === FIN TRAYECTORIA C ===
@@ -489,7 +489,7 @@ if (!evento || !fecha) {
           {errorColision.includes('Cupo general agotado') && usuarioActual && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
               <span className="text-xs text-amber-900 font-medium">
-                El cupo de esta sesión se ha agotado. ¿Deseas ingresar a la lista de espera por si se libera un lugar?
+                El cupo de este día se ha agotado. ¿Deseas ingresar a la lista de espera por si se libera un lugar?
               </span>
               <div className="flex items-center gap-2 shrink-0">
                 <button

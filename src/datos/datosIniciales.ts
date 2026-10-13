@@ -11,6 +11,7 @@ import {
   ConfiguracionAsiento,
   HorarioClaseRegular
 } from '../tipos';
+import { generarIdentificadorQr } from '../utilidades/identificadores';
 
 // Generador de asientos para el Auditorio Principal de ESCOM (Fijo, 11 filas: A-K, 3 bloques: Izq 62, Centro 118, Der 62 = 242 lugares)
 export function generarAsientosAuditorio(): ConfiguracionAsiento[] {
@@ -1310,7 +1311,7 @@ export const BOLETOS_INICIALES: BoletoDigital[] = [
     horaEvento: '09:00 - 15:00',
     nombreRecinto: 'Laboratorio de Cómputo Avanzado 3',
     etiquetaAsiento: 'B-3 (PC-09)',
-    codigoQr: 'TT-ESCOM-LAB3-GPU-B3-VALIDO',
+    codigoQr: `TT-${generarIdentificadorQr()}`,
     estado: 'valido',
     fechaEmision: '2026-09-28T12:02:00Z'
   },
@@ -1327,7 +1328,7 @@ export const BOLETOS_INICIALES: BoletoDigital[] = [
     horaEvento: '09:00 - 13:00',
     nombreRecinto: 'Auditorio Principal de ESCOM',
     etiquetaAsiento: 'C-7',
-    codigoQr: 'TT-ESCOM-IA26-D1-C7-VALIDO',
+    codigoQr: `TT-${generarIdentificadorQr()}`,
     estado: 'valido',
     fechaEmision: '2026-09-26T11:02:00Z'
   },
@@ -1344,7 +1345,7 @@ export const BOLETOS_INICIALES: BoletoDigital[] = [
     horaEvento: '09:00 - 13:00',
     nombreRecinto: 'Auditorio Principal de ESCOM',
     etiquetaAsiento: 'A-5 (VIP)',
-    codigoQr: 'TT-ESCOM-IA26-VIP-A5-VALIDO',
+    codigoQr: `TT-${generarIdentificadorQr()}`,
     estado: 'valido',
     esEspecial: true,
     tipoEspecial: 'vip',
@@ -1364,7 +1365,7 @@ export const BOLETOS_INICIALES: BoletoDigital[] = [
     horaEvento: '09:00 - 13:00',
     nombreRecinto: 'Auditorio Principal de ESCOM',
     etiquetaAsiento: 'D-8',
-    codigoQr: 'TT-ESCOM-IA26-D2-D8-YAUSADO',
+    codigoQr: `TT-${generarIdentificadorQr()}`,
     estado: 'utilizado',
     fechaCheckIn: '2026-10-16T08:52:14Z',
     revisadoPor: 'Andrea Rangel (Staff de Acceso)',

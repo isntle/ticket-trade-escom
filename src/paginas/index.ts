@@ -19,6 +19,7 @@ export { EditorArreglosPagina } from './EditorArreglosPagina';
 export { DistribucionAsientosPagina } from './DistribucionAsientosPagina';
 export { PanelSubdireccionPagina } from './PanelSubdireccionPagina';
 export { EscaneoStaffPagina } from './EscaneoStaffPagina';
+export { HistorialAccesosPagina } from './HistorialAccesosPagina';
 export { OcupabilidadVivoPagina } from './OcupabilidadVivoPagina';
 export { AdministracionUsuariosPagina } from './AdministracionUsuariosPagina';
 export { PerfilUsuarioPagina } from './PerfilUsuarioPagina';

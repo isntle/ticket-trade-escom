@@ -150,7 +150,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
     if (idsConCambio.length === 0) {
       mostrarNotificacion(
         'No hay cambios por aplicar',
-        `Las sesiones seleccionadas ya tienen las inscripciones ${nuevoEstado}.`,
+        `Los días seleccionados ya tienen las inscripciones ${nuevoEstado}.`,
         'informacion'
       );
       return;
@@ -186,7 +186,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
     const accion = accionPendiente === 'abiertas' ? 'abrieron' : 'cerraron';
     mostrarNotificacion(
       'OK-MT-09 · Estado actualizado',
-      `Se ${accion} las inscripciones de ${resultado.sesionesActualizadas} sesión(es).`,
+      `Se ${accion} las inscripciones de ${resultado.sesionesActualizadas} día(s).`,
       'exito'
     );
     setAccionPendiente(null);
@@ -232,7 +232,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
             Apertura y cierre de inscripciones
           </h1>
           <p className="text-sm text-neutral-500 mt-1 max-w-3xl">
-            Administra las sesiones de <strong className="text-neutral-700">{evento.titulo}</strong> y conserva la trazabilidad de cada cambio.
+            Administra los días de <strong className="text-neutral-700">{evento.titulo}</strong> y conserva la trazabilidad de cada cambio.
           </p>
         </div>
 
@@ -299,7 +299,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
           <div>
             <h2 className="text-sm font-extrabold text-neutral-900">Sesiones del evento</h2>
             <p className="text-xs text-neutral-500 mt-0.5">
-              Selecciona una o varias sesiones para realizar una operación conjunta.
+              Selecciona uno o varios días para realizar una operación conjunta.
             </p>
           </div>
           <label className="inline-flex items-center gap-2 text-xs font-semibold text-neutral-600 cursor-pointer">
@@ -499,7 +499,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
         estaAbierto={Boolean(accionPendiente)}
         alCerrar={cerrarModal}
         titulo={accionPendiente === 'abiertas' ? 'Abrir inscripciones' : 'Cerrar inscripciones'}
-        subtitulo={`${sesionesOperacion.length} sesión(es) seleccionada(s)`}
+        subtitulo={`${sesionesOperacion.length} día(s) seleccionado(s)`}
         anchoMaximo="lg"
       >
         <div className="space-y-4">
@@ -513,7 +513,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
             <AlertaMensaje
               tipo="informacion"
               titulo="Confirmación de apertura"
-              mensaje="Las sesiones volverán a admitir registros, reservaciones, listas de espera y boletos especiales hasta su fecha límite."
+              mensaje="Los días volverán a admitir registros, reservaciones, listas de espera y boletos especiales hasta su fecha límite."
             />
           )}
 
