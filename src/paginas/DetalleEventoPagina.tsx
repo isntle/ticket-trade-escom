@@ -22,7 +22,7 @@ import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { useNotificaciones } from '../contextos/NotificacionesContexto';
 import { InsigniaEstado } from '../componentes/ui/InsigniaEstado';
 import { EstadoVacio } from '../componentes/ui/EstadoVacio';
-import { AlertaMensaje } from '../componentes/ui/AlertaMensaje';
+import { obtenerMensaje } from '../dominio/mensajes';
 import { FechaEvento } from '../tipos';
 
 interface PropiedadesDetalleEvento {
@@ -53,7 +53,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
   // Estado para controlar qué días tienen su programa detallado desplegado
   const [diasExpandidos, setDiasExpandidos] = useState<Record<string, boolean>>({});
 
-  // Estados para el CU-MT-02 (Registro de asistencia libre)
+  // Estados para confirmación de registro de asistencia libre
   const [mostrarConfirmacionLibre, setMostrarConfirmacionLibre] = useState(false);
   const [fechaSeleccionadaParaLibre, setFechaSeleccionadaParaLibre] = useState<FechaEvento | null>(null);
 
@@ -66,14 +66,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
 
   const evento = listaEventos.find((e) => e.id === eventId);
 
-  // === INICIO TRAYECTORIA C (CU-MT-02): Validar cierre de inscripciones ===
-  const inscripcionesAbiertas = evento?.inscripcionesAbiertas !== false;
-  const limiteInscripcion = evento?.fechaCierreInscripcion;
-  const inscripcionVencida = limiteInscripcion ? new Date(limiteInscripcion) < new Date() : false;
-  const inscripcionCerrada = !inscripcionesAbiertas || inscripcionVencida;
-  // === FIN TRAYECTORIA C ===
-  
-  // === INICIO VALIDACIÓN DE PRECONDICIONES ===
+  // === VALIDACIÓN DE PRECONDICIONES ===
   const debeOcultarse = 
     !evento || 
     ((evento.estado as string) !== 'publicado' && 
@@ -92,7 +85,6 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
       </div>
     );
   }
-  // === FIN VALIDACIÓN DE PRECONDICIONES ===
 
   // Validación de eventos privados
   const esPrivado = evento.visibilidad === 'privado';
@@ -120,9 +112,9 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
               e.preventDefault();
               if (claveIngresada.trim() === evento.claveAccesoPrivada?.trim()) {
                 setClaveVerificada(true);
-                mostrarNotificacion('Clave correcta', 'Acceso al evento privado autorizado', 'exito');
+                mostrarNotificacion('Acceso Concedido', 'Clave de acceso verificada correctamente.', 'exito');
               } else {
-                mostrarNotificacion('Clave incorrecta', 'Verifica la clave con el organizador', 'error');
+                mostrarNotificacion('Clave Incorrecta', 'Verifica la clave con el organizador.', 'error');
               }
             }}
             className="space-y-3"
@@ -153,7 +145,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
     );
   }
 
-const obtenerNombreRecinto = (idRecinto: string) => {
+  const obtenerNombreRecinto = (idRecinto: string) => {
     const r = listaRecintos.find((rec) => rec.id === idRecinto);
     return r ? r.nombre : 'Recinto ESCOM';
   };
@@ -167,57 +159,45 @@ const obtenerNombreRecinto = (idRecinto: string) => {
       fecha.estadoInscripciones ||
       (evento.estado === 'publicado' || evento.estado === 'en_curso' ? 'abiertas' : 'cerradas');
 
+    // Validación de inscripciones cerradas (ERR-MT-02)
     if (estadoInscripciones === 'cerradas' || fechaLimite <= Date.now()) {
-      mostrarNotificacion(
-        'Inscripciones cerradas',
-        'ERR-MT-02 · Este día ya no admite nuevos registros.',
-        'advertencia'
-      );
+      const msg = obtenerMensaje('ERR-MT-02');
+      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
       return;
     }
+
+    // Validación de sesión activa (ERR-TR-01)
     if (!usuarioActual) {
-      mostrarNotificacion('Inicia Sesión', 'Debes iniciar sesión para registrar tu asistencia.', 'error');
+      const msg = obtenerMensaje('ERR-TR-01');
+      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
       navigate('/login');
       return;
     }
 
-    // === INICIO TRAYECTORIA A: Cuenta no confirmada ===
-    // Validamos si la propiedad de correo confirmado es falsa o no existe
+    // Validación de correo confirmado (ERR-IP-04)
     if (usuarioActual.correoConfirmado === false) {
-      mostrarNotificacion(
-        'Acción restringida', 
-        'Confirma tu correo electrónico para realizar esta acción.', 
-        'error'
-      );
-      return; // Detenemos la ejecución para impedir el registro
+      const msg = obtenerMensaje('ERR-IP-04');
+      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+      return;
     }
-    // === FIN TRAYECTORIA A ===
-    
-// === INICIO TRAYECTORIA B: Usuario no elegible ===
-    const publicoPermitido = evento.publicoPermitido;
 
-    // Si la lista existe y no está vacía, validamos. (Si no existe, asumimos que es abierto a todo público)
+    // Validación de público permitido (ERR-MT-01)
+    const publicoPermitido = evento.publicoPermitido;
     if (publicoPermitido && Array.isArray(publicoPermitido) && publicoPermitido.length > 0) {
-      // Checamos si el usuario tiene al menos un rol que coincida con los permitidos
-      const esElegible = usuarioActual.roles.some(rol => publicoPermitido.includes(rol));
-      
+      const esElegible = usuarioActual.roles.some((rol) => publicoPermitido.includes(rol));
       if (!esElegible) {
-        mostrarNotificacion(
-          'Perfil no autorizado',
-          `Este evento está restringido al siguiente público: ${publicoPermitido.join(', ')}.`,
-          'error'
-        );
-        return; // Detenemos la ejecución para impedir el registro
+        const msg = obtenerMensaje('ERR-MT-01', { 'público permitido': publicoPermitido.join(', ') });
+        mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+        return;
       }
     }
-    // === FIN TRAYECTORIA B ===
-    
-    // Paso 6: Guardamos la fecha seleccionada y abrimos la alerta INF-MT-01
+
+    // Abre modal de confirmación
     setFechaSeleccionadaParaLibre(fecha);
     setMostrarConfirmacionLibre(true);
   };
 
-  // 2. Función que realmente guarda el registro si el usuario confirma (Paso 7 y 8)
+  // Guarda la intención de asistencia
   const confirmarRegistroDirecto = () => {
     if (!usuarioActual || !fechaSeleccionadaParaLibre) return;
     
@@ -249,7 +229,7 @@ const obtenerNombreRecinto = (idRecinto: string) => {
     }
   };
 
-  // 3. Función para cancelar un registro existente (Trayectoria D)
+  // Cancela un registro de asistencia directa (OK-MT-02)
   const cancelarRegistroLibre = (idFecha: string) => {
     const registro = listaIntencionesAsistencia.find(
       (intencion) =>
@@ -261,13 +241,9 @@ const obtenerNombreRecinto = (idRecinto: string) => {
     if (!registro) return;
 
     cancelarIntencionAsistencia(registro.id);
-    mostrarNotificacion(
-      'Registro cancelado',
-      'Tu intención de asistencia ha sido retirada exitosamente (OK-MT-06).',
-      'exito'
-    );
+    const msg = obtenerMensaje('OK-MT-02');
+    mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
   };
-  // === FIN CÓDIGO CU-MT-02 ===
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
@@ -291,7 +267,7 @@ const obtenerNombreRecinto = (idRecinto: string) => {
               className="w-full h-full object-cover opacity-70"
             />
           )}
-          <div className="absolute inset-0 bg-linear-to-t from-neutral-900 via-neutral-900/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/40 to-transparent" />
           <div className="absolute bottom-6 left-6 right-6 text-white">
             <div className="flex flex-wrap gap-2 mb-2">
               <span className="px-2.5 py-0.5 rounded bg-white/20 backdrop-blur-xs text-xs font-semibold uppercase tracking-wider">
@@ -319,7 +295,7 @@ const obtenerNombreRecinto = (idRecinto: string) => {
           </div>
         </div>
 
-        {/* Resumen Superior Rápido: Fechas Totales, Horarios y Recintos Principales */}
+        {/* Resumen Superior Rápido */}
         <div className="bg-neutral-50 border-b border-neutral-200/80 px-6 sm:px-8 py-3.5 flex flex-wrap items-center gap-y-2 gap-x-6 text-xs text-neutral-700">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-[#7a132b] shrink-0" />
@@ -392,7 +368,6 @@ const obtenerNombreRecinto = (idRecinto: string) => {
               </div>
             </div>
 
-            {/* Aviso de gratuidad institucional */}
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-[11px] leading-snug">
               ✓ Evento politécnico sin costo ni pasarelas de pago. El acceso se gestiona mediante tu cuenta institucional.
             </div>
@@ -400,9 +375,7 @@ const obtenerNombreRecinto = (idRecinto: string) => {
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* PROGRAMA Y FECHAS DETALLADAS DÍA POR DÍA (Día 1, Día 2, con cronograma)   */}
-      {/* ========================================================================= */}
+      {/* Programa y Fechas Detalladas */}
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200 pb-3">
           <div>
@@ -433,10 +406,8 @@ const obtenerNombreRecinto = (idRecinto: string) => {
                 : 'cerradas');
             const inscripcionesAbiertas =
               estadoInscripciones === 'abiertas' && fechaLimite > Date.now();
-            // Expandido por defecto el primer día o si el usuario dio clic
             const expandido = diasExpandidos[fecha.id] ?? (indice === 0 || !!fecha.programa);
-            // === INICIO TRAYECTORIA D: Verificar registro previo ===
-            // Validamos si el usuario actual ya tiene una reservación para esta fecha específica
+            
             const yaRegistrado = usuarioActual
               ? listaIntencionesAsistencia.some(
                   (intencion) =>
@@ -445,14 +416,14 @@ const obtenerNombreRecinto = (idRecinto: string) => {
                     intencion.idUsuario === usuarioActual.id
                 )
               : false;
-            // === FIN TRAYECTORIA D ===
+
             return (
               <div
                 key={fecha.id}
                 className="bg-white rounded-2xl border border-neutral-200 overflow-hidden shadow-xs hover:border-neutral-300 transition-all"
               >
                 {/* Cabecera de la Tarjeta del Día */}
-                <div className="p-5 sm:p-6 bg-linear-to-r from-neutral-50/80 via-white to-neutral-50/30 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-100">
+                <div className="p-5 sm:p-6 bg-gradient-to-r from-neutral-50/80 via-white to-neutral-50/30 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-100">
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
                       <span className="px-3 py-1 rounded-lg bg-[#7a132b] text-white font-mono text-xs font-bold shadow-2xs">
@@ -490,7 +461,7 @@ const obtenerNombreRecinto = (idRecinto: string) => {
                     )}
                   </div>
 
-                  {/* Acción de Registro para este día específico */}
+                  {/* Acciones de Registro */}
                   <div className="flex items-center gap-3 shrink-0">
                     {(evento.estado as string) === 'cancelado' || (evento.estado as string) === 'suspendido' || !inscripcionesAbiertas ? (
                       <button
@@ -499,24 +470,18 @@ const obtenerNombreRecinto = (idRecinto: string) => {
                         className="px-5 py-2.5 bg-neutral-100 border border-neutral-200 text-neutral-400 rounded-xl text-xs font-bold cursor-not-allowed inline-flex items-center gap-2"
                       >
                         <Lock className="w-4 h-4" />
-                        <span>
-                          {!inscripcionesAbiertas
-                            ? 'Inscripciones Cerradas' 
-                            : 'Inscripciones Bloqueadas'}
-                        </span>
+                        <span>Inscripciones Cerradas</span>
                       </button>
                     ) : (
-                      /* Flujo normal si el evento está activo */
                       evento.modalidadAsistencia === 'controlado' ? (
                         <button
                           type="button"
                           onClick={() => navigate(`/eventos/${evento.id}/reservar?dateId=${fecha.id}`)}
-                          className="boton-primario px-5 py-2.5 text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2"
+                          className="px-5 py-2.5 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2"
                         >
                           <span>Reservar lugar ({etiquetaDia})</span>
                         </button>
                       ) : (
-                        /* === INICIO TRAYECTORIA D: Botón dinámico === */
                         yaRegistrado ? (
                           <button
                             type="button"
@@ -537,13 +502,12 @@ const obtenerNombreRecinto = (idRecinto: string) => {
                             <span>{procesandoRegistro ? 'Registrando...' : `Registrar asistencia (${etiquetaDia})`}</span>
                           </button>
                         )
-                        /* === FIN TRAYECTORIA D === */
                       )
                     )}
                   </div>
                 </div>
 
-                {/* Sección de Programa de Actividades del Día */}
+                {/* Cronograma */}
                 {fecha.programa && fecha.programa.length > 0 ? (
                   <div className="p-5 sm:p-6 bg-white space-y-3">
                     <div className="flex items-center justify-between">
@@ -604,7 +568,8 @@ const obtenerNombreRecinto = (idRecinto: string) => {
           })}
         </div>
       </div>
-      {/* === CU-MT-02: ALERTA INF-MT-01 === */}
+
+      {/* Modal de Confirmación de Asistencia Libre */}
       {mostrarConfirmacionLibre && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden border border-neutral-200">
@@ -613,7 +578,6 @@ const obtenerNombreRecinto = (idRecinto: string) => {
                 <CheckCircle2 className="w-5 h-5 text-[#7a132b]" />
                 Confirmar Intención de Asistencia
               </h3>
-              {/* Este es el mensaje exacto INF-MT-01 del PDF */}
               <p className="text-sm text-neutral-600 mb-6">
                 El registro expresa tu intención de asistir. No garantiza un lugar ni genera un boleto.
               </p>
@@ -621,14 +585,14 @@ const obtenerNombreRecinto = (idRecinto: string) => {
                 <button
                   type="button"
                   onClick={() => setMostrarConfirmacionLibre(false)}
-                  className="px-4 py-2 rounded-xl text-sm font-semibold text-neutral-600 hover:bg-neutral-100 transition-colors"
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-neutral-600 hover:bg-neutral-100 transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={confirmarRegistroDirecto}
-                  className="px-4 py-2 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-sm font-semibold shadow-sm transition-colors"
+                  className="px-4 py-2 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-sm font-semibold shadow-sm transition-colors cursor-pointer"
                 >
                   Confirmar Registro
                 </button>
@@ -640,3 +604,5 @@ const obtenerNombreRecinto = (idRecinto: string) => {
     </div>
   );
 };
+
+export default DetalleEventoPagina;
