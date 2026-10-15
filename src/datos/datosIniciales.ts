@@ -313,6 +313,7 @@ export const USUARIOS_INICIALES: Usuario[] = [
     numeroEmpleado: 'EMP-98214',
     estaActivo: true,
     esVerificado: true,
+    correoConfirmado: true,
     fechaRegistro: '2026-08-15T09:00:00Z'
   },
   {
@@ -326,6 +327,7 @@ export const USUARIOS_INICIALES: Usuario[] = [
     boleta: '2022630412',
     estaActivo: true,
     esVerificado: true,
+    correoConfirmado: true,
     fechaRegistro: '2026-08-20T10:30:00Z'
   },
   {
@@ -339,6 +341,7 @@ export const USUARIOS_INICIALES: Usuario[] = [
     numeroEmpleado: 'DIR-00412',
     estaActivo: true,
     esVerificado: true,
+    correoConfirmado: true,
     fechaRegistro: '2026-08-01T08:00:00Z'
   },
   {
@@ -353,6 +356,7 @@ export const USUARIOS_INICIALES: Usuario[] = [
     eventosAsignadosStaff: ['evt-simposio-ia', 'evt-hackathon-sistemas-distribuidos'],
     estaActivo: true,
     esVerificado: true,
+    correoConfirmado: true,
     fechaRegistro: '2026-08-25T11:15:00Z'
   },
   {
@@ -366,6 +370,7 @@ export const USUARIOS_INICIALES: Usuario[] = [
     numeroEmpleado: 'TEC-11002',
     estaActivo: true,
     esVerificado: true,
+    correoConfirmado: true,
     fechaRegistro: '2026-08-01T08:00:00Z'
   },
   {
@@ -382,6 +387,7 @@ export const USUARIOS_INICIALES: Usuario[] = [
     nombreDocumento: 'convenio_ipn_techmx_2026.pdf',
     estaActivo: true,
     esVerificado: true,
+    correoConfirmado: true,
     fechaRegistro: '2026-09-01T14:20:00Z'
   }
 ];

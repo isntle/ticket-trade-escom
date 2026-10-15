@@ -266,6 +266,7 @@ export interface Reservacion {
   fechaCreacion: string;
   fechaConfirmacion?: string;
   idBoleto?: string;
+  motivoCancelacion?: string;
 }
 
 // Estados del boleto emitido
@@ -311,7 +312,14 @@ export interface EntradaListaEspera {
   correoUsuario: string;
   posicionFila: number;
   fechaCreacion: string;
-  estado: 'esperando' | 'notificado' | 'convertido' | 'cancelado';
+  fechaOferta?: string;
+  fechaExpiracionOferta?: number;
+  idReservacionOferta?: string;
+  idAsientoOferta?: string;
+  etiquetaAsientoOferta?: string;
+  rolesUsuario?: RolUsuario[];
+  correoConfirmado?: boolean;
+  estado: 'esperando' | 'notificado' | 'convertido' | 'cancelado' | 'retirada' | 'rechazada' | 'vencida';
 }
 
 // Intención de asistencia para eventos de entrada libre.

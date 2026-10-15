@@ -3,9 +3,30 @@ import { CalendarCheck, Hand, Hourglass } from 'lucide-react';
 import { InsigniaEstadoTaquilla } from './InsigniaEstadoTaquilla';
 
 interface PropiedadesHistorialBoletos {
-  reservaciones?: any[];
-  intenciones?: any[];
-  listaEspera?: any[];
+  reservaciones?: FilaHistorial[];
+  intenciones?: FilaHistorial[];
+  listaEspera?: FilaHistorial[];
+  alRetirarse?: (fila: FilaHistorial) => void;
+}
+
+export interface FilaHistorial {
+  id: string;
+  evento?: string;
+  tituloEvento?: string;
+  dia?: string;
+  fecha?: string;
+  fechaEvento?: string;
+  horario?: string;
+  horaEvento?: string;
+  recinto?: string;
+  nombreRecinto?: string;
+  asiento?: string;
+  etiquetaAsiento?: string;
+  estado?: string;
+  motivoCancelacion?: string;
+  posicion?: number;
+  fechaRegistro?: string;
+  puedeRetirarse?: boolean;
 }
 
 const SeccionHistorial: React.FC<{
@@ -37,7 +58,8 @@ const claseCelda = 'px-4 py-3 text-xs text-neutral-700 align-top';
 export const HistorialBoletos: React.FC<PropiedadesHistorialBoletos> = ({
   reservaciones = [],
   intenciones = [],
-  listaEspera = []
+  listaEspera = [],
+  alRetirarse
 }) => {
   return (
     <div className="space-y-6">
@@ -52,7 +74,7 @@ export const HistorialBoletos: React.FC<PropiedadesHistorialBoletos> = ({
             <tr>
               <th className={claseCabecera}>Identificador</th>
               <th className={claseCabecera}>Evento</th>
-              <th className={claseCabecera}>Sesión</th>
+              <th className={claseCabecera}>Día</th>
               <th className={claseCabecera}>Fecha</th>
               <th className={claseCabecera}>Horario</th>
               <th className={claseCabecera}>Recinto</th>
@@ -62,17 +84,17 @@ export const HistorialBoletos: React.FC<PropiedadesHistorialBoletos> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {reservaciones.map((fila: any, index: number) => (
+            {reservaciones.map((fila, index) => (
               <tr key={fila.id || index} className="hover:bg-neutral-50/60">
                 <td className={`${claseCelda} font-mono font-semibold text-neutral-900`}>{fila.id}</td>
-                <td className={`${claseCelda} font-semibold text-neutral-900`}>{fila.evento || fila.tituloEvento}</td>
-                <td className={claseCelda}>{fila.sesion || fila.nombreSesion || 'General'}</td>
-                <td className={`${claseCelda} whitespace-nowrap`}>{fila.fecha || fila.fechaEvento}</td>
+                <td className={`${claseCelda} font-semibold text-neutral-900`}>{fila.evento || fila.tituloEvento || 'Evento no disponible'}</td>
+                <td className={claseCelda}>{fila.dia || 'Día sin nombre'}</td>
+                <td className={`${claseCelda} whitespace-nowrap`}>{fila.fecha || fila.fechaEvento || '—'}</td>
                 <td className={`${claseCelda} whitespace-nowrap`}>{fila.horario || fila.horaEvento || '—'}</td>
                 <td className={claseCelda}>{fila.recinto || fila.nombreRecinto || 'ESCOM'}</td>
                 <td className={`${claseCelda} font-mono font-bold text-[#7a132b]`}>{fila.asiento || fila.etiquetaAsiento || '—'}</td>
                 <td className={claseCelda}>
-                  <InsigniaEstadoTaquilla estado={fila.estado} />
+                  <InsigniaEstadoTaquilla estado={fila.estado || 'vigente'} />
                 </td>
                 <td className={claseCelda}>{fila.motivoCancelacion || '—'}</td>
               </tr>
@@ -91,17 +113,17 @@ export const HistorialBoletos: React.FC<PropiedadesHistorialBoletos> = ({
           <thead className="bg-neutral-50 border-b border-neutral-100">
             <tr>
               <th className={claseCabecera}>Evento</th>
-              <th className={claseCabecera}>Sesión</th>
-              <th className={claseCabecera}>Fecha de la sesión</th>
+              <th className={claseCabecera}>Día</th>
+              <th className={claseCabecera}>Fecha del día</th>
               <th className={claseCabecera}>Fecha de registro</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {intenciones.map((fila: any, index: number) => (
+            {intenciones.map((fila, index) => (
               <tr key={fila.id || index} className="hover:bg-neutral-50/60">
                 <td className={`${claseCelda} font-semibold text-neutral-900`}>{fila.evento || fila.tituloEvento}</td>
-                <td className={claseCelda}>{fila.sesion || fila.nombreSesion || 'General'}</td>
-                <td className={`${claseCelda} whitespace-nowrap`}>{fila.fechaSesion || fila.fecha}</td>
+                <td className={claseCelda}>{fila.dia || 'Día sin nombre'}</td>
+                <td className={`${claseCelda} whitespace-nowrap`}>{fila.fecha || '—'}</td>
                 <td className={`${claseCelda} whitespace-nowrap`}>{fila.fechaRegistro || '—'}</td>
               </tr>
             ))}
@@ -112,33 +134,41 @@ export const HistorialBoletos: React.FC<PropiedadesHistorialBoletos> = ({
       <SeccionHistorial
         icono={<Hourglass className="w-4 h-4 text-[#7a132b]" />}
         titulo="Lista de espera"
-        descripcion="Participaciones en listas de espera de sesiones con cupo agotado."
+        descripcion="Participaciones en listas de espera de días con cupo agotado."
         vacia={listaEspera.length === 0}
       >
         <table className="w-full min-w-[680px]">
           <thead className="bg-neutral-50 border-b border-neutral-100">
             <tr>
               <th className={claseCabecera}>Evento</th>
-              <th className={claseCabecera}>Sesión</th>
-              <th className={claseCabecera}>Fecha de la sesión</th>
+              <th className={claseCabecera}>Día</th>
+              <th className={claseCabecera}>Fecha del día</th>
               <th className={claseCabecera}>Posición</th>
               <th className={claseCabecera}>Estado</th>
               <th className={claseCabecera}>Fecha de registro</th>
+              <th className={claseCabecera}>Acción</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {listaEspera.map((fila: any, index: number) => (
+            {listaEspera.map((fila, index) => (
               <tr key={fila.id || index} className="hover:bg-neutral-50/60">
                 <td className={`${claseCelda} font-semibold text-neutral-900`}>{fila.evento || fila.tituloEvento}</td>
-                <td className={claseCelda}>{fila.sesion || fila.nombreSesion || 'General'}</td>
-                <td className={`${claseCelda} whitespace-nowrap`}>{fila.fechaSesion || fila.fecha}</td>
+                <td className={claseCelda}>{fila.dia || 'Día sin nombre'}</td>
+                <td className={`${claseCelda} whitespace-nowrap`}>{fila.fecha || '—'}</td>
                 <td className={`${claseCelda} font-mono font-bold text-neutral-900`}>
                   {fila.posicion !== undefined && fila.posicion !== null ? `#${fila.posicion}` : '—'}
                 </td>
                 <td className={claseCelda}>
-                  <InsigniaEstadoTaquilla estado={fila.estado || 'en_espera'} />
+                  <InsigniaEstadoTaquilla estado={fila.estado === 'esperando' ? 'en_espera' : fila.estado || 'en_espera'} />
                 </td>
                 <td className={`${claseCelda} whitespace-nowrap`}>{fila.fechaRegistro || '—'}</td>
+                <td className={claseCelda}>
+                  {fila.puedeRetirarse && alRetirarse ? (
+                    <button type="button" onClick={() => alRetirarse(fila)} className="font-semibold text-rose-700 hover:underline">
+                      Retirarme
+                    </button>
+                  ) : '—'}
+                </td>
               </tr>
             ))}
           </tbody>

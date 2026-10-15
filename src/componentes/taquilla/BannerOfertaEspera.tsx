@@ -10,8 +10,8 @@ interface PropiedadesBannerOfertaEspera {
   alAceptar: () => void;
   alRechazar: () => void;
   alVolverAIngresar?: () => void;
-  oferta?: {
-    sesion: string;
+  oferta: {
+    dia: string;
     fechaHoraLimite: string;
     tiempoRestante: string;
     actividadTraslape?: string;
@@ -25,18 +25,11 @@ export const BannerOfertaEspera: React.FC<PropiedadesBannerOfertaEspera> = ({
   alAceptar,
   alRechazar,
   alVolverAIngresar,
-  oferta = {
-    sesion: 'Simposio de IA — Día 1',
-    fechaHoraLimite: '15 de Octubre 18:00 hrs',
-    tiempoRestante: '00:14:52',
-    actividadTraslape: 'Taller de Ciberseguridad',
-    inicioTraslape: '09:00',
-    finTraslape: '11:00'
-  }
+  oferta
 }) => {
   const msgVencida = obtenerMensaje('ERR-MT-11');
   const msgVigente = obtenerMensaje('INF-MT-02', {
-    sesión: oferta.sesion,
+    día: oferta.dia,
     'fecha y hora límite': oferta.fechaHoraLimite
   });
   const msgEmpalme = obtenerMensaje('ERR-MT-07', {

@@ -1,228 +1,325 @@
-import React, { useState } from 'react';
-import { obtenerMensaje, MensajeSistema } from '../dominio/mensajes';
-import { BOLETOS_INICIALES } from '../datos';
-import { BoletoDigital } from '../tipos';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, Clock, Ticket } from 'lucide-react';
+import { useDatos } from '../contextos/DatosContexto';
+import { useAutenticacion } from '../contextos/AutenticacionContexto';
+import { useNotificaciones } from '../contextos/NotificacionesContexto';
+import { AlertaMensaje } from '../componentes/ui/AlertaMensaje';
+import { EstadoVacio } from '../componentes/ui/EstadoVacio';
+import { FilaHistorial, HistorialBoletos } from '../componentes/taquilla/HistorialBoletos';
+import { ModalListaEspera } from '../componentes/taquilla/ModalListaEspera';
 import { ModalBoletoQR } from '../componentes/taquilla/ModalBoletoQR';
-import { QrCode, Calendar, MapPin, AlertTriangle, X, Clock, CheckCircle2 } from 'lucide-react';
+import { ModalCancelarReservacion } from '../componentes/taquilla/ModalCancelarReservacion';
+import { TarjetaBoleto } from '../componentes/taquilla/TarjetaBoleto';
+import { BannerOfertaEspera } from '../componentes/taquilla/BannerOfertaEspera';
+import { BoletoDigital } from '../tipos';
+import { obtenerMensaje } from '../dominio/mensajes';
 
 interface PropiedadesMisBoletos {
-  navigate?: (ruta: string) => void;
+  navigate: (ruta: string) => void;
 }
 
+type BoletoConDia = BoletoDigital & {
+  nombreDia: string;
+  restriccionCancelacion?: string;
+};
+
 export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) => {
+  const {
+    listaBoletos,
+    listaReservaciones,
+    listaEventos,
+    listaRecintos,
+    listaIntencionesAsistencia,
+    listaEspera,
+    cancelarReservacion,
+    retirarseDeListaDeEspera,
+    responderOfertaListaDeEspera
+  } = useDatos();
+  const { usuarioActual } = useAutenticacion();
+  const { mostrarNotificacion } = useNotificaciones();
   const [pestanaActiva, setPestanaActiva] = useState<'activos' | 'historial'>('activos');
-  const [boletos, setBoletos] = useState<BoletoDigital[]>(BOLETOS_INICIALES);
-  
-  // Estados para modales y notificaciones
-  const [boletoParaQR, setBoletoParaQR] = useState<BoletoDigital | null>(null);
-  const [boletoACancelar, setBoletoACancelar] = useState<BoletoDigital | null>(null);
-  const [notificacion, setNotificacion] = useState<MensajeSistema | null>(null);
+  const [boletoParaQR, setBoletoParaQR] = useState<(BoletoDigital & { nombreDia?: string }) | null>(null);
+  const [boletoACancelar, setBoletoACancelar] = useState<BoletoConDia | null>(null);
+  const [participacionParaRetirar, setParticipacionParaRetirar] = useState<FilaHistorial | null>(null);
+  const [ahora, setAhora] = useState(Date.now());
+  const ofertaEnProceso = useRef<string | null>(null);
 
-  // Filtrado según el estado del boleto (CU-MT-05)
-  const boletosActivos = boletos.filter((b) => b.estado === 'valido');
-  const boletosHistorial = boletos.filter((b) => b.estado === 'utilizado' || b.estado === 'cancelado');
+  const boletosDelUsuario = useMemo(
+    () => usuarioActual ? listaBoletos.filter((boleto) => boleto.idUsuario === usuarioActual.id) : [],
+    [listaBoletos, usuarioActual]
+  );
+  const boletosActivos = boletosDelUsuario.filter((boleto) => boleto.estado === 'valido');
+  const ofertaActiva = usuarioActual
+    ? listaEspera.find((entrada) => entrada.idUsuario === usuarioActual.id && entrada.estado === 'notificado')
+    : undefined;
+  const totalRegistros = usuarioActual
+    ? listaReservaciones.filter((r) => r.idUsuario === usuarioActual.id).length
+      + listaIntencionesAsistencia.filter((r) => r.idUsuario === usuarioActual.id).length
+      + listaEspera.filter((r) => r.idUsuario === usuarioActual.id).length
+      + boletosDelUsuario.length
+    : 0;
 
-  // Validaciones de Cancelación (CU-MT-06)
-  const solicitarCancelacion = (boleto: BoletoDigital) => {
-    // Regla 1: Boleto ya utilizado (ERR-MT-09)
-    if (boleto.estado === 'utilizado') {
-      setNotificacion(obtenerMensaje('ERR-MT-09'));
-      return;
-    }
-
-    // Regla 2: Menos de 24 horas antes del inicio del evento (ERR-MT-08)
-    const horaInicioStr = boleto.horaEvento.split(' - ')[0] || '00:00';
-    const fechaHoraEvento = new Date(`${boleto.fechaEvento}T${horaInicioStr}:00`).getTime();
-    const ahora = new Date().getTime();
-    const horasRestantes = (fechaHoraEvento - ahora) / (1000 * 60 * 60);
-
-    if (horasRestantes < 24 && horasRestantes > 0) {
-      setNotificacion(obtenerMensaje('ERR-MT-08'));
-      return;
-    }
-
-    setBoletoACancelar(boleto);
+  const obtenerDatosDia = (idEvento: string, idFecha: string) => {
+    const evento = listaEventos.find((item) => item.id === idEvento);
+    const fecha = evento?.fechas.find((item) => item.id === idFecha);
+    const recinto = listaRecintos.find((item) => item.id === fecha?.idRecinto);
+    return {
+      evento,
+      fecha,
+      dia: fecha?.nombreDia || (fecha ? `Día ${fecha.fecha}` : 'Día no disponible'),
+      recinto: recinto?.nombre || 'Recinto no disponible'
+    };
   };
 
-  const confirmarCancelacion = () => {
-    if (!boletoACancelar) return;
+  const obtenerRestriccionCancelacion = (boleto: BoletoDigital): string | null => {
+    if (!usuarioActual || boleto.idUsuario !== usuarioActual.id) return 'La reservación no pertenece a tu cuenta.';
+    if (boleto.estado === 'utilizado') return obtenerMensaje('ERR-MT-09').descripcion;
+    if (boleto.estado !== 'valido') return 'Este boleto ya no está activo.';
 
-    setBoletos((prev) =>
-      prev.map((b) =>
-        b.id === boletoACancelar.id ? { ...b, estado: 'cancelado' } : b
-      )
-    );
+    const reservacion = listaReservaciones.find((item) => item.id === boleto.idReservacion);
+    if (!reservacion || reservacion.idUsuario !== usuarioActual.id || reservacion.estado !== 'confirmada') {
+      return 'La reservación ya no está confirmada o no pertenece a tu cuenta.';
+    }
 
+    const { evento, fecha } = obtenerDatosDia(boleto.idEvento, boleto.idFechaEvento);
+    if (!evento || !fecha || evento.estado === 'cancelado' || evento.estado === 'finalizado') {
+      return 'El día del evento ya no admite cancelaciones.';
+    }
+
+    const inicio = new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime();
+    const fin = new Date(`${fecha.fecha}T${fecha.horaFin}:00`).getTime();
+    const ahora = Date.now();
+    if (!Number.isFinite(inicio) || !Number.isFinite(fin)) return 'No se pudo verificar el horario del evento.';
+    if (ahora >= inicio) return 'No se puede cancelar una reservación cuando el día ya comenzó o terminó.';
+    if (inicio - ahora < 24 * 60 * 60 * 1000) return obtenerMensaje('ERR-MT-08').descripcion;
+    return null;
+  };
+
+  const abrirCancelacion = (boleto: BoletoDigital) => {
+    const restriccion = obtenerRestriccionCancelacion(boleto);
+    if (restriccion) {
+      mostrarNotificacion('No es posible cancelar', restriccion, 'error');
+      return;
+    }
+    const { fecha, dia } = obtenerDatosDia(boleto.idEvento, boleto.idFechaEvento);
+    setBoletoACancelar({ ...boleto, nombreDia: dia, horaEvento: fecha ? `${fecha.horaInicio} - ${fecha.horaFin}` : boleto.horaEvento });
+  };
+
+  const confirmarCancelacion = (boleto: BoletoConDia, motivo: string) => {
+    const restriccion = obtenerRestriccionCancelacion(boleto);
+    if (restriccion) {
+      setBoletoACancelar(null);
+      mostrarNotificacion('No es posible cancelar', restriccion, 'error');
+      return;
+    }
+
+    const resultado = cancelarReservacion(boleto.idReservacion, usuarioActual!.id, motivo);
+    if (!resultado.exito) {
+      mostrarNotificacion('No se pudo cancelar la reservación', resultado.error || 'Actualiza la información e inténtalo de nuevo.', 'error');
+      return;
+    }
     setBoletoACancelar(null);
-    setNotificacion(obtenerMensaje('OK-MT-02'));
+    const mensaje = obtenerMensaje('OK-MT-02');
+    mostrarNotificacion(mensaje.titulo, mensaje.descripcion, mensaje.tipo);
   };
 
-  const mensajeVacio = obtenerMensaje('INF-MT-06');
-  const advertenciaCancelacion = obtenerMensaje('AV-MT-01');
+  const retirarseDeLista = (fila: FilaHistorial) => {
+    setParticipacionParaRetirar(fila);
+  };
+
+  const confirmarRetiroLista = () => {
+    if (!usuarioActual) return;
+    if (!participacionParaRetirar) return;
+    const resultado = retirarseDeListaDeEspera(participacionParaRetirar.id, usuarioActual.id);
+    if (!resultado.exito) {
+      mostrarNotificacion('No se pudo actualizar la lista', resultado.error || 'Intenta actualizar la información.', 'error');
+      return;
+    }
+    setParticipacionParaRetirar(null);
+    const mensaje = obtenerMensaje('OK-MT-07', { día: participacionParaRetirar.dia || 'este día' });
+    mostrarNotificacion(mensaje.titulo, mensaje.descripcion, mensaje.tipo);
+  };
+
+  useEffect(() => {
+    if (!ofertaActiva) return;
+    const intervalo = window.setInterval(() => setAhora(Date.now()), 1000);
+    return () => window.clearInterval(intervalo);
+  }, [ofertaActiva?.id]);
+
+  useEffect(() => {
+    if (!usuarioActual || !ofertaActiva?.fechaExpiracionOferta || ahora < ofertaActiva.fechaExpiracionOferta) return;
+    if (ofertaEnProceso.current === ofertaActiva.id) return;
+    ofertaEnProceso.current = ofertaActiva.id;
+    const resultado = responderOfertaListaDeEspera(ofertaActiva.id, usuarioActual.id, 'vencer');
+    const mensaje = obtenerMensaje('ERR-MT-11');
+    mostrarNotificacion(mensaje.titulo, resultado.error || mensaje.descripcion, resultado.exito ? 'advertencia' : 'error');
+  }, [ahora, ofertaActiva?.id, ofertaActiva?.fechaExpiracionOferta, usuarioActual, responderOfertaListaDeEspera, mostrarNotificacion]);
+
+  const responderOferta = (decision: 'aceptar' | 'rechazar') => {
+    if (!usuarioActual || !ofertaActiva) return;
+    const resultado = responderOfertaListaDeEspera(ofertaActiva.id, usuarioActual.id, decision);
+    if (!resultado.exito) {
+      mostrarNotificacion('No se pudo actualizar la oferta', resultado.error || 'Actualiza tus boletos e inténtalo de nuevo.', 'error');
+      return;
+    }
+    if (decision === 'aceptar') {
+      const dia = obtenerDatosDia(ofertaActiva.idEvento, ofertaActiva.idFechaEvento).dia;
+      const mensaje = obtenerMensaje('OK-MT-01', { día: dia });
+      mostrarNotificacion(mensaje.titulo, mensaje.descripcion, mensaje.tipo);
+    } else {
+      const dia = obtenerDatosDia(ofertaActiva.idEvento, ofertaActiva.idFechaEvento).dia;
+      const mensaje = obtenerMensaje('OK-MT-07', { día: dia });
+      mostrarNotificacion(mensaje.titulo, mensaje.descripcion, mensaje.tipo);
+    }
+  };
+
+  const filasReservaciones = usuarioActual ? listaReservaciones
+    .filter((reserva) => reserva.idUsuario === usuarioActual.id)
+    .map((reserva) => {
+      const { evento, fecha, dia, recinto } = obtenerDatosDia(reserva.idEvento, reserva.idFechaEvento);
+      return {
+        id: listaBoletos.find((boleto) => boleto.idReservacion === reserva.id)?.codigoQr || reserva.id,
+        evento: evento?.titulo || 'Evento no disponible',
+        dia,
+        fecha: fecha?.fecha || '—',
+        horario: fecha ? `${fecha.horaInicio} a ${fecha.horaFin}` : '—',
+        recinto,
+        asiento: reserva.etiquetaAsiento || 'Cupo general',
+        estado: (() => {
+          const boleto = listaBoletos.find((item) => item.idReservacion === reserva.id);
+          if (boleto?.estado === 'utilizado') return 'utilizado';
+          if (boleto?.estado === 'cancelado') return 'cancelado';
+          return reserva.estado === 'confirmada' ? 'vigente' : reserva.estado === 'cancelada' ? 'cancelado' : 'apartado';
+        })(),
+        motivoCancelacion: reserva.motivoCancelacion || listaBoletos.find((boleto) => boleto.idReservacion === reserva.id)?.motivoInvalidacion
+      };
+    }) : [];
+
+  const filasIntenciones = usuarioActual ? listaIntencionesAsistencia
+    .filter((registro) => registro.idUsuario === usuarioActual.id)
+    .map((registro) => {
+      const { evento, fecha, dia } = obtenerDatosDia(registro.idEvento, registro.idFechaEvento);
+      return {
+        id: registro.id,
+        evento: evento?.titulo || 'Evento no disponible',
+        dia,
+        fecha: fecha?.fecha || '—',
+        fechaRegistro: new Date(registro.fechaRegistro).toLocaleString('es-MX')
+      };
+    }) : [];
+
+  const filasListaEspera = usuarioActual ? listaEspera
+    .filter((entrada) => entrada.idUsuario === usuarioActual.id)
+    .map((entrada) => {
+      const { evento, fecha, dia } = obtenerDatosDia(entrada.idEvento, entrada.idFechaEvento);
+      return {
+        id: entrada.id,
+        evento: evento?.titulo || 'Evento no disponible',
+        dia,
+        fecha: fecha?.fecha || '—',
+        horario: fecha ? `${fecha.horaInicio} a ${fecha.horaFin}` : 'Horario no disponible',
+        posicion: entrada.posicionFila,
+        puedeRetirarse: entrada.estado === 'esperando',
+        estado: entrada.estado === 'esperando' ? 'en_espera'
+          : entrada.estado === 'notificado' ? 'oferta_vigente'
+            : entrada.estado === 'convertido' ? 'aceptada'
+              : entrada.estado === 'cancelado' ? 'retirada'
+                : entrada.estado,
+        fechaRegistro: new Date(entrada.fechaCreacion).toLocaleString('es-MX')
+      };
+    }) : [];
+
+  if (!usuarioActual) {
+    const mensaje = obtenerMensaje('ERR-TR-01');
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-16">
+        <EstadoVacio titulo={mensaje.titulo} descripcion={mensaje.descripcion} textoAccion="Iniciar sesión" alHacerAccion={() => navigate('/login')} />
+      </div>
+    );
+  }
+
+  if (usuarioActual.correoConfirmado !== true) {
+    const mensaje = obtenerMensaje('ERR-IP-04');
+    return <div className="max-w-4xl mx-auto px-4 py-16"><AlertaMensaje tipo="error" titulo={mensaje.titulo} mensaje={mensaje.descripcion} /></div>;
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">Mis Reservaciones y Boletos</h1>
-      <p className="text-gray-600 mb-6">Gestiona tus accesos e historial de asistencia a eventos en ESCOM.</p>
+      <div className="mb-7">
+        <span className="text-[11px] font-bold text-[#7a132b] uppercase tracking-wider">Taquilla digital</span>
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 mt-0.5">Mis boletos e historial</h1>
+        <p className="text-sm text-neutral-500 mt-1">Consulta tus boletos, días de evento y participaciones.</p>
+      </div>
 
-      {/* Notificaciones del Sistema */}
-      {notificacion && (
-        <div className={`mb-6 p-4 rounded-lg flex items-start justify-between border ${
-          notificacion.tipo === 'error' ? 'bg-red-50 text-red-800 border-red-200' :
-          notificacion.tipo === 'exito' ? 'bg-green-50 text-green-800 border-green-200' :
-          'bg-blue-50 text-blue-800 border-blue-200'
-        }`}>
-          <div>
-            <p className="font-semibold">{notificacion.titulo}</p>
-            <p className="text-sm mt-0.5">{notificacion.descripcion}</p>
-          </div>
-          <button onClick={() => setNotificacion(null)} className="p-1 hover:opacity-75 cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
+      {totalRegistros === 0 && (
+        <div className="mb-6">
+          <EstadoVacio titulo={obtenerMensaje('INF-MT-06').titulo} descripcion={obtenerMensaje('INF-MT-06').descripcion} textoAccion="Ver cartelera" alHacerAccion={() => navigate('/eventos')} />
         </div>
       )}
 
-      {/* Pestañas Activos / Historial */}
-      <div className="flex border-b border-gray-200 mb-6">
-        <button
-          onClick={() => setPestanaActiva('activos')}
-          className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors cursor-pointer ${
-            pestanaActiva === 'activos'
-              ? 'border-blue-600 text-blue-600 font-semibold'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Boletos Activos ({boletosActivos.length})
+      {ofertaActiva?.fechaExpiracionOferta && (
+        <BannerOfertaEspera
+          variante="vigente"
+          oferta={{
+            dia: `${obtenerDatosDia(ofertaActiva.idEvento, ofertaActiva.idFechaEvento).evento?.titulo || 'Evento'} · ${obtenerDatosDia(ofertaActiva.idEvento, ofertaActiva.idFechaEvento).dia}`,
+            fechaHoraLimite: new Date(ofertaActiva.fechaExpiracionOferta).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }),
+            tiempoRestante: (() => {
+              const segundos = Math.max(0, Math.ceil((ofertaActiva.fechaExpiracionOferta! - ahora) / 1000));
+              return `${String(Math.floor(segundos / 60)).padStart(2, '0')}:${String(segundos % 60).padStart(2, '0')}`;
+            })(),
+            actividadTraslape: '',
+            inicioTraslape: '',
+            finTraslape: ''
+          }}
+          alAceptar={() => responderOferta('aceptar')}
+          alRechazar={() => responderOferta('rechazar')}
+        />
+      )}
+
+      <div className="flex border-b border-neutral-200 mb-6" role="tablist" aria-label="Boletos e historial">
+        <button type="button" role="tab" aria-selected={pestanaActiva === 'activos'} onClick={() => setPestanaActiva('activos')} className={`py-3 px-5 text-sm border-b-2 ${pestanaActiva === 'activos' ? 'border-[#7a132b] text-[#7a132b] font-semibold' : 'border-transparent text-neutral-500'}`}>
+          Boletos activos ({boletosActivos.length})
         </button>
-        <button
-          onClick={() => setPestanaActiva('historial')}
-          className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors cursor-pointer ${
-            pestanaActiva === 'historial'
-              ? 'border-blue-600 text-blue-600 font-semibold'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Historial de Asistencia ({boletosHistorial.length})
+        <button type="button" role="tab" aria-selected={pestanaActiva === 'historial'} onClick={() => setPestanaActiva('historial')} className={`py-3 px-5 text-sm border-b-2 ${pestanaActiva === 'historial' ? 'border-[#7a132b] text-[#7a132b] font-semibold' : 'border-transparent text-neutral-500'}`}>
+          Historial ({filasReservaciones.length + filasIntenciones.length + filasListaEspera.length})
         </button>
       </div>
 
-      {/* Renderizado de Boletos */}
-      {(pestanaActiva === 'activos' ? boletosActivos : boletosHistorial).length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-          <Clock className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <h3 className="text-lg font-semibold text-gray-800">{mensajeVacio.titulo}</h3>
-          <p className="text-gray-600 text-sm mt-1 mb-4">{mensajeVacio.descripcion}</p>
-          {navigate && (
-            <button
-              onClick={() => navigate('/eventos')}
-              className="px-4 py-2 bg-[#7a132b] text-white rounded-xl text-xs font-bold hover:bg-[#630f23] transition-colors cursor-pointer"
-            >
-              Ver Cartelera de Eventos
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {(pestanaActiva === 'activos' ? boletosActivos : boletosHistorial).map((boleto) => (
-            <div key={boleto.id} className="bg-white border border-neutral-200 rounded-xl shadow-xs overflow-hidden flex flex-col justify-between">
-              <div className="p-5">
-                <div className="flex justify-between items-start mb-3">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                    boleto.estado === 'valido' ? 'bg-green-100 text-green-800' :
-                    boleto.estado === 'utilizado' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-600'
-                  }`}>
-                    {boleto.estado === 'valido' ? 'VÁLIDO' :
-                     boleto.estado === 'utilizado' ? 'ASISTIDO' : 'CANCELADO'}
-                  </span>
-                  <span className="text-xs text-gray-500 font-mono">Folio: #{boleto.id}</span>
-                </div>
-
-                <h3 className="font-bold text-lg text-gray-900 mb-2">
-                  {boleto.tituloEvento}
-                </h3>
-
-                <div className="space-y-1.5 text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <span>{boleto.fechaEvento} ({boleto.horaEvento})</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <span>{boleto.nombreRecinto}</span>
-                  </div>
-                  <div className="mt-2 text-xs font-semibold text-blue-700 bg-blue-50 inline-block px-2.5 py-1 rounded">
-                    Lugar: {boleto.etiquetaAsiento}
-                  </div>
-                </div>
-              </div>
-
-              {/* Botones de acción */}
-              <div className="bg-gray-50 px-5 py-3 border-t border-neutral-200 flex gap-3">
-                {pestanaActiva === 'activos' ? (
-                  <>
-                    <button
-                      onClick={() => setBoletoParaQR(boleto)}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors"
-                    >
-                      <QrCode className="w-4 h-4" />
-                      Ver Código QR
-                    </button>
-                    <button
-                      onClick={() => solicitarCancelacion(boleto)}
-                      className="px-4 border border-red-300 text-red-600 hover:bg-red-50 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                  </>
-                ) : (
-                  <div className="flex items-center gap-2 text-xs text-gray-500 py-1">
-                    <CheckCircle2 className="w-4 h-4 text-gray-400" />
-                    <span>
-                      {boleto.estado === 'utilizado' ? 'Asistencia registrada en puerta' : 'Boleto invalidado'}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Reutilización del Modal con QR Real e Imprimible */}
-      <ModalBoletoQR
-        boleto={boletoParaQR}
-        alCerrar={() => setBoletoParaQR(null)}
-      />
-
-      {/* Modal CONFIRMAR CANCELACIÓN (AV-MT-01) */}
-      {boletoACancelar && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl border border-neutral-200">
-            <div className="flex items-center gap-3 text-amber-600 mb-3">
-              <AlertTriangle className="w-6 h-6 flex-shrink-0" />
-              <h3 className="font-bold text-lg">{advertenciaCancelacion.titulo}</h3>
-            </div>
-            
-            <p className="text-sm text-gray-600 mb-6">{advertenciaCancelacion.descripcion}</p>
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setBoletoACancelar(null)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors"
-              >
-                Conservar Boleto
-              </button>
-              <button
-                onClick={confirmarCancelacion}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium cursor-pointer transition-colors"
-              >
-                Sí, Cancelar Reservación
-              </button>
-            </div>
+      {pestanaActiva === 'activos' ? (
+        boletosActivos.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 py-12 text-center">
+            <Ticket className="w-10 h-10 mx-auto text-neutral-400 mb-3" />
+            <h2 className="font-semibold text-neutral-800">No tienes boletos activos</h2>
+            <p className="text-sm text-neutral-500 mt-1">Tus reservaciones anteriores y participaciones están en Historial.</p>
           </div>
-        </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {boletosActivos.map((boleto) => {
+              const { fecha, dia } = obtenerDatosDia(boleto.idEvento, boleto.idFechaEvento);
+              const boletoVista: BoletoConDia = {
+                ...boleto,
+                nombreDia: dia,
+                restriccionCancelacion: obtenerRestriccionCancelacion(boleto) || undefined
+              };
+              return <TarjetaBoleto key={boleto.id} boleto={boletoVista} alAmpliarQr={setBoletoParaQR} alCancelar={abrirCancelacion} />;
+            })}
+          </div>
+        )
+      ) : (
+        <HistorialBoletos reservaciones={filasReservaciones} intenciones={filasIntenciones} listaEspera={filasListaEspera} alRetirarse={retirarseDeLista} />
       )}
+
+      <ModalBoletoQR boleto={boletoParaQR} alCerrar={() => setBoletoParaQR(null)} />
+      <ModalCancelarReservacion boleto={boletoACancelar} alConservar={() => setBoletoACancelar(null)} alConfirmar={confirmarCancelacion} />
+      <ModalListaEspera
+        estaAbierto={participacionParaRetirar !== null}
+        variante="retiro"
+        evento={participacionParaRetirar?.evento || 'Evento'}
+        dia={participacionParaRetirar?.dia || 'Día del evento'}
+        horario={participacionParaRetirar?.horario || 'Horario no disponible'}
+        alCerrar={() => setParticipacionParaRetirar(null)}
+        alConfirmar={confirmarRetiroLista}
+      />
     </div>
   );
 };

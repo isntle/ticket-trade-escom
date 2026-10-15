@@ -23,6 +23,7 @@ export type EstadoTaquilla =
   | 'rechazada'
   | 'vencida'
   | 'retirada'
+  | 'apartado'
   | 'valido'
   | 'confirmada'
   | 'asistido';
@@ -114,6 +115,11 @@ const CONFIGURACION: Record<
     etiqueta: 'Retirada',
     clases: 'bg-slate-100 text-slate-700 border-slate-300',
     icono: <UserMinus className="w-3.5 h-3.5" />
+  },
+  apartado: {
+    etiqueta: 'Apartado',
+    clases: 'bg-sky-100 text-sky-800 border-sky-300',
+    icono: <Clock className="w-3.5 h-3.5" />
   }
 };
 

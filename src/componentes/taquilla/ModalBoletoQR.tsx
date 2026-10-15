@@ -1,20 +1,20 @@
 import React from 'react';
 import { Printer, X } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import { BoletoDigital } from '../../tipos';
 
 interface PropiedadesModalBoletoQR {
-  boleto: any | null;
+  boleto: (BoletoDigital & { nombreDia?: string }) | null;
   alCerrar: () => void;
 }
 
 export const ModalBoletoQR: React.FC<PropiedadesModalBoletoQR> = ({ boleto, alCerrar }) => {
   if (!boleto) return null;
 
-  const codigoQrVal = boleto.codigoQr || boleto.codigoQR || boleto.codigoManual || boleto.id || 'TT-ESCOM-DEFAULT';
-  const codigoManualVal = boleto.codigoManual || codigoQrVal;
-  const tituloEventoVal = boleto.tituloEvento || 'Evento Institucional ESCOM';
-  const nombreSesionVal = boleto.nombreSesion || boleto.fechaEvento || 'Sesión Académica';
-  const asientoVal = boleto.etiquetaAsiento || boleto.asiento || 'General';
-  const titularVal = boleto.nombreUsuario || boleto.nombreTitular || 'Asistente Institucional';
+  const codigoQrVal = boleto.codigoQr;
+  const tituloEventoVal = boleto.tituloEvento;
+  const asientoVal = boleto.etiquetaAsiento || 'Acceso general';
+  const titularVal = boleto.nombreUsuario;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
@@ -36,15 +36,9 @@ export const ModalBoletoQR: React.FC<PropiedadesModalBoletoQR> = ({ boleto, alCe
               TICKET TRADE · PASE OFICIAL
             </span>
 
-            {/* Generación de código QR escaneable real */}
+            {/* El QR se genera localmente; el identificador manual permanece disponible sin red. */}
             <div className="w-44 h-44 bg-white p-2 rounded-2xl border border-neutral-200 mx-auto flex items-center justify-center shadow-xs overflow-hidden">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
-                  codigoQrVal
-                )}`}
-                alt={`Código QR ${codigoManualVal}`}
-                className="w-40 h-40 object-contain"
-              />
+              <QRCodeSVG value={codigoQrVal} size={160} level="M" includeMargin title={`Código QR ${codigoQrVal}`} />
             </div>
 
             <div className="mt-3 text-left">
@@ -52,15 +46,23 @@ export const ModalBoletoQR: React.FC<PropiedadesModalBoletoQR> = ({ boleto, alCe
                 Identificador para captura manual
               </span>
               <div className="font-mono text-xs font-extrabold tracking-widest text-[#7a132b] break-all">
-                {codigoManualVal}
+                {codigoQrVal}
               </div>
             </div>
 
             <div className="mt-3 pt-3 border-t border-neutral-200 text-left text-xs space-y-1">
               <div className="font-bold text-neutral-900 text-sm line-clamp-1">{tituloEventoVal}</div>
               <div className="text-neutral-600 flex justify-between gap-3">
-                <span>Sesión:</span>
-                <span className="font-medium text-neutral-900 text-right">{nombreSesionVal}</span>
+                <span>Día:</span>
+                <span className="font-medium text-neutral-900 text-right">{boleto.nombreDia || 'Día del evento'} · {boleto.fechaEvento}</span>
+              </div>
+              <div className="text-neutral-600 flex justify-between gap-3">
+                <span>Horario:</span>
+                <span className="font-medium text-neutral-900 text-right">{boleto.horaEvento}</span>
+              </div>
+              <div className="text-neutral-600 flex justify-between gap-3">
+                <span>Recinto:</span>
+                <span className="font-medium text-neutral-900 text-right">{boleto.nombreRecinto}</span>
               </div>
               <div className="text-neutral-600 flex justify-between gap-3">
                 <span>Lugar:</span>

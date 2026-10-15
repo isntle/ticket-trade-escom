@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import { obtenerMensaje } from '../../dominio/mensajes';
+import { BoletoDigital } from '../../tipos';
+
+type BoletoCancelable = BoletoDigital & { nombreDia: string; restriccionCancelacion?: string };
 
 interface PropiedadesModalCancelarReservacion {
-  boleto: any | null;
+  boleto: BoletoCancelable | null;
   alConservar: () => void;
-  alConfirmar: (boleto: any) => void;
+  alConfirmar: (boleto: BoletoCancelable, motivo: string) => void;
 }
 
 export const ModalCancelarReservacion: React.FC<PropiedadesModalCancelarReservacion> = ({
@@ -13,19 +16,19 @@ export const ModalCancelarReservacion: React.FC<PropiedadesModalCancelarReservac
   alConservar,
   alConfirmar
 }) => {
+  const [motivo, setMotivo] = useState('');
+  useEffect(() => setMotivo(''), [boleto?.id]);
   if (!boleto) return null;
 
   const advertencia = obtenerMensaje('AV-MT-01');
   const tituloEvento = boleto.tituloEvento || 'Evento Institucional';
-  const nombreSesion = boleto.nombreSesion || boleto.fechaEvento || 'Sesión Académica';
-  const horarioStr = boleto.horaInicio && boleto.horaFin
-    ? `${boleto.fechaEvento} · ${boleto.horaInicio} a ${boleto.horaFin} hrs`
-    : boleto.fechaEvento || 'Fecha asignada';
-  const asientoStr = boleto.etiquetaAsiento || boleto.asiento || 'Acceso general';
+  const nombreDia = boleto.nombreDia || 'Día del evento';
+  const horarioStr = boleto.horaEvento || `${boleto.fechaEvento} · horario por confirmar`;
+  const asientoStr = boleto.etiquetaAsiento || 'Acceso general';
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-neutral-200 relative">
+      <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 shadow-xl border border-neutral-200 relative">
         <button
           onClick={alConservar}
           className="absolute top-4 right-4 p-1 text-neutral-400 hover:text-neutral-700 rounded-lg hover:bg-neutral-100"
@@ -40,7 +43,7 @@ export const ModalCancelarReservacion: React.FC<PropiedadesModalCancelarReservac
           <div className="p-3.5 rounded-xl bg-neutral-50 border border-neutral-200 space-y-1">
             <div className="font-bold text-neutral-900 text-sm leading-snug">{tituloEvento}</div>
             <div className="text-neutral-600">
-              Sesión: <span className="font-semibold text-neutral-800">{nombreSesion}</span>
+              Día: <span className="font-semibold text-neutral-800">{nombreDia} · {boleto.fechaEvento}</span>
             </div>
             <div className="text-neutral-600">
               Horario: <span className="font-semibold text-neutral-800">{horarioStr}</span>
@@ -55,6 +58,21 @@ export const ModalCancelarReservacion: React.FC<PropiedadesModalCancelarReservac
             <p className="leading-relaxed">{advertencia.descripcion}</p>
           </div>
 
+          <label className="block text-neutral-700 font-semibold" htmlFor="motivo-cancelacion">
+            Motivo de cancelación <span className="text-rose-600">*</span>
+            <textarea
+              id="motivo-cancelacion"
+              value={motivo}
+              onChange={(evento) => setMotivo(evento.target.value)}
+              maxLength={250}
+              rows={3}
+              required
+              placeholder="Indica por qué necesitas cancelar esta reservación"
+              className="mt-1.5 w-full rounded-xl border border-neutral-300 p-3 text-xs font-normal outline-none focus:border-[#7a132b] focus:ring-2 focus:ring-[#7a132b]/10"
+            />
+            <span className="mt-1 block text-right text-[10px] font-normal text-neutral-500">{motivo.length}/250</span>
+          </label>
+
           <div className="flex justify-end gap-2 pt-1">
             <button
               type="button"
@@ -65,8 +83,9 @@ export const ModalCancelarReservacion: React.FC<PropiedadesModalCancelarReservac
             </button>
             <button
               type="button"
-              onClick={() => alConfirmar(boleto)}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer transition-colors"
+              onClick={() => alConfirmar(boleto, motivo)}
+              disabled={!motivo.trim()}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancelar reservación
             </button>

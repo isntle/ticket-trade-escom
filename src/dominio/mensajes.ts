@@ -200,19 +200,19 @@ export const CATALOGO_MENSAJES: Record<string, MensajeSistema> = {
     codigo: 'ERR-MT-02',
     tipo: 'error',
     titulo: 'Inscripciones cerradas',
-    descripcion: 'Las inscripciones para esta sesión están cerradas.'
+    descripcion: 'Las inscripciones para este día están cerradas.'
   },
   'ERR-MT-03': {
     codigo: 'ERR-MT-03',
     tipo: 'error',
     titulo: 'Sin disponibilidad',
-    descripcion: 'No hay lugares disponibles para esta sesión.'
+    descripcion: 'No hay lugares disponibles para este día.'
   },
   'ERR-MT-06': {
     codigo: 'ERR-MT-06',
     tipo: 'error',
     titulo: 'Reservación existente',
-    descripcion: 'Ya tienes una reservación activa para esta sesión. Puedes consultarla en tus reservaciones.'
+    descripcion: 'Ya tienes una reservación activa para este día. Puedes consultarla en tus reservaciones.'
   },
   'ERR-MT-07': {
     codigo: 'ERR-MT-07',
@@ -224,7 +224,7 @@ export const CATALOGO_MENSAJES: Record<string, MensajeSistema> = {
     codigo: 'ERR-MT-08',
     tipo: 'error',
     titulo: 'Plazo vencido para cancelar',
-    descripcion: 'Ya no puedes cancelar esta reservación porque faltan menos de 24 horas para el inicio de la sesión.'
+    descripcion: 'Ya no puedes cancelar esta reservación porque faltan menos de 24 horas para el inicio del día.'
   },
   'ERR-MT-09': {
     codigo: 'ERR-MT-09',
@@ -236,7 +236,7 @@ export const CATALOGO_MENSAJES: Record<string, MensajeSistema> = {
     codigo: 'ERR-MT-10',
     tipo: 'error',
     titulo: 'Registro previo activo',
-    descripcion: 'Ya tienes una reservación, una oferta o una participación activa en la lista de espera de esta sesión.'
+    descripcion: 'Ya tienes una reservación, una oferta o una participación activa en la lista de espera de este día.'
   },
   'ERR-MT-11': {
     codigo: 'ERR-MT-11',
@@ -248,13 +248,13 @@ export const CATALOGO_MENSAJES: Record<string, MensajeSistema> = {
     codigo: 'INF-MT-02',
     tipo: 'informacion',
     titulo: 'Oferta de lugar disponible',
-    descripcion: 'Tienes un lugar disponible para «{sesión}». Confirma antes de {fecha y hora límite}; después la oferta vencerá.'
+    descripcion: 'Tienes un lugar disponible para «{día}». Confirma antes de {fecha y hora límite}; después la oferta vencerá.'
   },
   'INF-MT-05': {
     codigo: 'INF-MT-05',
     tipo: 'informacion',
     titulo: 'Lugares disponibles',
-    descripcion: 'Ya hay lugares disponibles para esta sesión. Puedes reservar uno sin ingresar a la lista de espera.'
+    descripcion: 'Ya hay lugares disponibles para este día. Puedes reservar uno sin ingresar a la lista de espera.'
   },
   'INF-MT-06': {
     codigo: 'INF-MT-06',
@@ -266,7 +266,7 @@ export const CATALOGO_MENSAJES: Record<string, MensajeSistema> = {
     codigo: 'OK-MT-01',
     tipo: 'exito',
     titulo: 'Reservación confirmada',
-    descripcion: 'Tu reservación para «{sesión}» fue confirmada. Consulta tu boleto y los datos vigentes de acceso.'
+    descripcion: 'Tu reservación para «{día}» fue confirmada. Consulta tu boleto y los datos vigentes de acceso.'
   },
   'OK-MT-02': {
     codigo: 'OK-MT-02',
@@ -284,7 +284,7 @@ export const CATALOGO_MENSAJES: Record<string, MensajeSistema> = {
     codigo: 'OK-MT-07',
     tipo: 'exito',
     titulo: 'Baja de lista de espera',
-    descripcion: 'Tu participación en la lista de espera de «{sesión}» fue cerrada. Si vuelves a ingresar, ocuparás el último lugar.'
+    descripcion: 'Tu participación en la lista de espera de «{día}» fue cerrada. Si vuelves a ingresar, ocuparás el último lugar.'
   },
   'AV-MT-01': {
     codigo: 'AV-MT-01',
@@ -296,7 +296,7 @@ export const CATALOGO_MENSAJES: Record<string, MensajeSistema> = {
     codigo: 'AV-MT-02',
     tipo: 'advertencia',
     titulo: 'Confirmar baja de lista de espera',
-    descripcion: 'Perderás tu posición en la lista de espera de «{sesión}». Si vuelves a ingresar, ocuparás el último lugar. ¿Deseas continuar?'
+    descripcion: 'Perderás tu posición en la lista de espera de «{día}». Si vuelves a ingresar, ocuparás el último lugar. ¿Deseas continuar?'
   },
   'ERR-TR-01': {
     codigo: 'ERR-TR-01',

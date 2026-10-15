@@ -2,16 +2,20 @@ import React from 'react';
 import { QrCode, Calendar, Clock, MapPin, Ticket as IconoSesion } from 'lucide-react';
 import { InsigniaEstadoTaquilla } from './InsigniaEstadoTaquilla';
 import { obtenerMensaje } from '../../dominio/mensajes';
+import { QRCodeSVG } from 'qrcode.react';
+import { BoletoDigital } from '../../tipos';
+
+type BoletoVista = BoletoDigital & { nombreDia: string; restriccionCancelacion?: string };
 
 interface PropiedadesTarjetaBoleto {
-  boleto: any;
-  alAmpliarQr: (boleto: any) => void;
-  alCancelar: (boleto: any) => void;
+  boleto: BoletoVista;
+  alAmpliarQr: (boleto: BoletoVista) => void;
+  alCancelar: (boleto: BoletoDigital) => void;
 }
 
 export const TarjetaBoleto: React.FC<PropiedadesTarjetaBoleto> = ({ boleto, alAmpliarQr, alCancelar }) => {
-  const estaActivo = boleto.estado === 'valido' || boleto.estado === 'activo' || boleto.estado === 'confirmada';
-  const atenuado = boleto.estado === 'cancelado' || boleto.estado === 'utilizado' || boleto.estado === 'invalidado';
+  const estaActivo = boleto.estado === 'valido';
+  const atenuado = boleto.estado === 'cancelado' || boleto.estado === 'utilizado';
 
   const cancelacionPermitida = estaActivo && !boleto.restriccionCancelacion;
 
@@ -23,13 +27,13 @@ export const TarjetaBoleto: React.FC<PropiedadesTarjetaBoleto> = ({ boleto, alAm
   }
 
   const tituloEvento = boleto.tituloEvento || 'Evento Institucional ESCOM';
-  const nombreSesion = boleto.nombreSesion || boleto.fechaEvento || 'Sesión Académica';
+  const nombreDia = boleto.nombreDia || 'Día del evento';
   const fechaEvento = boleto.fechaEvento || 'Fecha por confirmar';
-  const horaEvento = boleto.horaEvento || (boleto.horaInicio ? `${boleto.horaInicio} a ${boleto.horaFin}` : 'Horario asignado');
+  const horaEvento = boleto.horaEvento || 'Horario asignado';
   const nombreRecinto = boleto.nombreRecinto || 'Recinto ESCOM';
-  const etiquetaAsiento = boleto.etiquetaAsiento || boleto.asiento || 'Acceso General';
-  const nombreTitular = boleto.nombreUsuario || boleto.nombreTitular || 'Asistente Institucional';
-  const codigoManual = boleto.codigoManual || boleto.codigoQr || boleto.codigoQR || boleto.id;
+  const etiquetaAsiento = boleto.etiquetaAsiento || 'Acceso General';
+  const nombreTitular = boleto.nombreUsuario || 'Asistente Institucional';
+  const codigoManual = boleto.codigoQr;
 
   return (
     <div
@@ -51,7 +55,7 @@ export const TarjetaBoleto: React.FC<PropiedadesTarjetaBoleto> = ({ boleto, alAm
 
         <div className="mt-1 flex items-center gap-1.5 text-xs text-neutral-600">
           <IconoSesion className="w-3.5 h-3.5 text-neutral-400" />
-          <span className="font-medium">{nombreSesion}</span>
+          <span className="font-medium">{nombreDia}</span>
         </div>
 
         <div className="mt-3 flex items-center gap-4 text-xs text-neutral-600">
@@ -100,7 +104,7 @@ export const TarjetaBoleto: React.FC<PropiedadesTarjetaBoleto> = ({ boleto, alAm
 
         <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200 flex items-center justify-between gap-4">
           <div className="w-16 h-16 bg-white p-1 rounded-xl border border-neutral-200 flex items-center justify-center shrink-0 shadow-2xs">
-            <QrCode className="w-10 h-10 text-neutral-800" />
+            <QRCodeSVG value={boleto.codigoQr} size={56} level="M" includeMargin title={`Código QR ${boleto.codigoQr}`} />
           </div>
 
           <div className="flex-1 min-w-0">
@@ -126,7 +130,7 @@ export const TarjetaBoleto: React.FC<PropiedadesTarjetaBoleto> = ({ boleto, alAm
           <button
             type="button"
             onClick={() => alCancelar(boleto)}
-            disabled={!cancelacionPermitida && !estaActivo}
+            disabled={!cancelacionPermitida}
             className="px-3 py-2.5 border border-neutral-300 hover:border-rose-300 hover:text-rose-600 rounded-xl text-xs font-semibold text-neutral-600 transition-colors cursor-pointer disabled:bg-neutral-100 disabled:text-neutral-400 disabled:border-neutral-200 disabled:cursor-not-allowed"
           >
             Cancelar

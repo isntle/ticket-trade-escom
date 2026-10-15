@@ -100,7 +100,13 @@ interface ContextoDatosTipo {
   confirmarReservacion: (
     idReservacion: string
   ) => { exito: boolean; boleto?: BoletoDigital; error?: string };
-  cancelarReservacion: (idReservacion: string) => void;
+  cancelarReservacion: (idReservacion: string, idUsuario: string, motivo: string) => { exito: boolean; error?: string };
+  cancelarReservacionPorEvento: (
+    idReservacion: string,
+    idActor: string,
+    rolActivo: Usuario['rolActivo'],
+    motivo: string
+  ) => { exito: boolean; error?: string };
 
   registrarIntencionAsistencia: (
     idEvento: string,
@@ -142,8 +148,16 @@ interface ContextoDatosTipo {
     idFechaEvento: string,
     idUsuario: string,
     nombreUsuario: string,
-    correoUsuario: string
+    correoUsuario: string,
+    rolesUsuario?: Usuario['roles'],
+    correoConfirmado?: boolean
   ) => { exito: boolean; entrada?: EntradaListaEspera; error?: string };
+  retirarseDeListaDeEspera: (idEntrada: string, idUsuario: string) => { exito: boolean; error?: string };
+  responderOfertaListaDeEspera: (
+    idEntrada: string,
+    idUsuario: string,
+    decision: 'aceptar' | 'rechazar' | 'vencer'
+  ) => { exito: boolean; error?: string };
 
   procesarCheckIn: (
     codigoQr: string,
@@ -928,7 +942,15 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
             r.idUsuario !== idUsuario))
     );
 
-    if (colision) {
+    const ofertaVigenteDeOtraPersona = listaEspera.some((entrada) =>
+      entrada.idFechaEvento === idFechaEvento &&
+      entrada.idAsientoOferta === idAsiento &&
+      entrada.idUsuario !== idUsuario &&
+      entrada.estado === 'notificado' &&
+      (entrada.fechaExpiracionOferta || 0) > ahora
+    );
+
+    if (colision || ofertaVigenteDeOtraPersona) {
       return {
         exito: false,
         error: `El asiento ${etiquetaAsiento} ya no está disponible (fue seleccionado por otro asistente hace unos instantes).`
@@ -1048,42 +1070,147 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     );
 
     setListaBoletos((previos) => [nuevoBoleto, ...previos]);
+    setListaEspera((previas) => previas.map((entrada) =>
+      entrada.idReservacionOferta === idReservacion && entrada.estado === 'notificado'
+        ? { ...entrada, estado: 'convertido' }
+        : entrada
+    ));
     return { exito: true, boleto: nuevoBoleto };
   };
 
-  const cancelarReservacion = (idReservacion: string) => {
+  const ofrecerLugarAListaDeEspera = (
+    reservaLiberada: Reservacion,
+    excluirIds: string[] = []
+  ) => {
+    const evento = listaEventos.find((item) => item.id === reservaLiberada.idEvento);
+    const fecha = evento?.fechas.find((item) => item.id === reservaLiberada.idFechaEvento);
+    if (!evento || !fecha) return;
+    if (
+      obtenerEstadoInscripciones(fecha, evento.estado) !== 'abiertas' ||
+      obtenerFechaLimiteInscripciones(fecha) <= Date.now()
+    ) return;
+
+    const candidatos = listaEspera
+      .filter((entrada) => entrada.idFechaEvento === reservaLiberada.idFechaEvento && entrada.estado === 'esperando' && !excluirIds.includes(entrada.id))
+      .sort((a, b) => a.posicionFila - b.posicionFila);
+    const siguiente = candidatos.find((entrada) => {
+      const yaReservo = listaReservaciones.some((reserva) => {
+        const reservaActiva = reserva.estado === 'confirmada' ||
+          (reserva.estado === 'apartado_temporal' && (reserva.tiempoExpiracionApartado || 0) > Date.now());
+        return reserva.idUsuario === entrada.idUsuario && reserva.idFechaEvento === entrada.idFechaEvento && reservaActiva;
+      });
+      const yaTieneBoleto = listaBoletos.some((boleto) =>
+        boleto.idUsuario === entrada.idUsuario && boleto.idFechaEvento === entrada.idFechaEvento && boleto.estado === 'valido'
+      );
+      const seEmpalma = listaReservaciones.some((reserva) => {
+        if (reserva.idUsuario !== entrada.idUsuario || reserva.estado !== 'confirmada' || reserva.idFechaEvento === fecha.id) return false;
+        const eventoExistente = listaEventos.find((item) => item.id === reserva.idEvento);
+        const fechaExistente = eventoExistente?.fechas.find((item) => item.id === reserva.idFechaEvento);
+        if (!fechaExistente || fechaExistente.fecha !== fecha.fecha) return false;
+        const inicio = (valor: string) => {
+          const [hora, minuto] = valor.split(':').map(Number);
+          return hora * 60 + minuto;
+        };
+        return inicio(fecha.horaInicio) < inicio(fechaExistente.horaFin) && inicio(fecha.horaFin) > inicio(fechaExistente.horaInicio);
+      });
+      const cumplePublico = !evento.publicoPermitido?.length ||
+        Boolean(entrada.rolesUsuario?.some((rol) => evento.publicoPermitido?.includes(rol)));
+      return entrada.correoConfirmado === true && cumplePublico && !yaReservo && !yaTieneBoleto && !seEmpalma;
+    });
+
+    if (!siguiente) return;
+    const ahora = Date.now();
+    const idReservacionOferta = `res-oferta-${ahora.toString(36)}`;
+    const fechaExpiracionOferta = ahora + 10 * 60 * 1000;
+    const reservacionOferta: Reservacion = {
+      id: idReservacionOferta,
+      idEvento: reservaLiberada.idEvento,
+      idFechaEvento: reservaLiberada.idFechaEvento,
+      idUsuario: siguiente.idUsuario,
+      nombreUsuario: siguiente.nombreUsuario,
+      correoUsuario: siguiente.correoUsuario,
+      idAsiento: reservaLiberada.idAsiento || `gen-oferta-${ahora.toString(36)}`,
+      etiquetaAsiento: reservaLiberada.etiquetaAsiento || 'Cupo General',
+      estado: 'apartado_temporal',
+      tiempoExpiracionApartado: fechaExpiracionOferta,
+      fechaCreacion: new Date(ahora).toISOString()
+    };
+    setListaReservaciones((previas) => [...previas, reservacionOferta]);
+    setListaEspera((previas) => previas.map((entrada) => entrada.id === siguiente.id
+      ? {
+          ...entrada,
+          estado: 'notificado',
+          fechaOferta: new Date(ahora).toISOString(),
+          fechaExpiracionOferta,
+          idReservacionOferta,
+          idAsientoOferta: reservacionOferta.idAsiento,
+          etiquetaAsientoOferta: reservacionOferta.etiquetaAsiento
+        }
+      : entrada
+    ));
+  };
+
+  const cancelarReservacion = (idReservacion: string, idUsuario: string, motivo: string) => {
     const res = listaReservaciones.find((r) => r.id === idReservacion);
-    if (!res) return;
+    if (!res || res.idUsuario !== idUsuario) return { exito: false, error: 'ERR-MT-06 · La reservación no existe o no pertenece a tu cuenta.' };
+    if (res.estado !== 'confirmada') return { exito: false, error: 'La reservación ya no está activa.' };
+    if (!motivo.trim()) return { exito: false, error: 'Escribe el motivo de la cancelación.' };
+    const boleto = listaBoletos.find((elemento) => elemento.id === res.idBoleto);
+    if (boleto?.estado === 'utilizado') return { exito: false, error: 'ERR-MT-09 · No se puede cancelar un boleto que ya fue utilizado.' };
+    const evento = listaEventos.find((elemento) => elemento.id === res.idEvento);
+    const fecha = evento?.fechas.find((elemento) => elemento.id === res.idFechaEvento);
+    if (!evento || !fecha) return { exito: false, error: 'No se encontró el día del evento para validar la cancelación.' };
+    const inicio = new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime();
+    if (!Number.isFinite(inicio) || Date.now() >= inicio) return { exito: false, error: 'No se puede cancelar una reservación cuando el día ya comenzó o terminó.' };
+    if (inicio - Date.now() < 24 * 60 * 60 * 1000) return { exito: false, error: 'ERR-MT-08 · Ya no puedes cancelar esta reservación porque faltan menos de 24 horas para el inicio del día.' };
 
     setListaReservaciones((previas) =>
-      previas.map((r) => (r.id === idReservacion ? { ...r, estado: 'cancelada' } : r))
+      previas.map((r) => (r.id === idReservacion
+        ? { ...r, estado: 'cancelada', motivoCancelacion: motivo.trim() }
+        : r))
     );
 
     if (res.idBoleto) {
       setListaBoletos((previos) =>
-        previos.map((b) => (b.id === res.idBoleto ? { ...b, estado: 'cancelado' } : b))
+        previos.map((b) => (b.id === res.idBoleto
+          ? { ...b, estado: 'cancelado', motivoInvalidacion: motivo.trim(), fechaInvalidacion: new Date().toISOString() }
+          : b))
       );
     }
 
-    // Solo generar una nueva oferta si la taquilla continúa abierta.
-    const evento = listaEventos.find((elemento) => elemento.id === res.idEvento);
-    const fecha = evento?.fechas.find((elemento) => elemento.id === res.idFechaEvento);
-    const inscripcionesAbiertas =
-      evento &&
-      fecha &&
-      obtenerEstadoInscripciones(fecha, evento.estado) === 'abiertas' &&
-      obtenerFechaLimiteInscripciones(fecha) > Date.now();
+    // La oferta queda protegida para el primer usuario elegible durante diez minutos.
+    ofrecerLugarAListaDeEspera(res);
+    return { exito: true };
+  };
 
-    if (inscripcionesAbiertas) {
-      const siguienteEnFila = listaEspera.find(
-        (w) => w.idFechaEvento === res.idFechaEvento && w.estado === 'esperando'
-      );
-      if (siguienteEnFila) {
-        setListaEspera((previas) =>
-          previas.map((w) => (w.id === siguienteEnFila.id ? { ...w, estado: 'notificado' } : w))
-        );
-      }
+  const cancelarReservacionPorEvento: ContextoDatosTipo['cancelarReservacionPorEvento'] = (
+    idReservacion,
+    idActor,
+    rolActivo,
+    motivo
+  ) => {
+    const reserva = listaReservaciones.find((elemento) => elemento.id === idReservacion);
+    const evento = reserva && listaEventos.find((elemento) => elemento.id === reserva.idEvento);
+    const autorizado = Boolean(evento && (
+      evento.idOrganizador === idActor || rolActivo === 'subdireccion' || rolActivo === 'admin'
+    ));
+    if (!reserva || !evento || !autorizado) {
+      return { exito: false, error: 'No tienes autorización para cancelar esta reservación.' };
     }
+    if (reserva.estado === 'cancelada') return { exito: true };
+
+    const motivoFinal = motivo.trim() || 'Cancelación del evento o día por personal autorizado.';
+    setListaReservaciones((previas) => previas.map((elemento) => elemento.id === idReservacion
+      ? { ...elemento, estado: 'cancelada', motivoCancelacion: motivoFinal }
+      : elemento
+    ));
+    if (reserva.idBoleto) {
+      setListaBoletos((previos) => previos.map((boleto) => boleto.id === reserva.idBoleto && boleto.estado !== 'utilizado'
+        ? { ...boleto, estado: 'cancelado', motivoInvalidacion: motivoFinal, fechaInvalidacion: new Date().toISOString() }
+        : boleto
+      ));
+    }
+    return { exito: true };
   };
 
   const emitirBoletosEspeciales = (datos: {
@@ -1425,13 +1552,22 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     idFechaEvento: string,
     idUsuario: string,
     nombreUsuario: string,
-    correoUsuario: string
+    correoUsuario: string,
+    rolesUsuario?: Usuario['roles'],
+    correoConfirmado?: boolean
   ): { exito: boolean; entrada?: EntradaListaEspera; error?: string } => {
     const evento = listaEventos.find((elemento) => elemento.id === idEvento);
     const fecha = evento?.fechas.find((elemento) => elemento.id === idFechaEvento);
 
     if (!evento || !fecha) {
       return { exito: false, error: 'La sesión seleccionada ya no existe.' };
+    }
+
+    if (correoConfirmado !== true) {
+      return { exito: false, error: 'ERR-IP-04 · Confirma tu correo electrónico antes de ingresar a la lista.' };
+    }
+    if (evento.publicoPermitido?.length && !rolesUsuario?.some((rol) => evento.publicoPermitido?.includes(rol))) {
+      return { exito: false, error: 'ERR-MT-01 · Tu cuenta no pertenece al público autorizado para este día.' };
     }
 
     if (
@@ -1444,7 +1580,44 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       };
     }
 
+    const arregloFinal = listaArreglos.find((arreglo) => arreglo.idFechaEvento === idFechaEvento && arreglo.estado === 'version_final');
+    const reservacionesActivas = listaReservaciones.filter((reserva) =>
+      reserva.idFechaEvento === idFechaEvento &&
+      (reserva.estado === 'confirmada' || (reserva.estado === 'apartado_temporal' && (reserva.tiempoExpiracionApartado || 0) > Date.now()))
+    );
+    const boletosEspecialesActivos = listaBoletos.filter((boleto) =>
+      boleto.idFechaEvento === idFechaEvento && boleto.esEspecial && boleto.estado === 'valido'
+    ).length;
+    const aforo = evento.aforoMaximo || listaRecintos.find((recinto) => recinto.id === fecha.idRecinto)?.capacidad || 0;
+    const lugaresAgotados = arregloFinal
+      ? !arregloFinal.asientos.some((asiento) =>
+          !asiento.estaBloqueado && !asiento.estaEliminado && asiento.categoria !== 'organizador' && asiento.categoria !== 'staff' &&
+          !reservacionesActivas.some((reserva) => reserva.idAsiento === asiento.id)
+        )
+      : aforo > 0 && reservacionesActivas.length + boletosEspecialesActivos >= aforo;
+    if (!lugaresAgotados) {
+      return { exito: false, error: 'ERR-MT-03 · Todavía hay lugares disponibles; puedes reservar uno directamente.' };
+    }
+
     const actuales = listaEspera.filter((w) => w.idFechaEvento === idFechaEvento);
+    const yaTieneReservacion = listaReservaciones.some(
+      (reserva) => reserva.idUsuario === idUsuario && reserva.idFechaEvento === idFechaEvento &&
+        (reserva.estado === 'confirmada' || (reserva.estado === 'apartado_temporal' && (reserva.tiempoExpiracionApartado || 0) > Date.now()))
+    );
+    const yaTieneBoleto = listaBoletos.some(
+      (boleto) => boleto.idUsuario === idUsuario && boleto.idFechaEvento === idFechaEvento && boleto.estado === 'valido'
+    );
+    const participacionActiva = actuales.find(
+      (w) => w.idUsuario === idUsuario && (w.estado === 'esperando' || w.estado === 'notificado')
+    );
+
+    if (yaTieneReservacion || yaTieneBoleto || participacionActiva) {
+      return {
+        exito: false,
+        error: 'ERR-MT-10 · Ya tienes una reservación, una oferta o una participación activa en la lista de este día.'
+      };
+    }
+
     const entrada: EntradaListaEspera = {
       id: `esp-${Date.now().toString(36)}`,
       idEvento,
@@ -1454,10 +1627,77 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       correoUsuario,
       posicionFila: actuales.length + 1,
       fechaCreacion: new Date().toISOString(),
+      rolesUsuario,
+      correoConfirmado,
       estado: 'esperando'
     };
     setListaEspera((previas) => [...previas, entrada]);
     return { exito: true, entrada };
+  };
+
+  const retirarseDeListaDeEspera = (idEntrada: string, idUsuario: string) => {
+    const entrada = listaEspera.find((elemento) => elemento.id === idEntrada && elemento.idUsuario === idUsuario);
+    if (!entrada || entrada.estado !== 'esperando') {
+      return { exito: false, error: 'ERR-TR-03 · La participación ya no está activa.' };
+    }
+
+    setListaEspera((previas) => previas.map((elemento) =>
+      elemento.id === idEntrada ? { ...elemento, estado: 'retirada' } : elemento
+    ));
+    return { exito: true };
+  };
+
+  const responderOfertaListaDeEspera = (
+    idEntrada: string,
+    idUsuario: string,
+    decision: 'aceptar' | 'rechazar' | 'vencer'
+  ) => {
+    const entrada = listaEspera.find((elemento) => elemento.id === idEntrada && elemento.idUsuario === idUsuario);
+    if (!entrada || entrada.estado !== 'notificado' || !entrada.idReservacionOferta) {
+      return { exito: false, error: 'La oferta ya no está activa.' };
+    }
+    const reservaOferta = listaReservaciones.find((reserva) => reserva.id === entrada.idReservacionOferta);
+    if (!reservaOferta || reservaOferta.estado !== 'apartado_temporal') {
+      return { exito: false, error: 'El lugar ofrecido ya no está disponible.' };
+    }
+
+    const expirada = (entrada.fechaExpiracionOferta || 0) <= Date.now();
+    if (decision === 'aceptar') {
+      if (expirada) {
+        return responderOfertaListaDeEspera(idEntrada, idUsuario, 'vencer');
+      }
+      const evento = listaEventos.find((item) => item.id === entrada.idEvento);
+      const fecha = evento?.fechas.find((item) => item.id === entrada.idFechaEvento);
+      if (!evento || !fecha || obtenerEstadoInscripciones(fecha, evento.estado) !== 'abiertas' || obtenerFechaLimiteInscripciones(fecha) <= Date.now()) {
+        return { exito: false, error: 'ERR-MT-02 · Las inscripciones de este día ya están cerradas.' };
+      }
+      const yaReservo = listaReservaciones.some((reserva) =>
+        reserva.id !== reservaOferta.id && reserva.idUsuario === idUsuario && reserva.idFechaEvento === entrada.idFechaEvento &&
+        (reserva.estado === 'confirmada' || (reserva.estado === 'apartado_temporal' && (reserva.tiempoExpiracionApartado || 0) > Date.now()))
+      );
+      const empalme = listaReservaciones.some((reserva) => {
+        if (reserva.id === reservaOferta.id || reserva.idUsuario !== idUsuario || reserva.estado !== 'confirmada' || reserva.idFechaEvento === fecha.id) return false;
+        const eventoExistente = listaEventos.find((item) => item.id === reserva.idEvento);
+        const fechaExistente = eventoExistente?.fechas.find((item) => item.id === reserva.idFechaEvento);
+        if (!fechaExistente || fechaExistente.fecha !== fecha.fecha) return false;
+        const minutos = (hora: string) => {
+          const [h, m] = hora.split(':').map(Number);
+          return h * 60 + m;
+        };
+        return minutos(fecha.horaInicio) < minutos(fechaExistente.horaFin) && minutos(fecha.horaFin) > minutos(fechaExistente.horaInicio);
+      });
+      if (yaReservo || empalme) {
+        return { exito: false, error: yaReservo ? 'ERR-MT-10 · Ya existe una reservación activa para este día.' : 'ERR-MT-07 · La reservación se empalma con otra actividad.' };
+      }
+      const resultado = confirmarReservacion(reservaOferta.id);
+      return resultado.exito ? { exito: true } : { exito: false, error: resultado.error };
+    }
+
+    const estadoFinal = decision === 'vencer' || expirada ? 'vencida' : 'rechazada';
+    liberarApartadoAsiento(reservaOferta.id);
+    setListaEspera((previas) => previas.map((item) => item.id === idEntrada ? { ...item, estado: estadoFinal } : item));
+    ofrecerLugarAListaDeEspera(reservaOferta, [idEntrada]);
+    return { exito: true };
   };
 
   // Procesamiento de Check-In en Puerta para Staff
@@ -1713,12 +1953,15 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         liberarApartadoAsiento,
         confirmarReservacion,
         cancelarReservacion,
+        cancelarReservacionPorEvento,
         registrarIntencionAsistencia,
         cancelarIntencionAsistencia,
         emitirBoletosEspeciales,
         invalidarBoletoEspecial,
         cambiarEstadoInscripciones,
         unirseAListaDeEspera,
+        retirarseDeListaDeEspera,
+        responderOfertaListaDeEspera,
         procesarCheckIn,
         crearBloqueoRecinto,
         eliminarBloqueoRecinto,

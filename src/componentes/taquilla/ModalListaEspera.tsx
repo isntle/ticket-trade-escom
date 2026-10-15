@@ -8,7 +8,7 @@ interface PropiedadesModalListaEspera {
   estaAbierto: boolean;
   variante: VarianteModalListaEspera;
   evento: string;
-  sesion: string;
+  dia: string;
   horario: string;
   alCerrar: () => void;
   alConfirmar: () => void;
@@ -18,7 +18,7 @@ export const ModalListaEspera: React.FC<PropiedadesModalListaEspera> = ({
   estaAbierto,
   variante,
   evento,
-  sesion,
+  dia,
   horario,
   alCerrar,
   alConfirmar
@@ -26,13 +26,13 @@ export const ModalListaEspera: React.FC<PropiedadesModalListaEspera> = ({
   if (!estaAbierto) return null;
 
   const msgCupoDisp = obtenerMensaje('INF-MT-05');
-  const msgRetiro = obtenerMensaje('AV-MT-02', { sesión: sesion });
+  const msgRetiro = obtenerMensaje('AV-MT-02', { día: dia });
 
   const resumen = (
     <div className="p-3.5 rounded-xl bg-neutral-50 border border-neutral-200 text-xs space-y-1">
       <div className="font-bold text-neutral-900 text-sm">{evento}</div>
       <div className="text-neutral-600">
-        Sesión: <span className="font-semibold text-neutral-800">{sesion}</span>
+        Día: <span className="font-semibold text-neutral-800">{dia}</span>
       </div>
       <div className="text-neutral-600">
         Horario: <span className="font-semibold text-neutral-800">{horario}</span>
@@ -113,7 +113,7 @@ export const ModalListaEspera: React.FC<PropiedadesModalListaEspera> = ({
             <div className="flex items-start gap-2.5 p-3 rounded-xl bg-neutral-50 border border-neutral-200 text-neutral-700">
               <Hourglass className="w-4 h-4 text-[#7a132b] shrink-0 mt-0.5" />
               <p className="leading-relaxed">
-                El cupo de esta sesión está agotado. Si ingresas, ocuparás el último lugar de la lista y recibirás un
+                El cupo de este día está agotado. Si ingresas, ocuparás el último lugar de la lista y recibirás un
                 aviso en la aplicación cuando se te ofrezca un lugar.
               </p>
             </div>

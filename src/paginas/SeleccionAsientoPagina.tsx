@@ -82,7 +82,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   }, [reservacionActiva, liberarApartadoAsiento, mostrarNotificacion]);
 
   // === VALIDACIÓN DE ELEGIBILIDAD Y PERMISOS ===
-  if (usuarioActual && usuarioActual.correoConfirmado === false) {
+  if (usuarioActual && usuarioActual.correoConfirmado !== true) {
     const msg = obtenerMensaje('ERR-IP-04');
     return (
       <div className="max-w-4xl mx-auto px-4 py-16">
@@ -203,6 +203,15 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     )
     .map((r) => r.idAsiento!);
 
+  const hayLugaresDisponibles = arregloFinal?.asientos.some((asiento) =>
+    !asiento.estaBloqueado &&
+    !asiento.estaEliminado &&
+    asiento.categoria !== 'organizador' &&
+    asiento.categoria !== 'staff' &&
+    !idsAsientosReservados.includes(asiento.id) &&
+    !idsAsientosApartados.includes(asiento.id)
+  ) ?? true;
+
   // Detección de cruce de horarios (ERR-MT-07)
   const tieneSuperposicion = () => {
     if (!usuarioActual || !fecha) return false;
@@ -254,14 +263,14 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
 
     setErrorColision(null);
 
-    const yaTieneReservacionEnLaSesion = listaReservaciones.some(
+    const yaTieneReservacionEnElDia = listaReservaciones.some(
       (reservacion) =>
         reservacion.idUsuario === usuarioActual.id &&
         reservacion.idFechaEvento === dateId &&
         reservacion.estado === 'confirmada'
     );
 
-    if (yaTieneReservacionEnLaSesion) {
+    if (yaTieneReservacionEnElDia) {
       const msg = obtenerMensaje('ERR-MT-06');
       setErrorColision(msg.descripcion);
       mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
@@ -319,7 +328,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     setConfirmando(false);
 
     if (resultado.exito) {
-      const msg = obtenerMensaje('OK-MT-01', { sesión: fecha.nombreDia || fecha.fecha });
+      const msg = obtenerMensaje('OK-MT-01', { día: fecha.nombreDia || `Día ${fecha.fecha}` });
       mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
       navigate('/mis-reservaciones');
     } else {
@@ -366,14 +375,14 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       return;
     }
 
-    const yaTieneReservacionEnLaSesion = listaReservaciones.some(
+    const yaTieneReservacionEnElDia = listaReservaciones.some(
       (reservacion) =>
         reservacion.idUsuario === usuarioActual.id &&
         reservacion.idFechaEvento === dateId &&
         reservacion.estado === 'confirmada'
     );
 
-    if (yaTieneReservacionEnLaSesion) {
+    if (yaTieneReservacionEnElDia) {
       setConfirmando(false);
       const msg = obtenerMensaje('ERR-MT-06');
       setErrorColision(msg.descripcion);
@@ -396,7 +405,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       setConfirmando(false);
       
       if (confirmacion.exito) {
-        const msg = obtenerMensaje('OK-MT-01', { sesión: fecha.nombreDia || fecha.fecha });
+        const msg = obtenerMensaje('OK-MT-01', { día: fecha.nombreDia || `Día ${fecha.fecha}` });
         mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
         navigate('/mis-reservaciones');
       } else {
@@ -441,7 +450,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
               {evento.titulo}
             </h1>
             <p className="text-xs text-neutral-500 mt-1">
-              Sesión: <span className="font-semibold text-neutral-800">{fecha.fecha}</span> ({fecha.horaInicio} a {fecha.horaFin} hrs) · Recinto: <span className="font-semibold text-neutral-800">{recinto?.nombre}</span>
+              Día: <span className="font-semibold text-neutral-800">{fecha.nombreDia || fecha.fecha}</span> ({fecha.horaInicio} a {fecha.horaFin} hrs) · Recinto: <span className="font-semibold text-neutral-800">{recinto?.nombre}</span>
             </p>
           </div>
 
@@ -498,18 +507,39 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         </div>
       )}
 
+      {!esSinMapa && !hayLugaresDisponibles && usuarioActual && (
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <span className="text-xs text-amber-900 font-medium">Todos los lugares disponibles para asistentes están ocupados o apartados.</span>
+          <button type="button" onClick={() => setModalEsperaAbierto(true)} className="px-3.5 py-2 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold cursor-pointer">
+            Unirme a la lista de espera
+          </button>
+        </div>
+      )}
+
       {/* Modal de Confirmación para Lista de Espera */}
       <ModalListaEspera
         estaAbierto={modalEsperaAbierto}
         variante="confirmar_ingreso"
         evento={evento.titulo}
-        sesion={fecha.nombreDia || fecha.fecha}
+        dia={fecha.nombreDia || `Día ${fecha.fecha}`}
         horario={`${fecha.horaInicio} a ${fecha.horaFin} hrs`}
         alCerrar={() => setModalEsperaAbierto(false)}
         alConfirmar={() => {
           setModalEsperaAbierto(false);
           if (!usuarioActual) return;
-          unirseAListaDeEspera(evento.id, fecha.id, usuarioActual.id, usuarioActual.nombre, usuarioActual.correo);
+          const resultado = unirseAListaDeEspera(
+            evento.id,
+            fecha.id,
+            usuarioActual.id,
+            usuarioActual.nombre,
+            usuarioActual.correo,
+            usuarioActual.roles,
+            usuarioActual.correoConfirmado
+          );
+          if (!resultado.exito) {
+            mostrarNotificacion('No se pudo ingresar a la lista', resultado.error || 'Actualiza la página e inténtalo de nuevo.', 'error');
+            return;
+          }
           const msgOk = obtenerMensaje('OK-MT-03');
           mostrarNotificacion(msgOk.titulo, msgOk.descripcion, msgOk.tipo);
           navigate('/mis-reservaciones');
