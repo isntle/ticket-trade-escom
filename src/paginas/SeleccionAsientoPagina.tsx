@@ -7,6 +7,8 @@ import { MapaAsientos } from '../componentes/asientos/MapaAsientos';
 import { AlertaMensaje } from '../componentes/ui/AlertaMensaje';
 import { EstadoVacio } from '../componentes/ui/EstadoVacio';
 import { ConfiguracionAsiento, Reservacion } from '../tipos';
+import { obtenerMensaje } from '../dominio/mensajes';
+import { ModalListaEspera } from '../componentes/taquilla/ModalListaEspera';
 
 interface PropiedadesSeleccionAsiento {
   eventId: string;
@@ -48,8 +50,11 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   const [segundosRestantes, setSegundosRestantes] = useState<number | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [errorColision, setErrorColision] = useState<string | null>(null);
+  
+  // CU-MT-04: confirmación de ingreso a la lista de espera
+  const [modalEsperaAbierto, setModalEsperaAbierto] = useState(false);
 
-  // Temporizador de 2 minutos (120s) para apartados temporales (Trayectoria D)
+  // Temporizador de 2 minutos (120s) para apartados temporales
   useEffect(() => {
     if (!reservacionActiva?.tiempoExpiracionApartado) {
       setSegundosRestantes(null);
@@ -59,17 +64,13 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     const actualizarReloj = () => {
       const msRestantes = reservacionActiva.tiempoExpiracionApartado! - Date.now();
       if (msRestantes <= 0) {
-        // D-2: Libera el lugar inmediatamente en el sistema
         liberarApartadoAsiento(reservacionActiva.id);
-        // D-3: Limpia el apartado y deja al Actor en la vista del mapa para elegir otro asiento
         setSegundosRestantes(0);
         setReservacionActiva(null);
         setAsientoSeleccionado(null);
-        mostrarNotificacion(
-          'Tiempo expirado',
-          'El tiempo límite de 2 minutos para confirmar tu lugar ha vencido y el asiento fue liberado.',
-          'error'
-        );
+
+        const msgExpirado = obtenerMensaje('MSG-BOOKING-003');
+        mostrarNotificacion(msgExpirado.titulo, msgExpirado.descripcion, msgExpirado.tipo);
       } else {
         setSegundosRestantes(Math.floor(msRestantes / 1000));
       }
@@ -80,15 +81,14 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     return () => clearInterval(intervalo);
   }, [reservacionActiva, liberarApartadoAsiento, mostrarNotificacion]);
 
-// === INICIO TRAYECTORIA A: Elegibilidad denegada ===
-  
-// 1. Validar correo confirmado
+  // === VALIDACIÓN DE ELEGIBILIDAD Y PERMISOS ===
   if (usuarioActual && usuarioActual.correoConfirmado === false) {
+    const msg = obtenerMensaje('ERR-IP-04');
     return (
       <div className="max-w-4xl mx-auto px-4 py-16">
         <EstadoVacio
-          titulo="Acceso Restringido"
-          descripcion="Debes confirmar tu correo electrónico institucional para poder reservar un lugar en este evento."
+          titulo={msg.titulo}
+          descripcion={msg.descripcion}
           textoAccion="Volver al inicio"
           alHacerAccion={() => navigate('/')}
         />
@@ -96,16 +96,16 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     );
   }
 
-  // 2. Validar elegibilidad de público permitido
   const publicoPermitido = evento?.publicoPermitido;
   if (usuarioActual && publicoPermitido && Array.isArray(publicoPermitido) && publicoPermitido.length > 0) {
     const esElegible = usuarioActual.roles.some(rol => publicoPermitido.includes(rol));
     if (!esElegible) {
+      const msg = obtenerMensaje('ERR-MT-01', { 'público permitido': publicoPermitido.join(', ') });
       return (
         <div className="max-w-4xl mx-auto px-4 py-16">
           <EstadoVacio
-            titulo="Perfil no autorizado"
-            descripcion={`Este evento está restringido exclusivamente para el siguiente público: ${publicoPermitido.join(', ')}.`}
+            titulo={msg.titulo}
+            descripcion={msg.descripcion}
             textoAccion="Volver a la cartelera"
             alHacerAccion={() => navigate('/eventos')}
           />
@@ -113,31 +113,27 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       );
     }
   }
-  // === FIN TRAYECTORIA A ===
 
-
-  // === INICIO TRAYECTORIA B: Inscripciones cerradas ===
-// === INICIO TRAYECTORIA C (CU-MT-02): Validar cierre de inscripciones ===
+  // === VALIDACIÓN DE CIERRE DE INSCRIPCIONES ===
   const inscripcionesAbiertas = evento?.inscripcionesAbiertas !== false;
   const limiteInscripcion = evento?.fechaCierreInscripcion;
   const inscripcionVencida = limiteInscripcion ? new Date(limiteInscripcion) < new Date() : false;
-  // === FIN TRAYECTORIA C ===
+
   if (!inscripcionesAbiertas || inscripcionVencida) {
+    const msg = obtenerMensaje('ERR-MT-02');
     return (
       <div className="max-w-4xl mx-auto px-4 py-16">
         <EstadoVacio
-          titulo="Inscripciones Cerradas"
-          descripcion="El proceso de inscripciones para este evento no se encuentra disponible actualmente."
+          titulo={msg.titulo}
+          descripcion={msg.descripcion}
           textoAccion="Volver a la cartelera"
           alHacerAccion={() => navigate('/eventos')}
         />
       </div>
     );
   }
-  // === FIN TRAYECTORIA B ===
 
-// Ya no exigimos que exista arregloFinal para entrar
-if (!evento || !fecha) {
+  if (!evento || !fecha) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16">
         <EstadoVacio
@@ -150,9 +146,7 @@ if (!evento || !fecha) {
     );
   }
 
-  // === INICIO TRAYECTORIA C: Identificar modalidad ===
-  const esSinMapa = !arregloFinal; // Si no hay mapa, aplicamos la Trayectoria C
-  // === FIN TRAYECTORIA C ===
+  const esSinMapa = !arregloFinal;
 
   const fechaLimiteInscripciones = fecha.fechaLimiteInscripciones
     ? new Date(fecha.fechaLimiteInscripciones).getTime()
@@ -162,6 +156,7 @@ if (!evento || !fecha) {
     (evento.estado === 'publicado' || evento.estado === 'en_curso' ? 'abiertas' : 'cerradas');
 
   if (estadoInscripciones === 'cerradas' || fechaLimiteInscripciones <= Date.now()) {
+    const msg = obtenerMensaje('ERR-MT-02');
     return (
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
         <button
@@ -176,14 +171,14 @@ if (!evento || !fecha) {
           <div className="w-12 h-12 rounded-xl bg-neutral-100 text-neutral-600 flex items-center justify-center mb-4">
             <Lock className="w-6 h-6" />
           </div>
-          <h1 className="text-xl font-black text-neutral-900">Inscripciones cerradas</h1>
+          <h1 className="text-xl font-black text-neutral-900">{msg.titulo}</h1>
           <p className="text-sm text-neutral-500 mt-1 mb-5">
              El día {fecha.fecha}, de {fecha.horaInicio} a {fecha.horaFin} hrs, ya no admite nuevas reservaciones.
           </p>
           <AlertaMensaje
             tipo="advertencia"
-            titulo="ERR-MT-02 · Reservaciones no disponibles"
-            mensaje="Las reservaciones y boletos existentes continúan vigentes. Consulta otro día o vuelve al detalle del evento."
+            titulo={`${msg.codigo} · ${msg.titulo}`}
+            mensaje={msg.descripcion}
           />
         </div>
       </div>
@@ -208,9 +203,8 @@ if (!evento || !fecha) {
     )
     .map((r) => r.idAsiento!);
 
-    // === INICIO TRAYECTORIA E: Función para detectar cruce de horarios ===
+  // Detección de cruce de horarios (ERR-MT-07)
   const tieneSuperposicion = () => {
-
     if (!usuarioActual || !fecha) return false;
     
     const reservacionesActivas = listaReservaciones.filter(
@@ -219,7 +213,6 @@ if (!evento || !fecha) {
         reservacion.estado === 'confirmada'
     );
     
-    // Convertimos la hora (ej. "14:30") a minutos desde la medianoche para comparar fácil
     const aMinutos = (horaStr: string) => {
       if (!horaStr) return 0;
       const [h, m] = horaStr.split(':').map(Number);
@@ -229,34 +222,32 @@ if (!evento || !fecha) {
     const inicioNuevo = aMinutos(fecha.horaInicio);
     const finNuevo = aMinutos(fecha.horaFin);
 
-    // Revisar si alguna reservación existente cruza con el nuevo evento
     for (const res of reservacionesActivas) {
-      // Necesitamos buscar la fecha en listaEventos porque el historial solo guarda IDs
       for (const evt of listaEventos) {
         const fechaExistente = evt.fechas.find((f) => f.id === res.idFechaEvento);
-        if (fechaExistente) {
-          // Si es el mismo día (misma fecha literal, ej. "12 Nov 2026")
-          if (fechaExistente.fecha === fecha.fecha) {
-            const inicioExistente = aMinutos(fechaExistente.horaInicio);
-            const finExistente = aMinutos(fechaExistente.horaFin);
-            
-            // Lógica de cruce de rangos
-            const hayCruce = (inicioNuevo < finExistente) && (finNuevo > inicioExistente);
-            if (hayCruce) {
-              return evt.titulo; // Devolvemos el nombre del evento que choca
-            }
+        if (fechaExistente && fechaExistente.fecha === fecha.fecha) {
+          const inicioExistente = aMinutos(fechaExistente.horaInicio);
+          const finExistente = aMinutos(fechaExistente.horaFin);
+          
+          const hayCruce = (inicioNuevo < finExistente) && (finNuevo > inicioExistente);
+          if (hayCruce) {
+            return {
+              actividad: evt.titulo,
+              inicio: fechaExistente.horaInicio,
+              fin: fechaExistente.horaFin
+            };
           }
         }
       }
     }
     return false;
   };
-  // === FIN TRAYECTORIA E ===
 
   // Manejo de clic en un asiento del mapa
   const manejarSeleccionAsiento = (asiento: ConfiguracionAsiento) => {
     if (!usuarioActual) {
-      mostrarNotificacion('Inicia Sesión', 'Debes iniciar sesión para apartar un asiento.', 'error');
+      const msg = obtenerMensaje('ERR-TR-01');
+      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
       navigate('/login');
       return;
     }
@@ -271,28 +262,30 @@ if (!evento || !fecha) {
     );
 
     if (yaTieneReservacionEnLaSesion) {
-      const mensaje = 'Ya tienes una reservación confirmada para este día.';
-      setErrorColision(mensaje);
-      mostrarNotificacion('Reservación duplicada', mensaje, 'error');
+      const msg = obtenerMensaje('ERR-MT-06');
+      setErrorColision(msg.descripcion);
+      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
       return;
     }
 
-    // === INICIO TRAYECTORIA E: Verificación al elegir butaca ===
+    // Verificación de empalme de horario (ERR-MT-07)
     const choque = tieneSuperposicion();
     if (choque) {
-      setErrorColision(`Superposición de horarios. Ya tienes una reservación confirmada para el evento "${choque}" que coincide con este horario.`);
-      mostrarNotificacion('Conflicto de horario', 'Ya tienes otra reservación en este horario.', 'error');
-      return; // Detenemos la acción
+      const msg = obtenerMensaje('ERR-MT-07', {
+        actividad: choque.actividad,
+        inicio: choque.inicio,
+        fin: choque.fin
+      });
+      setErrorColision(msg.descripcion);
+      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+      return;
     }
-    // === FIN TRAYECTORIA E ===
 
-    // Si ya tenía un apartado, liberarlo
     if (reservacionActiva) {
       liberarApartadoAsiento(reservacionActiva.id);
       setReservacionActiva(null);
     }
 
-    // Intentar apartar el nuevo asiento
     const resultado = apartarAsiento(
       evento.id,
       fecha.id,
@@ -306,21 +299,18 @@ if (!evento || !fecha) {
     if (resultado.exito && resultado.reservacion) {
       setAsientoSeleccionado(asiento);
       setReservacionActiva(resultado.reservacion);
-      mostrarNotificacion(
-        'Lugar apartado temporalmente',
-        `Has apartado el asiento ${asiento.etiqueta}. Tienes 2 minutos para confirmar tu reservación.`,
-        'informacion'
-      );
+      const msg = obtenerMensaje('MSG-BOOKING-001');
+      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
     } else {
-      // Trayectoria D (Paso 6 - ERR-MT-04): El asiento cambió de estado / ya no está disponible
       setAsientoSeleccionado(null);
       setReservacionActiva(null);
-      setErrorColision(resultado.error || 'El asiento seleccionado cambió de estado y ya no está disponible. Selecciona un nuevo asiento en el mapa.');
-      mostrarNotificacion('Asiento no disponible', resultado.error || 'Selecciona otro lugar en el mapa.', 'error');
+      const msg = obtenerMensaje('MSG-BOOKING-002');
+      setErrorColision(resultado.error || msg.descripcion);
+      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
     }
   };
 
-  // Confirmar la reservación final (sin pasarelas de pago)
+  // Confirmar reservación con mapa
   const manejarConfirmacion = () => {
     if (!reservacionActiva) return;
     setConfirmando(true);
@@ -329,37 +319,37 @@ if (!evento || !fecha) {
     setConfirmando(false);
 
     if (resultado.exito) {
-      mostrarNotificacion(
-        'Reservación confirmada exitosamente',
-        `Tu boleto digital con código QR para el asiento ${asientoSeleccionado?.etiqueta} ya está disponible.`,
-        'exito'
-      );
+      const msg = obtenerMensaje('OK-MT-01', { sesión: fecha.nombreDia || fecha.fecha });
+      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
       navigate('/mis-reservaciones');
     } else {
-      // Trayectoria D (Paso 8 - ERR-MT-04 / ERR-MT-05): Expiró o cambió de estado al confirmar
       liberarApartadoAsiento(reservacionActiva.id);
       setAsientoSeleccionado(null);
       setReservacionActiva(null);
-      setErrorColision(resultado.error || 'El asiento ya no está disponible o el apartado venció. Por favor, selecciona un nuevo asiento en el mapa.');
-      mostrarNotificacion('No se pudo confirmar', resultado.error || 'Selecciona un nuevo asiento en el mapa.', 'error');
+      const msg = obtenerMensaje('MSG-BOOKING-003');
+      setErrorColision(resultado.error || msg.descripcion);
+      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
     }
   };
 
-  // === INICIO TRAYECTORIA C: Confirmación directa (Paso C-4 y C-5) ===
+  // Confirmar reservación directa sin mapa (Cupo General)
   const manejarConfirmacionGeneral = () => {
     if (!usuarioActual) return;
     setConfirmando(true);
     setErrorColision(null);
 
-    // === INICIO TRAYECTORIA E: Verificación al confirmar cupo general ===
     const choque = tieneSuperposicion();
     if (choque) {
       setConfirmando(false);
-      setErrorColision(`Superposición de horarios. Ya tienes una reservación confirmada para el evento "${choque}" que coincide con este horario.`);
-      mostrarNotificacion('Conflicto de horario', 'Ya tienes otra reservación en este horario.', 'error');
-      return; // Detenemos la acción
+      const msg = obtenerMensaje('ERR-MT-07', {
+        actividad: choque.actividad,
+        inicio: choque.inicio,
+        fin: choque.fin
+      });
+      setErrorColision(msg.descripcion);
+      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+      return;
     }
-    // === FIN TRAYECTORIA E ===
 
     const capacidad = evento.aforoMaximo ?? recinto?.capacidad;
     const lugaresOcupados = listaReservaciones.filter(
@@ -370,8 +360,9 @@ if (!evento || !fecha) {
 
     if (capacidad !== undefined && lugaresOcupados >= capacidad) {
       setConfirmando(false);
-      setErrorColision('Cupo general agotado. Ya no hay lugares disponibles este día.');
-      mostrarNotificacion('Cupo agotado', 'No hay lugares disponibles este día.', 'error');
+      const msgAgotado = obtenerMensaje('ERR-MT-03');
+      setErrorColision(msgAgotado.descripcion);
+      mostrarNotificacion(msgAgotado.titulo, msgAgotado.descripcion, msgAgotado.tipo);
       return;
     }
 
@@ -383,53 +374,49 @@ if (!evento || !fecha) {
     );
 
     if (yaTieneReservacionEnLaSesion) {
-      const mensaje = 'Ya tienes una reservación confirmada para este día.';
       setConfirmando(false);
-      setErrorColision(mensaje);
-      mostrarNotificacion('Reservación duplicada', mensaje, 'error');
+      const msg = obtenerMensaje('ERR-MT-06');
+      setErrorColision(msg.descripcion);
+      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
       return;
     }
 
-    // Intentar apartar un lugar general de forma indivisible (Paso C-4)
     const resultadoApartado = apartarAsiento(
       evento.id,
       fecha.id,
-      `gen-${Date.now()}`, // ID genérico
-      'Cupo General',      // Etiqueta
+      `gen-${Date.now()}`,
+      'Cupo General',
       usuarioActual.id,
       usuarioActual.nombre,
       usuarioActual.correo
     );
 
     if (resultadoApartado.exito && resultadoApartado.reservacion) {
-      // Confirmar inmediatamente (omitiendo el paso de espera)
       const confirmacion = confirmarReservacion(resultadoApartado.reservacion.id);
       setConfirmando(false);
       
       if (confirmacion.exito) {
-        mostrarNotificacion(
-          'Reservación exitosa (OK-MT-01)',
-          'Tu lugar general ha sido asegurado y tu boleto digital está listo.',
-          'exito'
-        );
+        const msg = obtenerMensaje('OK-MT-01', { sesión: fecha.nombreDia || fecha.fecha });
+        mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
         navigate('/mis-reservaciones');
       } else {
         setErrorColision(confirmacion.error || 'Error al generar el boleto.');
       }
     } else {
       setConfirmando(false);
-      // Trayectoria F: Cupo general agotado -> ERR-MT-03
-      setErrorColision('Cupo general agotado. Ya no hay lugares disponibles este día.');
-      mostrarNotificacion('Cupo agotado', 'No hay lugares disponibles este día.', 'error');
+      const msgAgotado = obtenerMensaje('ERR-MT-03');
+      setErrorColision(msgAgotado.descripcion);
+      mostrarNotificacion(msgAgotado.titulo, msgAgotado.descripcion, msgAgotado.tipo);
     }
   };
-  // === FIN TRAYECTORIA C ===
 
   const formatoTiempo = (segundosTotales: number) => {
     const m = Math.floor(segundosTotales / 60);
     const s = segundosTotales % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
+
+  const msgCupoAgotado = obtenerMensaje('ERR-MT-03');
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
@@ -459,7 +446,6 @@ if (!evento || !fecha) {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Cronómetro de apartado de 2 minutos */}
             {segundosRestantes !== null && (
               <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl text-amber-900 shrink-0">
                 <Clock className="w-5 h-5 text-amber-600 animate-pulse" />
@@ -485,8 +471,8 @@ if (!evento || !fecha) {
             mensaje={errorColision}
             alCerrar={() => setErrorColision(null)}
           />
-          {/* === TRAYECTORIA F (Paso F-2 y F-3): Opción de Lista de Espera (CU-MT-04) === */}
-          {errorColision.includes('Cupo general agotado') && usuarioActual && (
+          {/* Opción de Lista de Espera si se agotó el cupo (CU-MT-04) */}
+          {errorColision === msgCupoAgotado.descripcion && usuarioActual && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
               <span className="text-xs text-amber-900 font-medium">
                 El cupo de este día se ha agotado. ¿Deseas ingresar a la lista de espera por si se libera un lugar?
@@ -501,11 +487,7 @@ if (!evento || !fecha) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    unirseAListaDeEspera(evento.id, fecha.id, usuarioActual.id, usuarioActual.nombre, usuarioActual.correo);
-                    mostrarNotificacion('Lista de espera', 'Te has unido a la lista de espera exitosamente.', 'exito');
-                    navigate('/mis-reservaciones');
-                  }}
+                  onClick={() => setModalEsperaAbierto(true)}
                   className="px-3.5 py-2 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold cursor-pointer"
                 >
                   Unirse a la lista de espera
@@ -516,9 +498,27 @@ if (!evento || !fecha) {
         </div>
       )}
 
+      {/* Modal de Confirmación para Lista de Espera */}
+      <ModalListaEspera
+        estaAbierto={modalEsperaAbierto}
+        variante="confirmar_ingreso"
+        evento={evento.titulo}
+        sesion={fecha.nombreDia || fecha.fecha}
+        horario={`${fecha.horaInicio} a ${fecha.horaFin} hrs`}
+        alCerrar={() => setModalEsperaAbierto(false)}
+        alConfirmar={() => {
+          setModalEsperaAbierto(false);
+          if (!usuarioActual) return;
+          unirseAListaDeEspera(evento.id, fecha.id, usuarioActual.id, usuarioActual.nombre, usuarioActual.correo);
+          const msgOk = obtenerMensaje('OK-MT-03');
+          mostrarNotificacion(msgOk.titulo, msgOk.descripcion, msgOk.tipo);
+          navigate('/mis-reservaciones');
+        }}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Mapa Interactivo o Mensaje de Cupo General (Trayectoria C) */}
+        {/* Mapa Interactivo o Contenedor de Cupo General */}
         <div className="lg:col-span-2">
           {esSinMapa ? (
             <div className="bg-white rounded-2xl border border-neutral-200 p-8 flex flex-col items-center justify-center h-full min-h-[400px]">
@@ -580,7 +580,6 @@ if (!evento || !fecha) {
                   </div>
                 </div>
 
-                {/* Principio Institucional: Cero Pasarelas de Pago */}
                 <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl text-[11px] text-neutral-500 leading-snug">
                   Este es un servicio institucional de ESCOM. No se solicita tarjeta bancaria ni cobros por servicio.
                 </div>
@@ -607,3 +606,5 @@ if (!evento || !fecha) {
     </div>
   );
 };
+
+export default SeleccionAsientoPagina;
