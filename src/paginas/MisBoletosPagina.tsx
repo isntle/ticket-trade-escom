@@ -1,359 +1,230 @@
 import React, { useState } from 'react';
-import {
-  Ticket as IconoBoleto,
-  QrCode,
-  Calendar,
-  Clock,
-  MapPin,
-  Printer,
-  XCircle,
-  AlertTriangle,
-  Download,
-  Share2,
-  CheckCircle2,
-  Building,
-  User,
-  ShieldCheck
-} from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
-import { useDatos } from '../contextos/DatosContexto';
-import { useAutenticacion } from '../contextos/AutenticacionContexto';
-import { useNotificaciones } from '../contextos/NotificacionesContexto';
-import { VentanaModal } from '../componentes/ui/VentanaModal';
-import { EstadoVacio } from '../componentes/ui/EstadoVacio';
+import { obtenerMensaje, MensajeSistema } from '../dominio/mensajes';
+import { BOLETOS_INICIALES } from '../datos';
 import { BoletoDigital } from '../tipos';
+import { ModalBoletoQR } from '../componentes/taquilla/ModalBoletoQR';
+import { QrCode, Calendar, MapPin, AlertTriangle, X, Clock, CheckCircle2 } from 'lucide-react';
 
 interface PropiedadesMisBoletos {
-  navigate: (ruta: string) => void;
+  navigate?: (ruta: string) => void;
 }
 
 export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) => {
-  const { listaBoletos, cancelarReservacion } = useDatos();
-  const { usuarioActual } = useAutenticacion();
-  const { mostrarNotificacion } = useNotificaciones();
+  const [pestanaActiva, setPestanaActiva] = useState<'activos' | 'historial'>('activos');
+  const [boletos, setBoletos] = useState<BoletoDigital[]>(BOLETOS_INICIALES);
+  
+  // Estados para modales y notificaciones
+  const [boletoParaQR, setBoletoParaQR] = useState<BoletoDigital | null>(null);
+  const [boletoACancelar, setBoletoACancelar] = useState<BoletoDigital | null>(null);
+  const [notificacion, setNotificacion] = useState<MensajeSistema | null>(null);
 
-  const [boletoSeleccionado, setBoletoSeleccionado] = useState<BoletoDigital | null>(null);
-  const [modalConfirmarCancelacion, setModalConfirmarCancelacion] = useState<BoletoDigital | null>(
-    null
-  );
+  // Filtrado según el estado del boleto (CU-MT-05)
+  const boletosActivos = boletos.filter((b) => b.estado === 'valido');
+  const boletosHistorial = boletos.filter((b) => b.estado === 'utilizado' || b.estado === 'cancelado');
 
-  // Filtrar boletos del usuario actual
-  const misBoletos = usuarioActual
-    ? listaBoletos.filter((b) => b.idUsuario === usuarioActual.id)
-    : [];
+  // Validaciones de Cancelación (CU-MT-06)
+  const solicitarCancelacion = (boleto: BoletoDigital) => {
+    // Regla 1: Boleto ya utilizado (ERR-MT-09)
+    if (boleto.estado === 'utilizado') {
+      setNotificacion(obtenerMensaje('ERR-MT-09'));
+      return;
+    }
 
-  const manejarCancelarReservacion = (boleto: BoletoDigital) => {
-    cancelarReservacion(boleto.idReservacion);
-    setModalConfirmarCancelacion(null);
-    mostrarNotificacion(
-      'Reservación cancelada',
-      'Tu lugar ha sido liberado para la comunidad en lista de espera.',
-      'informacion'
+    // Regla 2: Menos de 24 horas antes del inicio del evento (ERR-MT-08)
+    const horaInicioStr = boleto.horaEvento.split(' - ')[0] || '00:00';
+    const fechaHoraEvento = new Date(`${boleto.fechaEvento}T${horaInicioStr}:00`).getTime();
+    const ahora = new Date().getTime();
+    const horasRestantes = (fechaHoraEvento - ahora) / (1000 * 60 * 60);
+
+    if (horasRestantes < 24 && horasRestantes > 0) {
+      setNotificacion(obtenerMensaje('ERR-MT-08'));
+      return;
+    }
+
+    setBoletoACancelar(boleto);
+  };
+
+  const confirmarCancelacion = () => {
+    if (!boletoACancelar) return;
+
+    setBoletos((prev) =>
+      prev.map((b) =>
+        b.id === boletoACancelar.id ? { ...b, estado: 'cancelado' } : b
+      )
     );
+
+    setBoletoACancelar(null);
+    setNotificacion(obtenerMensaje('OK-MT-02'));
   };
 
-  const imprimirBoleto = () => {
-    window.print();
-  };
+  const mensajeVacio = obtenerMensaje('INF-MT-06');
+  const advertenciaCancelacion = obtenerMensaje('AV-MT-01');
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-      {/* Cabecera Editorial */}
-      <div className="mb-8">
-        <span className="text-[11px] font-bold text-[#7a132b] uppercase tracking-wider">
-          Taquilla Digital y Acreditación ESCOM
-        </span>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 mt-0.5">
-          Mis Boletos de Acceso Oficial
-        </h1>
-        <p className="text-xs sm:text-sm text-neutral-500 mt-1 max-w-2xl">
-          Presenta tu pase con código QR en pantalla o impreso al ingresar al recinto. Cada boleto está validado por tu identidad institucional.
-        </p>
-      </div>
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold text-gray-900 mb-2">Mis Reservaciones y Boletos</h1>
+      <p className="text-gray-600 mb-6">Gestiona tus accesos e historial de asistencia a eventos en ESCOM.</p>
 
-      {misBoletos.length === 0 ? (
-        <EstadoVacio
-          icono={<IconoBoleto className="w-8 h-8" />}
-          titulo="No tienes reservaciones activas"
-          descripcion="Explora los congresos, simposios y talleres académicos disponibles en la cartelera institucional para apartar tu butaca numerada."
-          textoAccion="Explorar Cartelera de Eventos"
-          alHacerAccion={() => navigate('/eventos')}
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {misBoletos.map((boleto) => {
-            const estaCancelado = boleto.estado === 'cancelado';
-            const estaUtilizado = boleto.estado === 'utilizado';
-
-            return (
-              /* ========================================================================= */
-              /* BOLETO DIGITAL COMO OBJETO FÍSICO-DIGITAL CON PERFORACIÓN Y MUESCAS     */
-              /* ========================================================================= */
-              <div
-                key={boleto.id}
-                className={`relative bg-white rounded-3xl border border-neutral-300 shadow-sm overflow-hidden flex flex-col justify-between transition-all hover:shadow-md ${
-                  estaCancelado ? 'opacity-50 grayscale' : ''
-                }`}
-              >
-                {/* 1. SECCIÓN SUPERIOR: Membrete del Evento y Recinto */}
-                <div className="p-6 bg-[#fafaf9] border-b border-neutral-200/80">
-                  <div className="flex items-center justify-between mb-3 text-xs">
-                    <span className="font-mono text-[10px] tracking-wider text-neutral-400 font-bold uppercase">
-                      ESCOM IPN · TICKET TRADE
-                    </span>
-
-                    {/* Estado legible sin destrucción visual */}
-                    {estaUtilizado ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Entrada Registrada</span>
-                      </span>
-                    ) : estaCancelado ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-neutral-200 text-neutral-600 text-[10px] font-bold">
-                        Cancelado
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
-                        Boleto Activo
-                      </span>
-                    )}
-                  </div>
-
-                  <h3 className="text-base font-extrabold text-neutral-900 leading-snug line-clamp-2">
-                    {boleto.tituloEvento}
-                  </h3>
-
-                  <div className="mt-3 flex items-center gap-4 text-xs text-neutral-600">
-                    <span className="flex items-center gap-1.5 font-semibold text-neutral-800">
-                      <Calendar className="w-3.5 h-3.5 text-[#7a132b]" />
-                      {boleto.fechaEvento}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-neutral-400" />
-                      {boleto.horaEvento} hrs
-                    </span>
-                  </div>
-
-                  <div className="mt-1 flex items-center gap-1.5 text-xs text-neutral-500">
-                    <MapPin className="w-3.5 h-3.5 text-neutral-400" />
-                    <span>{boleto.nombreRecinto}</span>
-                  </div>
-                </div>
-
-                {/* 2. LÍNEA DE PERFORACIÓN CON MUESCAS CIRCULARES LATERALES */}
-                <div className="relative py-1 bg-white">
-                  {/* Muesca izquierda */}
-                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#fafaf9] border border-neutral-300 shadow-inner" />
-                  {/* Muesca derecha */}
-                  <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#fafaf9] border border-neutral-300 shadow-inner" />
-                  {/* Línea punteada de corte */}
-                  <div className="border-t-2 border-dashed border-neutral-200 mx-5" />
-                </div>
-
-                {/* 3. SECCIÓN INFERIOR: Lugar Destacado y Código QR */}
-                <div className="p-6 bg-white space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider block">
-                        Lugar Asignado
-                      </span>
-                      <span className="text-2xl font-black font-mono text-[#7a132b] leading-tight">
-                        {boleto.etiquetaAsiento || 'Acceso General'}
-                      </span>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider block">
-                        Titular Acreditado
-                      </span>
-                      <span className="text-xs font-bold text-neutral-900 block truncate max-w-[140px]">
-                        {boleto.nombreUsuario}
-                      </span>
-                      <span className="text-[10px] font-mono text-neutral-500">
-                        {usuarioActual?.boleta || 'Docente'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Código QR con contenedor de alto contraste */}
-                  <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200 flex items-center justify-between gap-4">
-                    <div className="w-16 h-16 bg-white p-1 rounded-xl border border-neutral-200 flex items-center justify-center shrink-0 shadow-2xs">
-                      <QRCodeSVG
-                        value={boleto.codigoQr}
-                        size={56}
-                        level="M"
-                        bgColor="#ffffff"
-                        fgColor="#171717"
-                        includeMargin
-                        title={`Código QR del boleto ${boleto.codigoQr}`}
-                      />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <span className="text-[10px] font-mono text-neutral-400 block uppercase">
-                        Código de Acceso
-                      </span>
-                      <span className="font-mono text-xs font-bold text-neutral-800 truncate block">
-                        {boleto.codigoQr}
-                      </span>
-                      <span className="text-[10px] text-neutral-500 block mt-0.5">
-                        Acreditación nominal intransferible
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Acciones del Boleto */}
-                  <div className="flex items-center gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setBoletoSeleccionado(boleto)}
-                      className="flex-1 py-2.5 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-                    >
-                      <QrCode className="w-3.5 h-3.5" />
-                      <span>Ampliar Código QR</span>
-                    </button>
-
-                    {!estaCancelado && !estaUtilizado && (
-                      <button
-                        type="button"
-                        onClick={() => setModalConfirmarCancelacion(boleto)}
-                        title="Cancelar reservación"
-                        className="px-3 py-2.5 border border-neutral-300 hover:border-rose-300 hover:text-rose-600 rounded-xl text-xs font-semibold text-neutral-600 transition-colors cursor-pointer"
-                      >
-                        Cancelar
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      {/* Notificaciones del Sistema */}
+      {notificacion && (
+        <div className={`mb-6 p-4 rounded-lg flex items-start justify-between border ${
+          notificacion.tipo === 'error' ? 'bg-red-50 text-red-800 border-red-200' :
+          notificacion.tipo === 'exito' ? 'bg-green-50 text-green-800 border-green-200' :
+          'bg-blue-50 text-blue-800 border-blue-200'
+        }`}>
+          <div>
+            <p className="font-semibold">{notificacion.titulo}</p>
+            <p className="text-sm mt-0.5">{notificacion.descripcion}</p>
+          </div>
+          <button onClick={() => setNotificacion(null)} className="p-1 hover:opacity-75 cursor-pointer">
+            <X className="w-5 h-5" />
+          </button>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL DE AMPLIACIÓN E IMPRESIÓN DEL BOLETO                               */}
-      {/* ========================================================================= */}
-      {boletoSeleccionado && (
-        <VentanaModal
-          estaAbierto={Boolean(boletoSeleccionado)}
-          alCerrar={() => setBoletoSeleccionado(null)}
-          titulo="Pase Digital de Acceso ESCOM IPN"
-          subtitulo="Presenta este código ante el lector del Staff en la entrada del recinto"
-          anchoMaximo="md"
+      {/* Pestañas Activos / Historial */}
+      <div className="flex border-b border-gray-200 mb-6">
+        <button
+          onClick={() => setPestanaActiva('activos')}
+          className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors cursor-pointer ${
+            pestanaActiva === 'activos'
+              ? 'border-blue-600 text-blue-600 font-semibold'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
         >
-          <div className="space-y-6 text-center">
-            {/* Boleto Completo en Modal */}
-            <div className="p-6 bg-white border-2 border-dashed border-neutral-300 rounded-3xl max-w-xs mx-auto shadow-inner">
-              <span className="font-mono text-[10px] font-bold text-neutral-400 tracking-widest block uppercase mb-3">
-                TICKET TRADE · PASE OFICIAL
-              </span>
+          Boletos Activos ({boletosActivos.length})
+        </button>
+        <button
+          onClick={() => setPestanaActiva('historial')}
+          className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors cursor-pointer ${
+            pestanaActiva === 'historial'
+              ? 'border-blue-600 text-blue-600 font-semibold'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Historial de Asistencia ({boletosHistorial.length})
+        </button>
+      </div>
 
-              <div className="w-48 h-48 bg-white p-3 rounded-2xl border border-neutral-200 mx-auto flex items-center justify-center shadow-md">
-                <QRCodeSVG
-                  value={boletoSeleccionado.codigoQr}
-                  size={160}
-                  level="M"
-                  bgColor="#ffffff"
-                  fgColor="#171717"
-                  includeMargin
-                  title={`Código QR del boleto ${boletoSeleccionado.codigoQr}`}
-                />
+      {/* Renderizado de Boletos */}
+      {(pestanaActiva === 'activos' ? boletosActivos : boletosHistorial).length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+          <Clock className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+          <h3 className="text-lg font-semibold text-gray-800">{mensajeVacio.titulo}</h3>
+          <p className="text-gray-600 text-sm mt-1 mb-4">{mensajeVacio.descripcion}</p>
+          {navigate && (
+            <button
+              onClick={() => navigate('/eventos')}
+              className="px-4 py-2 bg-[#7a132b] text-white rounded-xl text-xs font-bold hover:bg-[#630f23] transition-colors cursor-pointer"
+            >
+              Ver Cartelera de Eventos
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {(pestanaActiva === 'activos' ? boletosActivos : boletosHistorial).map((boleto) => (
+            <div key={boleto.id} className="bg-white border border-neutral-200 rounded-xl shadow-xs overflow-hidden flex flex-col justify-between">
+              <div className="p-5">
+                <div className="flex justify-between items-start mb-3">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                    boleto.estado === 'valido' ? 'bg-green-100 text-green-800' :
+                    boleto.estado === 'utilizado' ? 'bg-blue-100 text-blue-800' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {boleto.estado === 'valido' ? 'VÁLIDO' :
+                     boleto.estado === 'utilizado' ? 'ASISTIDO' : 'CANCELADO'}
+                  </span>
+                  <span className="text-xs text-gray-500 font-mono">Folio: #{boleto.id}</span>
+                </div>
+
+                <h3 className="font-bold text-lg text-gray-900 mb-2">
+                  {boleto.tituloEvento}
+                </h3>
+
+                <div className="space-y-1.5 text-sm text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <span>{boleto.fechaEvento} ({boleto.horaEvento})</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <span>{boleto.nombreRecinto}</span>
+                  </div>
+                  <div className="mt-2 text-xs font-semibold text-blue-700 bg-blue-50 inline-block px-2.5 py-1 rounded">
+                    Lugar: {boleto.etiquetaAsiento}
+                  </div>
+                </div>
               </div>
 
-              <div className="mt-3 text-left"><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-neutral-500">Identificador para captura manual</span><div className="font-mono text-xs font-extrabold text-[#7a132b] break-all px-2">
-                {boletoSeleccionado.codigoQr}
-              </div></div>
-
-              <div className="mt-4 pt-3 border-t border-neutral-200 text-left text-xs space-y-1">
-                <div className="font-bold text-neutral-900 text-sm line-clamp-1">
-                  {boletoSeleccionado.tituloEvento}
-                </div>
-                <div className="text-neutral-600 flex justify-between">
-                  <span>Lugar:</span>
-                  <span className="font-mono font-black text-[#7a132b]">
-                    {boletoSeleccionado.etiquetaAsiento || 'General'}
-                  </span>
-                </div>
-                <div className="text-neutral-600 flex justify-between">
-                  <span>Titular:</span>
-                  <span className="font-medium text-neutral-900">
-                    {boletoSeleccionado.nombreUsuario}
-                  </span>
-                </div>
-                <div className="text-neutral-600 flex justify-between">
-                  <span>Fecha:</span>
-                  <span className="font-medium text-neutral-900">
-                    {boletoSeleccionado.fechaEvento} · {boletoSeleccionado.horaEvento} hrs
-                  </span>
-                </div>
+              {/* Botones de acción */}
+              <div className="bg-gray-50 px-5 py-3 border-t border-neutral-200 flex gap-3">
+                {pestanaActiva === 'activos' ? (
+                  <>
+                    <button
+                      onClick={() => setBoletoParaQR(boleto)}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <QrCode className="w-4 h-4" />
+                      Ver Código QR
+                    </button>
+                    <button
+                      onClick={() => solicitarCancelacion(boleto)}
+                      className="px-4 border border-red-300 text-red-600 hover:bg-red-50 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-gray-500 py-1">
+                    <CheckCircle2 className="w-4 h-4 text-gray-400" />
+                    <span>
+                      {boleto.estado === 'utilizado' ? 'Asistencia registrada en puerta' : 'Boleto invalidado'}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
-
-            {/* Acciones de Impresión y Cierre */}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={imprimirBoleto}
-                className="flex-1 py-2.5 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Imprimir Boleto</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setBoletoSeleccionado(null)}
-                className="px-4 py-2.5 border border-neutral-300 rounded-xl text-xs font-semibold text-neutral-700 hover:bg-neutral-50 cursor-pointer"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </VentanaModal>
+          ))}
+        </div>
       )}
 
-      {/* Modal de Confirmación de Cancelación */}
-      {modalConfirmarCancelacion && (
-        <VentanaModal
-          estaAbierto={Boolean(modalConfirmarCancelacion)}
-          alCerrar={() => setModalConfirmarCancelacion(null)}
-          titulo="¿Confirmar cancelación de lugar?"
-          subtitulo="Esta acción liberará tu butaca inmediatamente"
-        >
-          <div className="space-y-4 text-xs">
-            <p className="text-neutral-600 leading-relaxed">
-              ¿Estás seguro de que deseas cancelar tu reservación para{' '}
-              <strong>{modalConfirmarCancelacion.tituloEvento}</strong> (Lugar:{' '}
-              <strong className="text-[#7a132b] font-mono">
-                {modalConfirmarCancelacion.etiquetaAsiento}
-              </strong>
-              )?
-            </p>
-            <p className="text-neutral-500 text-[11px]">
-              El lugar será reasignado inmediatamente a los alumnos y participantes que se encuentran en lista de espera.
-            </p>
+      {/* Reutilización del Modal con QR Real e Imprimible */}
+      <ModalBoletoQR
+        boleto={boletoParaQR}
+        alCerrar={() => setBoletoParaQR(null)}
+      />
 
-            <div className="flex justify-end gap-2 pt-2">
+      {/* Modal CONFIRMAR CANCELACIÓN (AV-MT-01) */}
+      {boletoACancelar && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl border border-neutral-200">
+            <div className="flex items-center gap-3 text-amber-600 mb-3">
+              <AlertTriangle className="w-6 h-6 flex-shrink-0" />
+              <h3 className="font-bold text-lg">{advertenciaCancelacion.titulo}</h3>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-6">{advertenciaCancelacion.descripcion}</p>
+
+            <div className="flex justify-end gap-3">
               <button
-                type="button"
-                onClick={() => setModalConfirmarCancelacion(null)}
-                className="px-4 py-2 border border-neutral-300 rounded-xl text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+                onClick={() => setBoletoACancelar(null)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors"
               >
                 Conservar Boleto
               </button>
-
               <button
-                type="button"
-                onClick={() => manejarCancelarReservacion(modalConfirmarCancelacion)}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
+                onClick={confirmarCancelacion}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium cursor-pointer transition-colors"
               >
-                Sí, Cancelar y Liberar
+                Sí, Cancelar Reservación
               </button>
             </div>
           </div>
-        </VentanaModal>
+        </div>
       )}
     </div>
   );
 };
+
+export default MisBoletosPagina;

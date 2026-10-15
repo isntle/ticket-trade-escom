@@ -405,8 +405,8 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ na
           </span>
         </button>
       ) : (
-        <div className="w-[min(94vw,650px)] overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_20px_65px_rgba(34,24,24,0.2)]">
-          <div className="flex items-center justify-between bg-[#651127] px-4 py-3 text-white">
+        <div className="flex max-h-[85vh] w-[min(94vw,650px)] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_20px_65px_rgba(34,24,24,0.2)]">
+          <div className="flex shrink-0 items-center justify-between bg-[#651127] px-4 py-3 text-white">
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10">
                 <BookOpen className="h-4 w-4 text-amber-200" />
@@ -426,7 +426,7 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ na
             </button>
           </div>
 
-          <div className="flex border-b border-neutral-200 bg-neutral-50 p-1.5">
+          <div className="flex shrink-0 border-b border-neutral-200 bg-neutral-50 p-1.5">
             <button
               type="button"
               onClick={() => setVista('casos')}
@@ -444,8 +444,8 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ na
           </div>
 
           {vista === 'casos' ? (
-            <div className="grid max-h-[72vh] min-h-[430px] grid-cols-1 sm:grid-cols-[190px_1fr]">
-              <aside className="border-b border-neutral-200 bg-[#fafaf9] p-2.5 sm:border-b-0 sm:border-r">
+            <div className="grid flex-1 min-h-0 grid-cols-1 overflow-y-auto sm:grid-cols-[190px_1fr] sm:overflow-hidden">
+              <aside className="border-b border-neutral-200 bg-[#fafaf9] p-2.5 sm:border-b-0 sm:border-r sm:overflow-y-auto">
                 <p className="px-2 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-400">Subequipos</p>
                 <div className="space-y-1">
                   {SUBEQUIPOS.map((subequipo) => {
@@ -527,7 +527,7 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ na
               </section>
             </div>
           ) : (
-            <div className="max-h-[72vh] overflow-y-auto p-3 sm:p-4">
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4">
               <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
                 <div className="flex items-center gap-2 font-bold"><HelpCircle className="h-4 w-4" /> Escenarios de demostración</div>
                 <p className="mt-1 text-amber-800/80">Estos accesos preparan datos de prueba para recorrer la aplicación. La documentación de casos de uso se encuentra en la pestaña anterior.</p>
