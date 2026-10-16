@@ -30,7 +30,8 @@ import {
   OcupabilidadVivoPagina,
   AdministracionUsuariosPagina,
   PerfilUsuarioPagina,
-  AutenticacionPagina
+  AutenticacionPagina,
+  AdministracionRecintosPagina
 } from './paginas';
 
 /**
@@ -195,7 +196,7 @@ function ContenidoApp() {
     // SUBSISTEMA 02: ORGANIZACIÓN, RECINTOS Y ARREGLOS
     // -------------------------------------------------------------
     if (rutaActual === '/solicitar-evento' || rutaActual === '/organizador/solicitudes/nueva') {
-      return <SolicitudEventoPagina navigate={navegarA} />;
+      return <SolicitudEventoPagina navigate={navegarA} requestId={parametrosUrl.get('editar') || undefined} />;
     }
 
     if (rutaActual.startsWith('/organizador/solicitudes/')) {
@@ -250,6 +251,8 @@ function ContenidoApp() {
 
     // Operaciones Institucionales de Subdirección
     if (rutaActual.startsWith('/subdireccion')) {
+      if (rutaActual === '/subdireccion/recintos') return <AdministracionRecintosPagina modo="catalogo" navigate={navegarA} />;
+      if (rutaActual === '/subdireccion/ocupaciones') return <AdministracionRecintosPagina modo="ocupaciones" navigate={navegarA} />;
       const tab = parametrosUrl.get('tab');
       const pestañaInicial = ['solicitudes', 'agenda', 'bloqueos', 'evento_directo'].includes(tab || '')
         ? (tab as 'solicitudes' | 'agenda' | 'bloqueos' | 'evento_directo')

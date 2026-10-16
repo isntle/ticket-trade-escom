@@ -17,7 +17,8 @@ import {
   ConfiguracionAsiento,
   HorarioClaseRegular,
   OcupacionAgenda,
-  Usuario
+  Usuario,
+  OcupacionInterna
 } from '../tipos';
 import {
   EVENTOS_INICIALES,
@@ -39,6 +40,7 @@ interface ContextoDatosTipo {
   listaEventos: Evento[];
   listaSolicitudes: SolicitudEvento[];
   listaRecintos: Recinto[];
+  listaOcupacionesInternas: OcupacionInterna[];
   listaArreglos: ArregloAsientos[];
   listaBloqueos: BloqueoRecinto[];
   listaReservaciones: Reservacion[];
@@ -64,6 +66,7 @@ interface ContextoDatosTipo {
   crearSolicitud: (
     datos: Omit<SolicitudEvento, 'id' | 'fechaCreacion' | 'estado'>
   ) => SolicitudEvento;
+  guardarBorradorSolicitud: (datos: Omit<SolicitudEvento, 'id' | 'fechaCreacion' | 'estado'>) => SolicitudEvento;
 
   dictaminarSolicitud: (
     idSolicitud: string,
@@ -71,6 +74,9 @@ interface ContextoDatosTipo {
     motivo?: string,
     nombreRevisor?: string
   ) => void;
+  devolverSolicitud: (idSolicitud: string, observaciones: string, nombreRevisor?: string) => void;
+  actualizarSolicitud: (idSolicitud: string, cambios: Partial<Pick<SolicitudEvento, 'tituloEvento' | 'descripcionEvento' | 'fechasSolicitadas' | 'modalidadAsistencia' | 'visibilidad' | 'asistenciaEstimada' | 'justificacionExcepcional'>>, reenviar?: boolean) => void;
+  cancelarSolicitud: (idSolicitud: string) => void;
 
   crearEventoInstitucionalDirecto: (datosEvento: Partial<Evento>) => Evento;
   actualizarEvento: (idEvento: string, parcial: Partial<Evento>) => void;
@@ -141,7 +147,7 @@ interface ContextoDatosTipo {
     idOrganizador: string;
     nombreOrganizador: string;
     versionesEsperadas?: Record<string, number>;
-  }) => { exito: boolean; sesionesActualizadas?: number; error?: string };
+  }) => { exito: boolean; diasActualizados?: number; error?: string };
 
   unirseAListaDeEspera: (
     idEvento: string,
@@ -174,6 +180,9 @@ interface ContextoDatosTipo {
 
   crearBloqueoRecinto: (bloqueo: Omit<BloqueoRecinto, 'id' | 'fechaCreacion'>) => BloqueoRecinto;
   eliminarBloqueoRecinto: (idBloqueo: string) => void;
+  guardarRecinto: (recinto: Recinto) => void;
+  crearOcupacionInterna: (ocupacion: Omit<OcupacionInterna, 'id' | 'fechaCreacion' | 'estado'>) => OcupacionInterna;
+  cancelarOcupacionInterna: (id: string) => void;
 
   reiniciarDatosIniciales: () => void;
 }
@@ -228,7 +237,15 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     return g ? JSON.parse(g) : SOLICITUDES_INICIALES;
   });
 
-  const [listaRecintos] = useState<Recinto[]>(RECINTOS_INICIALES);
+  const [listaRecintos, setListaRecintos] = useState<Recinto[]>(() => {
+    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_recintos`);
+    return g ? JSON.parse(g) : RECINTOS_INICIALES.map((r) => ({ ...r, activo: true }));
+  });
+
+  const [listaOcupacionesInternas, setListaOcupacionesInternas] = useState<OcupacionInterna[]>(() => {
+    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_ocupaciones_internas`);
+    return g ? JSON.parse(g) : [];
+  });
 
   const [listaArreglos, setListaArreglos] = useState<ArregloAsientos[]>(() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_arreglos`);
@@ -275,6 +292,14 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_solicitudes`, JSON.stringify(listaSolicitudes));
   }, [listaSolicitudes]);
+
+  useEffect(() => {
+    localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_recintos`, JSON.stringify(listaRecintos));
+  }, [listaRecintos]);
+
+  useEffect(() => {
+    localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_ocupaciones_internas`, JSON.stringify(listaOcupacionesInternas));
+  }, [listaOcupacionesInternas]);
 
   useEffect(() => {
     localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_arreglos`, JSON.stringify(listaArreglos));
@@ -327,9 +352,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => clearInterval(intervalo);
   }, []);
 
-  // Cierre automático al alcanzar la fecha límite configurada para cada sesión.
+  // Cierre automático al alcanzar la fecha límite configurada para cada día.
   useEffect(() => {
-    const cerrarSesionesVencidas = () => {
+    const cerrarDiasVencidos = () => {
       const ahora = Date.now();
       const idsVencidas = listaEventos.flatMap((evento) =>
         evento.fechas
@@ -389,8 +414,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       );
     };
 
-    cerrarSesionesVencidas();
-    const intervalo = setInterval(cerrarSesionesVencidas, 60000);
+    cerrarDiasVencidos();
+    const intervalo = setInterval(cerrarDiasVencidos, 60000);
     return () => clearInterval(intervalo);
   }, [listaEventos]);
 
@@ -402,6 +427,16 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     horaFin: string,
     idFechaEventoExcluir?: string
   ): ResultadoDisponibilidadRecinto => {
+    const recintoConsultado = listaRecintos.find((recinto) => recinto.id === idRecinto);
+    if (!recintoConsultado || recintoConsultado.activo === false) {
+      return {
+        disponible: false,
+        codigoMensaje: 'MSG-VENUE-005',
+        motivo: 'El recinto no existe o está desactivado en el catálogo institucional.',
+        tipoConflicto: 'bloqueo',
+        tituloConflicto: 'Recinto no disponible'
+      };
+    }
     // 1. Validar contra bloqueos de Subdirección (específicos o generales)
     for (const b of listaBloqueos) {
       const aplicaRecinto =
@@ -504,6 +539,20 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }
 
+    const ocupacionInterna = listaOcupacionesInternas.find((o) =>
+      o.estado === 'activa' && o.idRecinto === idRecinto && fecha >= o.fechaInicio && fecha <= o.fechaFin &&
+      horaInicio < o.horaFin && horaFin > o.horaInicio
+    );
+    if (ocupacionInterna) {
+      return {
+        disponible: false,
+        codigoMensaje: 'MSG-VENUE-004',
+        motivo: `El recinto está ocupado por la actividad interna "${ocupacionInterna.titulo}" (${ocupacionInterna.horaInicio} a ${ocupacionInterna.horaFin}).`,
+        tipoConflicto: 'ocupacion_interna',
+        tituloConflicto: ocupacionInterna.titulo
+      };
+    }
+
     return { disponible: true };
   };
 
@@ -592,6 +641,17 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }
 
+    for (const ocupacion of listaOcupacionesInternas) {
+      if (ocupacion.estado === 'activa' && ocupacion.idRecinto === idRecinto && fecha >= ocupacion.fechaInicio && fecha <= ocupacion.fechaFin) {
+        ocupaciones.push({
+          id: ocupacion.id, idRecinto, nombreRecinto, fecha,
+          horaInicio: ocupacion.horaInicio, horaFin: ocupacion.horaFin,
+          tipo: 'ocupacion_interna', titulo: ocupacion.titulo,
+          descripcion: ocupacion.descripcion, responsable: ocupacion.responsable
+        });
+      }
+    }
+
     // Ordenar cronológicamente por horaInicio
     return ocupaciones.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
   };
@@ -649,7 +709,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const elementosPendientes: string[] = [];
     if (!solicitudAutorizada) elementosPendientes.push('Solicitud formal autorizada por Subdirección');
     if (!informacionGeneralCompleta) elementosPendientes.push('Información completa (título, descripción, ponentes)');
-    if (!tieneFechas) elementosPendientes.push('Al menos una fecha de sesión programada');
+    if (!tieneFechas) elementosPendientes.push('Al menos un día programado');
     if (!todasLasFechasTienenRecinto) elementosPendientes.push('Asignación de recinto para todas las fechas');
     if (!todasLasFechasTienenVersionFinal) elementosPendientes.push('Versión final confirmada de lugares para cada fecha');
 
@@ -678,6 +738,12 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setListaSolicitudes((previas) => [nuevaSolicitud, ...previas]);
     return nuevaSolicitud;
+  };
+
+  const guardarBorradorSolicitud = (datos: Omit<SolicitudEvento, 'id' | 'fechaCreacion' | 'estado'>): SolicitudEvento => {
+    const borrador: SolicitudEvento = { ...datos, id: `sol-${Date.now().toString(36)}`, estado: 'borrador', fechaCreacion: new Date().toISOString() };
+    setListaSolicitudes((previas) => [borrador, ...previas]);
+    return borrador;
   };
 
   // Dictaminar Solicitud
@@ -769,6 +835,31 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       }
     }
+  };
+
+  const devolverSolicitud = (idSolicitud: string, observaciones: string, nombreRevisor?: string) => {
+    if (!observaciones.trim()) return;
+    setListaSolicitudes((previas) => previas.map((s) => s.id === idSolicitud ? {
+      ...s,
+      estado: 'requiere_correccion',
+      observacionesCorreccion: observaciones.trim(),
+      fechaLimiteCorreccion: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      revisadoPor: nombreRevisor || 'Subdirección',
+      fechaRevision: new Date().toISOString()
+    } : s));
+  };
+
+  const actualizarSolicitud: ContextoDatosTipo['actualizarSolicitud'] = (idSolicitud, cambios, reenviar = false) => {
+    setListaSolicitudes((previas) => previas.map((s) => s.id === idSolicitud ? {
+      ...s, ...cambios,
+      ...(reenviar ? { estado: 'en_revision' as const, observacionesCorreccion: undefined, fechaLimiteCorreccion: undefined, fechaRevision: undefined } : {})
+    } : s));
+  };
+
+  const cancelarSolicitud = (idSolicitud: string) => {
+    setListaSolicitudes((previas) => previas.map((s) => s.id === idSolicitud && ['borrador', 'en_revision', 'requiere_correccion'].includes(s.estado)
+      ? { ...s, estado: 'cancelada' }
+      : s));
   };
 
   // Crear Evento Institucional Directo (Subdirección)
@@ -917,8 +1008,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const fechaTaquilla = eventoTaquilla?.fechas.find((fecha) => fecha.id === idFechaEvento);
 
     if (!eventoTaquilla || !fechaTaquilla) {
-      return { exito: false, error: 'La sesión seleccionada ya no se encuentra disponible.' };
+      return { exito: false, error: 'El día seleccionado ya no se encuentra disponible.' };
     }
+    if (fechaTaquilla.cancelada) return { exito: false, error: 'Este día fue cancelado y ya no admite reservaciones.' };
 
     if (
       obtenerEstadoInscripciones(fechaTaquilla, eventoTaquilla.estado) === 'cerradas' ||
@@ -926,7 +1018,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     ) {
       return {
         exito: false,
-        error: 'ERR-MT-02 · Las inscripciones de esta sesión están CERRADAS.'
+        error: 'ERR-MT-02 · Las inscripciones de este día están CERRADAS.'
       };
     }
 
@@ -1022,8 +1114,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const recinto = listaRecintos.find((v) => v.id === fecha?.idRecinto);
 
     if (!evento || !fecha) {
-      return { exito: false, error: 'La sesión asociada con el apartado ya no existe.' };
+      return { exito: false, error: 'El día asociado con el apartado ya no existe.' };
     }
+    if (fecha.cancelada) return { exito: false, error: 'Este día fue cancelado y no se puede confirmar el boleto.' };
 
     if (
       obtenerEstadoInscripciones(fecha, evento.estado) === 'cerradas' ||
@@ -1363,7 +1456,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     idOrganizador: string;
     nombreOrganizador: string;
     versionesEsperadas?: Record<string, number>;
-  }): { exito: boolean; sesionesActualizadas?: number; error?: string } => {
+  }): { exito: boolean; diasActualizados?: number; error?: string } => {
     const evento = listaEventos.find((elemento) => elemento.id === datos.idEvento);
     const idsUnicas = [...new Set(datos.idsFechaEvento)];
 
@@ -1379,7 +1472,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     if (idsUnicas.length === 0) {
-      return { exito: false, error: 'Selecciona al menos una sesión para continuar.' };
+      return { exito: false, error: 'Selecciona al menos un día para continuar.' };
     }
 
     if (evento.estado === 'cancelado' || evento.estado === 'finalizado') {
@@ -1397,15 +1490,15 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     const ahora = Date.now();
-    const sesiones = idsUnicas.map((idFecha) =>
+    const diasSeleccionados = idsUnicas.map((idFecha) =>
       evento.fechas.find((fecha) => fecha.id === idFecha)
     );
 
-    if (sesiones.some((fecha) => !fecha)) {
-      return { exito: false, error: 'ERR-TR-03 · Una de las sesiones ya no existe.' };
+    if (diasSeleccionados.some((fecha) => !fecha)) {
+      return { exito: false, error: 'ERR-TR-03 · Uno de los días ya no existe.' };
     }
 
-    for (const fecha of sesiones) {
+    for (const fecha of diasSeleccionados) {
       if (!fecha) continue;
       const estadoActual = obtenerEstadoInscripciones(fecha, evento.estado);
       const versionActual = fecha.versionInscripciones || 0;
@@ -1438,7 +1531,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         if (finSesion <= ahora) {
           return {
             exito: false,
-            error: `ERR-TR-10 · La sesión ${fecha.nombreDia || fecha.fecha} ya está FINALIZADA.`
+            error: `ERR-TR-10 · El día ${fecha.nombreDia || fecha.fecha} ya FINALIZÓ.`
           };
         }
 
@@ -1505,7 +1598,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       );
     }
 
-    return { exito: true, sesionesActualizadas: idsUnicas.length };
+    return { exito: true, diasActualizados: idsUnicas.length };
   };
 
   const registrarIntencionAsistencia = (
@@ -1525,7 +1618,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if (yaExiste) {
       return {
         exito: false,
-        error: 'Ya tienes una intención de asistencia registrada para esta sesión.'
+        error: 'Ya tienes una intención de asistencia registrada para este día.'
       };
     }
 
@@ -1560,7 +1653,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const fecha = evento?.fechas.find((elemento) => elemento.id === idFechaEvento);
 
     if (!evento || !fecha) {
-      return { exito: false, error: 'La sesión seleccionada ya no existe.' };
+      return { exito: false, error: 'El día seleccionado ya no existe.' };
     }
 
     if (correoConfirmado !== true) {
@@ -1835,10 +1928,30 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     setListaBloqueos((previos) => previos.filter((b) => b.id !== idBloqueo));
   };
 
+  const guardarRecinto = (recinto: Recinto) => {
+    setListaRecintos((previos) => previos.some((r) => r.id === recinto.id)
+      ? previos.map((r) => r.id === recinto.id ? recinto : r)
+      : [...previos, recinto]);
+  };
+
+  const crearOcupacionInterna = (datos: Omit<OcupacionInterna, 'id' | 'fechaCreacion' | 'estado'>) => {
+    const nueva: OcupacionInterna = {
+      ...datos, id: `ocu-${Date.now().toString(36)}`, estado: 'activa', fechaCreacion: new Date().toISOString()
+    };
+    setListaOcupacionesInternas((previas) => [nueva, ...previas]);
+    return nueva;
+  };
+
+  const cancelarOcupacionInterna = (id: string) => {
+    setListaOcupacionesInternas((previas) => previas.map((o) => o.id === id ? { ...o, estado: 'cancelada' } : o));
+  };
+
   const reiniciarDatosIniciales = () => {
     localStorage.clear();
     setListaEventos(EVENTOS_INICIALES);
     setListaSolicitudes(SOLICITUDES_INICIALES);
+    setListaRecintos(RECINTOS_INICIALES.map((r) => ({ ...r, activo: true })));
+    setListaOcupacionesInternas([]);
     setListaArreglos(ARREGLOS_INICIALES);
     setListaBloqueos(BLOQUEOS_INICIALES);
     setListaReservaciones(RESERVACIONES_INICIALES);
@@ -1854,6 +1967,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         listaEventos,
         listaSolicitudes,
         listaRecintos,
+        listaOcupacionesInternas,
         listaArreglos,
         listaBloqueos,
         listaReservaciones,
@@ -1867,7 +1981,11 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         obtenerAgendaMultiRecinto,
         obtenerListaDeVerificacion,
         crearSolicitud,
+        guardarBorradorSolicitud,
         dictaminarSolicitud,
+        devolverSolicitud,
+        actualizarSolicitud,
+        cancelarSolicitud,
         crearEventoInstitucionalDirecto,
         actualizarEvento,
         publicarEvento,
@@ -1893,6 +2011,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         procesarCheckIn,
         crearBloqueoRecinto,
         eliminarBloqueoRecinto,
+        guardarRecinto,
+        crearOcupacionInterna,
+        cancelarOcupacionInterna,
         reiniciarDatosIniciales
       }}
     >

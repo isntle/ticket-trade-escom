@@ -36,7 +36,8 @@ export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = (
     crearBloqueoRecinto,
     eliminarBloqueoRecinto,
     crearEventoInstitucionalDirecto,
-    obtenerAgendaMultiRecinto
+    obtenerAgendaMultiRecinto,
+    verificarDisponibilidadRecinto
   } = useDatos();
 
   const { usuarioActual } = useAutenticacion();
@@ -141,7 +142,19 @@ export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = (
 
   const manejarCrearEventoDirecto = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tituloEventoDirecto.trim()) return;
+    if (!tituloEventoDirecto.trim() || !descripcionEventoDirecto.trim()) {
+      mostrarNotificacion('Datos incompletos', 'El título y la descripción son obligatorios para publicar el evento.', 'advertencia');
+      return;
+    }
+    if (fechaEventoDirecto < new Date().toISOString().slice(0, 10)) {
+      mostrarNotificacion('Fecha no válida', 'La fecha del evento debe ser futura.', 'error');
+      return;
+    }
+    const disponibilidad = verificarDisponibilidadRecinto(recintoEventoDirecto, fechaEventoDirecto, '10:00', '13:00');
+    if (!disponibilidad.disponible) {
+      mostrarNotificacion('Recinto no disponible', disponibilidad.motivo || 'Selecciona otro día o recinto.', 'error');
+      return;
+    }
 
     const nuevo = crearEventoInstitucionalDirecto({
       titulo: tituloEventoDirecto,
@@ -541,6 +554,7 @@ export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = (
               <label className="block font-semibold text-neutral-700 mb-1">Descripción</label>
               <textarea
                 rows={3}
+                required
                 value={descripcionEventoDirecto}
                 onChange={(e) => setDescripcionEventoDirecto(e.target.value)}
                 placeholder="Detalle oficial de la actividad institucional..."
@@ -566,7 +580,7 @@ export const PanelSubdireccionPagina: React.FC<PropiedadesPanelSubdireccion> = (
                   onChange={(e) => setRecintoEventoDirecto(e.target.value)}
                   className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl"
                 >
-                  {listaRecintos.map((r) => (
+                  {listaRecintos.filter((r) => r.activo !== false).map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.nombre} ({r.capacidad} lugares)
                     </option>

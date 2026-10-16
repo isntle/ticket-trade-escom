@@ -186,7 +186,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
     const accion = accionPendiente === 'abiertas' ? 'abrieron' : 'cerraron';
     mostrarNotificacion(
       'OK-MT-09 · Estado actualizado',
-      `Se ${accion} las inscripciones de ${resultado.sesionesActualizadas} día(s).`,
+      `Se ${accion} las inscripciones de ${resultado.diasActualizados} día(s).`,
       'exito'
     );
     setAccionPendiente(null);

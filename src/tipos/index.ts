@@ -34,6 +34,8 @@ export interface Usuario {
   urlFoto?: string;
   esVerificado?: boolean;
   correoConfirmado?: boolean;
+  restriccionSolicitudesHasta?: string;
+  motivoRestriccion?: string;
   tokenRecuperacion?: string;
   tokenExpiracion?: number;
   eventosAsignadosStaff?: string[]; // IDs de eventos a los que este usuario está asignado como Staff de acceso
@@ -49,7 +51,7 @@ export interface PermisosPorRol {
 }
 
 // Estados del flujo de solicitudes
-export type EstadoSolicitud = 'borrador' | 'en_revision' | 'autorizada' | 'rechazada' | 'cancelada';
+export type EstadoSolicitud = 'borrador' | 'en_revision' | 'requiere_correccion' | 'autorizada' | 'rechazada' | 'cancelada';
 
 // Dimensiones de visibilidad y modalidad
 export type VisibilidadEvento = 'publico' | 'interno' | 'privado';
@@ -86,6 +88,8 @@ export interface SolicitudEvento {
   esExcepcional: boolean;
   justificacionExcepcional?: string;
   motivoRechazo?: string;
+  observacionesCorreccion?: string;
+  fechaLimiteCorreccion?: string;
   revisadoPor?: string;
   fechaRevision?: string;
   fechaCreacion: string;
@@ -109,6 +113,7 @@ export interface RegistroCambioInscripciones {
 // Fecha individual de un evento (No son sinónimos)
 export interface FechaEvento {
   id: string;
+  cancelada?: boolean;
   idEvento: string;
   fecha: string;
   horaInicio: string;
@@ -155,6 +160,7 @@ export interface Evento {
   inscripcionesAbiertas?: boolean;
   fechaCierreInscripcion?: string;
   publicoPermitido?: RolUsuario[];
+  historialExcepcionesAnticipacion?: Array<{ idFechaEvento: string; fechaAplicacion: string; motivo: string; responsable: string }>;
 }
 
 // Tipos de recintos físicos en ESCOM
@@ -172,6 +178,7 @@ export interface Recinto {
   equipamiento: string[];
   descripcion: string;
   permiteEliminarAsientos: boolean; // Sala 14: true (modular), Auditorio/Lab: false
+  activo?: boolean;
 }
 
 // Categorías funcionales de lugares en un arreglo
@@ -367,7 +374,7 @@ export interface ResultadoDisponibilidadRecinto {
   disponible: boolean;
   codigoMensaje?: string;
   motivo?: string;
-  tipoConflicto?: 'evento' | 'clase' | 'bloqueo' | 'actividad_institucional' | 'margen_despeje';
+  tipoConflicto?: 'evento' | 'clase' | 'bloqueo' | 'actividad_institucional' | 'ocupacion_interna' | 'margen_despeje';
   tituloConflicto?: string;
   detallesConflicto?: {
     horarioConflicto?: string;
@@ -391,11 +398,25 @@ export interface OcupacionAgenda {
   fecha: string;
   horaInicio: string;
   horaFin: string;
-  tipo: 'evento' | 'clase' | 'actividad_institucional' | 'bloqueo';
+  tipo: 'evento' | 'clase' | 'actividad_institucional' | 'ocupacion_interna' | 'bloqueo';
   titulo: string;
   descripcion?: string;
   responsable?: string;
   grupo?: string;
+}
+
+export interface OcupacionInterna {
+  id: string;
+  idRecinto: string;
+  titulo: string;
+  descripcion: string;
+  fechaInicio: string;
+  horaInicio: string;
+  fechaFin: string;
+  horaFin: string;
+  responsable: string;
+  estado: 'activa' | 'cancelada';
+  fechaCreacion: string;
 }
 
 // Lista de verificación para publicación de evento

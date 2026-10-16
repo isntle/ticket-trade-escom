@@ -35,6 +35,8 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
     listaRecintos,
     listaEventos,
     dictaminarSolicitud,
+    devolverSolicitud,
+    cancelarSolicitud,
     obtenerOcupacionesRecinto,
     verificarDisponibilidadRecinto
   } = useDatos();
@@ -44,6 +46,8 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
 
   const [motivoRechazoInput, setMotivoRechazoInput] = useState('');
   const [modalRechazoVisible, setModalRechazoVisible] = useState(false);
+  const [accionMotivo, setAccionMotivo] = useState<'rechazar' | 'devolver'>('rechazar');
+  const [confirmarCancelacion, setConfirmarCancelacion] = useState(false);
 
   const solicitud = listaSolicitudes.find((s) => s.id === requestId);
   const eventoAsociado = listaEventos.find((e) => e.idSolicitud === requestId);
@@ -68,6 +72,7 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
 
   const esSubdirector =
     (usuarioActual?.roles.includes('subdireccion') || usuarioActual?.roles.includes('admin')) ?? false;
+  const esSolicitante = usuarioActual?.id === solicitud.idSolicitante;
 
   // Ejecutar autorización
   const manejarAutorizar = () => {
@@ -95,18 +100,19 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
       return;
     }
 
-    dictaminarSolicitud(
-      solicitud.id,
-      'rechazada',
-      motivoRechazoInput.trim(),
-      usuarioActual?.nombre || 'Subdirección'
-    );
+    if (accionMotivo === 'devolver') {
+      devolverSolicitud(solicitud.id, motivoRechazoInput.trim(), usuarioActual?.nombre || 'Subdirección');
+      mostrarNotificacion('Solicitud devuelta para corrección', 'El solicitante cuenta con 24 horas para atender las observaciones.', 'informacion');
+    } else {
+      dictaminarSolicitud(solicitud.id, 'rechazada', motivoRechazoInput.trim(), usuarioActual?.nombre || 'Subdirección');
+      mostrarNotificacion('Solicitud Rechazada', 'El dictamen de rechazo y motivo oficial fueron notificados al solicitante.', 'informacion');
+    }
     setModalRechazoVisible(false);
-    mostrarNotificacion(
-      'Solicitud Rechazada',
-      'El dictamen de rechazo y motivo oficial fueron notificados al solicitante.',
-      'informacion'
-    );
+    setMotivoRechazoInput('');
+  };
+
+  const abrirEdicion = () => {
+    navigate(`/solicitar-evento?editar=${solicitud.id}`);
   };
 
   return (
@@ -333,7 +339,16 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
 
                     <button
                       type="button"
-                      onClick={() => setModalRechazoVisible(true)}
+                      onClick={() => { setAccionMotivo('devolver'); setMotivoRechazoInput(''); setModalRechazoVisible(true); }}
+                      className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <AlertTriangle className="w-4 h-4" />
+                      <span>Devolver para corrección</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setAccionMotivo('rechazar'); setMotivoRechazoInput(''); setModalRechazoVisible(true); }}
                       className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       <XCircle className="w-4 h-4" />
@@ -363,6 +378,12 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
                 )}
               </div>
             )}
+            {esSolicitante && ['borrador', 'en_revision', 'requiere_correccion'].includes(solicitud.estado) && (
+              <div className="space-y-3 border-t pt-4">
+                {solicitud.estado === 'requiere_correccion' && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950"><strong>Observaciones:</strong> {solicitud.observacionesCorreccion}<p className="mt-1">Plazo: {solicitud.fechaLimiteCorreccion ? new Date(solicitud.fechaLimiteCorreccion).toLocaleString('es-MX') : '24 horas desde la devolución'}</p></div>}
+                <div className="flex flex-wrap gap-2">{<button type="button" onClick={abrirEdicion} className="rounded-lg border px-3 py-2 text-xs font-bold">{solicitud.estado==='borrador'?'Continuar borrador':solicitud.estado==='requiere_correccion'?'Corregir solicitud':'Editar solicitud'}</button>}<button type="button" onClick={()=>setConfirmarCancelacion(true)} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700">Cancelar solicitud</button></div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -373,7 +394,7 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4 animate-in zoom-in-95 duration-150">
             <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-rose-600" />
-              <span>Motivo Fundado de Rechazo</span>
+              <span>{accionMotivo === 'devolver' ? 'Observaciones para corrección' : 'Motivo Fundado de Rechazo'}</span>
             </h3>
             <p className="text-xs text-neutral-600">
               Ingresa la justificación formal que se notificará al solicitante (ej: empalme no subsanable con actividad institucional o falta de aval).
@@ -384,7 +405,7 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
               required
               value={motivoRechazoInput}
               onChange={(e) => setMotivoRechazoInput(e.target.value)}
-              placeholder="Explica detalladamente la causa oficial del rechazo..."
+              placeholder={accionMotivo === 'devolver' ? 'Describe los cambios que debe realizar el solicitante...' : 'Explica detalladamente la causa oficial del rechazo...'}
               className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-900 focus:outline-none focus:border-rose-600"
             />
 
@@ -401,12 +422,13 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
                 onClick={manejarRechazar}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
               >
-                Confirmar Rechazo Motivado
+                {accionMotivo === 'devolver' ? 'Devolver solicitud' : 'Confirmar Rechazo Motivado'}
               </button>
             </div>
           </div>
         </div>
       )}
+      {confirmarCancelacion && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><section className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-xl"><h2 className="font-bold">¿Cancelar esta solicitud?</h2><p className="text-sm text-neutral-600">La solicitud quedará en el historial con estado cancelado. Esta acción no se puede deshacer.</p><div className="flex justify-end gap-2"><button type="button" onClick={()=>setConfirmarCancelacion(false)} className="rounded-lg border px-3 py-2 text-sm">Conservar solicitud</button><button type="button" onClick={()=>{cancelarSolicitud(solicitud.id);setConfirmarCancelacion(false);mostrarNotificacion('Solicitud cancelada','Se conservó en el historial.','informacion');}} className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-bold text-white">Confirmar cancelación</button></div></section></div>}
     </div>
   );
 };

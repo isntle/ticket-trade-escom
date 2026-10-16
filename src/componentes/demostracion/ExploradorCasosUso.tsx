@@ -279,33 +279,33 @@ const SUBEQUIPOS: Subequipo[] = [
     icono: Building2,
     color: 'text-indigo-700 bg-indigo-50 border-indigo-200',
     casos: [
-      { id: 'CU-OR-01', nombre: 'Preparar borrador de solicitud', actor: 'Organizador', interfaz: 'UI-20 · Solicitud formal de evento', descripcion: 'El organizador captura los datos del evento, días, horarios y recintos para preparar un borrador.', ruta: '/solicitar-evento', estado: 'comprobable' },
-      { id: 'CU-OR-02', nombre: 'Consultar historial de solicitudes propias', actor: 'Organizador', interfaz: 'UI-21 · Detalle y dictamen de solicitud', descripcion: 'El organizador consulta las solicitudes que ha creado y abre el detalle de una de ellas.', ruta: '/organizador', estado: 'parcial' },
-      { id: 'CU-OR-03', nombre: 'Revisar y resolver solicitud ordinaria', actor: 'Subdirección', interfaz: 'UI-50 · Bandeja de dictamen de Subdirección', descripcion: 'Subdirección revisa una solicitud ordinaria y registra el dictamen correspondiente.', ruta: '/subdireccion', estado: 'comprobable' },
-      { id: 'CU-OR-04', nombre: 'Consultar catálogo y detalle de recintos', actor: 'Organizador', interfaz: 'UI-20 · Selector y disponibilidad de recintos', descripcion: 'El organizador consulta los recintos disponibles, sus características y la ocupación para elegir uno compatible.', ruta: '/solicitar-evento', estado: 'parcial' },
-      { id: 'CU-OR-05', nombre: 'Configurar arreglo de asientos', actor: 'Organizador', interfaz: 'UI-35 · Editor de distribución de lugares', descripcion: 'El organizador configura el arreglo de lugares asociado a una fecha y recinto.', ruta: '/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos', estado: 'comprobable' },
-      { id: 'CU-OR-06.1', nombre: 'Enviar solicitud ordinaria', actor: 'Organizador', interfaz: 'UI-20 · Solicitud formal de evento', descripcion: 'El organizador valida el borrador y envía una solicitud ordinaria para revisión institucional.', ruta: '/solicitar-evento', estado: 'parcial' },
-      { id: 'CU-OR-06.2', nombre: 'Enviar solicitud extraordinaria', actor: 'Organizador', interfaz: 'UI-20 · Solicitud formal de evento', descripcion: 'El organizador envía una solicitud extraordinaria con la justificación obligatoria cuando no cumple la anticipación requerida.', ruta: '/solicitar-evento', estado: 'parcial' },
-      { id: 'CU-OR-07', nombre: 'Editar solicitud en revisión', actor: 'Organizador', interfaz: 'UI-21 · Detalle y dictamen de solicitud', descripcion: 'El organizador consulta una solicitud en revisión y edita los datos que todavía pueden modificarse.', ruta: '/organizador/solicitudes/sol-simposio-ia', estado: 'parcial' },
-      { id: 'CU-OR-08', nombre: 'Corregir solicitud devuelta', actor: 'Organizador', interfaz: 'UI-21 · Detalle y dictamen de solicitud', descripcion: 'El organizador revisa las observaciones de devolución y corrige la solicitud antes de reenviarla.', ruta: '/organizador/solicitudes/sol-simposio-ia', estado: 'pendiente' },
-      { id: 'CU-OR-09', nombre: 'Cancelar solicitud pendiente', actor: 'Organizador', interfaz: 'UI-21 · Detalle y dictamen de solicitud', descripcion: 'El organizador solicita la cancelación de una solicitud que todavía no ha sido resuelta.', ruta: '/organizador/solicitudes/sol-simposio-ia', estado: 'pendiente' },
-      { id: 'CU-OR-10', nombre: 'Atender solicitud extraordinaria', actor: 'Subdirección', interfaz: 'UI-50 · Bandeja de dictamen de Subdirección', descripcion: 'Subdirección revisa una solicitud extraordinaria y registra la decisión institucional con su justificación.', ruta: '/subdireccion', estado: 'parcial' },
-      { id: 'CU-OR-11', nombre: 'Crear evento propio con autoaprobación', actor: 'Organizador verificado', interfaz: 'UI-30 · Panel de organización', descripcion: 'El organizador verificado crea un evento propio cuando las reglas de autoaprobación lo permiten.', ruta: '/organizador', estado: 'pendiente' },
-      { id: 'CU-OR-12', nombre: 'Aplicar excepción de anticipación', actor: 'Subdirección', interfaz: 'UI-53 · Creación directa de evento oficial', descripcion: 'Subdirección registra una excepción motivada a la regla de anticipación de una solicitud.', ruta: '/subdireccion?tab=evento_directo', estado: 'pendiente' },
-      { id: 'CU-OR-15', nombre: 'Configurar arreglo del recinto', actor: 'Organizador', interfaz: 'UI-35 · Editor de distribución de lugares', descripcion: 'El organizador modifica la distribución de lugares del recinto para una fecha concreta.', ruta: '/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos', estado: 'comprobable' },
-      { id: 'CU-OR-16', nombre: 'Gestionar versiones de arreglos', actor: 'Organizador', interfaz: 'UI-35 · Editor de distribución de lugares', descripcion: 'El organizador consulta y administra las versiones guardadas de un arreglo.', ruta: '/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos', estado: 'parcial' },
-      { id: 'CU-OR-17', nombre: 'Establecer versión final del arreglo', actor: 'Organizador', interfaz: 'UI-35 · Editor de distribución de lugares', descripcion: 'El organizador valida y confirma una versión final de lugares para habilitar el acceso controlado.', ruta: '/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos', estado: 'comprobable' },
-      { id: 'CU-OR-18', nombre: 'Consultar constancia operativa', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador consulta la constancia y el estado operativo de un evento aprobado.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'parcial' },
-      { id: 'CU-OR-19', nombre: 'Modificar información de un evento aprobado', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador modifica la información permitida de un evento aprobado respetando sus restricciones.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'parcial' },
-      { id: 'CU-OR-20', nombre: 'Reprogramar fecha u horario de un evento', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador propone un cambio de fecha u horario y el sistema valida sus restricciones.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
-      { id: 'CU-OR-21', nombre: 'Cambiar recinto de una fecha aprobada', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador propone otro recinto para una fecha aprobada y el sistema verifica disponibilidad y compatibilidad.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
-      { id: 'CU-OR-22', nombre: 'Retirar un día sin compromisos', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador retira un día cuando no existen reservaciones o compromisos que lo impidan.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
-      { id: 'CU-OR-23', nombre: 'Cancelar evento aprobado', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador inicia la cancelación de un evento aprobado y el sistema aplica las reglas de afectación.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
-      { id: 'CU-OR-24', nombre: 'Cancelar un día de un evento', actor: 'Organizador', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El organizador cancela un solo día y el sistema conserva los demás cuando corresponde.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
-      { id: 'CU-OR-25', nombre: 'Resolver fecha suspendida por bloqueo institucional', actor: 'Organizador o Subdirección', interfaz: 'UI-31 · Configuración y checklist de evento', descripcion: 'El actor autorizado revisa una fecha suspendida y registra una resolución compatible con el bloqueo institucional.', ruta: '/organizador/eventos/evt-taller-devops-config', estado: 'pendiente' },
-      { id: 'CU-OR-26', nombre: 'Administrar catálogo de recintos', actor: 'Administrador o Subdirección', interfaz: 'UI-20 · Catálogo y disponibilidad de recintos', descripcion: 'El actor autorizado administra los datos, capacidad y estado operativo de los recintos.', ruta: '/solicitar-evento', estado: 'pendiente' },
-      { id: 'CU-OR-27', nombre: 'Gestionar ocupaciones internas', actor: 'Subdirección', interfaz: 'UI-51 · Agenda multi-recinto de ocupación', descripcion: 'Subdirección registra y consulta ocupaciones internas que afectan la disponibilidad de los recintos.', ruta: '/subdireccion?tab=agenda', estado: 'parcial' },
-      { id: 'CU-OR-28', nombre: 'Gestionar bloqueos institucionales', actor: 'Subdirección', interfaz: 'UI-52 · Gestión de bloqueos extraordinarios', descripcion: 'Subdirección crea, consulta y mantiene bloqueos institucionales de recintos.', ruta: '/subdireccion?tab=bloqueos', estado: 'comprobable' }
+      { id: 'CU-OR-01', nombre: 'Preparar borrador de solicitud', actor: 'Solicitante verificado', interfaz: 'UI.03 · Detalle de solicitud', descripcion: 'El solicitante captura la información del evento y conserva los datos como borrador antes de enviarlos.', ruta: '/solicitar-evento' },
+      { id: 'CU-OR-02', nombre: 'Consultar historial de solicitudes propias', actor: 'Solicitante verificado', interfaz: 'UI.02 · Historial de solicitudes propias', descripcion: 'Consulta sus trámites, estados, versiones, observaciones y abre su detalle.', ruta: '/organizador' },
+      { id: 'CU-OR-03', nombre: 'Revisar y resolver solicitud ordinaria', actor: 'Subdirección', interfaz: 'UI.06–UI.07 · Bandeja y detalle de solicitud', descripcion: 'Revisa la solicitud y puede autorizarla, devolverla para corrección o rechazarla con motivo.', ruta: '/subdireccion' },
+      { id: 'CU-OR-04', nombre: 'Consultar catálogo y detalle de recintos', actor: 'Solicitante verificado', interfaz: 'UI.05–UI.06 · Catálogo y detalle de recinto', descripcion: 'Consulta características, capacidad, distribución y disponibilidad antes de elegir un espacio.', ruta: '/solicitar-evento' },
+      { id: 'CU-OR-05', nombre: 'Configurar arreglo de asientos', actor: 'Organizador', interfaz: 'UI.07 · Editor de arreglos', descripcion: 'Configura lugares para un día y recinto del evento.', ruta: '/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos' },
+      { id: 'CU-OR-06.1', nombre: 'Enviar solicitud ordinaria', actor: 'Solicitante verificado', interfaz: 'UI.03 y UI.08 · Solicitud y revisión', descripcion: 'Confirma el envío de la solicitud ordinaria y consulta su folio y estado.', ruta: '/solicitar-evento' },
+      { id: 'CU-OR-06.2', nombre: 'Enviar solicitud extraordinaria', actor: 'Solicitante verificado', interfaz: 'UI.09 y UI.08 · Preparación y revisión extraordinaria', descripcion: 'Captura la justificación y confirma el envío extraordinario para revisión prioritaria.', ruta: '/solicitar-evento' },
+      { id: 'CU-OR-07', nombre: 'Editar solicitud en revisión', actor: 'Solicitante verificado', interfaz: 'UI.03 · Detalle de solicitud', descripcion: 'Edita los datos permitidos de una solicitud en revisión y guarda la nueva versión.', ruta: '/organizador/solicitudes/sol-revision-ordinaria-demo' },
+      { id: 'CU-OR-08', nombre: 'Corregir solicitud devuelta', actor: 'Solicitante verificado', interfaz: 'UI.04 · Corrección de solicitud', descripcion: 'Atiende las observaciones dentro del plazo y reenvía el trámite corregido.', ruta: '/organizador/solicitudes/sol-correccion-demo' },
+      { id: 'CU-OR-09', nombre: 'Cancelar solicitud pendiente', actor: 'Solicitante verificado', interfaz: 'UI.05 · Confirmación de cancelación', descripcion: 'Confirma la cancelación de un borrador o trámite aún no resuelto.', ruta: '/organizador/solicitudes/sol-borrador-demo' },
+      { id: 'CU-OR-10', nombre: 'Atender solicitud extraordinaria', actor: 'Subdirección', interfaz: 'UI.06–UI.07 · Bandeja y detalle de solicitud', descripcion: 'Revisa la justificación, urgencia y disponibilidad, y emite una decisión motivada.', ruta: '/subdireccion' },
+      { id: 'CU-OR-11', nombre: 'Crear evento propio (Autoaprobación)', actor: 'Subdirección', interfaz: 'UI.08 · Crear evento propio', descripcion: 'Registra y publica directamente un evento institucional, omitiendo la bandeja de revisión y la anticipación de 168 horas.', ruta: '/subdireccion?tab=evento_directo' },
+      { id: 'CU-OR-12', nombre: 'Aplicar excepción de anticipación', actor: 'Subdirección', interfaz: 'UI.09–UI.10 · Edición y modal de excepción', descripcion: 'Reprograma un evento a menos de 168 horas con justificación, validación de disponibilidad y registro del motivo.', ruta: '/organizador/eventos/evt-simposio-ia' },
+      { id: 'CU-OR-15', nombre: 'Configurar arreglo del recinto', actor: 'Organizador', interfaz: 'UI.07 · Editor de arreglos', descripcion: 'Configura el arreglo de lugares para una fecha concreta del evento.', ruta: '/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos' },
+      { id: 'CU-OR-16', nombre: 'Gestionar versiones de arreglos', actor: 'Organizador', interfaz: 'UI.07 · Editor e historial de versiones', descripcion: 'Consulta, guarda y compara versiones del arreglo de lugares.', ruta: '/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos' },
+      { id: 'CU-OR-17', nombre: 'Establecer versión final del arreglo', actor: 'Organizador', interfaz: 'UI.07 · Editor de arreglos', descripcion: 'Valida y establece la versión final del arreglo de lugares.', ruta: '/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos' },
+      { id: 'CU-OR-18', nombre: 'Consultar constancia operativa', actor: 'Organizador', interfaz: 'UI.02 · Detalle operativo del evento', descripcion: 'Consulta e imprime la información operativa del evento y sus días aprobados.', ruta: '/organizador/eventos/evt-simposio-ia' },
+      { id: 'CU-OR-19', nombre: 'Modificar información de un evento aprobado', actor: 'Organizador', interfaz: 'UI.09 · Edición de evento', descripcion: 'Actualiza la información general permitida y conserva los datos de operación.', ruta: '/organizador/eventos/evt-simposio-ia' },
+      { id: 'CU-OR-20', nombre: 'Reprogramar fecha u horario de un evento', actor: 'Organizador o Subdirección', interfaz: 'UI.09–UI.10 · Edición y excepción', descripcion: 'Propone fecha y horario; el sistema comprueba disponibilidad y requiere excepción institucional si faltan 168 horas.', ruta: '/organizador/eventos/evt-simposio-ia' },
+      { id: 'CU-OR-21', nombre: 'Cambiar recinto de una fecha aprobada', actor: 'Organizador', interfaz: 'UI.09 · Edición de evento', descripcion: 'Cambia el recinto de un día previa comprobación de capacidad, disponibilidad y compromisos.', ruta: '/organizador/eventos/evt-simposio-ia' },
+      { id: 'CU-OR-22', nombre: 'Retirar una fecha o día sin compromisos', actor: 'Organizador', interfaz: 'UI.02 · Detalle operativo del evento', descripcion: 'Retira un día que no tenga reservaciones ni compromisos asociados.', ruta: '/organizador/eventos/evt-simposio-ia' },
+      { id: 'CU-OR-23', nombre: 'Cancelar evento aprobado', actor: 'Organizador', interfaz: 'UI.02 · Detalle operativo del evento', descripcion: 'Solicita la cancelación del evento y confirma las afectaciones antes de liberar espacios.', ruta: '/organizador/eventos/evt-simposio-ia' },
+      { id: 'CU-OR-24', nombre: 'Cancelar una fecha o día de un evento', actor: 'Organizador', interfaz: 'UI.02 · Detalle operativo del evento', descripcion: 'Cancela un día específico conservando los restantes y atendiendo sus compromisos.', ruta: '/organizador/eventos/evt-simposio-ia' },
+      { id: 'CU-OR-25', nombre: 'Resolver fecha suspendida por bloqueo institucional', actor: 'Organizador o Subdirección', interfaz: 'UI.02 · Detalle operativo del evento', descripcion: 'Resuelve un día afectado por un bloqueo mediante reprogramación compatible o cancelación.', ruta: '/organizador/eventos/evt-simposio-ia' },
+      { id: 'CU-OR-26', nombre: 'Administrar catálogo de recintos', actor: 'Administrador o Subdirección', interfaz: 'UI.02–UI.05 · Catálogo administrativo', descripcion: 'Registra, actualiza y activa o desactiva recintos institucionales.', ruta: '/subdireccion/recintos' },
+      { id: 'CU-OR-27', nombre: 'Gestionar ocupaciones internas', actor: 'Administrador', interfaz: 'UI.06–UI.08 · Agenda y ocupación interna', descripcion: 'Registra y cancela actividades internas que afectan la disponibilidad de los recintos.', ruta: '/subdireccion/ocupaciones' },
+      { id: 'CU-OR-28', nombre: 'Gestionar bloqueos institucionales', actor: 'Administrador', interfaz: 'UI.09–UI.12 · Gestión de bloqueos', descripcion: 'Registra y mantiene bloqueos institucionales, consultando el impacto en los recintos.', ruta: '/subdireccion?tab=bloqueos' }
     ]
   },
   {
@@ -352,6 +352,36 @@ const ESCENARIOS = [
   { id: 'G', titulo: 'Ocupabilidad en vivo', descripcion: 'Mapa de lugares ocupados, reservados y libres.', ruta: '/staff/ocupacion?eventId=evt-simposio-ia&dateId=fec-simposio-d1', usuario: 'usr-andrea', rol: 'staff' as const }
 ];
 
+const PERFILES_DEMO_ORGANIZACION: Record<string, { usuario: string; rol: NonNullable<CasoDeUso['rolDemo']> }> = {
+  'CU-OR-01': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-02': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-03': { usuario: 'usr-subdireccion', rol: 'subdireccion' },
+  'CU-OR-04': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-05': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-06.1': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-06.2': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-07': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-08': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-09': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-10': { usuario: 'usr-subdireccion', rol: 'subdireccion' },
+  'CU-OR-11': { usuario: 'usr-subdireccion', rol: 'subdireccion' },
+  'CU-OR-12': { usuario: 'usr-subdireccion', rol: 'subdireccion' },
+  'CU-OR-15': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-16': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-17': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-18': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-19': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-20': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-21': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-22': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-23': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-24': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-25': { usuario: 'usr-silva', rol: 'organizador' },
+  'CU-OR-26': { usuario: 'usr-admin', rol: 'admin' },
+  'CU-OR-27': { usuario: 'usr-admin', rol: 'admin' },
+  'CU-OR-28': { usuario: 'usr-admin', rol: 'admin' }
+};
+
 export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ navegarA }) => {
   const [estaAbierto, setEstaAbierto] = useState(false);
   const [vista, setVista] = useState<'casos' | 'escenarios'>('casos');
@@ -376,14 +406,17 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ na
 
   const abrirPantalla = (caso: CasoDeUso) => {
     setCasoActivo(caso.id);
-    if (caso.usuarioDemo && caso.rolDemo) {
-      cambiarUsuario(caso.usuarioDemo);
-      cambiarRolActivo(caso.rolDemo);
+    const perfilDemo = (caso.usuarioDemo && caso.rolDemo)
+      ? { usuario: caso.usuarioDemo, rol: caso.rolDemo }
+      : PERFILES_DEMO_ORGANIZACION[caso.id];
+    if (perfilDemo) {
+      cambiarUsuario(perfilDemo.usuario);
+      cambiarRolActivo(perfilDemo.rol);
     }
     if (caso.ruta) {
       navegarA(caso.ruta);
     }
-    if (caso.usuarioDemo) {
+    if (perfilDemo) {
       mostrarNotificacion('Perfil de demostración activado', `${caso.actor} · ${caso.interfaz}`, 'informacion');
     }
   };

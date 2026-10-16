@@ -21,22 +21,24 @@ import { ElementoFechaSolicitada, ModalidadAsistencia, VisibilidadEvento } from 
 
 interface PropiedadesSolicitudEvento {
   navigate: (ruta: string) => void;
+  requestId?: string;
 }
 
-export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ navigate }) => {
-  const { listaRecintos, verificarDisponibilidadRecinto, crearSolicitud } = useDatos();
+export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ navigate, requestId }) => {
+  const { listaRecintos, listaSolicitudes, verificarDisponibilidadRecinto, crearSolicitud, guardarBorradorSolicitud, actualizarSolicitud, dictaminarSolicitud } = useDatos();
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
+  const solicitudEnEdicion = listaSolicitudes.find((solicitud) => solicitud.id === requestId);
 
   // Campos generales y de solicitud unificados
-  const [titulo, setTitulo] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [modalidad, setModalidad] = useState<ModalidadAsistencia>('controlado');
-  const [visibilidad, setVisibilidad] = useState<VisibilidadEvento>('publico');
-  const [asistenciaEstimada, setAsistenciaEstimada] = useState(120);
+  const [titulo, setTitulo] = useState(() => solicitudEnEdicion?.tituloEvento || '');
+  const [descripcion, setDescripcion] = useState(() => solicitudEnEdicion?.descripcionEvento || '');
+  const [modalidad, setModalidad] = useState<ModalidadAsistencia>(() => solicitudEnEdicion?.modalidadAsistencia || 'controlado');
+  const [visibilidad, setVisibilidad] = useState<VisibilidadEvento>(() => solicitudEnEdicion?.visibilidad || 'publico');
+  const [asistenciaEstimada, setAsistenciaEstimada] = useState(() => solicitudEnEdicion?.asistenciaEstimada || 120);
 
   // Lista unificada de días y fechas solicitadas con programa/actividad por día
-  const [fechas, setFechas] = useState<ElementoFechaSolicitada[]>([
+  const [fechas, setFechas] = useState<ElementoFechaSolicitada[]>(() => solicitudEnEdicion?.fechasSolicitadas || [
     {
       id: `fec-temp-1`,
       nombreDia: 'Día 1',
@@ -48,10 +50,10 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
     }
   ]);
 
-  const [justificacionExcepcional, setJustificacionExcepcional] = useState('');
+  const [justificacionExcepcional, setJustificacionExcepcional] = useState(() => solicitudEnEdicion?.justificacionExcepcional || '');
 
   // Validación de la Regla de Anticipación (Mínimo 7 días)
-  const hoy = new Date('2026-09-30'); // Fecha base de simulación
+  const hoy = new Date();
   const fechaLimite7Dias = new Date(hoy.getTime() + 7 * 24 * 60 * 60 * 1000);
   const cadenaLimite7Dias = fechaLimite7Dias.toISOString().split('T')[0];
 
@@ -95,6 +97,35 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
   const manejarEnvio = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (solicitudEnEdicion && (!usuarioActual || solicitudEnEdicion.idSolicitante !== usuarioActual.id)) {
+      mostrarNotificacion('Sin autorización', 'Solo la persona solicitante puede editar este trámite.', 'error');
+      navigate('/organizador'); return;
+    }
+    if (solicitudEnEdicion && !['borrador', 'en_revision', 'requiere_correccion'].includes(solicitudEnEdicion.estado)) {
+      mostrarNotificacion('Edición no disponible', 'Este trámite ya no admite cambios.', 'advertencia');
+      navigate(`/organizador/solicitudes/${solicitudEnEdicion.id}`); return;
+    }
+    if (solicitudEnEdicion?.estado === 'requiere_correccion' && solicitudEnEdicion.fechaLimiteCorreccion && Date.now() > new Date(solicitudEnEdicion.fechaLimiteCorreccion).getTime()) {
+      dictaminarSolicitud(solicitudEnEdicion.id, 'rechazada', 'El plazo de 24 horas para corregir la solicitud expiró.', 'Sistema');
+      mostrarNotificacion('Plazo vencido', 'El sistema cerró el trámite porque vencieron las 24 horas para corregir.', 'error');
+      navigate(`/organizador/solicitudes/${solicitudEnEdicion.id}`); return;
+    }
+
+    if (usuarioActual && usuarioActual.correoConfirmado === false) {
+      mostrarNotificacion('Confirma tu correo', 'Confirma tu correo electrónico antes de enviar solicitudes.', 'advertencia');
+      navigate('/perfil');
+      return;
+    }
+    if (usuarioActual && usuarioActual.esVerificado !== true) {
+      mostrarNotificacion('Verificación requerida', 'Envía tu expediente documental y espera el dictamen de Subdirección.', 'advertencia');
+      navigate('/perfil');
+      return;
+    }
+    if (usuarioActual?.restriccionSolicitudesHasta && usuarioActual.restriccionSolicitudesHasta >= new Date().toISOString().slice(0, 10)) {
+      mostrarNotificacion('Solicitud restringida', `No puedes crear solicitudes hasta ${usuarioActual.restriccionSolicitudesHasta}.`, 'error');
+      return;
+    }
+
     if (!titulo.trim() || !descripcion.trim()) {
       mostrarNotificacion('Campos incompletos', 'Ingresa el título y la descripción del evento', 'advertencia');
       return;
@@ -128,7 +159,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
       return;
     }
 
-    const nuevaSolicitud = crearSolicitud({
+    const datosSolicitud = {
       idSolicitante: usuarioActual.id,
       nombreSolicitante: usuarioActual.nombre,
       correoSolicitante: usuarioActual.correo,
@@ -142,7 +173,10 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
       asistenciaEstimada,
       esExcepcional: requiereJustificacion,
       justificacionExcepcional: requiereJustificacion ? justificacionExcepcional : undefined
-    });
+    };
+    const nuevaSolicitud = solicitudEnEdicion
+      ? (actualizarSolicitud(solicitudEnEdicion.id, datosSolicitud, true), { ...solicitudEnEdicion, ...datosSolicitud, estado: 'en_revision' as const })
+      : crearSolicitud(datosSolicitud);
 
     mostrarNotificacion(
       'Solicitud enviada a Subdirección',
@@ -151,6 +185,36 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
     );
 
     navigate(`/organizador/solicitudes/${nuevaSolicitud.id}`);
+  };
+
+  const manejarGuardarBorrador = () => {
+    if (!usuarioActual) {
+      mostrarNotificacion('Inicia sesión', 'Necesitas una cuenta para guardar un borrador.', 'advertencia');
+      navigate('/login'); return;
+    }
+    if (usuarioActual.esVerificado !== true) {
+      mostrarNotificacion('Verificación requerida', 'La preparación de trámites está disponible para solicitantes verificados.', 'advertencia');
+      navigate('/identidad/expediente'); return;
+    }
+    if (solicitudEnEdicion && solicitudEnEdicion.idSolicitante !== usuarioActual.id) {
+      mostrarNotificacion('Sin autorización', 'Solo la persona solicitante puede editar este borrador.', 'error'); return;
+    }
+    if (!titulo.trim() || !descripcion.trim()) {
+      mostrarNotificacion('Completa la información básica', 'El título y la descripción permiten identificar el borrador.', 'advertencia'); return;
+    }
+    const datosBorrador = {
+      idSolicitante: usuarioActual.id, nombreSolicitante: usuarioActual.nombre,
+      correoSolicitante: usuarioActual.correo, afiliacionSolicitante: usuarioActual.afiliacion,
+      identificadorSolicitante: usuarioActual.boleta || usuarioActual.numeroEmpleado || usuarioActual.nombreOrganizacion,
+      tituloEvento: titulo.trim(), descripcionEvento: descripcion.trim(), fechasSolicitadas: fechas,
+      modalidadAsistencia: modalidad, visibilidad, asistenciaEstimada, esExcepcional: requiereJustificacion,
+      justificacionExcepcional: justificacionExcepcional || undefined
+    };
+    const borrador = solicitudEnEdicion
+      ? (actualizarSolicitud(solicitudEnEdicion.id, datosBorrador), solicitudEnEdicion)
+      : guardarBorradorSolicitud(datosBorrador);
+    mostrarNotificacion('Borrador guardado', 'Puedes consultarlo desde Mis solicitudes.', 'exito');
+    navigate(`/organizador/solicitudes/${borrador.id}`);
   };
 
   return (
@@ -353,7 +417,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
                           {etiquetaDia}
                         </span>
                         <span className="text-neutral-500 font-medium text-[11px]">
-                          Sesión {indice + 1} del evento
+                          Día {indice + 1} del evento
                         </span>
                         {esMenor7Dias && (
                           <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
@@ -424,7 +488,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
                           onChange={(e) => actualizarFecha(f.id, 'idRecinto', e.target.value)}
                           className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-[#7a132b]"
                         >
-                          {listaRecintos.map((r) => (
+                          {listaRecintos.filter((r) => r.activo !== false).map((r) => (
                             <option key={r.id} value={r.id}>
                               {r.nombre} ({r.capacidad} cap)
                             </option>
@@ -442,7 +506,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
                         type="text"
                         value={f.actividadOPrograma || ''}
                         onChange={(e) => actualizarFecha(f.id, 'actividadOPrograma', e.target.value)}
-                        placeholder="ej: 10:00 Conferencia inaugural, 11:30 Panel de debate, 13:00 Sesión de preguntas"
+                        placeholder="ej: 10:00 Conferencia inaugural, 11:30 Panel de debate, 13:00 Ronda de preguntas"
                         className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 text-xs focus:outline-none focus:border-[#7a132b]"
                       />
                     </div>
@@ -484,6 +548,11 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
         <div className="flex items-center justify-end gap-3 pt-2">
           <button
             type="button"
+            onClick={manejarGuardarBorrador}
+            className="px-4 py-2.5 border border-neutral-300 rounded-xl text-xs font-semibold text-neutral-700 hover:bg-neutral-50 cursor-pointer transition-colors"
+          >Guardar borrador</button>
+          <button
+            type="button"
             onClick={() => navigate('/organizador')}
             className="px-4 py-2.5 border border-neutral-300 rounded-xl text-xs font-semibold text-neutral-700 hover:bg-neutral-50 cursor-pointer transition-colors"
           >
@@ -494,7 +563,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
             className="boton-primario px-6 py-2.5 text-xs font-bold flex items-center gap-2 cursor-pointer shadow-xs"
           >
             <Send className="w-4 h-4" />
-            <span>Enviar Solicitud a Subdirección</span>
+            <span>{solicitudEnEdicion?.estado === 'requiere_correccion' ? 'Guardar corrección y reenviar' : solicitudEnEdicion ? 'Guardar y enviar cambios' : 'Enviar Solicitud a Subdirección'}</span>
           </button>
         </div>
       </form>

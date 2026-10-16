@@ -251,6 +251,9 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                     } else if (ocu.tipo === 'actividad_institucional') {
                       estiloFondo = 'bg-[#7a132b] text-white border-[#5a0d1f]';
                       etiquetaTipo = 'Institucional';
+                    } else if (ocu.tipo === 'ocupacion_interna') {
+                      estiloFondo = 'bg-violet-700 text-white border-violet-800';
+                      etiquetaTipo = 'Ocupación interna';
                     }
 
                     return (
@@ -314,7 +317,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
         </div>
 
         <div className="text-[11px] text-neutral-400 font-mono">
-          Regla: 30 minutos de amortiguamiento entre sesiones consecutivas
+          Regla: 30 minutos de amortiguamiento entre actividades consecutivas
         </div>
       </div>
 

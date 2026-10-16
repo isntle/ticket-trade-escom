@@ -24,3 +24,4 @@ export { OcupabilidadVivoPagina } from './OcupabilidadVivoPagina';
 export { AdministracionUsuariosPagina } from './AdministracionUsuariosPagina';
 export { PerfilUsuarioPagina } from './PerfilUsuarioPagina';
 export { AutenticacionPagina } from './AutenticacionPagina';
+export { AdministracionRecintosPagina } from './AdministracionRecintosPagina';
