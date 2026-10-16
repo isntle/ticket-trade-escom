@@ -24,6 +24,13 @@ import { InsigniaEstado } from '../componentes/ui/InsigniaEstado';
 import { EstadoVacio } from '../componentes/ui/EstadoVacio';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 
+interface PropuestaEdicionEvento {
+  titulo: string;
+  descripcion: string;
+  ponentes: string[];
+  urlImagen?: string;
+}
+
 interface PropiedadesConfiguracionEvento {
   eventId: string;
   navigate: (ruta: string) => void;
@@ -36,6 +43,10 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   const { listaEventos, listaRecintos, listaArreglos, listaReservaciones, bitacoraEscaneos, obtenerListaDeVerificacion, publicarEvento, actualizarEvento, eliminarFechaEvento, verificarDisponibilidadRecinto, cancelarReservacionPorEvento } = useDatos();
   const { mostrarNotificacion } = useNotificaciones();
   const { usuarioActual, rolActivo } = useAutenticacion();
+  const [propuestaEdicion, setPropuestaEdicion] = React.useState<PropuestaEdicionEvento | null>(null);
+  const [urlBannerPropuesto, setUrlBannerPropuesto] = React.useState<string | undefined>();
+  const [errorBanner, setErrorBanner] = React.useState('');
+  const [nombreBanner, setNombreBanner] = React.useState('');
 
   const evento = listaEventos.find((e) => e.id === eventId);
   const checklist = obtenerListaDeVerificacion(eventId);
@@ -54,6 +65,76 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   }
 
   const puedeGestionar = evento.idOrganizador === usuarioActual?.id || rolActivo === 'subdireccion' || rolActivo === 'admin';
+
+  const prepararBanner = async (archivo: File) => {
+    setErrorBanner('');
+    if (!['image/jpeg', 'image/png'].includes(archivo.type) || archivo.size > 5 * 1024 * 1024) {
+      setErrorBanner('Selecciona una imagen JPEG o PNG de máximo 5 MiB.');
+      return;
+    }
+    try {
+      const imagen = new Image();
+      const urlTemporal = URL.createObjectURL(archivo);
+      imagen.src = urlTemporal;
+      await new Promise<void>((resolve, reject) => {
+        imagen.onload = () => resolve();
+        imagen.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+      });
+      const escala = Math.min(1, 1800 / imagen.width, 1200 / imagen.height);
+      const lienzo = document.createElement('canvas');
+      lienzo.width = Math.max(1, Math.round(imagen.width * escala));
+      lienzo.height = Math.max(1, Math.round(imagen.height * escala));
+      const contexto = lienzo.getContext('2d');
+      if (!contexto) throw new Error('No se pudo preparar la vista previa.');
+      contexto.fillStyle = '#ffffff';
+      contexto.fillRect(0, 0, lienzo.width, lienzo.height);
+      contexto.drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
+      const imagenOptimizada = lienzo.toDataURL('image/jpeg', 0.82);
+      URL.revokeObjectURL(urlTemporal);
+      setUrlBannerPropuesto(imagenOptimizada);
+      setPropuestaEdicion((actual) => actual ? { ...actual, urlImagen: imagenOptimizada } : actual);
+      setNombreBanner(archivo.name);
+    } catch {
+      setErrorBanner('No se pudo procesar la imagen seleccionada.');
+    }
+  };
+
+  const confirmarEdicionEvento = () => {
+    if (!evento || !propuestaEdicion || !usuarioActual) return;
+    const anterior = { titulo: evento.titulo, descripcion: evento.descripcion, ponentes: [...evento.ponentes], urlImagen: evento.urlImagen };
+    const campos = [
+      anterior.titulo !== propuestaEdicion.titulo && 'título',
+      anterior.descripcion !== propuestaEdicion.descripcion && 'descripción',
+      JSON.stringify(anterior.ponentes) !== JSON.stringify(propuestaEdicion.ponentes) && 'ponentes',
+      propuestaEdicion.urlImagen !== undefined && propuestaEdicion.urlImagen !== anterior.urlImagen && 'banner'
+    ].filter((campo): campo is string => Boolean(campo));
+    if (!campos.length) {
+      mostrarNotificacion('Sin cambios', 'No modificaste la información del evento.', 'informacion');
+      setPropuestaEdicion(null);
+      setUrlBannerPropuesto(undefined);
+      setNombreBanner('');
+      return;
+    }
+    const valoresNuevos = {
+      titulo: propuestaEdicion.titulo,
+      descripcion: propuestaEdicion.descripcion,
+      ponentes: propuestaEdicion.ponentes,
+      ...(propuestaEdicion.urlImagen ? { urlImagen: propuestaEdicion.urlImagen } : {})
+    };
+    const historialCambios = [...(evento.historialCambios || []), {
+      version: (evento.historialCambios?.length || 0) + 1,
+      fecha: new Date().toISOString(),
+      responsable: usuarioActual.nombre,
+      campos,
+      valoresAnteriores: anterior,
+      valoresNuevos
+    }];
+    actualizarEvento(evento.id, { ...valoresNuevos, historialCambios });
+    mostrarNotificacion('Información actualizada', `Se guardó la versión ${historialCambios.length} del evento.`, 'exito');
+    setPropuestaEdicion(null);
+    setNombreBanner('');
+    setUrlBannerPropuesto(undefined);
+  };
 
   const obtenerNombreRecinto = (idRecinto: string) => {
     const r = listaRecintos.find((rec) => rec.id === idRecinto);
@@ -76,8 +157,9 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
 
   const imprimirConstancia = () => {
     const escapar = (texto: string) => texto.replace(/[&<>"']/g, (caracter) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[caracter] || caracter);
-    const ventana = window.open('', '_blank', 'noopener,noreferrer');
+    const ventana = window.open('', '_blank');
     if (!ventana) { mostrarNotificacion('Ventana bloqueada', 'Permite ventanas emergentes para imprimir la constancia operativa.', 'advertencia'); return; }
+    ventana.opener = null;
     const filas = evento.fechas.map((dia, indice) => `<tr><td>Día ${indice + 1}</td><td>${escapar(dia.fecha)}</td><td>${escapar(dia.horaInicio)}–${escapar(dia.horaFin)}</td><td>${escapar(obtenerNombreRecinto(dia.idRecinto))}</td><td>${dia.cancelada ? 'Cancelado' : 'Programado'}</td></tr>`).join('');
     ventana.document.write(`<!doctype html><html lang="es"><meta charset="utf-8"><title>Constancia operativa · ${escapar(evento.titulo)}</title><style>body{font:14px Arial,sans-serif;margin:48px;color:#222}h1{font-size:24px}p{line-height:1.5}.folio{font-family:monospace;color:#555}table{border-collapse:collapse;width:100%;margin-top:24px}td,th{border:1px solid #bbb;padding:10px;text-align:left}th{background:#f3f3f3}.nota{margin-top:32px;color:#666;font-size:11px}@media print{body{margin:20mm}}</style><h1>Constancia operativa del evento</h1><p class="folio">Folio local: ${escapar(evento.id)} · Estado: ${escapar(evento.estado)}</p><h2>${escapar(evento.titulo)}</h2><p>${escapar(evento.descripcion)}</p><p>Organiza: ${escapar(evento.nombreOrganizador)} · Modalidad: ${escapar(evento.modalidadAsistencia)}</p><table><thead><tr><th>Día</th><th>Fecha</th><th>Horario</th><th>Recinto</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table><p class="nota">Documento de consulta generado desde los datos locales de Ticket Trade.</p></html>`);
     ventana.document.close();
@@ -208,10 +290,32 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         </div>
       </div>
 
-      {evento.estado === 'publicado' && puedeGestionar && <form onSubmit={(e) => { e.preventDefault(); const data = new FormData(e.currentTarget); const titulo = String(data.get('titulo') || '').trim(); const descripcion = String(data.get('descripcion') || '').trim(); if (!titulo || !descripcion) { mostrarNotificacion('Datos incompletos', 'El título y la descripción no pueden quedar vacíos.', 'advertencia'); return; } actualizarEvento(evento.id, { titulo, descripcion }); mostrarNotificacion('Información actualizada', 'Se guardaron los cambios del evento aprobado.', 'exito'); }} className="mb-8 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-5 sm:grid-cols-2">
-        <div className="sm:col-span-2"><h2 className="font-bold">Información del evento aprobado</h2><p className="text-xs text-neutral-500">Actualiza los datos generales sin modificar sus días ni compromisos.</p></div>
-        <label className="text-xs font-semibold">Título<input name="titulo" required defaultValue={evento.titulo} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label><label className="text-xs font-semibold sm:col-span-2">Descripción<textarea name="descripcion" required defaultValue={evento.descripcion} rows={3} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label><button className="w-fit rounded-lg bg-[#7a132b] px-4 py-2 text-xs font-bold text-white">Guardar información</button>
+      {evento.estado === 'publicado' && puedeGestionar && <form onSubmit={(e) => {
+        e.preventDefault();
+        const data = new FormData(e.currentTarget);
+        const titulo = String(data.get('titulo') || '').trim();
+        const descripcion = String(data.get('descripcion') || '').trim();
+        const ponentes = String(data.get('ponentes') || '').split('\n').map((ponente) => ponente.trim()).filter(Boolean);
+        if (!titulo || !descripcion || !ponentes.length) { mostrarNotificacion('Datos incompletos', 'El título, la descripción y al menos un ponente son obligatorios.', 'advertencia'); return; }
+        setPropuestaEdicion({ titulo, descripcion, ponentes, urlImagen: urlBannerPropuesto });
+      }} className="mb-8 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-5 sm:grid-cols-2">
+        <div className="sm:col-span-2"><h2 className="font-bold">Editar información del evento aprobado</h2><p className="text-xs text-neutral-500">Revisa título, descripción, ponentes y banner. La programación y los compromisos vigentes se conservan.</p></div>
+        <label className="text-xs font-semibold">Título<input name="titulo" required defaultValue={evento.titulo} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
+        <label className="text-xs font-semibold">Ponentes (uno por línea)<textarea name="ponentes" required defaultValue={evento.ponentes.join('\n')} rows={2} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
+        <label className="text-xs font-semibold sm:col-span-2">Descripción<textarea name="descripcion" required defaultValue={evento.descripcion} rows={3} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
+        <label className="text-xs font-semibold sm:col-span-2">Cambiar banner (JPEG/PNG, máximo 5 MiB)<input type="file" accept="image/jpeg,image/png" onChange={(e) => { const archivo = e.currentTarget.files?.[0]; if (archivo) void prepararBanner(archivo); }} className="mt-1 block w-full rounded-lg border p-2 text-sm"/>{nombreBanner && <span className="mt-1 block text-xs text-emerald-700">Vista previa preparada: {nombreBanner}</span>}{errorBanner && <span role="alert" className="mt-1 block text-xs text-rose-700">{errorBanner}</span>}</label>
+        {(propuestaEdicion?.urlImagen || evento.urlImagen) && <img src={propuestaEdicion?.urlImagen || evento.urlImagen} alt="Vista previa del banner del evento" className="max-h-48 w-full rounded-xl object-cover sm:col-span-2"/>}
+        <button className="w-fit rounded-lg bg-[#7a132b] px-4 py-2 text-xs font-bold text-white">Revisar cambios</button>
       </form>}
+
+      {propuestaEdicion && evento.estado === 'publicado' && puedeGestionar && <section role="dialog" aria-modal="true" aria-labelledby="confirmar-cambios-evento" className="mb-8 rounded-2xl border border-amber-300 bg-amber-50 p-5">
+        <h2 id="confirmar-cambios-evento" className="font-bold">Confirmar modificación del evento</h2>
+        <p className="mt-1 text-sm text-neutral-700">Revisa la información propuesta. Al confirmar se guardará una nueva versión en el historial.</p>
+        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="font-semibold">Título</dt><dd>{evento.titulo} → {propuestaEdicion.titulo}</dd></div><div><dt className="font-semibold">Ponentes</dt><dd>{evento.ponentes.join(', ')} → {propuestaEdicion.ponentes.join(', ')}</dd></div><div className="sm:col-span-2"><dt className="font-semibold">Descripción</dt><dd>{evento.descripcion} → {propuestaEdicion.descripcion}</dd></div>{propuestaEdicion.urlImagen && <div className="sm:col-span-2"><dt className="font-semibold">Banner</dt><dd className="mt-2 grid grid-cols-2 gap-3">{evento.urlImagen && <img src={evento.urlImagen} alt="Banner actual" className="max-h-36 w-full rounded-lg object-cover"/>}<img src={propuestaEdicion.urlImagen} alt="Banner propuesto" className="max-h-36 w-full rounded-lg object-cover"/></dd></div>}</dl>
+        <div className="mt-4 flex gap-2"><button type="button" onClick={confirmarEdicionEvento} className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white">Confirmar cambios</button><button type="button" onClick={() => { setPropuestaEdicion(null); setNombreBanner(''); setUrlBannerPropuesto(undefined); }} className="rounded-lg border px-4 py-2 text-xs font-bold">Cancelar</button></div>
+      </section>}
+
+      {evento.estado === 'publicado' && (evento.historialCambios?.length || 0) > 0 && <section className="mb-8 rounded-2xl border border-neutral-200 bg-white p-5"><h2 className="font-bold">Historial de modificaciones ({evento.historialCambios?.length})</h2><ol className="mt-3 space-y-2 text-xs text-neutral-600">{[...(evento.historialCambios || [])].reverse().map((cambio) => <li key={cambio.version} className="border-t pt-2"><strong>Versión {cambio.version}</strong> · {new Date(cambio.fecha).toLocaleString('es-MX')} · {cambio.responsable} · Campos: {cambio.campos.join(', ')}</li>)}</ol></section>}
 
       {/* ========================================================================= */}
       {/* BANNER HERO: ESTADO DE PREPARACIÓN PARA PUBLICAR                          */}

@@ -161,6 +161,14 @@ export interface Evento {
   fechaCierreInscripcion?: string;
   publicoPermitido?: RolUsuario[];
   historialExcepcionesAnticipacion?: Array<{ idFechaEvento: string; fechaAplicacion: string; motivo: string; responsable: string }>;
+  historialCambios?: Array<{
+    version: number;
+    fecha: string;
+    responsable: string;
+    campos: string[];
+    valoresAnteriores: { titulo: string; descripcion: string; ponentes: string[]; urlImagen?: string };
+    valoresNuevos: { titulo: string; descripcion: string; ponentes: string[]; urlImagen?: string };
+  }>;
 }
 
 // Tipos de recintos físicos en ESCOM
