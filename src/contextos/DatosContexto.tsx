@@ -1713,179 +1713,107 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     boleto?: BoletoDigital;
     mensaje: string;
   } => {
-    const boleto = listaBoletos.find((b) => b.codigoQr.trim() === codigoQr.trim());
-    const registrarRechazo = (resultado: RegistroEscaneo['resultado'], mensaje: string) => {
-      if (!boleto) return;
-      const registro: RegistroEscaneo = {
-        id: `esc-${Date.now()}`,
-        idBoleto: boleto.id,
-        idEvento: boleto.idEvento,
-        idFechaEvento: boleto.idFechaEvento,
-        fechaEscaneo: new Date().toISOString(),
-        escaneadoPor,
+    const codigoNormalizado = codigoQr.trim().toUpperCase();
+    const fechaHora = new Date().toISOString();
+    const registrarIntento = (datos: Omit<RegistroEscaneo, 'id' | 'fechaEscaneo' | 'escaneadoPor'>) => {
+      setBitacoraEscaneos((previas) => [{
+        ...datos,
+        id: `esc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        fechaEscaneo: fechaHora,
+        escaneadoPor
+      }, ...previas]);
+    };
+    const rechazar = (
+      resultado: RegistroEscaneo['resultado'],
+      mensaje: string,
+      boleto?: BoletoDigital,
+      registrar = true
+    ) => {
+      if (registrar) registrarIntento({
+        idBoleto: boleto?.id || 'desconocido',
+        idEvento: idEventoObjetivo || boleto?.idEvento || 'desconocido',
+        idFechaEvento: idFechaEventoObjetivo || boleto?.idFechaEvento || 'desconocido',
         resultado,
-        nombreAsistente: boleto.nombreUsuario,
-        etiquetaAsiento: boleto.etiquetaAsiento,
+        nombreAsistente: boleto?.nombreUsuario,
+        etiquetaAsiento: boleto?.etiquetaAsiento,
         notas: mensaje
-      };
-      setBitacoraEscaneos((previas) => [registro, ...previas]);
+      });
+      return { exito: false, resultado, mensaje, boleto };
     };
 
-    const eventoObjetivo = listaEventos.find((evento) => evento.id === (boleto?.idEvento || idEventoObjetivo));
+    // La autorización se comprueba contra el evento seleccionado, nunca contra
+    // el evento que pudiera revelar el código recibido.
+    const eventoObjetivo = listaEventos.find((evento) => evento.id === idEventoObjetivo);
     const puedeOperar = Boolean(
       operador?.estaActivo && eventoObjetivo && (
         (operador.roles.includes('organizador') && eventoObjetivo.idOrganizador === operador.id) ||
         (operador.roles.includes('staff') && operador.eventosAsignadosStaff?.includes(eventoObjetivo.id))
       )
     );
-
     if (!puedeOperar) {
-      return { exito: false, resultado: 'no_autorizado', boleto, mensaje: 'No tienes autorización para registrar accesos en este evento.' };
+      return rechazar('no_autorizado', 'No tienes autorización vigente para registrar accesos en este evento.', undefined, false);
     }
 
-    if (!boleto) {
-      const bitacora: RegistroEscaneo = {
-        id: `esc-${Date.now()}`,
-        idBoleto: 'desconocido',
-        idEvento: 'desconocido',
-        idFechaEvento: idFechaEventoObjetivo || 'desconocido',
-        fechaEscaneo: new Date().toISOString(),
-        escaneadoPor,
-        resultado: 'inexistente',
-        notas: `Código QR inexistente: ${codigoQr}`
-      };
-      setBitacoraEscaneos((previas) => [bitacora, ...previas]);
-      return {
-        exito: false,
-        resultado: 'inexistente',
-        mensaje: 'Boleto inexistente. El código QR no corresponde a ningún boleto emitido por ESCOM.'
-      };
-    }
-
-    if (boleto.estado === 'cancelado') {
-      const bitacora: RegistroEscaneo = {
-        id: `esc-${Date.now()}`,
-        idBoleto: boleto.id,
-        idEvento: boleto.idEvento,
-        idFechaEvento: boleto.idFechaEvento,
-        fechaEscaneo: new Date().toISOString(),
-        escaneadoPor,
-        resultado: 'cancelado',
-        nombreAsistente: boleto.nombreUsuario,
-        etiquetaAsiento: boleto.etiquetaAsiento
-      };
-      setBitacoraEscaneos((previas) => [bitacora, ...previas]);
-      return {
-        exito: false,
-        resultado: 'cancelado',
-        boleto,
-        mensaje: `Boleto CANCELADO. Este boleto fue revocado previamente por el usuario o administración.`
-      };
-    }
-
-    if (boleto.estado === 'utilizado') {
-      const bitacora: RegistroEscaneo = {
-        id: `esc-${Date.now()}`,
-        idBoleto: boleto.id,
-        idEvento: boleto.idEvento,
-        idFechaEvento: boleto.idFechaEvento,
-        fechaEscaneo: new Date().toISOString(),
-        escaneadoPor,
-        resultado: 'ya_utilizado',
-        nombreAsistente: boleto.nombreUsuario,
-        etiquetaAsiento: boleto.etiquetaAsiento
-      };
-      setBitacoraEscaneos((previas) => [bitacora, ...previas]);
-      return {
-        exito: false,
-        resultado: 'ya_utilizado',
-        boleto,
-        mensaje: `ALERTA: Este boleto YA FUE UTILIZADO el ${new Date(boleto.fechaCheckIn || '').toLocaleString('es-MX')} por ${boleto.revisadoPor || 'Staff'}.`
-      };
-    }
-
-    if (idFechaEventoObjetivo && boleto.idFechaEvento !== idFechaEventoObjetivo) {
-      const bitacora: RegistroEscaneo = {
-        id: `esc-${Date.now()}`,
-        idBoleto: boleto.id,
-        idEvento: boleto.idEvento,
-        idFechaEvento: boleto.idFechaEvento,
-        fechaEscaneo: new Date().toISOString(),
-        escaneadoPor,
-        resultado: 'fecha_invalida',
-        nombreAsistente: boleto.nombreUsuario,
-        etiquetaAsiento: boleto.etiquetaAsiento
-      };
-      setBitacoraEscaneos((previas) => [bitacora, ...previas]);
-      return {
-        exito: false,
-        resultado: 'fecha_invalida',
-        boleto,
-        mensaje: `FECHA INCORRECTA: Este boleto es para el día ${boleto.fechaEvento}, no para el día seleccionado.`
-      };
-    }
-
-    const fechaObjetivo = eventoObjetivo?.fechas.find((fecha) => fecha.id === boleto.idFechaEvento);
+    const fechaObjetivo = eventoObjetivo?.fechas.find((fecha) => fecha.id === idFechaEventoObjetivo);
     if (!eventoObjetivo || !fechaObjetivo) {
-      const mensaje = 'El evento o el día asociado al boleto ya no existe.';
-      registrarRechazo('evento_invalido', mensaje);
-      return { exito: false, resultado: 'evento_invalido', boleto, mensaje };
+      return rechazar('evento_invalido', 'El evento o el día seleccionado ya no está disponible.');
     }
-    const bloqueo = fechaObjetivo && listaBloqueos.find((elemento) => bloqueoAfectaSesion(elemento, fechaObjetivo));
-    if (eventoObjetivo?.estado === 'cancelado' || bloqueo) {
-      const mensaje = bloqueo ? `Día suspendido: ${bloqueo.titulo}.` : 'El evento está cancelado.';
-      registrarRechazo('suspendido', mensaje);
-      return { exito: false, resultado: 'suspendido', boleto, mensaje };
+    const bloqueo = listaBloqueos.find((elemento) => bloqueoAfectaSesion(elemento, fechaObjetivo));
+    if (eventoObjetivo.estado === 'cancelado' || bloqueo) {
+      return rechazar('suspendido', bloqueo ? `Día suspendido: ${bloqueo.titulo}.` : 'El evento está cancelado.');
     }
-
-    if (eventoObjetivo?.modalidadAsistencia !== 'controlado') {
-      const mensaje = 'Este evento no utiliza control de acceso mediante boleto.';
-      registrarRechazo('evento_invalido', mensaje);
-      return { exito: false, resultado: 'evento_invalido', boleto, mensaje };
+    if (eventoObjetivo.modalidadAsistencia !== 'controlado') {
+      return rechazar('evento_invalido', 'Este evento no utiliza control de acceso mediante boleto.');
+    }
+    const inicio = new Date(`${fechaObjetivo.fecha}T${fechaObjetivo.horaInicio}:00`).getTime() - 30 * 60 * 1000;
+    const fin = new Date(`${fechaObjetivo.fecha}T${fechaObjetivo.horaFin}:00`).getTime();
+    if (Date.now() < inicio || Date.now() >= fin) {
+      return rechazar('fuera_de_horario', 'El acceso se habilita 30 minutos antes del inicio y cierra al terminar la actividad.');
     }
 
-    if (fechaObjetivo) {
-      const inicio = new Date(`${fechaObjetivo.fecha}T${fechaObjetivo.horaInicio}:00`).getTime() - 30 * 60 * 1000;
-      const fin = new Date(`${fechaObjetivo.fecha}T${fechaObjetivo.horaFin}:00`).getTime();
-      if (Date.now() < inicio || Date.now() >= fin) {
-        const mensaje = 'El acceso se habilita 30 minutos antes del inicio y cierra al terminar la actividad.';
-        registrarRechazo('fuera_de_horario', mensaje);
-        return { exito: false, resultado: 'fuera_de_horario', boleto, mensaje };
+    // Los identificadores emitidos por Ticket Trade son opacos de 128 bits.
+    // No se guardan en bitácora los códigos capturados que no correspondan.
+    if (!/^TT-[A-F0-9]{32}$/.test(codigoNormalizado)) {
+      return rechazar('codigo_no_reconocido', 'El código no tiene el formato de un boleto Ticket Trade.');
+    }
+    const boleto = listaBoletos.find((item) => item.codigoQr.toUpperCase() === codigoNormalizado);
+    if (!boleto) {
+      return rechazar('inexistente', 'Boleto inexistente. El código no corresponde a un boleto emitido.');
+    }
+    if (boleto.idEvento !== eventoObjetivo.id || boleto.idFechaEvento !== fechaObjetivo.id) {
+      return rechazar('fecha_invalida', 'Boleto de otro evento o día. No se muestran datos del boleto presentado.', undefined);
+    }
+    if (boleto.estado === 'cancelado') {
+      return rechazar('cancelado', 'Boleto invalidado. No se puede registrar la entrada.', boleto);
+    }
+    if (boleto.estado === 'utilizado') {
+      const horaAnterior = boleto.fechaCheckIn ? new Date(boleto.fechaCheckIn).toLocaleString('es-MX') : 'hora no disponible';
+      return rechazar('ya_utilizado', `Boleto ya utilizado el ${horaAnterior} por ${boleto.revisadoPor || 'Staff'}.`, boleto);
+    }
+
+    if (!boleto.esEspecial) {
+      const reservacion = listaReservaciones.find((item) => item.id === boleto.idReservacion);
+      if (!reservacion || reservacion.estado !== 'confirmada') {
+        return rechazar('reservacion_no_vigente', 'La reservación de este boleto ya no está vigente.', boleto);
       }
     }
 
-    // Boleto válido: Registrar ingreso exitoso
-    const fechaHora = new Date().toISOString();
-    setListaBoletos((previos) =>
-      previos.map((b) =>
-        b.id === boleto.id
-          ? {
-              ...b,
-              estado: 'utilizado',
-              fechaCheckIn: fechaHora,
-              revisadoPor: escaneadoPor
-            }
-          : b
-      )
-    );
-
-    const bitacora: RegistroEscaneo = {
-      id: `esc-${Date.now()}`,
+    // En esta versión local se actualizan boleto y bitácora en el mismo ciclo
+    // del contexto. La atomicidad entre dispositivos requiere persistencia de servidor.
+    const boletoActualizado = { ...boleto, estado: 'utilizado' as const, fechaCheckIn: fechaHora, revisadoPor: escaneadoPor };
+    setListaBoletos((previos) => previos.map((item) => item.id === boleto.id ? boletoActualizado : item));
+    registrarIntento({
       idBoleto: boleto.id,
       idEvento: boleto.idEvento,
       idFechaEvento: boleto.idFechaEvento,
-      fechaEscaneo: fechaHora,
-      escaneadoPor,
       resultado: 'exito',
       nombreAsistente: boleto.nombreUsuario,
       etiquetaAsiento: boleto.etiquetaAsiento
-    };
-    setBitacoraEscaneos((previas) => [bitacora, ...previas]);
-
+    });
     return {
       exito: true,
       resultado: 'exito',
-      boleto: { ...boleto, estado: 'utilizado', fechaCheckIn: fechaHora, revisadoPor: escaneadoPor },
+      boleto: boletoActualizado,
       mensaje: `Acceso concedido a ${boleto.nombreUsuario}. Asiento asignado: ${boleto.etiquetaAsiento || 'General'}.`
     };
   };

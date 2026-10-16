@@ -341,6 +341,8 @@ export type ResultadoEscaneo =
   | 'evento_invalido'
   | 'fecha_invalida'
   | 'cancelado'
+  | 'reservacion_no_vigente'
+  | 'codigo_no_reconocido'
   | 'inexistente'
   | 'no_autorizado'
   | 'fuera_de_horario'

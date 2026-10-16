@@ -27,7 +27,8 @@ export const ModalBoletoQR: React.FC<PropiedadesModalBoletoQR> = ({ boleto, alCe
           <X className="w-5 h-5" />
         </button>
 
-        <h3 className="font-bold text-lg text-neutral-900">Pase Digital de Acceso ESCOM IPN</h3>
+        <span className="block text-[10px] font-bold uppercase tracking-wider text-[#7a132b]">Check-in · IU-CI03 · Mi boleto</span>
+        <h3 className="mt-1 font-bold text-lg text-neutral-900">Pase Digital de Acceso ESCOM IPN</h3>
         <p className="text-xs text-neutral-500 mb-4">Presenta este código ante el lector del Staff en la entrada del recinto</p>
 
         <div className="space-y-4 text-center">

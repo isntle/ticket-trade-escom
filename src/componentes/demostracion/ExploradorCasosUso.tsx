@@ -31,6 +31,8 @@ interface CasoDeUso {
   descripcion: string;
   ruta?: string;
   estado?: EstadoCaso;
+  usuarioDemo?: string;
+  rolDemo?: 'asistente' | 'organizador' | 'staff' | 'subdireccion' | 'admin';
 }
 
 interface Subequipo {
@@ -327,15 +329,15 @@ const SUBEQUIPOS: Subequipo[] = [
   {
     id: 'checkin',
     nombre: 'Check-in',
-    resumen: 'Los 5 casos CUCI del documento de Sprint 3.',
+    resumen: 'Selección del día, validación de boletos e historial de accesos.',
     icono: ScanLine,
     color: 'text-emerald-800 bg-emerald-50 border-emerald-200',
     casos: [
-      { id: 'CUCI1', nombre: 'Seleccionar día para control de acceso', actor: 'Staff u Organizador', interfaz: 'IU-CI01 · Selección de evento y día', descripcion: 'El operador elige un evento autorizado y el día cuyas entradas va a controlar.', ruta: '/staff', estado: 'comprobable' },
-      { id: 'CUCI2', nombre: 'Registrar entrada mediante código QR', actor: 'Staff u Organizador', interfaz: 'IU-CI02 · Lector de boletos', descripcion: 'El operador escanea el QR y el sistema valida vigencia, día, horario, permisos y uso previo antes de registrar la entrada.', ruta: '/staff', estado: 'comprobable' },
-      { id: 'CUCI2.1', nombre: 'Registrar entrada mediante identificador manual', actor: 'Staff u Organizador', interfaz: 'IU-CI02 · Lector de boletos', descripcion: 'El operador captura manualmente el identificador impreso cuando la lectura de cámara no está disponible.', ruta: '/staff', estado: 'comprobable' },
-      { id: 'CUCI3', nombre: 'Consultar historial de accesos', actor: 'Organizador, Subdirección o Administrador', interfaz: 'IU-CI04 · Historial de accesos', descripcion: 'El actor autorizado consulta, filtra y audita los intentos de entrada registrados.', ruta: '/staff/historial', estado: 'comprobable' },
-      { id: 'CUCI4', nombre: 'Presentar boleto en el acceso', actor: 'Asistente', interfaz: 'UI-41 · Mis boletos digitales', descripcion: 'El asistente consulta y presenta el QR o identificador de su boleto; el registro lo realiza el operador.', ruta: '/mis-reservaciones', estado: 'comprobable' }
+      { id: 'CUCI1', nombre: 'Seleccionar día para control de acceso', actor: 'Staff u Organizador', interfaz: 'IU-CI01 · Selección de evento y día', descripcion: 'El operador elige un evento autorizado y un día habilitado; el lector solo se abre durante la ventana permitida.', ruta: '/staff', estado: 'comprobable', usuarioDemo: 'usr-andrea', rolDemo: 'staff' },
+      { id: 'CUCI2', nombre: 'Registrar entrada mediante código QR', actor: 'Staff u Organizador', interfaz: 'IU-CI02 · Lector de boletos', descripcion: 'El operador escanea el QR y el sistema valida evento, día, horario, autorización, vigencia y uso previo antes de registrar una entrada.', ruta: '/staff', estado: 'comprobable', usuarioDemo: 'usr-andrea', rolDemo: 'staff' },
+      { id: 'CUCI2.1', nombre: 'Registrar entrada mediante identificador manual', actor: 'Staff u Organizador', interfaz: 'IU-CI02 · Lector de boletos', descripcion: 'El operador captura el identificador del boleto cuando la cámara no está disponible; el sistema aplica límites a intentos inexistentes.', ruta: '/staff', estado: 'comprobable', usuarioDemo: 'usr-andrea', rolDemo: 'staff' },
+      { id: 'CUCI3', nombre: 'Consultar historial de accesos', actor: 'Organizador, Subdirección o Administrador', interfaz: 'IU-CI04 · Historial de accesos', descripcion: 'El actor autorizado consulta, filtra y abre el detalle de los accesos registrados, sin modificarlos.', ruta: '/staff/historial', estado: 'comprobable', usuarioDemo: 'usr-silva', rolDemo: 'organizador' },
+      { id: 'CUCI4', nombre: 'Presentar boleto en el acceso', actor: 'Asistente', interfaz: 'IU-CI03 · Mi boleto', descripcion: 'El asistente consulta los datos vigentes y presenta el QR o identificador; el registro de entrada lo realiza el operador.', ruta: '/mis-reservaciones', estado: 'comprobable', usuarioDemo: 'usr-carlos', rolDemo: 'asistente' }
     ]
   }
 ];
@@ -374,8 +376,15 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({ na
 
   const abrirPantalla = (caso: CasoDeUso) => {
     setCasoActivo(caso.id);
+    if (caso.usuarioDemo && caso.rolDemo) {
+      cambiarUsuario(caso.usuarioDemo);
+      cambiarRolActivo(caso.rolDemo);
+    }
     if (caso.ruta) {
       navegarA(caso.ruta);
+    }
+    if (caso.usuarioDemo) {
+      mostrarNotificacion('Perfil de demostración activado', `${caso.actor} · ${caso.interfaz}`, 'informacion');
     }
   };
 
