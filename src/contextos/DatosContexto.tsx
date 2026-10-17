@@ -966,6 +966,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
           nombreOrganizador: sol.nombreSolicitante,
           titulo: sol.tituloEvento,
           descripcion: sol.descripcionEvento,
+          urlImagen: sol.urlImagen,
           categoria: "Académico",
           visibilidad: sol.visibilidad,
           modalidadAsistencia: sol.modalidadAsistencia,

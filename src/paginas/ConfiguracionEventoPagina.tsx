@@ -356,6 +356,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
           <p className="text-sm text-neutral-500 mt-1 max-w-2xl line-clamp-2">
             {evento.descripcion}
           </p>
+          {evento.urlImagen && <img src={evento.urlImagen} alt="Cartel del evento aprobado" className="mt-5 max-h-80 w-full rounded-2xl bg-neutral-100 object-contain" />}
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">

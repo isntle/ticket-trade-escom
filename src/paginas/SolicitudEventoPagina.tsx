@@ -271,10 +271,10 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     try {
       const imagen = new Image();
       urlTemporal = URL.createObjectURL(archivo);
-      imagen.src = urlTemporal;
       await new Promise<void>((resolve, reject) => {
         imagen.onload = () => resolve();
         imagen.onerror = () => reject(new Error("No se pudo leer la imagen."));
+        imagen.src = urlTemporal;
       });
       const escala = Math.min(1, 1800 / imagen.width, 1200 / imagen.height);
       const lienzo = document.createElement("canvas");
@@ -756,7 +756,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
               <label className="text-sm font-semibold text-neutral-800">
-                Cartel o imagen del evento (JPEG/PNG, máximo 5 MiB)
+                Cartel o imagen del evento (opcional, JPEG/PNG, máximo 5 MiB)
                 <input
                   type="file"
                   accept="image/jpeg,image/png"
@@ -807,7 +807,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                 <img
                   src={urlImagen}
                   alt="Vista previa del cartel del evento"
-                  className="max-h-40 w-full rounded-lg object-cover sm:col-span-2"
+                  className="max-h-80 w-full rounded-lg bg-neutral-50 object-contain sm:col-span-2"
                 />
               )}
             </div>
@@ -1184,6 +1184,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
           anchoMaximo="lg"
         >
           <div className="space-y-4 text-sm">
+            {urlImagen && <img src={urlImagen} alt="Vista previa del cartel antes de enviar" className="max-h-80 w-full rounded-xl bg-neutral-50 object-contain" />}
             <h3 className="text-lg font-bold">{titulo}</h3>
             <p className="whitespace-pre-line leading-6">{descripcion}</p>
             <ul className="space-y-2">

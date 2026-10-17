@@ -101,6 +101,7 @@ export const DetalleSolicitudPagina: React.FC<{
     (u) => u.id === solicitud.idSolicitante,
   );
   const evento = listaEventos.find((e) => e.idSolicitud === solicitud.id);
+  const imagenVistaPrevia = solicitud.urlImagen || evento?.urlImagen;
   const esTitular = usuarioActual?.id === solicitud.idSolicitante;
   const esRevisor =
     rolActivo === "subdireccion" &&
@@ -520,12 +521,14 @@ export const DetalleSolicitudPagina: React.FC<{
             <div className="border-b p-5">
               <h2 className="text-lg font-bold">Vista previa del evento</h2>
               <p className="mt-1 text-sm text-neutral-500">
-                Información capturada; esta vista no publica el evento.
+                {evento
+                  ? "Vista del evento asociado; su cartel puede haberse actualizado después de la solicitud."
+                  : "Información capturada; esta vista no publica el evento."}
               </p>
             </div>
-            {archivoSeguro(solicitud.urlImagen) ? (
+            {archivoSeguro(imagenVistaPrevia) ? (
               <img
-                src={solicitud.urlImagen}
+                src={imagenVistaPrevia}
                 alt={"Cartel de " + solicitud.tituloEvento}
                 className="max-h-80 w-full bg-neutral-100 object-contain"
               />

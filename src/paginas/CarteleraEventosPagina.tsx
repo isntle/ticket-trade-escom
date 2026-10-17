@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from "react";
 import {
   Search,
   Calendar,
@@ -10,12 +10,13 @@ import {
   Building,
   Monitor,
   CheckCircle2,
-  Sparkles
-} from 'lucide-react';
-import { useDatos } from '../contextos/DatosContexto';
-import { useAutenticacion } from '../contextos/AutenticacionContexto';
-import { EstadoVacio } from '../componentes/ui/EstadoVacio';
-import { Evento, CategoriaEvento } from '../tipos';
+  Sparkles,
+} from "lucide-react";
+import { useDatos } from "../contextos/DatosContexto";
+import { useAutenticacion } from "../contextos/AutenticacionContexto";
+import { EstadoVacio } from "../componentes/ui/EstadoVacio";
+import { Evento, CategoriaEvento } from "../tipos";
+import { inicioEnMexico } from "../dominio/solicitudes";
 
 interface PropiedadesCarteleraEventos {
   navigate: (ruta: string) => void;
@@ -23,50 +24,69 @@ interface PropiedadesCarteleraEventos {
 
 const tieneSesionFutura = (evento: Evento): boolean =>
   evento.fechas.some((fecha) => {
-    const finSesion = new Date(`${fecha.fecha}T${fecha.horaFin}:00`);
-    return !Number.isNaN(finSesion.getTime()) && finSesion >= new Date();
+    const finSesion = inicioEnMexico(fecha.fecha, fecha.horaFin);
+    return (
+      !fecha.cancelada && Number.isFinite(finSesion) && finSesion >= Date.now()
+    );
   });
 
-export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ navigate }) => {
+export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
+  navigate,
+}) => {
   const { listaEventos, listaRecintos } = useDatos();
   const { usuarioActual } = useAutenticacion();
 
-  const [terminoBusqueda, setTerminoBusqueda] = useState('');
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<string>('todos');
-  const [modalidadSeleccionada, setModalidadSeleccionada] = useState<string>('todos');
+  const [terminoBusqueda, setTerminoBusqueda] = useState("");
+  const [categoriaSeleccionada, setCategoriaSeleccionada] =
+    useState<string>("todos");
+  const [modalidadSeleccionada, setModalidadSeleccionada] =
+    useState<string>("todos");
+  const [periodo, setPeriodo] = useState("proximos");
 
-  const categorias: ('todos' | CategoriaEvento)[] = [
-    'todos',
-    'Congreso',
-    'Conferencia',
-    'Taller',
-    'Académico',
-    'Institucional'
+  const categorias: ("todos" | CategoriaEvento)[] = [
+    "todos",
+    "Congreso",
+    "Conferencia",
+    "Taller",
+    "Académico",
+    "Institucional",
   ];
 
   // Filtrado de eventos visibles (públicos e internos si es de la comunidad, excluyendo privados sin enlace directo)
   const eventosFiltrados = useMemo(() => {
     return listaEventos.filter((evento) => {
-      if (evento.estado !== 'publicado') return false;
-      if (evento.visibilidad === 'privado') return false;
-      if (!tieneSesionFutura(evento)) return false;
+      if (evento.estado !== "publicado") return false;
+      if (evento.visibilidad === "privado") return false;
+      if (
+        periodo === "proximos"
+          ? !tieneSesionFutura(evento)
+          : tieneSesionFutura(evento)
+      )
+        return false;
 
       // Filtro de búsqueda por título, descripción o ponentes
       const coincideBusqueda =
         evento.titulo.toLowerCase().includes(terminoBusqueda.toLowerCase()) ||
-        evento.descripcion.toLowerCase().includes(terminoBusqueda.toLowerCase()) ||
-        evento.ponentes.some((p) => p.toLowerCase().includes(terminoBusqueda.toLowerCase()));
+        evento.descripcion
+          .toLowerCase()
+          .includes(terminoBusqueda.toLowerCase()) ||
+        evento.ponentes.some((p) =>
+          p.toLowerCase().includes(terminoBusqueda.toLowerCase()),
+        );
 
       if (!coincideBusqueda) return false;
 
       // Filtro por categoría temática
-      if (categoriaSeleccionada !== 'todos' && evento.categoria !== categoriaSeleccionada) {
+      if (
+        categoriaSeleccionada !== "todos" &&
+        evento.categoria !== categoriaSeleccionada
+      ) {
         return false;
       }
 
       // Filtro por modalidad de asistencia
       if (
-        modalidadSeleccionada !== 'todos' &&
+        modalidadSeleccionada !== "todos" &&
         evento.modalidadAsistencia !== modalidadSeleccionada
       ) {
         return false;
@@ -74,11 +94,17 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
 
       return true;
     });
-  }, [listaEventos, terminoBusqueda, categoriaSeleccionada, modalidadSeleccionada]);
+  }, [
+    listaEventos,
+    terminoBusqueda,
+    categoriaSeleccionada,
+    modalidadSeleccionada,
+    periodo,
+  ]);
 
   const obtenerNombreRecinto = (idRecinto: string) => {
     const recinto = listaRecintos.find((r) => r.id === idRecinto);
-    return recinto ? recinto.nombre : 'Recinto ESCOM';
+    return recinto ? recinto.nombre : "Recinto ESCOM";
   };
 
   // Evento destacado (Hero) y resto de la programación cronológica
@@ -97,14 +123,15 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
             Cartelera Académica y Eventos
           </h1>
           <p className="text-xs sm:text-sm text-neutral-500 mt-1 max-w-2xl">
-            Conferencias magistrales, simposios de investigación, hackathons en laboratorios y actividades institucionales oficiales.
+            Conferencias magistrales, simposios de investigación, hackathons en
+            laboratorios y actividades institucionales oficiales.
           </p>
         </div>
 
-        {usuarioActual?.roles.includes('organizador') && (
+        {usuarioActual?.roles.includes("organizador") && (
           <button
             type="button"
-            onClick={() => navigate('/solicitar-evento')}
+            onClick={() => navigate("/solicitar-evento")}
             className="boton-primario px-4 py-2.5 text-xs font-bold inline-flex items-center gap-2 shrink-0 cursor-pointer shadow-xs"
           >
             <span>+ Solicitar nuevo evento</span>
@@ -130,6 +157,15 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
           </div>
 
           {/* Filtro por Modalidad */}
+          <select
+            aria-label="Periodo de los eventos"
+            value={periodo}
+            onChange={(e) => setPeriodo(e.target.value)}
+            className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
+          >
+            <option value="proximos">Próximos y en curso</option>
+            <option value="anteriores">Eventos anteriores</option>
+          </select>
           <div className="flex items-center gap-2">
             <select
               value={modalidadSeleccionada}
@@ -155,11 +191,11 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
                 onClick={() => setCategoriaSeleccionada(cat)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   activa
-                    ? 'bg-[#7a132b] text-white shadow-2xs'
-                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900'
+                    ? "bg-[#7a132b] text-white shadow-2xs"
+                    : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900"
                 }`}
               >
-                {cat === 'todos' ? 'Todos los Eventos' : cat}
+                {cat === "todos" ? "Todos los Eventos" : cat}
               </button>
             );
           })}
@@ -167,11 +203,12 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
       </div>
 
       {/* === INICIO CÓDIGO TRAYECTORIA A === */}
-      {!listaEventos.some(
+      {periodo === "proximos" &&
+      !listaEventos.some(
         (evento) =>
-          evento.estado === 'publicado' &&
-          evento.visibilidad !== 'privado' &&
-          tieneSesionFutura(evento)
+          evento.estado === "publicado" &&
+          evento.visibilidad !== "privado" &&
+          tieneSesionFutura(evento),
       ) ? (
         <EstadoVacio
           icono={<Calendar className="w-8 h-8 text-neutral-400" />}
@@ -185,9 +222,9 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
           descripcion="No se encontraron resultados con los filtros seleccionados."
           textoAccion="Restablecer filtros"
           alHacerAccion={() => {
-            setTerminoBusqueda('');
-            setCategoriaSeleccionada('todos');
-            setModalidadSeleccionada('todos');
+            setTerminoBusqueda("");
+            setCategoriaSeleccionada("todos");
+            setModalidadSeleccionada("todos");
           }}
         />
       ) : (
@@ -199,7 +236,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
           {eventoDestacado && (
             <div>
               <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block mb-3">
-                Encuentro Principal Destacado
+                {periodo === 'anteriores' ? 'Evento del historial' : 'Encuentro Principal Destacado'}
               </span>
 
               <div
@@ -231,21 +268,30 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
                       <span className="font-bold text-[#7a132b]">
                         {eventoDestacado.fechas[0]?.fecha}
                       </span>
-                      <span aria-hidden="true" className="text-neutral-300">·</span>
+                      <span aria-hidden="true" className="text-neutral-300">
+                        ·
+                      </span>
                       <span className="font-mono text-neutral-700 font-semibold flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5 text-neutral-400" />
-                        {eventoDestacado.fechas[0]?.horaInicio} - {eventoDestacado.fechas[0]?.horaFin} hrs
+                        {eventoDestacado.fechas[0]?.horaInicio} -{" "}
+                        {eventoDestacado.fechas[0]?.horaFin} hrs
                       </span>
-                      <span aria-hidden="true" className="text-neutral-300">·</span>
+                      <span aria-hidden="true" className="text-neutral-300">
+                        ·
+                      </span>
                       <span className="flex items-center gap-1 font-semibold text-neutral-800">
                         <MapPin className="w-3.5 h-3.5 text-neutral-400" />
-                        {obtenerNombreRecinto(eventoDestacado.fechas[0]?.idRecinto || '')}
+                        {obtenerNombreRecinto(
+                          eventoDestacado.fechas[0]?.idRecinto || "",
+                        )}
                       </span>
-                      <span aria-hidden="true" className="text-neutral-300">·</span>
+                      <span aria-hidden="true" className="text-neutral-300">
+                        ·
+                      </span>
                       <span className="capitalize text-neutral-600">
-                        {eventoDestacado.modalidadAsistencia === 'controlado'
-                          ? 'Acceso con Butaca Numerada'
-                          : 'Acceso Libre'}
+                        {eventoDestacado.modalidadAsistencia === "controlado"
+                          ? "Acceso con Butaca Numerada"
+                          : "Acceso Libre"}
                       </span>
                     </div>
 
@@ -257,14 +303,15 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
                       {eventoDestacado.descripcion}
                     </p>
 
-                    {eventoDestacado.ponentes && eventoDestacado.ponentes.length > 0 && (
-                      <div className="text-xs text-neutral-500 pt-1">
-                        Ponentes destacados:{' '}
-                        <strong className="text-neutral-800">
-                          {eventoDestacado.ponentes.slice(0, 2).join(', ')}
-                        </strong>
-                      </div>
-                    )}
+                    {eventoDestacado.ponentes &&
+                      eventoDestacado.ponentes.length > 0 && (
+                        <div className="text-xs text-neutral-500 pt-1">
+                          Ponentes destacados:{" "}
+                          <strong className="text-neutral-800">
+                            {eventoDestacado.ponentes.slice(0, 2).join(", ")}
+                          </strong>
+                        </div>
+                      )}
                   </div>
 
                   {/* Acciones de la tarjeta destacada */}
@@ -296,17 +343,17 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
           {eventosSiguientes.length > 0 && (
             <div>
               <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block mb-4">
-                Próximos Encuentros y Talleres
+              {periodo === 'anteriores' ? 'Más eventos anteriores' : 'Próximos Encuentros y Talleres'}
               </span>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {eventosSiguientes.map((evento) => {
                   const fechaPrincipal = evento.fechas[0];
                   const esLaboratorio =
-                    evento.titulo.toLowerCase().includes('laboratorio') ||
-                    evento.titulo.toLowerCase().includes('gpu') ||
-                    evento.titulo.toLowerCase().includes('hackathon') ||
-                    fechaPrincipal?.idRecinto.includes('lab');
+                    evento.titulo.toLowerCase().includes("laboratorio") ||
+                    evento.titulo.toLowerCase().includes("gpu") ||
+                    evento.titulo.toLowerCase().includes("hackathon") ||
+                    fechaPrincipal?.idRecinto.includes("lab");
 
                   return (
                     <div
@@ -337,13 +384,26 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
                             <span className="font-bold text-[#7a132b]">
                               {fechaPrincipal?.fecha}
                             </span>
-                            <span aria-hidden="true" className="text-neutral-300">·</span>
-                            <span>
-                              {fechaPrincipal?.horaInicio} - {fechaPrincipal?.horaFin} hrs
+                            <span
+                              aria-hidden="true"
+                              className="text-neutral-300"
+                            >
+                              ·
                             </span>
-                            <span aria-hidden="true" className="text-neutral-300">·</span>
+                            <span>
+                              {fechaPrincipal?.horaInicio} -{" "}
+                              {fechaPrincipal?.horaFin} hrs
+                            </span>
+                            <span
+                              aria-hidden="true"
+                              className="text-neutral-300"
+                            >
+                              ·
+                            </span>
                             <span className="truncate">
-                              {obtenerNombreRecinto(fechaPrincipal?.idRecinto || '')}
+                              {obtenerNombreRecinto(
+                                fechaPrincipal?.idRecinto || "",
+                              )}
                             </span>
                           </div>
 
@@ -358,7 +418,9 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({ 
                           {esLaboratorio && (
                             <div className="flex items-center gap-1.5 text-[11px] font-medium text-blue-700 bg-blue-50/70 p-2 rounded-lg">
                               <Monitor className="w-3.5 h-3.5 text-blue-600" />
-                              <span>Sesión con Estaciones de Cómputo (Lab 3)</span>
+                              <span>
+                                Sesión con Estaciones de Cómputo (Lab 3)
+                              </span>
                             </div>
                           )}
                         </div>

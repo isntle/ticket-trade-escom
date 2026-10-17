@@ -22,7 +22,9 @@ export function SolicitudesSubdireccion({
 }: {
   navigate: (ruta: string) => void;
 }) {
-  const { listaSolicitudes, listaRecintos } = useDatos();
+  const { listaSolicitudes, listaRecintos, listaEventos } = useDatos();
+  const cartel = (s: SolicitudEvento) =>
+    s.urlImagen || listaEventos.find((e) => e.idSolicitud === s.id)?.urlImagen;
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState("todos");
   const comparar = (a: SolicitudEvento, b: SolicitudEvento) =>
@@ -47,9 +49,9 @@ export function SolicitudesSubdireccion({
       key={s.id}
       className="grid gap-5 rounded-2xl border border-neutral-200 bg-white p-5 sm:grid-cols-[100px_minmax(0,1fr)] sm:p-6"
     >
-      {s.urlImagen && /^(https?:\/\/|data:image\/)/.test(s.urlImagen) ? (
+      {cartel(s) && /^(https?:\/\/|data:image\/)/.test(cartel(s)!) ? (
         <img
-          src={s.urlImagen}
+          src={cartel(s)}
           alt={`Cartel de ${s.tituloEvento}`}
           className="h-24 w-full rounded-xl bg-neutral-100 object-contain sm:h-28"
         />
