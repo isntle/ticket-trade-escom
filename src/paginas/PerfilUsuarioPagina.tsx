@@ -172,6 +172,7 @@ export const PerfilUsuarioPagina: React.FC<PropiedadesPerfilUsuario> = ({ naviga
       </div>
 
       {/* Tarjeta de Cabecera del Perfil */}
+      <section className="mb-6 rounded-2xl border bg-white p-5"><h2 className="font-bold">Correo electrónico</h2><p className="mt-2 text-sm">{usuarioActual.correoConfirmado === true ? 'Correo confirmado.' : 'Tu correo está pendiente de confirmación.'}</p>{usuarioActual.correoConfirmado !== true && <button onClick={() => navigate('/confirmar-correo')} className="mt-3 rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-semibold text-white">Confirmar correo</button>}</section>
       <div className="bg-white rounded-3xl border border-neutral-200 p-6 sm:p-8 shadow-xs mb-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-neutral-100 pb-6">
           <div className="flex items-center gap-4">

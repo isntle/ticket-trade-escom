@@ -178,6 +178,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
     if (usuarioActual.correoConfirmado === false) {
       const msg = obtenerMensaje('ERR-IP-04');
       mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+      navigate('/confirmar-correo');
       return;
     }
 

@@ -240,7 +240,7 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
 
   if (usuarioActual.correoConfirmado !== true) {
     const mensaje = obtenerMensaje('ERR-IP-04');
-    return <div className="max-w-4xl mx-auto px-4 py-16"><AlertaMensaje tipo="error" titulo={mensaje.titulo} mensaje={mensaje.descripcion} /></div>;
+    return <div className="max-w-4xl mx-auto px-4 py-16"><AlertaMensaje tipo="error" titulo={mensaje.titulo} mensaje={mensaje.descripcion} /><button onClick={() => navigate('/confirmar-correo')} className="mt-5 rounded-xl bg-[#7a132b] px-4 py-3 text-sm font-bold text-white">Confirmar correo</button></div>;
   }
 
   return (

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Usuario, RolUsuario, TipoAfiliacion } from '../tipos';
 import { USUARIOS_INICIALES } from '../datos/datosIniciales';
+import { modoDemostracionActivo } from '../dominio/demostracion';
 import {
   validarCorreoInstitucional,
   validarBoletaIPN,
@@ -49,6 +50,9 @@ interface ContextoAutenticacionTipo {
   asignarRolesAUsuario: (idUsuario: string, roles: RolUsuario[]) => ResultadoOperacionAuth;
   asociarStaffAEvento: (idUsuario: string, idEvento: string, asociar: boolean) => ResultadoOperacionAuth;
   alternarEstadoUsuario: (idUsuario: string) => ResultadoOperacionAuth;
+  solicitarConfirmacionCorreo: () => ResultadoOperacionAuth & { codigoPrueba?: string };
+  confirmarCorreo: (codigo: string) => ResultadoOperacionAuth;
+  reiniciarConfirmacionPrueba: () => void;
 }
 
 const ContextoAutenticacion = createContext<ContextoAutenticacionTipo | undefined>(undefined);
@@ -62,7 +66,9 @@ export const ProveedorAutenticacion: React.FC<{ children: React.ReactNode }> = (
     const guardado = localStorage.getItem(CLAVE_ALMACEN_DATOS_USUARIOS);
     if (guardado) {
       try {
-        return JSON.parse(guardado);
+        const cuentas: Usuario[] = JSON.parse(guardado);
+        const nueva = USUARIOS_INICIALES.find(u => u.id === 'usr-estudiante-sin-confirmar')!;
+        return cuentas.some(u => u.id === nueva.id) ? cuentas : [...cuentas, nueva];
       } catch {
         return USUARIOS_INICIALES;
       }
@@ -75,6 +81,28 @@ export const ProveedorAutenticacion: React.FC<{ children: React.ReactNode }> = (
   });
 
   const usuarioActual = usuarios.find((u) => u.id === idUsuarioActual) || null;
+  const [confirmacion, setConfirmacion] = useState<{ id: string; correo: string; codigo: string; vence: number } | null>(null);
+  const solicitarConfirmacionCorreo = () => {
+    if (!usuarioActual || usuarioActual.correoConfirmado === true)
+      return { exito: false, mensaje: 'Inicia sesión con la cuenta que necesita confirmar su correo.' };
+    if (!modoDemostracionActivo())
+      return { exito: false, mensaje: 'El envío de correo todavía no está conectado. La confirmación puede probarse en el modo de demostración.' };
+    const codigo = Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('').toUpperCase();
+    setConfirmacion({ id: usuarioActual.id, correo: usuarioActual.correo, codigo, vence: Date.now() + 24 * 60 * 60 * 1000 });
+    return { exito: true, mensaje: 'Código de prueba generado. Cópialo en el formulario para completar el recorrido.', codigoPrueba: codigo };
+  };
+  const confirmarCorreo = (codigo: string): ResultadoOperacionAuth => {
+    if (!confirmacion || confirmacion.id !== usuarioActual?.id || confirmacion.correo !== usuarioActual.correo || confirmacion.vence <= Date.now() || codigo.trim().toUpperCase() !== confirmacion.codigo)
+      return { exito: false, mensaje: 'El código no es válido o venció. Solicita uno nuevo.' };
+    setUsuarios(previas => previas.map(u => u.id === usuarioActual.id ? { ...u, correoConfirmado: true } : u));
+    setConfirmacion(null);
+    return { exito: true, mensaje: 'Correo confirmado. La verificación documental se tramita por separado.' };
+  };
+  const reiniciarConfirmacionPrueba = () => {
+    if (!modoDemostracionActivo() || usuarioActual?.id !== 'usr-estudiante-sin-confirmar') return;
+    setUsuarios(previas => previas.map(u => u.id === usuarioActual.id ? { ...u, correoConfirmado: false } : u));
+    setConfirmacion(null);
+  };
   const estaAutenticado = usuarioActual !== null;
 
   const [rolActivo, setRolActivoEstado] = useState<RolUsuario>(() => {
@@ -262,6 +290,7 @@ export const ProveedorAutenticacion: React.FC<{ children: React.ReactNode }> = (
       nombreDocumento: datos.nombreDocumento?.trim(),
       estaActivo: true,
       esVerificado: true,
+      correoConfirmado: false,
       fechaRegistro: new Date().toISOString()
     };
 
@@ -517,7 +546,10 @@ export const ProveedorAutenticacion: React.FC<{ children: React.ReactNode }> = (
         solicitarPermisoOrganizador,
         asignarRolesAUsuario,
         asociarStaffAEvento,
-        alternarEstadoUsuario
+        alternarEstadoUsuario,
+        solicitarConfirmacionCorreo,
+        confirmarCorreo,
+        reiniciarConfirmacionPrueba
       }}
     >
       {children}

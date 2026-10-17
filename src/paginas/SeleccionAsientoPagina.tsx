@@ -89,8 +89,8 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         <EstadoVacio
           titulo={msg.titulo}
           descripcion={msg.descripcion}
-          textoAccion="Volver al inicio"
-          alHacerAccion={() => navigate('/')}
+          textoAccion="Confirmar correo"
+          alHacerAccion={() => navigate('/confirmar-correo')}
         />
       </div>
     );

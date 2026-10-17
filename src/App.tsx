@@ -1,4 +1,5 @@
 import { CatalogoRecintosPagina } from './paginas/CatalogoRecintosPagina';
+import { ConfirmacionCorreoPagina } from './paginas/ConfirmacionCorreoPagina';
 import React, { useState, useEffect } from 'react';
 
 // Proveedores de Estado Global Institucional
@@ -291,6 +292,7 @@ function ContenidoApp() {
       return <AdministracionUsuariosPagina navigate={navegarA} />;
     }
 
+    if (rutaActual === '/confirmar-correo') return <ConfirmacionCorreoPagina navigate={navegarA} />;
     if (rutaActual === '/perfil' || rutaActual === '/mi-cuenta') {
       return <PerfilUsuarioPagina navigate={navegarA} />;
     }
@@ -309,7 +311,7 @@ function ContenidoApp() {
     return <CarteleraEventosPagina navigate={navegarA} />;
   };
 
-  const esRutaAutenticacion = ['/login', '/registro', '/recuperar-password'].includes(rutaActual);
+  const esRutaAutenticacion = ['/login', '/registro', '/recuperar-password', '/confirmar-correo'].includes(rutaActual);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#fafaf9] text-neutral-900 selection:bg-[#7a132b]/15 selection:text-[#7a132b]">

@@ -331,6 +331,20 @@ export const USUARIOS_INICIALES: Usuario[] = [
     fechaRegistro: '2026-08-20T10:30:00Z'
   },
   {
+    id: 'usr-estudiante-sin-confirmar',
+    nombre: 'Lucía Torres (correo sin confirmar)',
+    correo: 'ltorres.demo@alumno.ipn.mx',
+    password: 'Password123!',
+    afiliacion: 'alumno',
+    roles: ['asistente'],
+    rolActivo: 'asistente',
+    boleta: '2026630998',
+    estaActivo: true,
+    esVerificado: false,
+    correoConfirmado: false,
+    fechaRegistro: '2026-10-17T12:00:00Z'
+  },
+  {
     id: 'usr-subdireccion',
     nombre: 'Dra. Patricia González (Subdirectora)',
     correo: 'subdireccion_seis@escom.ipn.mx',
