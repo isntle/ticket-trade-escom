@@ -170,9 +170,17 @@ export interface Evento {
     version: number;
     fecha: string;
     responsable: string;
+    motivo?: string;
     campos: string[];
     valoresAnteriores: { titulo: string; descripcion: string; ponentes: string[]; urlImagen?: string };
     valoresNuevos: { titulo: string; descripcion: string; ponentes: string[]; urlImagen?: string };
+    detalleAnterior?: string;
+    detalleNuevo?: string;
+    resultadoNotificacion?: {
+      estado: 'no_configurada';
+      destinatarios: string[];
+      fechaRegistro: string;
+    };
   }>;
 }
 

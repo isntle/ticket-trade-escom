@@ -101,6 +101,11 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
 
   const confirmarEdicionEvento = () => {
     if (!evento || !propuestaEdicion || !usuarioActual) return;
+    const motivo = window.prompt('Describe el motivo de esta modificación:');
+    if (!motivo?.trim()) {
+      mostrarNotificacion('Modificación cancelada', 'Es necesario registrar un motivo para conservar la trazabilidad.', 'advertencia');
+      return;
+    }
     const anterior = { titulo: evento.titulo, descripcion: evento.descripcion, ponentes: [...evento.ponentes], urlImagen: evento.urlImagen };
     const campos = [
       anterior.titulo !== propuestaEdicion.titulo && 'título',
@@ -125,6 +130,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       version: (evento.historialCambios?.length || 0) + 1,
       fecha: new Date().toISOString(),
       responsable: usuarioActual.nombre,
+      motivo: motivo.trim(),
       campos,
       valoresAnteriores: anterior,
       valoresNuevos
@@ -196,6 +202,27 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     if (idRecinto !== fechaActual.idRecinto && compromisosReservados) {
       mostrarNotificacion('No se puede cambiar el recinto todavía', 'Hay lugares confirmados asociados a la distribución actual. Primero deben resolverse esos compromisos para evitar cambiar los asientos de los boletos.', 'error'); return;
     }
+    const motivoCambio = window.prompt('Indica el motivo del cambio de fecha, horario o recinto:');
+    if (!motivoCambio?.trim()) { mostrarNotificacion('Cambio cancelado', 'Se requiere un motivo para registrar la modificación.', 'advertencia'); return; }
+    const fechaNueva = { ...fechaActual, fecha, horaInicio, horaFin, idRecinto };
+    const registrarCambioFecha = (historialExcepcionesAnticipacion = evento.historialExcepcionesAnticipacion) => {
+      const historialCambios = [...(evento.historialCambios || []), {
+        version: (evento.historialCambios?.length || 0) + 1,
+        fecha: new Date().toISOString(),
+        responsable: usuarioActual?.nombre || 'Usuario autorizado',
+        motivo: motivoCambio.trim(),
+        campos: ['fecha', 'hora de inicio', 'hora de fin', 'recinto'],
+        valoresAnteriores: { titulo: evento.titulo, descripcion: evento.descripcion, ponentes: [...evento.ponentes], urlImagen: evento.urlImagen },
+        valoresNuevos: { titulo: evento.titulo, descripcion: evento.descripcion, ponentes: [...evento.ponentes], urlImagen: evento.urlImagen },
+        detalleAnterior: JSON.stringify(fechaActual),
+        detalleNuevo: JSON.stringify(fechaNueva)
+      }];
+      actualizarEvento(evento.id, {
+        fechas: evento.fechas.map((dia) => dia.id === idFecha ? fechaNueva : dia),
+        historialCambios,
+        ...(historialExcepcionesAnticipacion ? { historialExcepcionesAnticipacion } : {})
+      });
+    };
     const horasAnticipacion = (new Date(`${fecha}T${horaInicio}:00`).getTime() - Date.now()) / 3600000;
     if (horasAnticipacion < 168) {
       if (rolActivo !== 'subdireccion' && rolActivo !== 'admin') {
@@ -203,47 +230,93 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       }
       const motivo = window.prompt('Justificación obligatoria de la excepción de anticipación:');
       if (!motivo?.trim()) { mostrarNotificacion('Excepción cancelada', 'Se requiere una justificación para aplicar el cambio urgente.', 'advertencia'); return; }
-      actualizarEvento(evento.id, {
-        fechas: evento.fechas.map((dia) => dia.id === idFecha ? { ...dia, fecha, horaInicio, horaFin, idRecinto } : dia),
-        historialExcepcionesAnticipacion: [...(evento.historialExcepcionesAnticipacion || []), { idFechaEvento: idFecha, fechaAplicacion: new Date().toISOString(), motivo: motivo.trim(), responsable: usuarioActual?.nombre || 'Subdirección' }]
-      });
+      registrarCambioFecha([...(evento.historialExcepcionesAnticipacion || []), { idFechaEvento: idFecha, fechaAplicacion: new Date().toISOString(), motivo: motivoCambio.trim(), responsable: usuarioActual?.nombre || 'Subdirección' }]);
       mostrarNotificacion('Excepción aplicada', 'La justificación quedó registrada en la bitácora del evento.', 'informacion');
       return;
     }
-    actualizarEvento(evento.id, { fechas: evento.fechas.map((dia) => dia.id === idFecha ? { ...dia, fecha, horaInicio, horaFin, idRecinto } : dia) });
-    mostrarNotificacion('Programación actualizada', 'Se guardaron los cambios después de validar el recinto y el horario.', 'exito');
+    registrarCambioFecha();
+    mostrarNotificacion('Programación actualizada', `Cambio registrado como versión ${(evento.historialCambios?.length || 0) + 1}.`, 'exito');
   };
 
   const retirarDia = (idFecha: string) => {
     if (!puedeGestionar) return;
+    const diaRetirado = evento.fechas.find((fecha) => fecha.id === idFecha);
+    if (!diaRetirado) return;
     const boletosDelDia = listaReservaciones.filter((reserva) => reserva.idEvento === evento.id && reserva.idFechaEvento === idFecha && reserva.estado === 'confirmada');
     const tieneAccesos = bitacoraEscaneos.some((registro) => registro.idEvento === evento.id && registro.idFechaEvento === idFecha && registro.resultado === 'exito');
     if (boletosDelDia.length || tieneAccesos) {
       mostrarNotificacion('El día tiene compromisos', 'No se puede retirar: existen reservaciones confirmadas o accesos registrados.', 'error'); return;
     }
-    listaReservaciones.filter((reserva) => reserva.idEvento === evento.id && reserva.idFechaEvento === idFecha && reserva.estado !== 'cancelada').forEach((reserva) => cancelarReservacionPorEvento(reserva.id, usuarioActual?.id || '', rolActivo, 'Retiro del día por la persona organizadora.'));
+    const motivo = window.prompt('Indica por qué se retira este día de la programación:');
+    if (!motivo?.trim()) { mostrarNotificacion('Retiro cancelado', 'Se requiere un motivo para conservar la trazabilidad.', 'advertencia'); return; }
+    const reservasAfectadas = listaReservaciones.filter((reserva) => reserva.idEvento === evento.id && reserva.idFechaEvento === idFecha && reserva.estado !== 'cancelada');
+    reservasAfectadas.forEach((reserva) => cancelarReservacionPorEvento(reserva.id, usuarioActual?.id || '', rolActivo, motivo.trim()));
+    const historialCambios = [...(evento.historialCambios || []), {
+      version: (evento.historialCambios?.length || 0) + 1,
+      fecha: new Date().toISOString(),
+      responsable: usuarioActual?.nombre || 'Usuario autorizado',
+      motivo: motivo.trim(),
+      campos: ['programación del evento', 'reservaciones y boletos vigentes'],
+      valoresAnteriores: { titulo: evento.titulo, descripcion: evento.descripcion, ponentes: [...evento.ponentes], urlImagen: evento.urlImagen },
+      valoresNuevos: { titulo: evento.titulo, descripcion: evento.descripcion, ponentes: [...evento.ponentes], urlImagen: evento.urlImagen },
+      detalleAnterior: JSON.stringify({ fecha: diaRetirado, reservacionesActivas: reservasAfectadas.length }),
+      detalleNuevo: JSON.stringify({ fechaRetirada: diaRetirado.id, reservacionesCanceladas: reservasAfectadas.length })
+    }];
     eliminarFechaEvento(evento.id, idFecha);
-    mostrarNotificacion('Día retirado', 'Se retiró el día sin compromisos y se conservó el historial de reservaciones canceladas.', 'exito');
+    actualizarEvento(evento.id, { historialCambios });
+    mostrarNotificacion('Día retirado', `Se retiró el día y el cambio quedó registrado como versión ${historialCambios.length}.`, 'exito');
   };
 
   const cancelarEventoCompleto = () => {
     if (!puedeGestionar) return;
     const tieneAccesos = bitacoraEscaneos.some((registro) => registro.idEvento === evento.id && registro.resultado === 'exito');
     if (tieneAccesos) { mostrarNotificacion('No se puede cancelar', 'El evento ya tiene check-ins registrados; requiere atención institucional.', 'error'); return; }
-    if (!window.confirm('¿Cancelar el evento? Se cancelarán sus reservaciones y boletos vigentes.')) return;
-    listaReservaciones.filter((reserva) => reserva.idEvento === evento.id && reserva.estado !== 'cancelada').forEach((reserva) => cancelarReservacionPorEvento(reserva.id, usuarioActual?.id || '', rolActivo, 'Cancelación del evento por la persona responsable.'));
-    actualizarEvento(evento.id, { estado: 'cancelado' });
-    mostrarNotificacion('Evento cancelado', 'Se cancelaron las reservaciones activas y se conservó el evento en el sistema.', 'exito');
+    const motivo = window.prompt('Indica el motivo de cancelación. Se conservará en la bitácora:');
+    if (!motivo?.trim()) { mostrarNotificacion('Cancelación no realizada', 'Debes registrar un motivo para cancelar el evento.', 'advertencia'); return; }
+    if (!window.confirm('¿Confirmas la cancelación? El evento permanecerá en el historial y sus reservaciones se cancelarán.')) return;
+    const reservasAfectadas = listaReservaciones.filter((reserva) => reserva.idEvento === evento.id && reserva.estado !== 'cancelada');
+    const destinatarios = [...new Set([evento.idOrganizador, ...reservasAfectadas.map((reserva) => reserva.correoUsuario)].filter(Boolean))];
+    reservasAfectadas.forEach((reserva) => cancelarReservacionPorEvento(reserva.id, usuarioActual?.id || '', rolActivo, motivo.trim()));
+    const fechaRegistro = new Date().toISOString();
+    const historialCambios = [...(evento.historialCambios || []), {
+      version: (evento.historialCambios?.length || 0) + 1,
+      fecha: fechaRegistro,
+      responsable: usuarioActual?.nombre || 'Usuario autorizado',
+      motivo: motivo.trim(),
+      campos: ['estado del evento', 'reservaciones y boletos vigentes'],
+      valoresAnteriores: { titulo: evento.titulo, descripcion: evento.descripcion, ponentes: [...evento.ponentes], urlImagen: evento.urlImagen },
+      valoresNuevos: { titulo: evento.titulo, descripcion: evento.descripcion, ponentes: [...evento.ponentes], urlImagen: evento.urlImagen },
+      detalleAnterior: JSON.stringify({ estado: evento.estado, reservacionesActivas: reservasAfectadas.length }),
+      detalleNuevo: JSON.stringify({ estado: 'cancelado', reservacionesCanceladas: reservasAfectadas.length }),
+      resultadoNotificacion: { estado: 'no_configurada' as const, destinatarios, fechaRegistro }
+    }];
+    actualizarEvento(evento.id, { estado: 'cancelado', historialCambios });
+    mostrarNotificacion('Evento cancelado; correo no enviado', `Se cancelaron ${reservasAfectadas.length} reservaciones. El motivo quedó registrado. No hay un servicio de correo configurado; destinatarios previstos: ${destinatarios.length}.`, 'advertencia');
   };
 
   const cancelarDia = (idFecha: string) => {
     if (!puedeGestionar) return;
     const tieneAccesos = bitacoraEscaneos.some((registro) => registro.idEvento === evento.id && registro.idFechaEvento === idFecha && registro.resultado === 'exito');
     if (tieneAccesos) { mostrarNotificacion('No se puede cancelar el día', 'Ya existen accesos registrados para este día.', 'error'); return; }
-    if (!window.confirm('¿Cancelar este día? Sus boletos y reservaciones activas también se cancelarán.')) return;
-    listaReservaciones.filter((reserva) => reserva.idEvento === evento.id && reserva.idFechaEvento === idFecha && reserva.estado !== 'cancelada').forEach((reserva) => cancelarReservacionPorEvento(reserva.id, usuarioActual?.id || '', rolActivo, 'Cancelación del día por la persona responsable.'));
-    actualizarEvento(evento.id, { fechas: evento.fechas.map((dia) => dia.id === idFecha ? { ...dia, cancelada: true } : dia) });
-    mostrarNotificacion('Día cancelado', 'Se conservaron los demás días y se cancelaron las reservaciones vinculadas.', 'exito');
+    const motivo = window.prompt('Indica el motivo de cancelación de este día:');
+    if (!motivo?.trim()) { mostrarNotificacion('Cancelación no realizada', 'Debes registrar un motivo para cancelar el día.', 'advertencia'); return; }
+    if (!window.confirm('¿Confirmas la cancelación? Se cancelarán las reservaciones activas de este día.')) return;
+    const dia = evento.fechas.find((item) => item.id === idFecha);
+    const reservasAfectadas = listaReservaciones.filter((reserva) => reserva.idEvento === evento.id && reserva.idFechaEvento === idFecha && reserva.estado !== 'cancelada');
+    reservasAfectadas.forEach((reserva) => cancelarReservacionPorEvento(reserva.id, usuarioActual?.id || '', rolActivo, motivo.trim()));
+    const historialCambios = [...(evento.historialCambios || []), {
+      version: (evento.historialCambios?.length || 0) + 1,
+      fecha: new Date().toISOString(),
+      responsable: usuarioActual?.nombre || 'Usuario autorizado',
+      motivo: motivo.trim(),
+      campos: ['estado del día', 'reservaciones y boletos vigentes'],
+      valoresAnteriores: { titulo: evento.titulo, descripcion: evento.descripcion, ponentes: [...evento.ponentes], urlImagen: evento.urlImagen },
+      valoresNuevos: { titulo: evento.titulo, descripcion: evento.descripcion, ponentes: [...evento.ponentes], urlImagen: evento.urlImagen },
+      detalleAnterior: JSON.stringify({ ...dia, reservacionesActivas: reservasAfectadas.length }),
+      detalleNuevo: JSON.stringify({ ...dia, cancelada: true, reservacionesCanceladas: reservasAfectadas.length })
+    }];
+    actualizarEvento(evento.id, { fechas: evento.fechas.map((item) => item.id === idFecha ? { ...item, cancelada: true } : item), historialCambios });
+    mostrarNotificacion('Día cancelado', `Se conservó el día en la programación y el cambio quedó registrado como versión ${historialCambios.length}.`, 'exito');
   };
 
   return (
@@ -315,7 +388,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         <div className="mt-4 flex gap-2"><button type="button" onClick={confirmarEdicionEvento} className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white">Confirmar cambios</button><button type="button" onClick={() => { setPropuestaEdicion(null); setNombreBanner(''); setUrlBannerPropuesto(undefined); }} className="rounded-lg border px-4 py-2 text-xs font-bold">Cancelar</button></div>
       </section>}
 
-      {evento.estado === 'publicado' && (evento.historialCambios?.length || 0) > 0 && <section className="mb-8 rounded-2xl border border-neutral-200 bg-white p-5"><h2 className="font-bold">Historial de modificaciones ({evento.historialCambios?.length})</h2><ol className="mt-3 space-y-2 text-xs text-neutral-600">{[...(evento.historialCambios || [])].reverse().map((cambio) => <li key={cambio.version} className="border-t pt-2"><strong>Versión {cambio.version}</strong> · {new Date(cambio.fecha).toLocaleString('es-MX')} · {cambio.responsable} · Campos: {cambio.campos.join(', ')}</li>)}</ol></section>}
+      {(evento.historialCambios?.length || 0) > 0 && <section className="mb-8 rounded-2xl border border-neutral-200 bg-white p-5"><h2 className="font-bold">Historial de modificaciones ({evento.historialCambios?.length})</h2><ol className="mt-3 space-y-3 text-xs text-neutral-600">{[...(evento.historialCambios || [])].reverse().map((cambio) => <li key={cambio.version} className="border-t pt-3"><strong>Versión {cambio.version}</strong> · {new Date(cambio.fecha).toLocaleString('es-MX')} · {cambio.responsable}<p className="mt-1">Campos: {cambio.campos.join(', ')}</p>{cambio.motivo && <p className="mt-1"><strong>Motivo:</strong> {cambio.motivo}</p>}{(cambio.detalleAnterior || cambio.detalleNuevo) && <details className="mt-1"><summary className="cursor-pointer font-semibold">Consultar valores antes y después</summary><div className="mt-2 grid gap-2 sm:grid-cols-2"><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Antes: {cambio.detalleAnterior || JSON.stringify(cambio.valoresAnteriores, null, 2)}</pre><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Después: {cambio.detalleNuevo || JSON.stringify(cambio.valoresNuevos, null, 2)}</pre></div></details>}{cambio.resultadoNotificacion && <p role="status" className="mt-2 rounded bg-amber-50 p-2 text-amber-900">Correo no enviado: no hay proveedor de correo configurado. Destinatarios previstos: {cambio.resultadoNotificacion.destinatarios.join(', ') || 'ninguno registrado'}.</p>}</li>)}</ol></section>}
 
       {/* ========================================================================= */}
       {/* BANNER HERO: ESTADO DE PREPARACIÓN PARA PUBLICAR                          */}
