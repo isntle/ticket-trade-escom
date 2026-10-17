@@ -1,31 +1,45 @@
-import React, { useState } from 'react';
+import { modoDemostracionActivo } from "../../dominio/demostracion";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  UserCheck,
   ChevronDown,
-  RotateCcw,
-  Sparkles,
-  Shield,
-  Layers,
-  Calendar,
-  Ticket as IconoBoleto,
-  Menu,
-  X,
   LogIn,
   LogOut,
-  UserPlus,
-  KeyRound
-} from 'lucide-react';
-import { useAutenticacion } from '../../contextos/AutenticacionContexto';
-import { useDatos } from '../../contextos/DatosContexto';
-import { useNotificaciones } from '../../contextos/NotificacionesContexto';
-import { RolUsuario } from '../../tipos';
+  Menu,
+  RotateCcw,
+  UserRound,
+  X,
+} from "lucide-react";
+import { useAutenticacion } from "../../contextos/AutenticacionContexto";
+import { useDatos } from "../../contextos/DatosContexto";
+import { useNotificaciones } from "../../contextos/NotificacionesContexto";
+import type { RolUsuario } from "../../tipos";
 
-interface PropiedadesBarraSuperior {
+const nombres: Record<RolUsuario, string> = {
+  asistente: "Asistente",
+  organizador: "Organizador",
+  staff: "Personal de acceso",
+  subdireccion: "Subdirección",
+  admin: "Administrador",
+};
+const inicioRol: Record<RolUsuario, string> = {
+  asistente: "/eventos",
+  organizador: "/organizador",
+  staff: "/staff",
+  subdireccion: "/subdireccion",
+  admin: "/admin",
+};
+const panelRol: Record<RolUsuario, string> = {
+  asistente: "Cartelera",
+  organizador: "Mis eventos y solicitudes",
+  staff: "Control de acceso",
+  subdireccion: "Solicitudes",
+  admin: "Administración",
+};
+
+export const BarraSuperior: React.FC<{
   rutaActual: string;
   navegarA: (ruta: string) => void;
-}
-
-export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, navegarA }) => {
+}> = ({ rutaActual, navegarA }) => {
   const {
     usuarioActual,
     estaAutenticado,
@@ -33,472 +47,277 @@ export const BarraSuperior: React.FC<PropiedadesBarraSuperior> = ({ rutaActual, 
     cambiarRolActivo,
     todosLosUsuarios,
     cambiarUsuario,
-    cerrarSesion
+    cerrarSesion,
   } = useAutenticacion();
-
   const { reiniciarDatosIniciales } = useDatos();
   const { mostrarNotificacion } = useNotificaciones();
-
-  const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
-  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
-
-  const etiquetasRoles: Record<RolUsuario, { nombre: string; color: string; icono: string }> = {
-    asistente: { nombre: 'Asistente', color: 'bg-blue-50 text-blue-800 border-blue-200', icono: '🎓' },
-    organizador: { nombre: 'Organizador', color: 'bg-indigo-50 text-indigo-800 border-indigo-200', icono: '📋' },
-    staff: { nombre: 'Staff de Acceso', color: 'bg-purple-50 text-purple-800 border-purple-200', icono: '📱' },
-    subdireccion: { nombre: 'Subdirección', color: 'bg-emerald-50 text-emerald-800 border-emerald-200', icono: '🏛️' },
-    admin: { nombre: 'Administrador TI', color: 'bg-rose-50 text-rose-800 border-rose-200', icono: '⚙️' }
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const [movilAbierto, setMovilAbierto] = useState(false);
+  const contenedor = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    setMenuAbierto(false);
+    setMovilAbierto(false);
+  }, [rutaActual]);
+  useEffect(() => {
+    const cerrar = (evento: PointerEvent) => {
+      if (!contenedor.current?.contains(evento.target as Node))
+        setMenuAbierto(false);
+    };
+    const tecla = (evento: KeyboardEvent) => {
+      if (evento.key === "Escape") {
+        setMenuAbierto(false);
+        setMovilAbierto(false);
+      }
+    };
+    document.addEventListener("pointerdown", cerrar);
+    document.addEventListener("keydown", tecla);
+    return () => {
+      document.removeEventListener("pointerdown", cerrar);
+      document.removeEventListener("keydown", tecla);
+    };
+  }, []);
+  const ir = (ruta: string) => {
+    setMenuAbierto(false);
+    setMovilAbierto(false);
+    navegarA(ruta);
   };
-
-  const alCambiarRol = (nuevoRol: RolUsuario) => {
-    cambiarRolActivo(nuevoRol);
-    mostrarNotificacion(
-      'Perspectiva cambiada',
-      `Ahora estás interactuando con la capacidad de ${etiquetasRoles[nuevoRol].nombre}`,
-      'informacion'
-    );
-
-    // Navegación automática según la perspectiva elegida
-    if (nuevoRol === 'asistente') navegarA('/eventos');
-    else if (nuevoRol === 'organizador') navegarA('/organizador');
-    else if (nuevoRol === 'subdireccion') navegarA('/subdireccion');
-    else if (nuevoRol === 'staff') navegarA('/staff');
-    else if (nuevoRol === 'admin') navegarA('/admin');
+  const elegirRol = (rol: RolUsuario) => {
+    cambiarRolActivo(rol);
+    ir(inicioRol[rol]);
   };
-
-  const alCambiarUsuario = (idUsuario: string) => {
-    cambiarUsuario(idUsuario);
-    setMenuUsuarioAbierto(false);
-    const seleccionado = todosLosUsuarios.find((u) => u.id === idUsuario);
-    mostrarNotificacion(
-      'Usuario cambiado',
-      `Sesión activa como ${seleccionado?.nombre}`,
-      'exito'
-    );
-  };
-
-  const alCerrarSesion = () => {
-    cerrarSesion();
-    setMenuUsuarioAbierto(false);
-    mostrarNotificacion('Sesión Finalizada', 'Has cerrado tu sesión de forma segura.', 'informacion');
-    navegarA('/login');
-  };
-
-  const alReiniciarDatos = () => {
-    reiniciarDatosIniciales();
-    mostrarNotificacion(
-      'Datos restaurados',
-      'La base de datos institucional volvió a su estado inicial de prueba',
-      'informacion'
-    );
-  };
-
+  const enlaces = [
+    { nombre: "Cartelera", ruta: "/eventos" },
+    ...(estaAutenticado
+      ? [{ nombre: "Mis boletos", ruta: "/mis-reservaciones" }]
+      : []),
+    ...(estaAutenticado && rolActivo !== "asistente"
+      ? [{ nombre: panelRol[rolActivo], ruta: inicioRol[rolActivo] }]
+      : []),
+  ];
+  const activo = (ruta: string) =>
+    ruta === "/eventos"
+      ? rutaActual === "/" || rutaActual.startsWith("/eventos")
+      : rutaActual.startsWith(ruta);
+  const puedeOrganizar = usuarioActual?.roles.some((rol) =>
+    ["organizador", "subdireccion", "admin"].includes(rol),
+  );
+  const claseEnlace = (ruta: string) =>
+    "rounded-lg px-3 py-2 text-sm font-semibold transition-colors " +
+    (activo(ruta)
+      ? "bg-[#7a132b]/7 text-[#7a132b]"
+      : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-950");
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-neutral-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Zona 1: Logo en tipografía destacada y color guinda */}
-          <div className="flex items-center">
-            <button
-              type="button"
-              onClick={() => navegarA('/eventos')}
-              className="flex items-center gap-2 text-left group cursor-pointer"
-            >
-              <span
-                className="text-xl font-extrabold tracking-tight transition-opacity hover:opacity-90"
-                style={{ color: 'var(--color-guinda)' }}
-              >
-                Ticket Trade
-              </span>
-              <span className="hidden sm:inline-block text-xs font-semibold text-neutral-500 border-l border-neutral-300 pl-2">
-                ESCOM IPN
-              </span>
-            </button>
-          </div>
-
-          {/* Zona 2: Enlaces de Navegación según permisos del usuario */}
-          <nav className="hidden md:flex items-center gap-1 lg:gap-2">
-            <button
-              onClick={() => navegarA('/eventos')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                rutaActual.startsWith('/eventos') || rutaActual === '/'
-                  ? 'text-[#7a132b] bg-[#7a132b]/5'
-                  : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
-              }`}
-            >
-              Cartelera
-            </button>
-
-            {estaAutenticado && (
+    <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="flex min-h-18 items-center justify-between gap-3 py-3">
+          <button
+            onClick={() => ir("/eventos")}
+            className="shrink-0 whitespace-nowrap text-xl font-extrabold tracking-tight text-[#7a132b]"
+            aria-label="Ticket Trade, ir a cartelera"
+          >
+            Ticket Trade
+          </button>
+          <nav
+            aria-label="Navegación principal"
+            className="hidden min-w-0 flex-1 justify-center gap-1 lg:flex"
+          >
+            {enlaces.map((enlace) => (
               <button
-                onClick={() => navegarA('/mis-reservaciones')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                  rutaActual.startsWith('/mis-reservaciones')
-                    ? 'text-[#7a132b] bg-[#7a132b]/5'
-                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
-                }`}
+                key={enlace.ruta}
+                onClick={() => ir(enlace.ruta)}
+                aria-current={activo(enlace.ruta) ? "page" : undefined}
+                className={claseEnlace(enlace.ruta)}
               >
-                Mis Boletos
+                {enlace.nombre}
               </button>
-            )}
-
-            {/* Opciones operativas para Organizadores, Subdirección y Administradores */}
-            {usuarioActual &&
-              usuarioActual.roles.some((r) => ['organizador', 'subdireccion', 'admin'].includes(r)) &&
-              rolActivo !== 'asistente' && (
-                <button
-                  onClick={() => navegarA('/distribucion')}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
-                    rutaActual.startsWith('/distribucion') || rutaActual.startsWith('/arreglos')
-                      ? 'text-[#7a132b] bg-[#7a132b]/5'
-                      : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
-                  }`}
-                >
-                  <Layers className="w-3.5 h-3.5 text-[#7a132b]" />
-                  <span>Distribución de Espacios</span>
-                </button>
-              )}
-
-            {usuarioActual && usuarioActual.roles.includes('organizador') && rolActivo !== 'asistente' && (
+            ))}
+            {puedeOrganizar && rolActivo !== "asistente" && (
               <button
-                onClick={() => {
-                  cambiarRolActivo('organizador');
-                  navegarA('/organizador');
-                }}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                  rutaActual.startsWith('/organizador')
-                    ? 'text-[#7a132b] bg-[#7a132b]/5'
-                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
-                }`}
+                onClick={() => ir("/distribucion")}
+                className={claseEnlace("/distribucion")}
               >
-                Organización
-              </button>
-            )}
-
-            {usuarioActual && usuarioActual.roles.includes('subdireccion') && (
-              <button
-                onClick={() => {
-                  cambiarRolActivo('subdireccion');
-                  navegarA('/subdireccion');
-                }}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                  rutaActual.startsWith('/subdireccion')
-                    ? 'text-[#7a132b] bg-[#7a132b]/5'
-                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
-                }`}
-              >
-                Subdirección
-              </button>
-            )}
-
-            {usuarioActual && usuarioActual.roles.includes('staff') && (
-              <button
-                onClick={() => {
-                  cambiarRolActivo('staff');
-                  navegarA('/staff');
-                }}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                  rutaActual.startsWith('/staff')
-                    ? 'text-[#7a132b] bg-[#7a132b]/5'
-                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
-                }`}
-              >
-                Control Acceso
-              </button>
-            )}
-
-            {usuarioActual && usuarioActual.roles.includes('admin') && (
-              <button
-                onClick={() => {
-                  cambiarRolActivo('admin');
-                  navegarA('/admin');
-                }}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                  rutaActual.startsWith('/admin')
-                    ? 'text-[#7a132b] bg-[#7a132b]/5'
-                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
-                }`}
-              >
-                Administración TI
+                Distribución de espacios
               </button>
             )}
           </nav>
-
-          {/* Zona 3: Selector de Rol y Perfil de Usuario */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={() => setMovilAbierto(!movilAbierto)}
+              aria-label={
+                movilAbierto ? "Cerrar navegación" : "Abrir navegación"
+              }
+              aria-expanded={movilAbierto}
+              className="rounded-lg border p-2.5 lg:hidden"
+            >
+              {movilAbierto ? <X size={19} /> : <Menu size={19} />}
+            </button>
             {estaAutenticado && usuarioActual ? (
-              <>
-                {/* Selector de Perspectivas del Usuario */}
-                <div className="hidden sm:flex items-center bg-neutral-100 p-0.5 rounded-lg border border-neutral-200">
-                  {usuarioActual.roles.map((rol) => {
-                    const activo = rolActivo === rol;
-                    return (
-                      <button
-                        key={rol}
-                        type="button"
-                        onClick={() => alCambiarRol(rol)}
-                        className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                          activo
-                            ? 'bg-white text-neutral-900 shadow-2xs font-semibold'
-                            : 'text-neutral-500 hover:text-neutral-800'
-                        }`}
-                      >
-                        <span className="mr-1">{etiquetasRoles[rol].icono}</span>
-                        <span className="capitalize">{rol}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Menú de Usuario */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setMenuUsuarioAbierto(!menuUsuarioAbierto)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 transition-colors cursor-pointer"
+              <div ref={contenedor} className="relative">
+                <button
+                  onClick={() => setMenuAbierto(!menuAbierto)}
+                  aria-expanded={menuAbierto}
+                  aria-controls="menu-cuenta"
+                  className="flex max-w-[48vw] items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2 text-left hover:bg-neutral-50"
+                >
+                  <UserRound size={18} className="shrink-0 text-[#7a132b]" />
+                  <span className="min-w-0">
+                    <span className="block max-w-44 truncate text-sm font-semibold">
+                      {usuarioActual.nombre}
+                    </span>
+                    <span className="block text-xs text-neutral-500">
+                      {nombres[rolActivo]}
+                    </span>
+                  </span>
+                  <ChevronDown size={15} className="shrink-0" />
+                </button>
+                {menuAbierto && (
+                  <div
+                    id="menu-cuenta"
+                    className="absolute right-0 top-full mt-2 max-h-[75vh] w-[min(22rem,calc(100vw-2rem))] overflow-auto rounded-2xl border border-neutral-200 bg-white p-3 shadow-xl"
                   >
-                    <div className="text-left">
-                      <div className="text-xs font-semibold text-neutral-900 leading-tight">
-                        {usuarioActual.nombre}
-                      </div>
-                      <div className="text-[10px] text-neutral-500 capitalize leading-none">
-                        {usuarioActual.afiliacion}
-                      </div>
-                    </div>
-                    <ChevronDown className="w-3.5 h-3.5 text-neutral-400 ml-1" />
-                  </button>
-
-                  {menuUsuarioAbierto && (
-                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-neutral-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                      <div className="px-4 py-2 border-b border-neutral-100">
-                        <p className="text-xs font-bold text-neutral-900">{usuarioActual.nombre}</p>
-                        <p className="text-[11px] text-neutral-500">{usuarioActual.correo}</p>
-                        {usuarioActual.boleta && (
-                          <p className="text-[11px] text-neutral-600 font-mono mt-0.5">Boleta: {usuarioActual.boleta}</p>
-                        )}
-                        {usuarioActual.numeroEmpleado && (
-                          <p className="text-[11px] text-neutral-600 font-mono mt-0.5">No. Empleado: {usuarioActual.numeroEmpleado}</p>
-                        )}
-                      </div>
-
-                      {/* Cambiar cuenta institucional de prueba */}
-                      <div className="px-3 py-2 border-b border-neutral-100">
-                        <div className="text-[10px] font-bold tracking-wider text-neutral-400 uppercase mb-1.5 flex items-center gap-1">
-                          <UserCheck className="w-3 h-3" />
-                          <span>Cambiar cuenta de prueba</span>
-                        </div>
-                        <div className="space-y-1">
-                          {todosLosUsuarios.map((u) => (
+                    {usuarioActual.roles.length > 1 && (
+                      <label className="mb-3 block px-2 text-sm font-semibold">
+                        Perfil de trabajo
+                        <select
+                          aria-label="Perfil de trabajo"
+                          value={rolActivo}
+                          onChange={(e) =>
+                            elegirRol(e.target.value as RolUsuario)
+                          }
+                          className="mt-2 w-full rounded-lg border bg-neutral-50 p-2 text-sm"
+                        >
+                          {usuarioActual.roles.map((rol) => (
+                            <option key={rol} value={rol}>
+                              {nombres[rol]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    <button
+                      className="block w-full rounded-lg px-3 py-2.5 text-left text-sm hover:bg-neutral-50"
+                      onClick={() => ir("/perfil")}
+                    >
+                      Mi perfil
+                    </button>
+                    <button
+                      className="block w-full rounded-lg px-3 py-2.5 text-left text-sm hover:bg-neutral-50"
+                      onClick={() => ir("/recuperar-password")}
+                    >
+                      Recuperar contraseña
+                    </button>
+                    <button
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-rose-700 hover:bg-rose-50"
+                      onClick={() => {
+                        cerrarSesion();
+                        ir("/login");
+                      }}
+                    >
+                      <LogOut size={16} />
+                      Cerrar sesión
+                    </button>
+                    {modoDemostracionActivo() && (
+                      <details className="mt-3 border-t pt-3">
+                        <summary className="cursor-pointer px-2 py-1 text-sm font-semibold text-neutral-600">
+                          Demostración y cuentas de prueba
+                        </summary>
+                        <div className="mt-2 space-y-1">
+                          {todosLosUsuarios.map((usuario) => (
                             <button
-                              key={u.id}
-                              onClick={() => alCambiarUsuario(u.id)}
-                              className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center justify-between ${
-                                u.id === usuarioActual.id
-                                  ? 'bg-[#7a132b]/10 text-[#7a132b] font-semibold'
-                                  : 'hover:bg-neutral-50 text-neutral-700'
-                              }`}
+                              key={usuario.id}
+                              onClick={() => {
+                                cambiarUsuario(usuario.id);
+                                ir(inicioRol[usuario.rolActivo]);
+                                mostrarNotificacion(
+                                  "Cuenta de demostración",
+                                  usuario.nombre,
+                                  "informacion",
+                                );
+                              }}
+                              className={
+                                "block w-full rounded-lg px-3 py-2 text-left text-sm " +
+                                (usuario.id === usuarioActual.id
+                                  ? "bg-neutral-100 font-semibold"
+                                  : "hover:bg-neutral-50")
+                              }
                             >
-                              <span className="truncate">{u.nombre}</span>
-                              <span className="text-[10px] text-neutral-400 capitalize">{u.afiliacion}</span>
+                              {usuario.nombre}
+                              <span className="block text-xs text-neutral-500">
+                                {usuario.afiliacion}
+                              </span>
                             </button>
                           ))}
+                          <button
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  "¿Restaurar los datos de prueba de este navegador? Se reemplazarán los cambios locales de demostración.",
+                                )
+                              ) {
+                                reiniciarDatosIniciales();
+                                mostrarNotificacion(
+                                  "Datos restaurados",
+                                  "Se cargaron los datos de demostración.",
+                                  "informacion",
+                                );
+                                setMenuAbierto(false);
+                              }
+                            }}
+                            className="mt-2 flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-sm"
+                          >
+                            <RotateCcw size={15} />
+                            Restaurar datos de prueba
+                          </button>
                         </div>
-                      </div>
-
-                      <div className="p-1 space-y-0.5">
-                        <button
-                          onClick={() => {
-                            setMenuUsuarioAbierto(false);
-                            navegarA('/perfil');
-                          }}
-                          className="w-full text-left px-3 py-2 rounded text-xs text-neutral-700 hover:bg-neutral-50 transition-colors flex items-center justify-between"
-                        >
-                          <span>Consultar y Editar Perfil</span>
-                          <span className="text-[10px] text-neutral-400">→</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            setMenuUsuarioAbierto(false);
-                            alReiniciarDatos();
-                          }}
-                          className="w-full text-left px-3 py-1.5 rounded text-xs text-neutral-600 hover:bg-neutral-50 flex items-center gap-1.5 transition-colors"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Reiniciar datos iniciales</span>
-                        </button>
-                        <button
-                          onClick={alCerrarSesion}
-                          className="w-full text-left px-3 py-2 rounded text-xs text-rose-700 hover:bg-rose-50 flex items-center gap-1.5 transition-colors font-semibold border-t border-neutral-100 mt-1"
-                        >
-                          <LogOut className="w-3.5 h-3.5" />
-                          <span>Cerrar Sesión</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
+                      </details>
+                    )}
+                  </div>
+                )}
+              </div>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <button
-                  type="button"
-                  onClick={() => navegarA('/login')}
-                  className="px-3.5 py-1.5 text-xs font-bold text-neutral-700 hover:text-neutral-900 border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors flex items-center gap-1.5"
+                  onClick={() => ir("/login")}
+                  className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-[#7a132b]"
                 >
-                  <LogIn className="w-3.5 h-3.5" />
-                  <span>Iniciar Sesión</span>
+                  <LogIn size={17} />
+                  <span className="hidden sm:inline">Iniciar sesión</span>
                 </button>
                 <button
-                  type="button"
-                  onClick={() => navegarA('/registro')}
-                  className="px-3.5 py-1.5 text-xs font-bold text-white bg-[#7a132b] hover:bg-[#620f23] rounded-lg transition-colors flex items-center gap-1.5 shadow-xs"
+                  onClick={() => ir("/registro")}
+                  className="rounded-lg bg-[#7a132b] px-3 py-2 text-sm font-bold text-white"
                 >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>Registro</span>
+                  Crear cuenta
                 </button>
               </div>
             )}
-
-            {/* Botón de Menú Móvil */}
-            <div className="flex md:hidden">
-              <button
-                type="button"
-                onClick={() => setMenuMovilAbierto(!menuMovilAbierto)}
-                className="p-2 rounded-lg text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
-              >
-                {menuMovilAbierto ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
-            </div>
           </div>
         </div>
-      </div>
-
-      {/* Menú Móvil Desplegable */}
-      {menuMovilAbierto && (
-        <div className="md:hidden border-t border-neutral-200 bg-white px-4 pt-2 pb-4 space-y-1">
-          <button
-            onClick={() => {
-              navegarA('/eventos');
-              setMenuMovilAbierto(false);
-            }}
-            className="w-full text-left px-3 py-2 rounded text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+        {movilAbierto && (
+          <nav
+            aria-label="Navegación móvil"
+            className="grid gap-1 border-t py-3 sm:grid-cols-2 lg:hidden"
           >
-            Cartelera de Eventos
-          </button>
-          {estaAutenticado && (
-            <button
-              onClick={() => {
-                navegarA('/mis-reservaciones');
-                setMenuMovilAbierto(false);
-              }}
-              className="w-full text-left px-3 py-2 rounded text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-            >
-              Mis Boletos Digitales
-            </button>
-          )}
-          {usuarioActual?.roles.some((r) => ['organizador', 'subdireccion', 'admin'].includes(r)) && rolActivo !== 'asistente' && (
-            <button
-              onClick={() => {
-                navegarA('/distribucion');
-                setMenuMovilAbierto(false);
-              }}
-              className="w-full text-left px-3 py-2 rounded text-sm font-medium text-[#7a132b] hover:bg-neutral-50 flex items-center gap-2"
-            >
-              <Layers className="w-4 h-4 text-[#7a132b]" />
-              <span>Distribución de Espacios</span>
-            </button>
-          )}
-          {usuarioActual?.roles.includes('organizador') && (
-            <button
-              onClick={() => {
-                cambiarRolActivo('organizador');
-                navegarA('/organizador');
-                setMenuMovilAbierto(false);
-              }}
-              className="w-full text-left px-3 py-2 rounded text-sm font-medium text-indigo-700 hover:bg-indigo-50"
-            >
-              Panel de Organización
-            </button>
-          )}
-          {usuarioActual?.roles.includes('subdireccion') && (
-            <button
-              onClick={() => {
-                cambiarRolActivo('subdireccion');
-                navegarA('/subdireccion');
-                setMenuMovilAbierto(false);
-              }}
-              className="w-full text-left px-3 py-2 rounded text-sm font-medium text-emerald-700 hover:bg-emerald-50"
-            >
-              Dictamen Subdirección
-            </button>
-          )}
-          {usuarioActual?.roles.includes('staff') && (
-            <button
-              onClick={() => {
-                cambiarRolActivo('staff');
-                navegarA('/staff');
-                setMenuMovilAbierto(false);
-              }}
-              className="w-full text-left px-3 py-2 rounded text-sm font-medium text-purple-700 hover:bg-purple-50"
-            >
-              Control de Acceso (Staff)
-            </button>
-          )}
-          {usuarioActual?.roles.includes('admin') && (
-            <button
-              onClick={() => {
-                cambiarRolActivo('admin');
-                navegarA('/admin');
-                setMenuMovilAbierto(false);
-              }}
-              className="w-full text-left px-3 py-2 rounded text-sm font-medium text-rose-700 hover:bg-rose-50"
-            >
-              Administración TI
-            </button>
-          )}
-
-          {estaAutenticado ? (
-            <div className="pt-2 border-t border-neutral-100 flex gap-2">
+            {enlaces.map((enlace) => (
               <button
-                onClick={() => {
-                  navegarA('/perfil');
-                  setMenuMovilAbierto(false);
-                }}
-                className="flex-1 py-2 text-center text-xs font-bold text-neutral-800 bg-neutral-100 rounded-lg"
+                key={enlace.ruta}
+                onClick={() => ir(enlace.ruta)}
+                className={claseEnlace(enlace.ruta) + " text-left"}
               >
-                Mi Perfil
+                {enlace.nombre}
               </button>
+            ))}
+            {puedeOrganizar && rolActivo !== "asistente" && (
               <button
-                onClick={alCerrarSesion}
-                className="flex-1 py-2 text-center text-xs font-bold text-rose-700 bg-rose-50 rounded-lg"
+                onClick={() => ir("/distribucion")}
+                className={claseEnlace("/distribucion") + " text-left"}
               >
-                Cerrar Sesión
+                Distribución de espacios
               </button>
-            </div>
-          ) : (
-            <div className="pt-2 border-t border-neutral-100 flex gap-2">
-              <button
-                onClick={() => {
-                  navegarA('/login');
-                  setMenuMovilAbierto(false);
-                }}
-                className="flex-1 py-2 text-center text-xs font-bold text-neutral-800 bg-neutral-100 rounded-lg"
-              >
-                Iniciar Sesión
-              </button>
-              <button
-                onClick={() => {
-                  navegarA('/registro');
-                  setMenuMovilAbierto(false);
-                }}
-                className="flex-1 py-2 text-center text-xs font-bold text-white bg-[#7a132b] rounded-lg"
-              >
-                Registrarse
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </nav>
+        )}
+      </div>
     </header>
   );
 };

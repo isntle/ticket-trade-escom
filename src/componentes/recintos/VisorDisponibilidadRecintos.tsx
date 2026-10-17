@@ -102,24 +102,24 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-neutral-100">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-bold text-[#7a132b] uppercase tracking-wider">
-              Agenda Institucional de Espacios Físicos
+            <span className="text-sm font-bold text-[#7a132b] ">
+              Disponibilidad de recintos
             </span>
-            <span className="text-[11px] text-neutral-400 font-mono">
-              Timeline Operacional ESCOM
+            <span className="text-sm text-neutral-400 font-mono">
+              Horarios de 08:00 a 20:00
             </span>
           </div>
           <h2 className="text-xl font-extrabold text-neutral-900 tracking-tight">
-            Matriz Horaria Multi-Recinto (08:00 a 20:00 hrs)
+            Agenda de recintos
           </h2>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Cotejo en tiempo real de eventos autorizados, clases curriculares en laboratorios y bloqueos de mantenimiento.
+          <p className="text-sm text-neutral-500 mt-0.5">
+            Consulta eventos aprobados, clases y bloqueos para encontrar un horario disponible.
           </p>
         </div>
 
         {/* Controles de Selección de Fecha y Rango Horario */}
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="flex items-center gap-1.5 bg-neutral-50 px-3 py-1.5 rounded-xl border border-neutral-200 text-xs">
+          <div className="flex items-center gap-1.5 bg-neutral-50 px-3 py-1.5 rounded-xl border border-neutral-200 text-sm">
             <Calendar className="w-3.5 h-3.5 text-neutral-500" />
             <input
               type="date"
@@ -129,28 +129,28 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
             />
           </div>
 
-          <div className="flex items-center gap-1.5 bg-neutral-50 px-3 py-1.5 rounded-xl border border-neutral-200 text-xs">
+          <div className="flex items-center gap-1.5 bg-neutral-50 px-3 py-1.5 rounded-xl border border-neutral-200 text-sm">
             <Clock className="w-3.5 h-3.5 text-neutral-500" />
             <input
               type="time"
               value={horaInicioConsulta}
               onChange={(e) => setHoraInicioConsulta(e.target.value)}
-              className="bg-transparent font-medium text-neutral-800 text-xs focus:outline-none"
+              className="bg-transparent font-medium text-neutral-800 text-sm focus:outline-none"
             />
-            <span className="text-neutral-400 text-xs">a</span>
+            <span className="text-neutral-400 text-sm">a</span>
             <input
               type="time"
               value={horaFinConsulta}
               onChange={(e) => setHoraFinConsulta(e.target.value)}
-              className="bg-transparent font-medium text-neutral-800 text-xs focus:outline-none"
+              className="bg-transparent font-medium text-neutral-800 text-sm focus:outline-none"
             />
           </div>
         </div>
       </div>
 
       {/* Píldoras de Acceso Rápido a Fechas de Demostración */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-        <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider shrink-0">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-sm">
+        <span className="text-sm font-semibold text-neutral-400  shrink-0">
           Fechas Clave:
         </span>
         {fechasRapidas.map((item) => (
@@ -158,7 +158,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
             key={item.fecha}
             type="button"
             onClick={() => setFechaConsulta(item.fecha)}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer ${
+            className={`px-3 py-1 rounded-lg text-sm font-medium transition-all shrink-0 cursor-pointer ${
               fechaConsulta === item.fecha
                 ? 'bg-[#7a132b] text-white shadow-2xs font-bold'
                 : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900'
@@ -174,7 +174,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
       {/* ========================================================================= */}
       <div className="border border-neutral-200 rounded-2xl overflow-hidden bg-neutral-50/30">
         {/* Cabecera del Timeline (Regla de Horas 08:00 - 20:00) */}
-        <div className="grid grid-cols-12 border-b border-neutral-200 bg-neutral-100/80 text-[10px] font-mono text-neutral-500 text-center py-2">
+        <div className="grid grid-cols-12 border-b border-neutral-200 bg-neutral-100/80 text-sm font-mono text-neutral-500 text-center py-2">
           <div className="col-span-3 text-left pl-4 font-bold text-neutral-700 tracking-wider uppercase">
             Recinto ESCOM
           </div>
@@ -205,7 +205,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                   onClick={() => alSeleccionarRecinto && alSeleccionarRecinto(recinto.id)}
                   className="col-span-3 pl-4 pr-2 cursor-pointer"
                 >
-                  <div className="font-bold text-xs text-neutral-900 hover:text-[#7a132b] flex items-center gap-1.5 transition-colors">
+                  <div className="font-bold text-sm text-neutral-900 hover:text-[#7a132b] flex items-center gap-1.5 transition-colors">
                     {recinto.tipo === 'auditorio' ? (
                       <Building className="w-3.5 h-3.5 text-[#7a132b] shrink-0" />
                     ) : recinto.tipo === 'laboratorio' ? (
@@ -215,7 +215,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                     )}
                     <span className="truncate">{recinto.nombre}</span>
                   </div>
-                  <div className="text-[10px] text-neutral-400 font-mono mt-0.5">
+                  <div className="text-sm text-neutral-400 font-mono mt-0.5">
                     {recinto.capacidad} cupos · {recinto.ubicacion}
                   </div>
                 </div>
@@ -268,7 +268,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                           width: `${ancho}%`
                         }}
                         title={`${ocu.titulo} (${ocu.horaInicio} - ${ocu.horaFin})`}
-                        className={`absolute h-7 rounded-lg border text-[10px] font-semibold px-2 flex items-center justify-between overflow-hidden shadow-2xs cursor-pointer hover:brightness-110 transition-transform active:scale-98 ${estiloFondo}`}
+                        className={`absolute h-7 rounded-lg border text-sm font-semibold px-2 flex items-center justify-between overflow-hidden shadow-2xs cursor-pointer hover:brightness-110 transition-transform active:scale-98 ${estiloFondo}`}
                       >
                         <span className="truncate font-sans tracking-tight">
                           {ocu.tipo === 'clase' ? ocu.titulo.replace('Clase: ', '') : ocu.titulo}
@@ -282,7 +282,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
 
                   {/* Indicador de libre si no hay eventos */}
                   {ocupaciones.length === 0 && (
-                    <span className="text-[10px] text-neutral-300 font-mono pl-4 italic">
+                    <span className="text-sm text-neutral-300 font-mono pl-4 italic">
                       Completamente disponible durante todo el día
                     </span>
                   )}
@@ -296,7 +296,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
       {/* ========================================================================= */}
       {/* 3. SIMBOLOGÍA VISUAL DEL TIMELINE                                        */}
       {/* ========================================================================= */}
-      <div className="flex flex-wrap items-center justify-between gap-4 text-xs pt-1 border-t border-neutral-100 text-neutral-600">
+      <div className="flex flex-wrap items-center justify-between gap-4 text-sm pt-1 border-t border-neutral-100 text-neutral-600">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-1.5">
             <span className="w-3.5 h-3.5 rounded bg-neutral-800" />
@@ -316,7 +316,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
           </div>
         </div>
 
-        <div className="text-[11px] text-neutral-400 font-mono">
+        <div className="text-sm text-neutral-400 font-mono">
           Regla: 30 minutos de amortiguamiento entre actividades consecutivas
         </div>
       </div>
@@ -331,10 +331,10 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
           titulo={ocupacionDetalle.item.titulo}
           subtitulo={`Registro de ocupación en ${ocupacionDetalle.recinto.nombre}`}
         >
-          <div className="space-y-4 text-xs">
+          <div className="space-y-4 text-sm">
             <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 grid grid-cols-2 gap-3">
               <div>
-                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
+                <span className="text-sm font-bold text-neutral-400  block">
                   Fecha de Ejecución
                 </span>
                 <span className="font-mono font-bold text-neutral-900 text-sm">
@@ -342,7 +342,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                 </span>
               </div>
               <div>
-                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
+                <span className="text-sm font-bold text-neutral-400  block">
                   Horario de Reserva
                 </span>
                 <span className="font-mono font-bold text-neutral-900 text-sm">
@@ -350,7 +350,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                 </span>
               </div>
               <div>
-                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
+                <span className="text-sm font-bold text-neutral-400  block">
                   Tipo de Ocupación
                 </span>
                 <span className="capitalize font-semibold text-neutral-800">
@@ -358,7 +358,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                 </span>
               </div>
               <div>
-                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">
+                <span className="text-sm font-bold text-neutral-400  block">
                   Responsable
                 </span>
                 <span className="font-semibold text-neutral-800">
