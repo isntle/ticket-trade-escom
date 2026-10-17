@@ -41,7 +41,7 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
     verificarDisponibilidadRecinto
   } = useDatos();
 
-  const { usuarioActual, rolActivo } = useAutenticacion();
+  const { usuarioActual, rolActivo, todosLosUsuarios } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
 
   const [motivoRechazoInput, setMotivoRechazoInput] = useState('');
@@ -51,6 +51,7 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
 
   const solicitud = listaSolicitudes.find((s) => s.id === requestId);
   const eventoAsociado = listaEventos.find((e) => e.idSolicitud === requestId);
+  const perfilSolicitante = todosLosUsuarios.find((usuario) => usuario.id === solicitud?.idSolicitante);
 
   if (!solicitud) {
     return (
@@ -73,6 +74,11 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
   const esSubdirector =
     (usuarioActual?.roles.includes('subdireccion') || usuarioActual?.roles.includes('admin')) ?? false;
   const esSolicitante = usuarioActual?.id === solicitud.idSolicitante;
+  const urlDocumento = solicitud.urlDocumento || perfilSolicitante?.urlDocumento;
+  const nombreDocumento = solicitud.nombreDocumento || perfilSolicitante?.nombreDocumento;
+  const documentoSeguro = urlDocumento && /^(https?:|data:application\/pdf|data:image\/)/i.test(urlDocumento)
+    ? urlDocumento
+    : undefined;
 
   // Ejecutar autorización
   const manejarAutorizar = () => {
@@ -191,6 +197,24 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
                 <span className="text-[10px] text-neutral-400 block uppercase font-bold">Correo Institucional</span>
                 <span className="text-neutral-700 truncate block">{solicitud.correoSolicitante}</span>
               </div>
+              <div>
+                <span className="text-[10px] text-neutral-400 block uppercase font-bold">Organización / Departamento</span>
+                <span className="text-neutral-700">{perfilSolicitante?.nombreOrganizacion || 'No registrado'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-neutral-400 block uppercase font-bold">Cargo de contacto</span>
+                <span className="text-neutral-700">{perfilSolicitante?.puestoContacto || 'No registrado'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-neutral-400 block uppercase font-bold">Teléfono de contacto</span>
+                <span className="text-neutral-700">{solicitud.telefonoContacto || perfilSolicitante?.telefonoContacto || 'No registrado'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-neutral-400 block uppercase font-bold">Correo de contacto del evento</span>
+                <a className="text-[#7a132b] underline break-all" href={`mailto:${solicitud.correoContacto || solicitud.correoSolicitante}`}>
+                  {solicitud.correoContacto || solicitud.correoSolicitante}
+                </a>
+              </div>
             </div>
           </div>
 
@@ -218,17 +242,36 @@ export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
             </div>
           )}
 
-          {/* Documento adjunto si aplica */}
-          {solicitud.nombreDocumento && (
-            <div className="bg-white rounded-2xl border border-neutral-200 p-4 shadow-xs flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-neutral-500" />
-                <span className="font-mono font-medium text-neutral-800">{solicitud.nombreDocumento}</span>
+          {(solicitud.nombreBanner || solicitud.urlImagen) && (
+            <section className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs space-y-3">
+              <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider">Cartel del evento</h3>
+              {solicitud.urlImagen ? (
+                <a href={solicitud.urlImagen} target="_blank" rel="noreferrer" className="block">
+                  <img src={solicitud.urlImagen} alt={`Cartel de ${solicitud.tituloEvento}`} className="max-h-64 w-full rounded-xl object-contain bg-neutral-50" />
+                  <span className="mt-1 block text-[11px] text-neutral-500">{solicitud.nombreBanner || 'Imagen adjunta'}</span>
+                </a>
+              ) : <p className="text-xs text-neutral-500">No hay una imagen disponible para esta solicitud.</p>}
+            </section>
+          )}
+
+          {/* El documento de respaldo solo se expone al solicitante y a personal autorizado. */}
+          {(esSubdirector || esSolicitante) && (nombreDocumento || urlDocumento) && (
+            <section className="bg-white rounded-2xl border border-neutral-200 p-4 shadow-xs text-xs">
+              <div className="flex items-start gap-3">
+                <FileText className="w-4 h-4 mt-0.5 text-neutral-500 shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="font-bold text-neutral-900">Documento de respaldo</h3>
+                  {nombreDocumento && <p className="mt-1 font-mono text-neutral-700 break-all">{nombreDocumento}</p>}
+                  {documentoSeguro ? (
+                    <a href={documentoSeguro} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold text-[#7a132b] underline">
+                      <Download className="w-3.5 h-3.5" /> Abrir documento
+                    </a>
+                  ) : (
+                    <p className="mt-2 text-amber-800">El registro conserva el nombre, pero no hay un archivo adjunto disponible para abrir.</p>
+                  )}
+                </div>
               </div>
-              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded">
-                Documento Acreditado
-              </span>
-            </div>
+            </section>
           )}
         </div>
 

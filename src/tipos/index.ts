@@ -77,7 +77,12 @@ export interface SolicitudEvento {
   correoSolicitante: string;
   afiliacionSolicitante: TipoAfiliacion;
   identificadorSolicitante?: string; // Boleta o número de empleado o RFC
+  correoContacto?: string;
+  telefonoContacto?: string;
   nombreDocumento?: string;
+  urlDocumento?: string;
+  nombreBanner?: string;
+  urlImagen?: string;
   tituloEvento: string;
   descripcionEvento: string;
   fechasSolicitadas: ElementoFechaSolicitada[];

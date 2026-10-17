@@ -75,7 +75,7 @@ interface ContextoDatosTipo {
     nombreRevisor?: string
   ) => void;
   devolverSolicitud: (idSolicitud: string, observaciones: string, nombreRevisor?: string) => void;
-  actualizarSolicitud: (idSolicitud: string, cambios: Partial<Pick<SolicitudEvento, 'tituloEvento' | 'descripcionEvento' | 'fechasSolicitadas' | 'modalidadAsistencia' | 'visibilidad' | 'asistenciaEstimada' | 'justificacionExcepcional'>>, reenviar?: boolean) => void;
+  actualizarSolicitud: (idSolicitud: string, cambios: Partial<Pick<SolicitudEvento, 'tituloEvento' | 'descripcionEvento' | 'fechasSolicitadas' | 'modalidadAsistencia' | 'visibilidad' | 'asistenciaEstimada' | 'justificacionExcepcional' | 'correoContacto' | 'telefonoContacto' | 'nombreDocumento' | 'urlDocumento' | 'nombreBanner' | 'urlImagen'>>, reenviar?: boolean) => void;
   cancelarSolicitud: (idSolicitud: string) => void;
 
   crearEventoInstitucionalDirecto: (datosEvento: Partial<Evento>) => Evento;

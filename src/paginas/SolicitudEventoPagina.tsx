@@ -36,6 +36,14 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
   const [modalidad, setModalidad] = useState<ModalidadAsistencia>(() => solicitudEnEdicion?.modalidadAsistencia || 'controlado');
   const [visibilidad, setVisibilidad] = useState<VisibilidadEvento>(() => solicitudEnEdicion?.visibilidad || 'publico');
   const [asistenciaEstimada, setAsistenciaEstimada] = useState(() => solicitudEnEdicion?.asistenciaEstimada || 120);
+  const [correoContacto, setCorreoContacto] = useState(() => solicitudEnEdicion?.correoContacto || usuarioActual?.correo || '');
+  const [telefonoContacto, setTelefonoContacto] = useState(() => solicitudEnEdicion?.telefonoContacto || usuarioActual?.telefonoContacto || '');
+  const [nombreBanner, setNombreBanner] = useState(() => solicitudEnEdicion?.nombreBanner || '');
+  const [urlImagen, setUrlImagen] = useState<string | undefined>(() => solicitudEnEdicion?.urlImagen);
+  const [errorBanner, setErrorBanner] = useState('');
+  const [nombreDocumento, setNombreDocumento] = useState(() => solicitudEnEdicion?.nombreDocumento || '');
+  const [urlDocumento, setUrlDocumento] = useState<string | undefined>(() => solicitudEnEdicion?.urlDocumento);
+  const [errorDocumento, setErrorDocumento] = useState('');
 
   // Lista unificada de días y fechas solicitadas con programa/actividad por día
   const [fechas, setFechas] = useState<ElementoFechaSolicitada[]>(() => solicitudEnEdicion?.fechasSolicitadas || [
@@ -94,6 +102,64 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
     );
   };
 
+  const leerArchivoComoDataUrl = (archivo: File) => new Promise<string>((resolve, reject) => {
+    const lector = new FileReader();
+    lector.onload = () => typeof lector.result === 'string' ? resolve(lector.result) : reject(new Error('Archivo inválido.'));
+    lector.onerror = () => reject(new Error('No se pudo leer el archivo.'));
+    lector.readAsDataURL(archivo);
+  });
+
+  const prepararBanner = async (archivo?: File) => {
+    setErrorBanner('');
+    if (!archivo) return;
+    if (!['image/jpeg', 'image/png'].includes(archivo.type) || archivo.size > 5 * 1024 * 1024) {
+      setErrorBanner('Selecciona una imagen JPEG o PNG de máximo 5 MiB.');
+      return;
+    }
+    let urlTemporal = '';
+    try {
+      const imagen = new Image();
+      urlTemporal = URL.createObjectURL(archivo);
+      imagen.src = urlTemporal;
+      await new Promise<void>((resolve, reject) => {
+        imagen.onload = () => resolve();
+        imagen.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+      });
+      const escala = Math.min(1, 1800 / imagen.width, 1200 / imagen.height);
+      const lienzo = document.createElement('canvas');
+      lienzo.width = Math.max(1, Math.round(imagen.width * escala));
+      lienzo.height = Math.max(1, Math.round(imagen.height * escala));
+      const contexto = lienzo.getContext('2d');
+      if (!contexto) throw new Error('No se pudo preparar la vista previa.');
+      contexto.fillStyle = '#ffffff';
+      contexto.fillRect(0, 0, lienzo.width, lienzo.height);
+      contexto.drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
+      const imagenOptimizada = lienzo.toDataURL('image/jpeg', 0.78);
+      if (imagenOptimizada.length > 1_500_000) throw new Error('La imagen optimizada es demasiado grande.');
+      setUrlImagen(imagenOptimizada);
+      setNombreBanner(archivo.name);
+    } catch {
+      setErrorBanner('No se pudo procesar la imagen seleccionada.');
+    } finally {
+      if (urlTemporal) URL.revokeObjectURL(urlTemporal);
+    }
+  };
+
+  const prepararDocumento = async (archivo?: File) => {
+    setErrorDocumento('');
+    if (!archivo) return;
+    if (!['application/pdf', 'image/jpeg', 'image/png'].includes(archivo.type) || archivo.size > 1024 * 1024) {
+      setErrorDocumento('Selecciona un PDF, JPEG o PNG de máximo 1 MiB para conservarlo en el almacenamiento local.');
+      return;
+    }
+    try {
+      setUrlDocumento(await leerArchivoComoDataUrl(archivo));
+      setNombreDocumento(archivo.name);
+    } catch {
+      setErrorDocumento('No se pudo leer el documento seleccionado.');
+    }
+  };
+
   const manejarEnvio = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -128,6 +194,10 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
 
     if (!titulo.trim() || !descripcion.trim()) {
       mostrarNotificacion('Campos incompletos', 'Ingresa el título y la descripción del evento', 'advertencia');
+      return;
+    }
+    if (errorBanner || errorDocumento) {
+      mostrarNotificacion('Revisa los archivos adjuntos', errorBanner || errorDocumento, 'advertencia');
       return;
     }
 
@@ -165,6 +235,12 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
       correoSolicitante: usuarioActual.correo,
       afiliacionSolicitante: usuarioActual.afiliacion,
       identificadorSolicitante: usuarioActual.boleta || usuarioActual.numeroEmpleado || usuarioActual.nombreOrganizacion,
+      correoContacto: correoContacto.trim(),
+      telefonoContacto: telefonoContacto.trim(),
+      nombreDocumento: nombreDocumento || undefined,
+      urlDocumento,
+      nombreBanner: nombreBanner || undefined,
+      urlImagen,
       tituloEvento: titulo,
       descripcionEvento: descripcion,
       fechasSolicitadas: fechas,
@@ -202,10 +278,16 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
     if (!titulo.trim() || !descripcion.trim()) {
       mostrarNotificacion('Completa la información básica', 'El título y la descripción permiten identificar el borrador.', 'advertencia'); return;
     }
+    if (errorBanner || errorDocumento) {
+      mostrarNotificacion('Revisa los archivos adjuntos', errorBanner || errorDocumento, 'advertencia'); return;
+    }
     const datosBorrador = {
       idSolicitante: usuarioActual.id, nombreSolicitante: usuarioActual.nombre,
       correoSolicitante: usuarioActual.correo, afiliacionSolicitante: usuarioActual.afiliacion,
       identificadorSolicitante: usuarioActual.boleta || usuarioActual.numeroEmpleado || usuarioActual.nombreOrganizacion,
+      correoContacto: correoContacto.trim(), telefonoContacto: telefonoContacto.trim(),
+      nombreDocumento: nombreDocumento || undefined, urlDocumento,
+      nombreBanner: nombreBanner || undefined, urlImagen,
       tituloEvento: titulo.trim(), descripcionEvento: descripcion.trim(), fechasSolicitadas: fechas,
       modalidadAsistencia: modalidad, visibilidad, asistenciaEstimada, esExcepcional: requiereJustificacion,
       justificacionExcepcional: justificacionExcepcional || undefined
@@ -312,6 +394,33 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
                 placeholder="Detalla los objetivos, la población estudiantil a beneficiar y los temas que se abordarán..."
                 className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-neutral-900 text-xs sm:text-sm focus:outline-none focus:border-[#7a132b] focus:bg-white transition-all"
               />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="block font-semibold text-neutral-800">
+                Correo de contacto del evento *
+                <input type="email" required value={correoContacto} onChange={(e) => setCorreoContacto(e.target.value)} className="mt-1 w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-[#7a132b]" />
+              </label>
+              <label className="block font-semibold text-neutral-800">
+                Teléfono de contacto *
+                <input type="tel" required value={telefonoContacto} onChange={(e) => setTelefonoContacto(e.target.value)} placeholder="Ej. 55 1234 5678" className="mt-1 w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-[#7a132b]" />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+              <label className="text-xs font-semibold text-neutral-800">
+                Cartel o imagen del evento (JPEG/PNG, máximo 5 MiB)
+                <input type="file" accept="image/jpeg,image/png" onChange={(e) => { void prepararBanner(e.currentTarget.files?.[0]); }} className="mt-2 block w-full text-xs" />
+                {nombreBanner && <span className="mt-1 block font-normal text-emerald-700">Imagen lista: {nombreBanner}</span>}
+                {errorBanner && <span role="alert" className="mt-1 block font-normal text-rose-700">{errorBanner}</span>}
+              </label>
+              <label className="text-xs font-semibold text-neutral-800">
+                Documento de respaldo (PDF/JPEG/PNG, máximo 1 MiB)
+                <input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(e) => { void prepararDocumento(e.currentTarget.files?.[0]); }} className="mt-2 block w-full text-xs" />
+                {nombreDocumento && <span className="mt-1 block font-normal text-emerald-700">Documento adjunto: {nombreDocumento}</span>}
+                {errorDocumento && <span role="alert" className="mt-1 block font-normal text-rose-700">{errorDocumento}</span>}
+              </label>
+              {urlImagen && <img src={urlImagen} alt="Vista previa del cartel del evento" className="max-h-40 w-full rounded-lg object-cover sm:col-span-2" />}
             </div>
 
             {/* Parámetros integrados de asistencia, visibilidad y aforo */}
