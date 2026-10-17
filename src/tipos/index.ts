@@ -71,6 +71,17 @@ export interface ElementoFechaSolicitada {
 
 // Solicitud formal de evento
 export interface SolicitudEvento {
+  version?: number;
+  fechaEnvioInicial?: string;
+  fechaUltimoCambio?: string;
+  historialVersiones?: Array<{
+    version: number;
+    fecha: string;
+    responsable: string;
+    accion: string;
+    motivo?: string;
+    modificaciones: Array<{ campo: string; anterior: unknown; nuevo: unknown }>;
+  }>;
   id: string;
   idSolicitante: string;
   nombreSolicitante: string;

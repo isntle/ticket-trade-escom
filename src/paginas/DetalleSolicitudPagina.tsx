@@ -1,477 +1,730 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   ArrowLeft,
-  Clock,
-  Calendar,
+  CalendarDays,
   MapPin,
-  CheckCircle,
-  XCircle,
-  FileText,
-  AlertTriangle,
-  User,
-  ShieldCheck,
-  Building,
-  Monitor,
-  Download,
-  AlertCircle
-} from 'lucide-react';
-import { useDatos } from '../contextos/DatosContexto';
-import { useAutenticacion } from '../contextos/AutenticacionContexto';
-import { useNotificaciones } from '../contextos/NotificacionesContexto';
-import { InsigniaEstado } from '../componentes/ui/InsigniaEstado';
-import { EstadoVacio } from '../componentes/ui/EstadoVacio';
+  Image as Imagen,
+  History,
+  ExternalLink,
+} from "lucide-react";
+import { useDatos } from "../contextos/DatosContexto";
+import { useAutenticacion } from "../contextos/AutenticacionContexto";
+import { useNotificaciones } from "../contextos/NotificacionesContexto";
+import { InsigniaEstado } from "../componentes/ui/InsigniaEstado";
+import { EstadoVacio } from "../componentes/ui/EstadoVacio";
+import { VentanaModal } from "../componentes/ui/VentanaModal";
+import {
+  puedeConsultarSolicitud,
+  solicitudesCoincidentes,
+  versionSolicitud,
+  ZONA_HORARIA,
+} from "../dominio/solicitudes";
 
-interface PropiedadesDetalleSolicitud {
+const formatoFecha = (valor: string) =>
+  new Date(valor).toLocaleString("es-MX", {
+    timeZone: ZONA_HORARIA,
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+const archivoSeguro = (url?: string) =>
+  Boolean(
+    url &&
+      /^(https?:\/\/|data:image\/(png|jpeg|webp);base64,|data:application\/pdf;base64,)/i.test(
+        url,
+      ),
+  );
+const etiquetas: Record<string, string> = {
+  tituloEvento: "Título",
+  descripcionEvento: "Descripción",
+  fechasSolicitadas: "Días, horarios y recintos",
+  modalidadAsistencia: "Modalidad",
+  visibilidad: "Visibilidad",
+  asistenciaEstimada: "Aforo",
+  esExcepcional: "Solicitud urgente",
+  justificacionExcepcional: "Motivo de urgencia",
+  correoContacto: "Correo de contacto",
+  telefonoContacto: "Teléfono",
+  nombreDocumento: "Documento",
+  urlDocumento: "Archivo del documento",
+  nombreBanner: "Cartel",
+  urlImagen: "Imagen del cartel",
+  estado: "Estado",
+  observacionesCorreccion: "Correcciones solicitadas",
+  motivoRechazo: "Motivo del rechazo",
+};
+const seccion = "rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6";
+const boton =
+  "rounded-xl border px-4 py-2.5 text-sm font-semibold hover:bg-neutral-50";
+const primario =
+  "rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40";
+type Accion = "autorizar" | "rechazar" | "devolver" | "cancelar";
+
+export const DetalleSolicitudPagina: React.FC<{
   requestId: string;
   navigate: (ruta: string) => void;
-}
-
-export const DetalleSolicitudPagina: React.FC<PropiedadesDetalleSolicitud> = ({
-  requestId,
-  navigate
-}) => {
+}> = ({ requestId, navigate }) => {
   const {
     listaSolicitudes,
     listaRecintos,
     listaEventos,
     dictaminarSolicitud,
+    atenderSolicitudExtraordinaria,
     devolverSolicitud,
     cancelarSolicitud,
-    obtenerOcupacionesRecinto,
-    verificarDisponibilidadRecinto
+    verificarDisponibilidadRecinto,
   } = useDatos();
-
   const { usuarioActual, rolActivo, todosLosUsuarios } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
-
-  const [motivoRechazoInput, setMotivoRechazoInput] = useState('');
-  const [modalRechazoVisible, setModalRechazoVisible] = useState(false);
-  const [accionMotivo, setAccionMotivo] = useState<'rechazar' | 'devolver'>('rechazar');
-  const [confirmarCancelacion, setConfirmarCancelacion] = useState(false);
-
+  const [accion, setAccion] = useState<Accion | null>(null);
+  const [motivo, setMotivo] = useState("");
+  const [error, setError] = useState("");
+  const [versionConsultada, setVersionConsultada] = useState(1);
   const solicitud = listaSolicitudes.find((s) => s.id === requestId);
-  const eventoAsociado = listaEventos.find((e) => e.idSolicitud === requestId);
-  const perfilSolicitante = todosLosUsuarios.find((usuario) => usuario.id === solicitud?.idSolicitante);
-
-  if (!solicitud) {
+  const regreso =
+    usuarioActual?.roles.some(
+      (rol) => rol === "subdireccion" || rol === "admin",
+    ) && rolActivo !== "organizador"
+      ? "/subdireccion"
+      : "/organizador";
+  if (!solicitud || !puedeConsultarSolicitud(usuarioActual, solicitud))
     return (
-      <div className="max-w-4xl mx-auto px-4 py-16">
+      <div className="max-w-4xl mx-auto p-8">
         <EstadoVacio
-          titulo="Solicitud no encontrada"
-          descripcion="La solicitud especificada no existe en los registros oficiales de Subdirección."
-          textoAccion="Volver al panel"
-          alHacerAccion={() => navigate('/subdireccion')}
+          titulo="Solicitud no disponible"
+          descripcion="Inicia sesión con la cuenta solicitante o con un perfil autorizado para consultar este expediente."
+          textoAccion="Volver"
+          alHacerAccion={() => navigate(regreso)}
         />
       </div>
     );
-  }
-
-  const obtenerNombreRecinto = (idRecinto: string) => {
-    const r = listaRecintos.find((rec) => rec.id === idRecinto);
-    return r ? r.nombre : 'Recinto ESCOM';
+  const titular = todosLosUsuarios.find(
+    (u) => u.id === solicitud.idSolicitante,
+  );
+  const evento = listaEventos.find((e) => e.idSolicitud === solicitud.id);
+  const esTitular = usuarioActual?.id === solicitud.idSolicitante;
+  const esRevisor =
+    rolActivo === "subdireccion" &&
+    usuarioActual?.roles.includes("subdireccion");
+  const pendientes =
+    esRevisor || usuarioActual?.roles.includes("admin")
+      ? solicitudesCoincidentes(solicitud, listaSolicitudes)
+      : [];
+  const version = versionSolicitud(solicitud);
+  const documento = solicitud.urlDocumento || titular?.urlDocumento;
+  const correo = solicitud.correoContacto || solicitud.correoSolicitante;
+  const nombreRecinto = (id: string) =>
+    listaRecintos.find((r) => r.id === id)?.nombre || "Recinto no disponible";
+  const abrir = (tipo: Accion) => {
+    setAccion(tipo);
+    setMotivo("");
+    setError("");
+    setVersionConsultada(version);
   };
-
-  const esSubdirector =
-    (usuarioActual?.roles.includes('subdireccion') || usuarioActual?.roles.includes('admin')) ?? false;
-  const esSolicitante = usuarioActual?.id === solicitud.idSolicitante;
-  const urlDocumento = solicitud.urlDocumento || perfilSolicitante?.urlDocumento;
-  const nombreDocumento = solicitud.nombreDocumento || perfilSolicitante?.nombreDocumento;
-  const documentoSeguro = urlDocumento && /^(https?:|data:application\/pdf|data:image\/)/i.test(urlDocumento)
-    ? urlDocumento
-    : undefined;
-
-  // Ejecutar autorización
-  const manejarAutorizar = () => {
-    dictaminarSolicitud(
-      solicitud.id,
-      'autorizada',
-      undefined,
-      usuarioActual?.nombre || 'Subdirección'
-    );
-    mostrarNotificacion(
-      'Solicitud Autorizada',
-      `El evento "${solicitud.tituloEvento}" ha sido autorizado y transferido a configuración de butacas.`,
-      'exito'
-    );
-  };
-
-  // Ejecutar rechazo
-  const manejarRechazar = () => {
-    if (!motivoRechazoInput.trim()) {
-      mostrarNotificacion(
-        'Motivo requerido',
-        'Debes ingresar un motivo motivado y fundado para rechazar la propuesta.',
-        'advertencia'
-      );
+  const ejecutar = () => {
+    const resultado =
+      accion === "cancelar"
+        ? cancelarSolicitud(solicitud.id, versionConsultada)
+        : accion === "devolver"
+          ? devolverSolicitud(
+              solicitud.id,
+              motivo,
+              usuarioActual?.nombre,
+              versionConsultada,
+            )
+          : accion === "rechazar"
+            ? dictaminarSolicitud(
+                solicitud.id,
+                "rechazada",
+                motivo,
+                usuarioActual?.nombre,
+                versionConsultada,
+              )
+            : solicitud.esExcepcional
+              ? atenderSolicitudExtraordinaria(solicitud.id, versionConsultada)
+              : dictaminarSolicitud(
+                  solicitud.id,
+                  "autorizada",
+                  undefined,
+                  usuarioActual?.nombre,
+                  versionConsultada,
+                );
+    if (!resultado.exito) {
+      setError(resultado.error || "No se pudo completar la operación.");
       return;
     }
-
-    if (accionMotivo === 'devolver') {
-      devolverSolicitud(solicitud.id, motivoRechazoInput.trim(), usuarioActual?.nombre || 'Subdirección');
-      mostrarNotificacion('Solicitud devuelta para corrección', 'El solicitante cuenta con 24 horas para atender las observaciones.', 'informacion');
-    } else {
-      dictaminarSolicitud(solicitud.id, 'rechazada', motivoRechazoInput.trim(), usuarioActual?.nombre || 'Subdirección');
-      mostrarNotificacion('Solicitud Rechazada', 'El dictamen de rechazo y motivo oficial fueron notificados al solicitante.', 'informacion');
-    }
-    setModalRechazoVisible(false);
-    setMotivoRechazoInput('');
+    mostrarNotificacion(
+      "Solicitud actualizada",
+      "La operación y la versión revisada quedaron registradas.",
+      "exito",
+    );
+    setAccion(null);
   };
-
-  const abrirEdicion = () => {
-    navigate(`/solicitar-evento?editar=${solicitud.id}`);
+  const mostrarValor = (campo: string, valor: unknown): string => {
+    if (valor === null || valor === undefined || valor === "")
+      return "Sin registrar";
+    if (campo === "urlDocumento" || campo === "urlImagen")
+      return "Archivo adjunto";
+    if (campo === "fechasSolicitadas" && Array.isArray(valor))
+      return valor
+        .map((d) =>
+          [
+            d.nombreDia || "Día",
+            d.fecha,
+            d.horaInicio + "–" + d.horaFin,
+            nombreRecinto(d.idRecinto),
+            d.actividadOPrograma,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        )
+        .join("\n");
+    return typeof valor === "boolean" ? (valor ? "Sí" : "No") : String(valor);
   };
+  const itinerario = (comprobar: boolean) => (
+    <ol className="mt-4 space-y-5">
+      {solicitud.fechasSolicitadas.map((d, i) => {
+        const disp = verificarDisponibilidadRecinto(
+          d.idRecinto,
+          d.fecha,
+          d.horaInicio,
+          d.horaFin,
+          evento?.fechas[i]?.id,
+        );
+        return (
+          <li key={d.id} className="border-l-2 border-[#7a132b]/25 pl-4">
+            <h3 className="font-bold">
+              {d.nombreDia || "Día " + (i + 1)} ·{" "}
+              {d.fecha || "Fecha por completar"}
+            </h3>
+            <p className="mt-2 flex items-center gap-2 text-sm">
+              <CalendarDays size={15} />
+              {d.horaInicio}–{d.horaFin} h
+            </p>
+            <p className="mt-1 flex items-center gap-2 text-sm text-neutral-600">
+              <MapPin size={15} />
+              {nombreRecinto(d.idRecinto)}
+            </p>
+            {d.actividadOPrograma && (
+              <p className="mt-2 whitespace-pre-line text-sm leading-6">
+                {d.actividadOPrograma}
+              </p>
+            )}
+            {comprobar && solicitud.estado === "en_revision" && (
+              <p
+                className={
+                  "mt-2 text-sm " +
+                  (disp.disponible ? "text-emerald-700" : "text-rose-700")
+                }
+              >
+                {disp.disponible
+                  ? "Recinto disponible en el horario solicitado"
+                  : disp.motivo}
+              </p>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Botón Volver */}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <button
-        type="button"
-        onClick={() => (rolActivo === 'subdireccion' ? navigate('/subdireccion') : navigate('/organizador'))}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
+        onClick={() => navigate(regreso)}
+        className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-neutral-600"
       >
-        <ArrowLeft className="w-4 h-4" />
-        <span>{rolActivo === 'subdireccion' ? 'Volver a Bandeja de Subdirección' : 'Volver a Mis Solicitudes'}</span>
+        <ArrowLeft size={17} />
+        {regreso === "/subdireccion"
+          ? "Volver a solicitudes"
+          : "Volver a mis solicitudes"}
       </button>
-
-      {/* Cabecera del Expediente */}
-      <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5 text-xs">
-            <span className="font-mono text-neutral-400 font-bold uppercase">EXP: {solicitud.id}</span>
-            <span aria-hidden="true" className="text-neutral-300">·</span>
+      <header className="mb-7 flex flex-wrap justify-between gap-4">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap gap-2 items-center">
             <InsigniaEstado estado={solicitud.estado} />
+            <span className="text-sm text-neutral-500">Versión {version}</span>
             {solicitud.esExcepcional && (
-              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold">
-                Trámite Excepcional (&lt; 7 días)
+              <span className="rounded-full bg-neutral-100 px-3 py-1 text-sm font-semibold text-neutral-700">
+                Solicitud extraordinaria
               </span>
             )}
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-neutral-900 tracking-tight">
-            {solicitud.tituloEvento}
+          <h1 className="text-2xl sm:text-3xl font-extrabold break-words">
+            {solicitud.tituloEvento || "Solicitud sin título"}
           </h1>
-          <p className="text-xs text-neutral-500 mt-1">
-            Radicado el {new Date(solicitud.fechaCreacion).toLocaleDateString('es-MX')} por{' '}
-            <strong className="text-neutral-800">{solicitud.nombreSolicitante}</strong> ({solicitud.afiliacionSolicitante})
+          <p className="mt-2 text-sm text-neutral-600">
+            Solicita {solicitud.nombreSolicitante} · Creada el{" "}
+            {formatoFecha(solicitud.fechaCreacion)}
+          </p>
+          <p className="mt-1 break-all text-xs text-neutral-500">
+            Folio: {solicitud.id}
+            {solicitud.fechaEnvioInicial
+              ? " · Enviada el " + formatoFecha(solicitud.fechaEnvioInicial)
+              : ""}
           </p>
         </div>
-
-        {/* Botón hacia el evento si ya está autorizado */}
-        {eventoAsociado && (
+        {evento && (
           <button
-            type="button"
-            onClick={() => navigate(`/organizador/eventos/${eventoAsociado.id}`)}
-            className="boton-primario px-4 py-2 text-xs font-bold inline-flex items-center gap-2 cursor-pointer shadow-xs"
+            className={boton}
+            onClick={() => navigate("/organizador/eventos/" + evento.id)}
           >
-            <span>Ver Configuración del Evento →</span>
+            Ver evento asociado
           </button>
         )}
-      </div>
-
-      {/* ========================================================================= */}
-      {/* LAYOUT DIVIDIDO OPERACIONAL: IZQUIERDA (EXPEDIENTE) vs DERECHA (DICTAMEN) */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* COLUMNA IZQUIERDA: INFORMACIÓN DEL SOLICITANTE Y EVENTO (6 COLS) */}
-        <div className="lg:col-span-6 space-y-6">
-          {/* Ficha del Solicitante */}
-          <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs space-y-3">
-            <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-[#7a132b]" />
-              <span>Identidad del Solicitante</span>
-            </h3>
-
-            <div className="grid grid-cols-2 gap-3 text-xs bg-neutral-50 p-3.5 rounded-xl border border-neutral-100">
-              <div>
-                <span className="text-[10px] text-neutral-400 block uppercase font-bold">Nombre</span>
-                <span className="font-bold text-neutral-900">{solicitud.nombreSolicitante}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-neutral-400 block uppercase font-bold">Afiliación</span>
-                <span className="capitalize font-semibold text-neutral-800">{solicitud.afiliacionSolicitante}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-neutral-400 block uppercase font-bold">Identificador / Boleta</span>
-                <span className="font-mono text-neutral-700">{solicitud.identificadorSolicitante || 'N/A'}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-neutral-400 block uppercase font-bold">Correo Institucional</span>
-                <span className="text-neutral-700 truncate block">{solicitud.correoSolicitante}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-neutral-400 block uppercase font-bold">Organización / Departamento</span>
-                <span className="text-neutral-700">{perfilSolicitante?.nombreOrganizacion || 'No registrado'}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-neutral-400 block uppercase font-bold">Cargo de contacto</span>
-                <span className="text-neutral-700">{perfilSolicitante?.puestoContacto || 'No registrado'}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-neutral-400 block uppercase font-bold">Teléfono de contacto</span>
-                <span className="text-neutral-700">{solicitud.telefonoContacto || perfilSolicitante?.telefonoContacto || 'No registrado'}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-neutral-400 block uppercase font-bold">Correo de contacto del evento</span>
-                <a className="text-[#7a132b] underline break-all" href={`mailto:${solicitud.correoContacto || solicitud.correoSolicitante}`}>
-                  {solicitud.correoContacto || solicitud.correoSolicitante}
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {/* Justificación Académica */}
-          <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs space-y-3">
-            <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5 text-[#7a132b]" />
-              <span>Memoria Descriptiva del Evento</span>
-            </h3>
-            <p className="text-xs text-neutral-700 leading-relaxed whitespace-pre-line bg-neutral-50 p-4 rounded-xl border border-neutral-100">
-              {solicitud.descripcionEvento}
+      </header>
+      <div className="grid items-start gap-7 md:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
+        <div className="min-w-0 space-y-6">
+          <section className={seccion}>
+            <h2 className="text-lg font-bold">Información de la solicitud</h2>
+            <p className="mt-3 whitespace-pre-line text-sm leading-7 text-neutral-700">
+              {solicitud.descripcionEvento ||
+                "El borrador todavía no tiene descripción."}
             </p>
-          </div>
-
-          {/* Justificación Excepcional si aplica */}
-          {solicitud.esExcepcional && (
-            <div className="bg-amber-50/80 rounded-2xl border border-amber-300 p-5 text-xs text-amber-950 space-y-2">
-              <div className="flex items-center gap-2 font-bold text-amber-900">
-                <AlertTriangle className="w-4 h-4 text-amber-700" />
-                <span>Justificación de Causa de Fuerza Mayor (Regla &lt; 7 Días)</span>
-              </div>
-              <p className="leading-relaxed bg-white/80 p-3 rounded-xl border border-amber-200">
-                "{solicitud.justificacionExcepcional}"
-              </p>
-            </div>
-          )}
-
-          {(solicitud.nombreBanner || solicitud.urlImagen) && (
-            <section className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs space-y-3">
-              <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider">Cartel del evento</h3>
-              {solicitud.urlImagen ? (
-                <a href={solicitud.urlImagen} target="_blank" rel="noreferrer" className="block">
-                  <img src={solicitud.urlImagen} alt={`Cartel de ${solicitud.tituloEvento}`} className="max-h-64 w-full rounded-xl object-contain bg-neutral-50" />
-                  <span className="mt-1 block text-[11px] text-neutral-500">{solicitud.nombreBanner || 'Imagen adjunta'}</span>
-                </a>
-              ) : <p className="text-xs text-neutral-500">No hay una imagen disponible para esta solicitud.</p>}
-            </section>
-          )}
-
-          {/* El documento de respaldo solo se expone al solicitante y a personal autorizado. */}
-          {(esSubdirector || esSolicitante) && (nombreDocumento || urlDocumento) && (
-            <section className="bg-white rounded-2xl border border-neutral-200 p-4 shadow-xs text-xs">
-              <div className="flex items-start gap-3">
-                <FileText className="w-4 h-4 mt-0.5 text-neutral-500 shrink-0" />
-                <div className="min-w-0">
-                  <h3 className="font-bold text-neutral-900">Documento de respaldo</h3>
-                  {nombreDocumento && <p className="mt-1 font-mono text-neutral-700 break-all">{nombreDocumento}</p>}
-                  {documentoSeguro ? (
-                    <a href={documentoSeguro} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold text-[#7a132b] underline">
-                      <Download className="w-3.5 h-3.5" /> Abrir documento
-                    </a>
-                  ) : (
-                    <p className="mt-2 text-amber-800">El registro conserva el nombre, pero no hay un archivo adjunto disponible para abrir.</p>
-                  )}
+            <dl className="mt-5 grid grid-cols-2 gap-4 border-t pt-4 text-sm">
+              {[
+                [
+                  "Aforo solicitado",
+                  solicitud.asistenciaEstimada + " personas",
+                ],
+                [
+                  "Modalidad",
+                  solicitud.modalidadAsistencia === "libre"
+                    ? "Entrada libre"
+                    : solicitud.modalidadAsistencia === "registro"
+                      ? "Registro de asistencia"
+                      : "Aforo controlado",
+                ],
+                [
+                  "Visibilidad",
+                  solicitud.visibilidad === "publico"
+                    ? "Público"
+                    : solicitud.visibilidad === "privado"
+                      ? "Privado, mediante enlace"
+                      : "Comunidad IPN",
+                ],
+                [
+                  "Tipo de solicitud",
+                  solicitud.esExcepcional
+                    ? "Extraordinaria: menos de 7 días"
+                    : "Ordinaria",
+                ],
+              ].map(([nombre, valor]) => (
+                <div key={nombre}>
+                  <dt className="text-neutral-500">{nombre}</dt>
+                  <dd className="mt-1 font-semibold">{valor}</dd>
                 </div>
+              ))}
+            </dl>
+            {solicitud.esExcepcional && (
+              <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                <h3 className="font-bold">Motivo de urgencia</h3>
+                <p className="mt-2 whitespace-pre-line leading-6">
+                  {solicitud.justificacionExcepcional ||
+                    "Sin justificación registrada."}
+                </p>
+                <p className="mt-3">
+                  El envío no reserva el recinto ni autoriza el evento.
+                  Subdirección debe revisar y confirmar su creación.
+                </p>
               </div>
-            </section>
-          )}
-        </div>
-
-        {/* COLUMNA DERECHA: FECHAS, DISPONIBILIDAD Y DICTAMEN (6 COLS) */}
-        <div className="lg:col-span-6 space-y-6">
-          {/* Días Solicitados y Cotejo de Disponibilidad */}
-          <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs space-y-4">
-            <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-[#7a132b]" />
-              <span>Días Programados y Cotejo de Agenda en Recinto</span>
-            </h3>
-
-            <div className="space-y-3">
-              {solicitud.fechasSolicitadas.map((f, i) => {
-                const nombreRecinto = obtenerNombreRecinto(f.idRecinto);
-                const disp = verificarDisponibilidadRecinto(f.idRecinto, f.fecha, f.horaInicio, f.horaFin);
-                const ocupacionesDia = obtenerOcupacionesRecinto(f.idRecinto, f.fecha);
-                const etiquetaDia = f.nombreDia || `Día ${i + 1}`;
-
-                return (
-                  <div
-                    key={f.id || i}
-                    className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/60 text-xs space-y-3"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-bold text-neutral-900 text-sm">
-                          {etiquetaDia}: {f.fecha}
-                        </div>
-                        <div className="text-neutral-500 text-[11px] mt-0.5">
-                          {f.horaInicio} a {f.horaFin} hrs · {nombreRecinto}
-                        </div>
-                        {f.actividadOPrograma && (
-                          <div className="text-[11px] text-[#7a132b] font-medium mt-1">
-                            Programa previsto: {f.actividadOPrograma}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Estado de disponibilidad técnica */}
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-bold ${
-                          disp.disponible
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-rose-100 text-rose-800'
-                        }`}
-                      >
-                        {disp.disponible ? (
-                          <CheckCircle className="w-3 h-3 text-emerald-600" />
-                        ) : (
-                          <XCircle className="w-3 h-3 text-rose-600" />
-                        )}
-                        <span>{disp.disponible ? 'Sin conflicto en recinto' : 'Empalme Detectado'}</span>
-                      </span>
-                    </div>
-
-                    {!disp.disponible && (
-                      <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-900 text-[11px]">
-                        <strong>Alerta de Empalme: </strong> {disp.motivo}
-                      </div>
-                    )}
-
-                    {/* Agenda del recinto ese día */}
-                    <div className="pt-2 border-t border-neutral-200/60 text-[11px] text-neutral-500">
-                      <span className="font-semibold block text-neutral-700 mb-1">
-                        Ocupaciones registradas ese día en {nombreRecinto}:
-                      </span>
-                      {ocupacionesDia.length === 0 ? (
-                        <span className="text-emerald-700 italic">Totalmente libre todo el día</span>
-                      ) : (
-                        ocupacionesDia.map((item) => (
-                          <div key={item.id} className="flex justify-between py-0.5">
-                            <span className="font-mono text-neutral-600">{item.horaInicio} - {item.horaFin}</span>
-                            <span className="truncate max-w-[200px] text-neutral-800">{item.titulo}</span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Mesa de Dictamen Formal de Subdirección */}
-          <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs space-y-4">
-            <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-[#7a132b]" />
-              <span>Resolución Formal de Subdirección</span>
-            </h3>
-
-            {solicitud.estado === 'en_revision' ? (
-              esSubdirector ? (
-                <div className="space-y-4 pt-1">
-                  <p className="text-xs text-neutral-600">
-                    Como autoridad dictaminadora de la Subdirección de ESCOM, revisa el expediente y emite la resolución oficial.
+            )}
+          </section>
+          <section className={seccion}>
+            <h2 className="text-lg font-bold">Días, horarios y recintos</h2>
+            <p className="mt-1 text-sm text-neutral-500">
+              Horarios de Ciudad de México.
+            </p>
+            {itinerario(true)}
+            {pendientes.length > 0 && (
+              <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
+                <h3 className="font-bold">Solicitudes coincidentes</h3>
+                <p className="mt-1">
+                  Otras solicitudes piden el mismo horario. Todavía no son
+                  reservas confirmadas.
+                </p>
+                {pendientes.map((s) => (
+                  <p key={s.id} className="mt-2">
+                    {s.tituloEvento}
                   </p>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={manejarAutorizar}
-                      className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      <span>Autorizar Propuesta</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => { setAccionMotivo('devolver'); setMotivoRechazoInput(''); setModalRechazoVisible(true); }}
-                      className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <AlertTriangle className="w-4 h-4" />
-                      <span>Devolver para corrección</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => { setAccionMotivo('rechazar'); setMotivoRechazoInput(''); setModalRechazoVisible(true); }}
-                      className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      <span>Emitir Rechazo Motivado</span>
-                    </button>
-                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+          <section className={seccion}>
+            <h2 className="text-lg font-bold">Solicitante y contacto</h2>
+            <p className="mt-3 font-semibold">{solicitud.nombreSolicitante}</p>
+            <p className="mt-1 text-sm capitalize text-neutral-600">
+              {solicitud.afiliacionSolicitante}
+              {titular?.nombreOrganizacion
+                ? " · " + titular.nombreOrganizacion
+                : ""}
+            </p>
+            {titular?.puestoContacto && (
+              <p className="mt-1 text-sm">{titular.puestoContacto}</p>
+            )}
+            <dl className="mt-4 space-y-3 text-sm">
+              {[
+                ["Correo de la cuenta", solicitud.correoSolicitante],
+                [
+                  "Identificación declarada",
+                  solicitud.identificadorSolicitante || "No registrada",
+                ],
+                [
+                  "Teléfono",
+                  solicitud.telefonoContacto ||
+                    titular?.telefonoContacto ||
+                    "No registrado",
+                ],
+              ].map(([nombre, valor]) => (
+                <div key={nombre}>
+                  <dt className="text-neutral-500">{nombre}</dt>
+                  <dd className="break-words">{valor}</dd>
                 </div>
-              ) : (
-                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
-                  Esta solicitud se encuentra actualmente en revisión ante la Subdirección de ESCOM. Recibirás notificación de la resolución.
-                </div>
-              )
-            ) : (
-              <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 space-y-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-neutral-900">Dictamen Emitido:</span>
-                  <InsigniaEstado estado={solicitud.estado} />
-                </div>
-                <div className="text-neutral-600">
-                  Emitido por: <strong className="text-neutral-800">{solicitud.revisadoPor || 'Subdirección de ESCOM'}</strong>
-                </div>
-                {solicitud.motivoRechazo && (
-                  <div className="mt-2 p-3 bg-rose-50 rounded-lg border border-rose-200 text-rose-950">
-                    <span className="font-bold block mb-1">Motivo Registrado del Rechazo:</span>
-                    {solicitud.motivoRechazo}
-                  </div>
+              ))}
+              <div>
+                <dt className="text-neutral-500">
+                  Correo de contacto del evento
+                </dt>
+                <dd>
+                  <a
+                    href={"mailto:" + correo}
+                    className="break-all text-[#7a132b] underline"
+                  >
+                    {correo}
+                  </a>
+                </dd>
+              </div>
+            </dl>
+            <p className="mt-4 text-xs leading-5 text-neutral-500">
+              El contacto y los documentos son privados y no aparecen en el
+              detalle público.
+            </p>
+            {(solicitud.nombreDocumento ||
+              titular?.nombreDocumento ||
+              documento) && (
+              <div className="mt-5 border-t pt-4">
+                <h3 className="font-semibold">Documento de respaldo</h3>
+                <p className="mt-2 break-words text-sm">
+                  {solicitud.nombreDocumento ||
+                    titular?.nombreDocumento ||
+                    "Archivo adjunto"}
+                </p>
+                {archivoSeguro(documento) ? (
+                  <a
+                    href={documento}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-[#7a132b] underline"
+                  >
+                    Abrir documento
+                    <ExternalLink size={14} />
+                  </a>
+                ) : (
+                  <p className="mt-2 text-sm text-neutral-500">
+                    El registro conserva el nombre, pero no el archivo.
+                  </p>
                 )}
               </div>
             )}
-            {esSolicitante && ['borrador', 'en_revision', 'requiere_correccion'].includes(solicitud.estado) && (
-              <div className="space-y-3 border-t pt-4">
-                {solicitud.estado === 'requiere_correccion' && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950"><strong>Observaciones:</strong> {solicitud.observacionesCorreccion}<p className="mt-1">Plazo: {solicitud.fechaLimiteCorreccion ? new Date(solicitud.fechaLimiteCorreccion).toLocaleString('es-MX') : '24 horas desde la devolución'}</p></div>}
-                <div className="flex flex-wrap gap-2">{<button type="button" onClick={abrirEdicion} className="rounded-lg border px-3 py-2 text-xs font-bold">{solicitud.estado==='borrador'?'Continuar borrador':solicitud.estado==='requiere_correccion'?'Corregir solicitud':'Editar solicitud'}</button>}<button type="button" onClick={()=>setConfirmarCancelacion(true)} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700">Cancelar solicitud</button></div>
+          </section>
+          <section className={seccion}>
+            <h2 className="flex items-center gap-2 text-lg font-bold">
+              <History size={19} />
+              Historial de la solicitud
+            </h2>
+            <p className="mt-2 text-sm text-neutral-600">
+              Versión actual: {version}. Consulta las ediciones y decisiones
+              registradas.
+            </p>
+            <ol className="mt-5 space-y-5">
+              {[...(solicitud.historialVersiones || [])].reverse().map((r) => (
+                <li
+                  key={r.version}
+                  className="border-l-2 border-neutral-200 pl-4"
+                >
+                  <h3 className="font-semibold">
+                    Versión {r.version} · {r.accion}
+                  </h3>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    {formatoFecha(r.fecha)} · {r.responsable}
+                  </p>
+                  {r.motivo && <p className="mt-2 text-sm">{r.motivo}</p>}
+                  <details className="mt-2 text-sm">
+                    <summary className="cursor-pointer font-semibold text-[#7a132b]">
+                      Ver qué cambió
+                    </summary>
+                    <dl className="mt-3 space-y-4">
+                      {r.modificaciones.map((c) => (
+                        <div key={c.campo}>
+                          <dt className="font-semibold">
+                            {etiquetas[c.campo] || "Datos de la solicitud"}
+                          </dt>
+                          <dd className="mt-1 grid gap-2 sm:grid-cols-2">
+                            <div className="rounded-lg bg-neutral-50 p-3 whitespace-pre-line break-words">
+                              <span className="block text-xs text-neutral-500">
+                                Antes
+                              </span>
+                              {mostrarValor(c.campo, c.anterior)}
+                            </div>
+                            <div className="rounded-lg bg-[#7a132b]/5 p-3 whitespace-pre-line break-words">
+                              <span className="block text-xs text-neutral-500">
+                                Después
+                              </span>
+                              {mostrarValor(c.campo, c.nuevo)}
+                            </div>
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </details>
+                </li>
+              ))}
+              <li className="border-l-2 border-neutral-200 pl-4">
+                <h3 className="font-semibold">Registro inicial</h3>
+                <p className="mt-1 text-sm text-neutral-500">
+                  {formatoFecha(solicitud.fechaCreacion)} ·{" "}
+                  {solicitud.nombreSolicitante}
+                </p>
+                {!solicitud.historialVersiones?.length && (
+                  <p className="mt-2 text-sm">
+                    No hay modificaciones registradas. Los registros antiguos no
+                    contienen versiones previas.
+                  </p>
+                )}
+              </li>
+            </ol>
+          </section>
+          {!!evento?.historialCambios?.length && (
+            <section className={seccion}>
+              <h2 className="text-lg font-bold">Cambios del evento asociado</h2>
+              <p className="mt-2 text-sm">
+                {evento.historialCambios.length} modificaciones · Estado:{" "}
+                {evento.estado}
+              </p>
+              <ol className="mt-4 space-y-3">
+                {[...evento.historialCambios].reverse().map((r) => (
+                  <li key={r.version} className="border-t pt-3 text-sm">
+                    <strong>Versión {r.version}</strong> ·{" "}
+                    {formatoFecha(r.fecha)}
+                    <p>
+                      {r.responsable}: {r.motivo || r.campos.join(", ")}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+        </div>
+        <aside className="min-w-0 space-y-5 md:sticky md:top-24">
+          <section className="overflow-hidden rounded-2xl border bg-white">
+            <div className="border-b p-5">
+              <h2 className="text-lg font-bold">Vista previa del evento</h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                Información capturada; esta vista no publica el evento.
+              </p>
+            </div>
+            {archivoSeguro(solicitud.urlImagen) ? (
+              <img
+                src={solicitud.urlImagen}
+                alt={"Cartel de " + solicitud.tituloEvento}
+                className="max-h-80 w-full bg-neutral-100 object-contain"
+              />
+            ) : (
+              <div className="flex min-h-44 flex-col items-center justify-center gap-3 bg-neutral-100 p-7 text-neutral-500">
+                <Imagen size={32} />
+                <span className="text-sm">Sin cartel adjunto</span>
               </div>
             )}
-          </div>
-        </div>
+            <div className="p-5 sm:p-6">
+              <h3 className="text-xl font-extrabold">
+                {solicitud.tituloEvento || "Título por completar"}
+              </h3>
+              <p className="mt-3 whitespace-pre-line text-sm leading-6 text-neutral-600">
+                {solicitud.descripcionEvento}
+              </p>
+              {itinerario(false)}
+            </div>
+          </section>
+          <section className={seccion}>
+            <h2 className="text-lg font-bold">Revisión de la solicitud</h2>
+            {solicitud.observacionesCorreccion && (
+              <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
+                <h3 className="font-bold">Correcciones solicitadas</h3>
+                <p className="mt-2">{solicitud.observacionesCorreccion}</p>
+                {solicitud.fechaLimiteCorreccion && (
+                  <p className="mt-2">
+                    Plazo: {formatoFecha(solicitud.fechaLimiteCorreccion)}
+                  </p>
+                )}
+              </div>
+            )}
+            {solicitud.motivoRechazo && (
+              <p className="mt-4 rounded-xl bg-rose-50 p-4 text-sm text-rose-800">
+                {solicitud.motivoRechazo}
+              </p>
+            )}
+            {solicitud.revisadoPor && (
+              <p className="mt-3 text-sm text-neutral-600">
+                Última revisión: {solicitud.revisadoPor}
+                {solicitud.fechaRevision
+                  ? " · " + formatoFecha(solicitud.fechaRevision)
+                  : ""}
+              </p>
+            )}
+            {esRevisor && solicitud.estado === "en_revision" && (
+              <div className="mt-4 space-y-3">
+                <p className="text-sm leading-6 text-neutral-600">
+                  Revisa el expediente y los posibles conflictos antes de
+                  resolver la versión {version}.
+                </p>
+                <button
+                  onClick={() => abrir("autorizar")}
+                  className={primario + " w-full"}
+                >
+                  {solicitud.esExcepcional
+                    ? "Revisar creación extraordinaria"
+                    : "Revisar autorización"}
+                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => abrir("devolver")}
+                    className={boton + " flex-1"}
+                  >
+                    Pedir correcciones
+                  </button>
+                  <button
+                    onClick={() => abrir("rechazar")}
+                    className={boton + " flex-1 text-rose-700"}
+                  >
+                    Rechazar
+                  </button>
+                </div>
+              </div>
+            )}
+            {esTitular &&
+              ["borrador", "en_revision", "requiere_correccion"].includes(
+                solicitud.estado,
+              ) && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={() =>
+                      navigate("/solicitar-evento?editar=" + solicitud.id)
+                    }
+                    className={primario}
+                  >
+                    {solicitud.estado === "borrador"
+                      ? "Continuar borrador"
+                      : solicitud.estado === "requiere_correccion"
+                        ? "Corregir solicitud"
+                        : "Editar solicitud"}
+                  </button>
+                  <button
+                    onClick={() => abrir("cancelar")}
+                    className={boton + " text-rose-700"}
+                  >
+                    Cancelar solicitud
+                  </button>
+                </div>
+              )}
+            {!esTitular && !esRevisor && (
+              <p className="mt-3 text-sm text-neutral-600">
+                Consulta autorizada. La resolución corresponde a Subdirección.
+              </p>
+            )}
+          </section>
+        </aside>
       </div>
-
-      {/* Modal de Rechazo con Justificación Obligatoria */}
-      {modalRechazoVisible && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4 animate-in zoom-in-95 duration-150">
-            <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600" />
-              <span>{accionMotivo === 'devolver' ? 'Observaciones para corrección' : 'Motivo Fundado de Rechazo'}</span>
-            </h3>
-            <p className="text-xs text-neutral-600">
-              Ingresa la justificación formal que se notificará al solicitante (ej: empalme no subsanable con actividad institucional o falta de aval).
+      {accion && (
+        <VentanaModal
+          estaAbierto
+          alCerrar={() => setAccion(null)}
+          titulo={
+            accion === "autorizar"
+              ? solicitud.esExcepcional
+                ? "Confirmar creación extraordinaria"
+                : "Confirmar autorización"
+              : accion === "devolver"
+                ? "Pedir correcciones"
+                : accion === "rechazar"
+                  ? "Rechazar solicitud"
+                  : "Cancelar solicitud"
+          }
+          anchoMaximo="lg"
+        >
+          <div className="space-y-4 text-sm">
+            <p>
+              <strong>{solicitud.tituloEvento}</strong> · Versión revisada{" "}
+              {versionConsultada}
             </p>
-
-            <textarea
-              rows={4}
-              required
-              value={motivoRechazoInput}
-              onChange={(e) => setMotivoRechazoInput(e.target.value)}
-              placeholder={accionMotivo === 'devolver' ? 'Describe los cambios que debe realizar el solicitante...' : 'Explica detalladamente la causa oficial del rechazo...'}
-              className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-900 focus:outline-none focus:border-rose-600"
-            />
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setModalRechazoVisible(false)}
-                className="px-4 py-2 border border-neutral-300 rounded-xl text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+            {accion === "autorizar" && (
+              <p>
+                Se comprobarán los recintos y horarios antes de registrar la
+                decisión.
+                {solicitud.esExcepcional
+                  ? " Subdirección confirma expresamente la creación del evento vinculado, conservando al solicitante como organizador."
+                  : ""}
+              </p>
+            )}
+            {accion === "cancelar" && (
+              <p>
+                La solicitud quedará cancelada en el historial y no podrá
+                reenviarse.
+              </p>
+            )}
+            {(accion === "rechazar" || accion === "devolver") && (
+              <label className="block font-semibold">
+                {accion === "devolver"
+                  ? "Qué debe corregir el solicitante"
+                  : "Motivo del rechazo"}
+                <textarea
+                  autoFocus
+                  rows={4}
+                  required
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  className="mt-2 w-full rounded-xl border p-3 font-normal"
+                />
+                {accion === "devolver" && (
+                  <span className="mt-2 block font-normal text-neutral-600">
+                    Tendrá 24 horas para corregir y reenviar.
+                  </span>
+                )}
+              </label>
+            )}
+            {error && (
+              <p
+                role="alert"
+                className="rounded-xl bg-rose-50 p-3 text-rose-800"
               >
-                Cancelar
+                {error}
+              </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-3">
+              <button className={boton} onClick={() => setAccion(null)}>
+                Volver al detalle
               </button>
               <button
-                type="button"
-                onClick={manejarRechazar}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
+                className={primario}
+                onClick={ejecutar}
+                disabled={
+                  (accion === "rechazar" || accion === "devolver") &&
+                  !motivo.trim()
+                }
               >
-                {accionMotivo === 'devolver' ? 'Devolver solicitud' : 'Confirmar Rechazo Motivado'}
+                {accion === "autorizar"
+                  ? solicitud.esExcepcional
+                    ? "Crear evento vinculado"
+                    : "Autorizar solicitud"
+                  : accion === "devolver"
+                    ? "Enviar correcciones"
+                    : accion === "rechazar"
+                      ? "Confirmar rechazo"
+                      : "Confirmar cancelación"}
               </button>
             </div>
           </div>
-        </div>
+        </VentanaModal>
       )}
-      {confirmarCancelacion && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><section className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-xl"><h2 className="font-bold">¿Cancelar esta solicitud?</h2><p className="text-sm text-neutral-600">La solicitud quedará en el historial con estado cancelado. Esta acción no se puede deshacer.</p><div className="flex justify-end gap-2"><button type="button" onClick={()=>setConfirmarCancelacion(false)} className="rounded-lg border px-3 py-2 text-sm">Conservar solicitud</button><button type="button" onClick={()=>{cancelarSolicitud(solicitud.id);setConfirmarCancelacion(false);mostrarNotificacion('Solicitud cancelada','Se conservó en el historial.','informacion');}} className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-bold text-white">Confirmar cancelación</button></div></section></div>}
     </div>
   );
 };

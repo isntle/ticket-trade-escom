@@ -1,3 +1,5 @@
+import { useAutenticacion } from '../contextos/AutenticacionContexto';
+import { generarAsientosAuditorio, generarAsientosSala14, generarEstacionesLaboratorio } from '../datos/datosIniciales';
 import React, { useState } from 'react';
 import {
   ArrowLeft,
@@ -45,6 +47,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
   } = useDatos();
 
   const { mostrarNotificacion } = useNotificaciones();
+  const { usuarioActual } = useAutenticacion();
 
   const evento = listaEventos.find((e) => e.id === eventId);
   const fecha = evento?.fechas.find((f) => f.id === dateId);
@@ -66,7 +69,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
 
   const [modalComparadorAbierto, setModalComparadorAbierto] = useState(false);
 
-  if (!evento || !fecha || !recinto || !arregloActivo) {
+  if (!evento || !fecha || !recinto) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16">
         <EstadoVacio
@@ -77,6 +80,22 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
         />
       </div>
     );
+  }
+
+  if (!usuarioActual || (evento.idOrganizador !== usuarioActual.id && !usuarioActual.roles.includes('subdireccion'))) return <div className="mx-auto max-w-xl p-8"><EstadoVacio titulo="Distribución no disponible" descripcion="Solo el organizador responsable o Subdirección pueden configurar los lugares de este evento." textoAccion="Volver a mis eventos" alHacerAccion={() => navigate('/organizador')} /></div>;
+
+  if (!arregloActivo) {
+    const iniciarDistribucion = () => {
+      const asientos = recinto.tipo === 'auditorio' ? generarAsientosAuditorio() : recinto.tipo === 'laboratorio' ? generarEstacionesLaboratorio(recinto.codigo) : generarAsientosSala14();
+      const nuevo = crearArreglo({
+        idFechaEvento: fecha.id, idRecinto: recinto.id, nombre: 'Primera distribución', etiquetaVersion: 'v1-borrador', estado: 'borrador',
+        asientos, totalAsientos: asientos.length, asientosAsistente: asientos.filter(a => a.categoria === 'asistente').length,
+        asientosVip: asientos.filter(a => a.categoria === 'vip').length, asientosOrganizador: asientos.filter(a => a.categoria === 'organizador').length,
+        asientosStaff: asientos.filter(a => a.categoria === 'staff').length, asientosBloqueados: 0, asientosSinAsignar: 0
+      });
+      setIdArregloActivo(nuevo.id);
+    };
+    return <div className="mx-auto max-w-3xl px-5 py-12"><button onClick={() => navigate('/organizador/eventos/' + evento.id)} className="mb-5 text-sm font-semibold text-neutral-600">Volver al evento</button><section className="rounded-2xl border bg-white p-7"><h1 className="text-2xl font-bold">Configurar distribución de lugares</h1><p className="mt-3 text-sm leading-7 text-neutral-600">{evento.titulo} · {fecha.fecha} · {recinto.nombre}. Este día todavía no tiene una distribución guardada. Crea la primera versión para configurar categorías y lugares.</p><button onClick={iniciarDistribucion} className="mt-5 rounded-xl bg-[#7a132b] px-5 py-3 text-sm font-bold text-white">Crear primera distribución</button></section></div>;
   }
 
   // Aplicar acción al hacer clic en un asiento del mapa (100% interactivo)
@@ -217,21 +236,21 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
         <button
           type="button"
           onClick={() => navigate(`/organizador/eventos/${eventId}`)}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Volver a la configuración del evento: {evento.titulo}</span>
         </button>
 
-        <div className="text-xs text-neutral-400 font-mono">
-          Recinto: <span className="font-semibold text-neutral-700">{recinto.nombre}</span> · Sesión: <span className="font-semibold text-neutral-700">{fecha.fecha}</span>
+        <div className="text-sm text-neutral-400 font-mono">
+          Recinto: <span className="font-semibold text-neutral-700">{recinto.nombre}</span> · Día: <span className="font-semibold text-neutral-700">{fecha.fecha}</span>
         </div>
       </div>
 
       {/* Cabecera del Editor Hero */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1 text-xs">
+          <div className="flex items-center gap-2 mb-1 text-sm">
             <span className="font-mono text-neutral-400">{fecha.fecha}</span>
             <span aria-hidden="true" className="text-neutral-300">·</span>
             <span className="font-semibold text-[#7a132b]">{recinto.nombre}</span>
@@ -245,7 +264,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
             >
               {arregloActivo.estado === 'version_final'
                 ? '✓ Distribución Oficial Confirmada'
-                : 'Borrador en Edición'}
+                : 'Borrador'}
             </span>
           </div>
           <h1 className="text-2xl font-extrabold text-neutral-900 tracking-tight">
@@ -259,7 +278,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
             <button
               type="button"
               onClick={() => setModalComparadorAbierto(true)}
-              className="px-3.5 py-2 border border-neutral-300 rounded-xl text-xs font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-1.5 cursor-pointer transition-colors"
+              className="px-3.5 py-2 border border-neutral-300 rounded-xl text-sm font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-1.5 cursor-pointer transition-colors"
             >
               <Eye className="w-3.5 h-3.5 text-neutral-500" />
               <span>Comparar Versiones</span>
@@ -269,32 +288,32 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
           <button
             type="button"
             onClick={duplicarComoNuevoBorrador}
-            className="px-3.5 py-2 border border-neutral-300 rounded-xl text-xs font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-1.5 cursor-pointer transition-colors"
+            className="px-3.5 py-2 border border-neutral-300 rounded-xl text-sm font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-1.5 cursor-pointer transition-colors"
           >
             <Copy className="w-3.5 h-3.5 text-neutral-500" />
-            <span>Duplicar Borrador</span>
+            <span>Duplicar distribución</span>
           </button>
 
           <button
             type="button"
             onClick={fijarComoVersionFinal}
-            className="boton-primario px-4 py-2 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="boton-primario px-4 py-2 text-sm font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <CheckCircle className="w-3.5 h-3.5" />
             <span>
               {arregloActivo.estado === 'version_final'
                 ? 'Guardar Distribución Oficial'
-                : 'Confirmar como Versión Oficial (1:1)'}
+                : 'Confirmar versión final'}
             </span>
           </button>
         </div>
       </div>
 
       {/* Barra de Herramientas de Asignación Espacial */}
-      <div className="bg-white rounded-2xl border border-neutral-200 p-4 mb-6 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="bg-white rounded-2xl border border-neutral-200 p-4 mb-6 shadow-xs flex flex-wrap items-center justify-between gap-3 text-sm">
         <div className="flex items-center gap-2">
           <span className="font-bold text-neutral-900">Herramienta de asignación activa:</span>
-          <span className="text-neutral-500 text-[11px]">
+          <span className="text-neutral-500 text-sm">
             (Selecciona y haz clic en cualquier lugar para aplicarla)
           </span>
         </div>
@@ -345,7 +364,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
                 : 'bg-purple-100 text-purple-900 hover:bg-purple-200'
             }`}
           >
-            Staff Técnico
+            Personal de acceso
           </button>
 
           <button
@@ -357,7 +376,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
                 : 'bg-neutral-200 text-neutral-700 hover:bg-neutral-300'
             }`}
           >
-            Bloquear Butaca
+            Bloquear lugar
           </button>
 
           {recinto.permiteEliminarAsientos && (
@@ -370,7 +389,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
                   : 'bg-rose-100 text-rose-900 hover:bg-rose-200'
               }`}
             >
-              Suprimir Módulo (Sala 14)
+              Retirar lugar (Sala 14)
             </button>
           )}
         </div>
@@ -395,13 +414,13 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
         <div className="lg:col-span-4 space-y-5">
           {/* Panel de Resumen de Aforo */}
           <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs space-y-4">
-            <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider">
+            <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider">
               Inspector de Aforo y Métricas
             </h3>
 
             {/* Barra de progreso de aforo para asistentes */}
             <div>
-              <div className="flex justify-between text-xs mb-1.5">
+              <div className="flex justify-between text-sm mb-1.5">
                 <span className="text-neutral-500">Capacidad para Público</span>
                 <span className="font-bold text-neutral-900">
                   {arregloActivo.asientosAsistente} de {arregloActivo.totalAsientos} ({porcentajeAsistentes}%)
@@ -432,7 +451,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
             </div>
 
             {/* Desglose numérico por rol */}
-            <div className="divide-y divide-neutral-100 text-xs">
+            <div className="divide-y divide-neutral-100 text-sm">
               <div className="py-2 flex items-center justify-between">
                 <span className="flex items-center gap-2 text-neutral-600">
                   <span className="w-2.5 h-2.5 rounded-sm bg-neutral-900" />
@@ -486,7 +505,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
           </div>
 
           {/* Acciones Rápidas por Fila Completa */}
-          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-4 space-y-3 text-xs">
+          <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-4 space-y-3 text-sm">
             <span className="font-bold text-neutral-800 flex items-center gap-1.5">
               <SlidersHorizontal className="w-3.5 h-3.5 text-[#7a132b]" />
               <span>Configuración rápida por fila completa:</span>
@@ -496,7 +515,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
               <button
                 type="button"
                 onClick={() => asignarFilaCompleta('A', 'vip')}
-                className="w-full py-1.5 px-3 bg-white border border-neutral-200 hover:border-amber-300 text-amber-900 rounded-lg text-left text-xs font-semibold transition-colors cursor-pointer flex items-center justify-between"
+                className="w-full py-1.5 px-3 bg-white border border-neutral-200 hover:border-amber-300 text-amber-900 rounded-lg text-left text-sm font-semibold transition-colors cursor-pointer flex items-center justify-between"
               >
                 <span>Fila A / Mesa Frontal → Toda VIP</span>
                 <Star className="w-3.5 h-3.5 text-amber-500" />
@@ -505,7 +524,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
               <button
                 type="button"
                 onClick={() => asignarFilaCompleta('B', 'organizador')}
-                className="w-full py-1.5 px-3 bg-white border border-neutral-200 hover:border-indigo-300 text-indigo-900 rounded-lg text-left text-xs font-semibold transition-colors cursor-pointer flex items-center justify-between"
+                className="w-full py-1.5 px-3 bg-white border border-neutral-200 hover:border-indigo-300 text-indigo-900 rounded-lg text-left text-sm font-semibold transition-colors cursor-pointer flex items-center justify-between"
               >
                 <span>Fila B → Comité Organizador</span>
                 <Users className="w-3.5 h-3.5 text-indigo-600" />
@@ -514,7 +533,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
               <button
                 type="button"
                 onClick={() => asignarFilaCompleta('K', 'bloquear')}
-                className="w-full py-1.5 px-3 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-700 rounded-lg text-left text-xs font-semibold transition-colors cursor-pointer flex items-center justify-between"
+                className="w-full py-1.5 px-3 bg-white border border-neutral-200 hover:border-neutral-400 text-neutral-700 rounded-lg text-left text-sm font-semibold transition-colors cursor-pointer flex items-center justify-between"
               >
                 <span>Fila K / Posterior → Bloquear Logística</span>
                 <Ban className="w-3.5 h-3.5 text-neutral-400" />
@@ -525,13 +544,13 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
           {/* Versiones / Borradores de esta fecha */}
           <div className="bg-white rounded-2xl border border-neutral-200 p-4 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-neutral-800 uppercase tracking-wider">
+              <span className="text-sm font-bold text-neutral-800 uppercase tracking-wider">
                 Versiones ({arreglosFecha.length})
               </span>
               <button
                 type="button"
                 onClick={duplicarComoNuevoBorrador}
-                className="text-xs font-semibold text-[#7a132b] hover:underline cursor-pointer"
+                className="text-sm font-semibold text-[#7a132b] hover:underline cursor-pointer"
               >
                 + Nuevo
               </button>
@@ -544,7 +563,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
                   <div
                     key={arr.id}
                     onClick={() => setIdArregloActivo(arr.id)}
-                    className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                    className={`p-3 rounded-xl border text-sm cursor-pointer transition-all ${
                       esActivo
                         ? 'border-[#7a132b] bg-[#7a132b]/5 ring-1 ring-[#7a132b]/20'
                         : 'border-neutral-200 bg-white hover:bg-neutral-50'
@@ -552,11 +571,11 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-bold text-neutral-900">{arr.nombre}</span>
-                      <span className="font-mono text-[10px] text-neutral-500 font-semibold">
+                      <span className="font-mono text-sm text-neutral-500 font-semibold">
                         {arr.etiquetaVersion}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-neutral-500">
+                    <div className="flex items-center justify-between text-sm text-neutral-500">
                       <span>{arr.totalAsientos} plazas ({arr.asientosVip} VIP)</span>
                       <span className={arr.estado === 'version_final' ? 'text-emerald-700 font-bold' : 'text-amber-700'}>
                         {arr.estado === 'version_final' ? 'Oficial 1:1' : 'Borrador'}

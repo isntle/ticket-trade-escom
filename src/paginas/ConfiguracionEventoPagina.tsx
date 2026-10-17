@@ -1,3 +1,4 @@
+import { inicioEnMexico } from '../dominio/solicitudes';
 import React from 'react';
 import {
   ArrowLeft,
@@ -42,7 +43,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
 }) => {
   const { listaEventos, listaRecintos, listaArreglos, listaReservaciones, bitacoraEscaneos, obtenerListaDeVerificacion, publicarEvento, actualizarEvento, eliminarFechaEvento, verificarDisponibilidadRecinto, cancelarReservacionPorEvento } = useDatos();
   const { mostrarNotificacion } = useNotificaciones();
-  const { usuarioActual, rolActivo } = useAutenticacion();
+  const { usuarioActual, rolActivo, todosLosUsuarios } = useAutenticacion();
   const [propuestaEdicion, setPropuestaEdicion] = React.useState<PropuestaEdicionEvento | null>(null);
   const [urlBannerPropuesto, setUrlBannerPropuesto] = React.useState<string | undefined>();
   const [errorBanner, setErrorBanner] = React.useState('');
@@ -101,6 +102,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
 
   const confirmarEdicionEvento = () => {
     if (!evento || !propuestaEdicion || !usuarioActual) return;
+    if (!puedeGestionar || evento.fechas.some((dia) => inicioEnMexico(dia.fecha, dia.horaInicio) <= Date.now()) || bitacoraEscaneos.some((registro) => registro.idEvento === evento.id && registro.resultado === 'exito')) { mostrarNotificacion('Edición no disponible', 'El evento ya comenzó o tiene entradas registradas.', 'advertencia'); return; }
     const motivo = window.prompt('Describe el motivo de esta modificación:');
     if (!motivo?.trim()) {
       mostrarNotificacion('Modificación cancelada', 'Es necesario registrar un motivo para conservar la trazabilidad.', 'advertencia');
@@ -174,6 +176,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   };
 
   const esPublicado = evento.estado === 'publicado';
+  const puedeEditarInformacion = puedeGestionar && esPublicado && evento.fechas.every((dia) => inicioEnMexico(dia.fecha, dia.horaInicio) > Date.now()) && !bitacoraEscaneos.some((registro) => registro.idEvento === evento.id && registro.resultado === 'exito');
   const guardarCambioFecha = (e: React.FormEvent<HTMLFormElement>, idFecha: string) => {
     e.preventDefault();
     if (!puedeGestionar) { mostrarNotificacion('Sin autorización', 'Solo el organizador responsable o Subdirección pueden modificar este evento.', 'error'); return; }
@@ -183,6 +186,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     const horaFin = String(datos.get('horaFin') || '');
     const idRecinto = String(datos.get('idRecinto') || '');
     const fechaActual = evento.fechas.find((dia) => dia.id === idFecha);
+    if (fechaActual && (fechaActual.cancelada || inicioEnMexico(fechaActual.fecha, fechaActual.horaInicio) <= Date.now() || bitacoraEscaneos.some((registro) => registro.idFechaEvento === idFecha && registro.resultado === 'exito'))) { mostrarNotificacion('Cambio no disponible', 'Solo puedes reprogramar días futuros, no cancelados y sin entradas registradas.', 'advertencia'); return; }
     if (!fechaActual || !fecha || !horaInicio || !horaFin || horaFin <= horaInicio) {
       mostrarNotificacion('Revisa la programación', 'La fecha y el horario deben ser válidos.', 'advertencia'); return;
     }
@@ -230,7 +234,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       }
       const motivo = window.prompt('Justificación obligatoria de la excepción de anticipación:');
       if (!motivo?.trim()) { mostrarNotificacion('Excepción cancelada', 'Se requiere una justificación para aplicar el cambio urgente.', 'advertencia'); return; }
-      registrarCambioFecha([...(evento.historialExcepcionesAnticipacion || []), { idFechaEvento: idFecha, fechaAplicacion: new Date().toISOString(), motivo: motivoCambio.trim(), responsable: usuarioActual?.nombre || 'Subdirección' }]);
+      registrarCambioFecha([...(evento.historialExcepcionesAnticipacion || []), { idFechaEvento: idFecha, fechaAplicacion: new Date().toISOString(), motivo: motivo.trim(), responsable: usuarioActual?.nombre || 'Subdirección' }]);
       mostrarNotificacion('Excepción aplicada', 'La justificación quedó registrada en la bitácora del evento.', 'informacion');
       return;
     }
@@ -275,7 +279,8 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     if (!motivo?.trim()) { mostrarNotificacion('Cancelación no realizada', 'Debes registrar un motivo para cancelar el evento.', 'advertencia'); return; }
     if (!window.confirm('¿Confirmas la cancelación? El evento permanecerá en el historial y sus reservaciones se cancelarán.')) return;
     const reservasAfectadas = listaReservaciones.filter((reserva) => reserva.idEvento === evento.id && reserva.estado !== 'cancelada');
-    const destinatarios = [...new Set([evento.idOrganizador, ...reservasAfectadas.map((reserva) => reserva.correoUsuario)].filter(Boolean))];
+    const correoOrganizador = todosLosUsuarios.find((usuario) => usuario.id === evento.idOrganizador)?.correo;
+    const destinatarios = [...new Set([correoOrganizador, ...reservasAfectadas.map((reserva) => reserva.correoUsuario)].filter((correo): correo is string => Boolean(correo)))];
     reservasAfectadas.forEach((reserva) => cancelarReservacionPorEvento(reserva.id, usuarioActual?.id || '', rolActivo, motivo.trim()));
     const fechaRegistro = new Date().toISOString();
     const historialCambios = [...(evento.historialCambios || []), {
@@ -296,6 +301,8 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
 
   const cancelarDia = (idFecha: string) => {
     if (!puedeGestionar) return;
+    const diaActual = evento.fechas.find((dia) => dia.id === idFecha);
+    if (!diaActual || diaActual.cancelada || inicioEnMexico(diaActual.fecha, diaActual.horaInicio) <= Date.now()) { mostrarNotificacion('Cancelación no disponible', 'Selecciona un día futuro que siga activo.', 'advertencia'); return; }
     const tieneAccesos = bitacoraEscaneos.some((registro) => registro.idEvento === evento.id && registro.idFechaEvento === idFecha && registro.resultado === 'exito');
     if (tieneAccesos) { mostrarNotificacion('No se puede cancelar el día', 'Ya existen accesos registrados para este día.', 'error'); return; }
     const motivo = window.prompt('Indica el motivo de cancelación de este día:');
@@ -325,7 +332,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       <button
         type="button"
         onClick={() => navigate('/organizador')}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
       >
         <ArrowLeft className="w-4 h-4" />
         <span>Volver a Mis Eventos</span>
@@ -334,7 +341,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       {/* Cabecera del Evento */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1.5 text-xs">
+          <div className="flex items-center gap-2 mb-1.5 text-sm">
             <span className="font-mono text-neutral-400 font-bold uppercase">ID: {evento.id}</span>
             <span aria-hidden="true" className="text-neutral-300">·</span>
             <InsigniaEstado estado={evento.estado} />
@@ -346,7 +353,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
           <h1 className="text-xl sm:text-2xl font-extrabold text-neutral-900 tracking-tight">
             {evento.titulo}
           </h1>
-          <p className="text-xs text-neutral-500 mt-1 max-w-2xl line-clamp-2">
+          <p className="text-sm text-neutral-500 mt-1 max-w-2xl line-clamp-2">
             {evento.descripcion}
           </p>
         </div>
@@ -355,7 +362,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
           <button
             type="button"
             onClick={() => navigate(`/eventos/${evento.id}`)}
-            className="px-4 py-2.5 border border-neutral-300 rounded-xl text-xs font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-1.5 cursor-pointer transition-colors"
+            className="px-4 py-2.5 border border-neutral-300 rounded-xl text-sm font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-1.5 cursor-pointer transition-colors"
           >
             <Eye className="w-3.5 h-3.5 text-neutral-500" />
             <span>Ver Cartelera Pública</span>
@@ -363,7 +370,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         </div>
       </div>
 
-      {evento.estado === 'publicado' && puedeGestionar && <form onSubmit={(e) => {
+      {puedeEditarInformacion && <form onSubmit={(e) => {
         e.preventDefault();
         const data = new FormData(e.currentTarget);
         const titulo = String(data.get('titulo') || '').trim();
@@ -372,29 +379,29 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         if (!titulo || !descripcion || !ponentes.length) { mostrarNotificacion('Datos incompletos', 'El título, la descripción y al menos un ponente son obligatorios.', 'advertencia'); return; }
         setPropuestaEdicion({ titulo, descripcion, ponentes, urlImagen: urlBannerPropuesto });
       }} className="mb-8 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-5 sm:grid-cols-2">
-        <div className="sm:col-span-2"><h2 className="font-bold">Editar información del evento aprobado</h2><p className="text-xs text-neutral-500">Revisa título, descripción, ponentes y banner. La programación y los compromisos vigentes se conservan.</p></div>
-        <label className="text-xs font-semibold">Título<input name="titulo" required defaultValue={evento.titulo} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
-        <label className="text-xs font-semibold">Ponentes (uno por línea)<textarea name="ponentes" required defaultValue={evento.ponentes.join('\n')} rows={2} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
-        <label className="text-xs font-semibold sm:col-span-2">Descripción<textarea name="descripcion" required defaultValue={evento.descripcion} rows={3} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
-        <label className="text-xs font-semibold sm:col-span-2">Cambiar banner (JPEG/PNG, máximo 5 MiB)<input type="file" accept="image/jpeg,image/png" onChange={(e) => { const archivo = e.currentTarget.files?.[0]; if (archivo) void prepararBanner(archivo); }} className="mt-1 block w-full rounded-lg border p-2 text-sm"/>{nombreBanner && <span className="mt-1 block text-xs text-emerald-700">Vista previa preparada: {nombreBanner}</span>}{errorBanner && <span role="alert" className="mt-1 block text-xs text-rose-700">{errorBanner}</span>}</label>
+        <div className="sm:col-span-2"><h2 className="font-bold">Editar información del evento aprobado</h2><p className="text-sm text-neutral-500">Revisa título, descripción, ponentes y banner. La programación y los compromisos vigentes se conservan.</p></div>
+        <label className="text-sm font-semibold">Título<input name="titulo" required defaultValue={evento.titulo} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
+        <label className="text-sm font-semibold">Ponentes (uno por línea)<textarea name="ponentes" required defaultValue={evento.ponentes.join('\n')} rows={2} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
+        <label className="text-sm font-semibold sm:col-span-2">Descripción<textarea name="descripcion" required defaultValue={evento.descripcion} rows={3} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
+        <label className="text-sm font-semibold sm:col-span-2">Cambiar banner (JPEG/PNG, máximo 5 MiB)<input type="file" accept="image/jpeg,image/png" onChange={(e) => { const archivo = e.currentTarget.files?.[0]; if (archivo) void prepararBanner(archivo); }} className="mt-1 block w-full rounded-lg border p-2 text-sm"/>{nombreBanner && <span className="mt-1 block text-sm text-emerald-700">Vista previa preparada: {nombreBanner}</span>}{errorBanner && <span role="alert" className="mt-1 block text-sm text-rose-700">{errorBanner}</span>}</label>
         {(propuestaEdicion?.urlImagen || evento.urlImagen) && <img src={propuestaEdicion?.urlImagen || evento.urlImagen} alt="Vista previa del banner del evento" className="max-h-48 w-full rounded-xl object-cover sm:col-span-2"/>}
-        <button className="w-fit rounded-lg bg-[#7a132b] px-4 py-2 text-xs font-bold text-white">Revisar cambios</button>
+        <button className="w-fit rounded-lg bg-[#7a132b] px-4 py-2 text-sm font-bold text-white">Revisar cambios</button>
       </form>}
 
-      {propuestaEdicion && evento.estado === 'publicado' && puedeGestionar && <section role="dialog" aria-modal="true" aria-labelledby="confirmar-cambios-evento" className="mb-8 rounded-2xl border border-amber-300 bg-amber-50 p-5">
+      {propuestaEdicion && puedeEditarInformacion && <section role="dialog" aria-modal="true" aria-labelledby="confirmar-cambios-evento" className="mb-8 rounded-2xl border border-amber-300 bg-amber-50 p-5">
         <h2 id="confirmar-cambios-evento" className="font-bold">Confirmar modificación del evento</h2>
         <p className="mt-1 text-sm text-neutral-700">Revisa la información propuesta. Al confirmar se guardará una nueva versión en el historial.</p>
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="font-semibold">Título</dt><dd>{evento.titulo} → {propuestaEdicion.titulo}</dd></div><div><dt className="font-semibold">Ponentes</dt><dd>{evento.ponentes.join(', ')} → {propuestaEdicion.ponentes.join(', ')}</dd></div><div className="sm:col-span-2"><dt className="font-semibold">Descripción</dt><dd>{evento.descripcion} → {propuestaEdicion.descripcion}</dd></div>{propuestaEdicion.urlImagen && <div className="sm:col-span-2"><dt className="font-semibold">Banner</dt><dd className="mt-2 grid grid-cols-2 gap-3">{evento.urlImagen && <img src={evento.urlImagen} alt="Banner actual" className="max-h-36 w-full rounded-lg object-cover"/>}<img src={propuestaEdicion.urlImagen} alt="Banner propuesto" className="max-h-36 w-full rounded-lg object-cover"/></dd></div>}</dl>
-        <div className="mt-4 flex gap-2"><button type="button" onClick={confirmarEdicionEvento} className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white">Confirmar cambios</button><button type="button" onClick={() => { setPropuestaEdicion(null); setNombreBanner(''); setUrlBannerPropuesto(undefined); }} className="rounded-lg border px-4 py-2 text-xs font-bold">Cancelar</button></div>
+        <div className="mt-4 flex gap-2"><button type="button" onClick={confirmarEdicionEvento} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">Confirmar cambios</button><button type="button" onClick={() => { setPropuestaEdicion(null); setNombreBanner(''); setUrlBannerPropuesto(undefined); }} className="rounded-lg border px-4 py-2 text-sm font-bold">Cancelar</button></div>
       </section>}
 
-      {(evento.historialCambios?.length || 0) > 0 && <section className="mb-8 rounded-2xl border border-neutral-200 bg-white p-5"><h2 className="font-bold">Historial de modificaciones ({evento.historialCambios?.length})</h2><ol className="mt-3 space-y-3 text-xs text-neutral-600">{[...(evento.historialCambios || [])].reverse().map((cambio) => <li key={cambio.version} className="border-t pt-3"><strong>Versión {cambio.version}</strong> · {new Date(cambio.fecha).toLocaleString('es-MX')} · {cambio.responsable}<p className="mt-1">Campos: {cambio.campos.join(', ')}</p>{cambio.motivo && <p className="mt-1"><strong>Motivo:</strong> {cambio.motivo}</p>}{(cambio.detalleAnterior || cambio.detalleNuevo) && <details className="mt-1"><summary className="cursor-pointer font-semibold">Consultar valores antes y después</summary><div className="mt-2 grid gap-2 sm:grid-cols-2"><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Antes: {cambio.detalleAnterior || JSON.stringify(cambio.valoresAnteriores, null, 2)}</pre><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Después: {cambio.detalleNuevo || JSON.stringify(cambio.valoresNuevos, null, 2)}</pre></div></details>}{cambio.resultadoNotificacion && <p role="status" className="mt-2 rounded bg-amber-50 p-2 text-amber-900">Correo no enviado: no hay proveedor de correo configurado. Destinatarios previstos: {cambio.resultadoNotificacion.destinatarios.join(', ') || 'ninguno registrado'}.</p>}</li>)}</ol></section>}
+      {(evento.historialCambios?.length || 0) > 0 && <section className="mb-8 rounded-2xl border border-neutral-200 bg-white p-5"><h2 className="font-bold">Historial de modificaciones ({evento.historialCambios?.length})</h2><ol className="mt-3 space-y-3 text-sm text-neutral-600">{[...(evento.historialCambios || [])].reverse().map((cambio) => <li key={cambio.version} className="border-t pt-3"><strong>Versión {cambio.version}</strong> · {new Date(cambio.fecha).toLocaleString('es-MX')} · {cambio.responsable}<p className="mt-1">Campos: {cambio.campos.join(', ')}</p>{cambio.motivo && <p className="mt-1"><strong>Motivo:</strong> {cambio.motivo}</p>}{(cambio.detalleAnterior || cambio.detalleNuevo) && <details className="mt-1"><summary className="cursor-pointer font-semibold">Consultar valores antes y después</summary><div className="mt-2 grid gap-2 sm:grid-cols-2"><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Antes: {cambio.detalleAnterior || JSON.stringify(cambio.valoresAnteriores, null, 2)}</pre><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Después: {cambio.detalleNuevo || JSON.stringify(cambio.valoresNuevos, null, 2)}</pre></div></details>}{cambio.resultadoNotificacion && <p role="status" className="mt-2 rounded bg-amber-50 p-2 text-amber-900">Correo no enviado: no hay proveedor de correo configurado. Destinatarios previstos: {cambio.resultadoNotificacion.destinatarios.join(', ') || 'ninguno registrado'}.</p>}</li>)}</ol></section>}
 
       {/* ========================================================================= */}
       {/* BANNER HERO: ESTADO DE PREPARACIÓN PARA PUBLICAR                          */}
       {/* ========================================================================= */}
       {esPublicado ? (
-        <div className="mb-8 p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="mb-8 p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
               <CheckCircle className="w-5 h-5" />
@@ -403,7 +410,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
               <h3 className="font-extrabold text-sm text-emerald-900">
                 Evento Publicado Oficialmente en Cartelera
               </h3>
-              <p className="text-emerald-800 text-[11px] mt-0.5">
+              <p className="text-emerald-800 text-sm mt-0.5">
                 La taquilla digital está habilitada. Los alumnos y la comunidad politécnica pueden registrar su asistencia y reservar butacas.
               </p>
             </div>
@@ -418,7 +425,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         </div>
       ) : (
         <div
-          className={`mb-8 p-6 rounded-2xl border text-xs shadow-xs transition-all ${
+          className={`mb-8 p-6 rounded-2xl border text-sm shadow-xs transition-all ${
             checklist.puedePublicar
               ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950'
               : 'bg-neutral-50 border-neutral-200 text-neutral-800'
@@ -427,15 +434,15 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                <span className="font-mono text-sm font-bold uppercase tracking-wider text-neutral-400">
                   Fase de Preparación Normativa
                 </span>
                 {checklist.puedePublicar ? (
-                  <span className="px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold">
+                  <span className="px-2 py-0.5 rounded bg-emerald-600 text-white text-sm font-bold">
                     ✓ Listo para Publicar
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold">
+                  <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-sm font-bold">
                     {checklist.elementosPendientes.length} Requisito(s) Pendiente(s)
                   </span>
                 )}
@@ -445,7 +452,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                   ? 'Todo está listo: La propuesta cumple con los requisitos normativos'
                   : 'Preparación de Evento Previo a Publicación en Cartelera'}
               </h2>
-              <p className="text-neutral-500 text-xs max-w-2xl">
+              <p className="text-neutral-500 text-sm max-w-2xl">
                 {checklist.puedePublicar
                   ? 'Cada día cuenta con recinto autorizado y versión final (1:1) confirmada de lugares. Puedes abrir taquilla inmediatamente.'
                   : 'Revisa que cada día tenga su recinto asignado y su arreglo de lugares formalmente confirmado.'}
@@ -458,7 +465,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                 type="button"
                 disabled={!checklist.puedePublicar}
                 onClick={manejarPublicar}
-                className={`px-6 py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${
+                className={`px-6 py-3 rounded-xl text-sm font-extrabold flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${
                   checklist.puedePublicar
                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-98'
                     : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
@@ -475,7 +482,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       {/* Operaciones del Motor de Taquilla */}
       <section className="mb-8">
         <div className="mb-3">
-          <span className="text-[10px] font-bold text-[#7a132b] uppercase tracking-wider">
+          <span className="text-sm font-bold text-[#7a132b] uppercase tracking-wider">
             Subsistema 03 · Motor de Taquilla
           </span>
           <h2 className="text-base font-extrabold text-neutral-900 mt-0.5">
@@ -495,7 +502,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                   CU-MT-07
                 </span>
               </div>
-              <p className="text-xs text-neutral-500 mt-1 max-w-2xl">
+              <p className="text-sm text-neutral-500 mt-1 max-w-2xl">
                 Genera e invalida acreditaciones QR para Comité Organizador, Staff de apoyo e invitados VIP.
               </p>
             </div>
@@ -504,7 +511,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
           <button
             type="button"
             onClick={() => navigate(`/organizador/eventos/${evento.id}/boletos-especiales`)}
-            className="px-4 py-2.5 bg-[#7a132b] hover:bg-[#620f23] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
+            className="px-4 py-2.5 bg-[#7a132b] hover:bg-[#620f23] text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
           >
             <Ticket className="w-3.5 h-3.5" />
             <span>Gestionar boletos</span>
@@ -523,7 +530,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                   CU-MT-08
                 </span>
               </div>
-              <p className="text-xs text-neutral-500 mt-1 max-w-2xl">
+              <p className="text-sm text-neutral-500 mt-1 max-w-2xl">
                 Abre o cierra la taquilla por día y consulta el historial de cambios.
               </p>
             </div>
@@ -532,7 +539,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
           <button
             type="button"
             onClick={() => navigate(`/organizador/eventos/${evento.id}/inscripciones`)}
-            className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
+            className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
           >
             <CalendarClock className="w-3.5 h-3.5" />
             <span>Gestionar inscripciones</span>
@@ -551,7 +558,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                   CU-MT-09
                 </span>
               </div>
-              <p className="text-xs text-neutral-500 mt-1 max-w-2xl">
+              <p className="text-sm text-neutral-500 mt-1 max-w-2xl">
                 Consulta aforo, disponibilidad, reservaciones, lista de espera y participación por día.
               </p>
             </div>
@@ -560,7 +567,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
           <button
             type="button"
             onClick={() => navigate(`/organizador/eventos/${evento.id}/taquilla-participacion`)}
-            className="px-4 py-2.5 bg-sky-700 hover:bg-sky-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
+            className="px-4 py-2.5 bg-sky-700 hover:bg-sky-800 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
           >
             <BarChart3 className="w-3.5 h-3.5" />
             <span>Consultar panel</span>
@@ -579,7 +586,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
               <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-wider">
                 Días Programados y Arreglos de Lugares (1:1)
               </h2>
-              <p className="text-xs text-neutral-500 mt-0.5">
+              <p className="text-sm text-neutral-500 mt-0.5">
                 Para eventos con acceso controlado, cada fecha debe tener su distribución de butacas o estaciones confirmada.
               </p>
             </div>
@@ -593,27 +600,27 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                 return (
                   <div
                     key={fecha.id}
-                    className="p-5 rounded-xl border border-neutral-200 bg-neutral-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+                    className="p-5 rounded-xl border border-neutral-200 bg-neutral-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm"
                   >
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-neutral-900 text-sm">
                           Día {i + 1}: {fecha.fecha}
                         </span>
-                        {fecha.cancelada && <span className="rounded bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800">Día cancelado</span>}
+                        {fecha.cancelada && <span className="rounded bg-rose-100 px-2 py-0.5 text-sm font-bold text-rose-800">Día cancelado</span>}
                         {tieneArregloConfirmado ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 text-sm font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             <span>Versión Oficial Lista</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                          <span className="inline-flex items-center gap-1 text-sm font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                             <AlertCircle className="w-3 h-3 text-amber-600" />
                             <span>Arreglo Pendiente</span>
                           </span>
                         )}
                       </div>
-                      {!fecha.cancelada && !disponibilidadDia.disponible && <div className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-950"><strong>{disponibilidadDia.tipoConflicto === 'bloqueo' ? 'Día afectado por bloqueo institucional' : 'Conflicto de agenda'}</strong><p>{disponibilidadDia.motivo}</p><span>Resuelve el conflicto reprogramando el día o cancelándolo de forma segura.</span></div>}
+                      {!fecha.cancelada && !disponibilidadDia.disponible && <div className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm text-amber-950"><strong>{disponibilidadDia.tipoConflicto === 'bloqueo' ? 'Día afectado por bloqueo institucional' : 'Conflicto de agenda'}</strong><p>{disponibilidadDia.motivo}</p><span>Resuelve el conflicto reprogramando el día o cancelándolo de forma segura.</span></div>}
 
                       <div className="text-neutral-600 flex items-center gap-3">
                         <span className="flex items-center gap-1 font-semibold text-neutral-800">
@@ -629,13 +636,13 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                     </div>
 
                     {!fecha.cancelada && puedeGestionar && <form onSubmit={(e) => guardarCambioFecha(e, fecha.id)} className="grid w-full gap-2 border-t border-neutral-200 pt-3 sm:grid-cols-2 lg:grid-cols-4">
-                      <label className="text-[10px] font-semibold text-neutral-600">Fecha<input name="fecha" type="date" defaultValue={fecha.fecha} className="mt-1 w-full rounded-lg border bg-white p-2 text-xs" /></label>
-                      <label className="text-[10px] font-semibold text-neutral-600">Inicio<input name="horaInicio" type="time" defaultValue={fecha.horaInicio} className="mt-1 w-full rounded-lg border bg-white p-2 text-xs" /></label>
-                      <label className="text-[10px] font-semibold text-neutral-600">Fin<input name="horaFin" type="time" defaultValue={fecha.horaFin} className="mt-1 w-full rounded-lg border bg-white p-2 text-xs" /></label>
-                      <label className="text-[10px] font-semibold text-neutral-600">Recinto<select name="idRecinto" defaultValue={fecha.idRecinto} className="mt-1 w-full rounded-lg border bg-white p-2 text-xs">{listaRecintos.filter((r) => r.activo !== false).map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}</select></label>
-                      <button type="submit" className="rounded-lg bg-sky-700 px-3 py-2 text-xs font-bold text-white">Guardar fecha, horario o recinto</button>
-                      {puedeGestionar && <button type="button" onClick={() => retirarDia(fecha.id)} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700">Retirar día sin compromisos</button>}
-                      {puedeGestionar && !fecha.cancelada && <button type="button" onClick={() => cancelarDia(fecha.id)} className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-bold text-rose-700">Cancelar este día</button>}
+                      <label className="text-sm font-semibold text-neutral-600">Fecha<input name="fecha" type="date" defaultValue={fecha.fecha} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm" /></label>
+                      <label className="text-sm font-semibold text-neutral-600">Inicio<input name="horaInicio" type="time" defaultValue={fecha.horaInicio} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm" /></label>
+                      <label className="text-sm font-semibold text-neutral-600">Fin<input name="horaFin" type="time" defaultValue={fecha.horaFin} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm" /></label>
+                      <label className="text-sm font-semibold text-neutral-600">Recinto<select name="idRecinto" defaultValue={fecha.idRecinto} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm">{listaRecintos.filter((r) => r.activo !== false).map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}</select></label>
+                      <button type="submit" className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-bold text-white">Guardar fecha, horario o recinto</button>
+                      {puedeGestionar && <button type="button" onClick={() => retirarDia(fecha.id)} className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-bold text-rose-700">Retirar día sin compromisos</button>}
+                      {puedeGestionar && !fecha.cancelada && <button type="button" onClick={() => cancelarDia(fecha.id)} className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700">Cancelar este día</button>}
                     </form>}
 
                     <button
@@ -645,7 +652,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                           `/organizador/eventos/${evento.id}/fechas/${fecha.id}/arreglos`
                         )
                       }
-                      className="px-4 py-2.5 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
+                      className="px-4 py-2.5 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
                     >
                       <Layers className="w-3.5 h-3.5" />
                       <span>{tieneArregloConfirmado ? 'Revisar / Modificar Butacas' : 'Diseñar Butacas'}</span>
@@ -654,15 +661,15 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                 );
               })}
             </div>
-            {evento.estado !== 'cancelado' && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"><button type="button" onClick={imprimirConstancia} className="rounded-lg border px-3 py-2 text-xs font-bold">Imprimir constancia operativa</button>{puedeGestionar&&<button type="button" onClick={cancelarEventoCompleto} className="rounded-lg bg-rose-700 px-3 py-2 text-xs font-bold text-white">Cancelar evento aprobado</button>}</div>}
-            {(evento.historialExcepcionesAnticipacion?.length || 0) > 0 && <aside className="rounded-xl bg-amber-50 p-4 text-xs"><h3 className="font-bold text-amber-950">Excepciones de anticipación registradas</h3>{evento.historialExcepcionesAnticipacion?.map((item, indice) => <p key={`${item.fechaAplicacion}-${indice}`} className="mt-1 text-amber-900">{new Date(item.fechaAplicacion).toLocaleString('es-MX')} · {item.responsable}: {item.motivo}</p>)}</aside>}
+            {evento.estado !== 'cancelado' && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"><button type="button" onClick={imprimirConstancia} className="rounded-lg border px-3 py-2 text-sm font-bold">Imprimir constancia operativa</button>{puedeGestionar&&<button type="button" onClick={cancelarEventoCompleto} className="rounded-lg bg-rose-700 px-3 py-2 text-sm font-bold text-white">Cancelar evento aprobado</button>}</div>}
+            {(evento.historialExcepcionesAnticipacion?.length || 0) > 0 && <aside className="rounded-xl bg-amber-50 p-4 text-sm"><h3 className="font-bold text-amber-950">Excepciones de anticipación registradas</h3>{evento.historialExcepcionesAnticipacion?.map((item, indice) => <p key={`${item.fechaAplicacion}-${indice}`} className="mt-1 text-amber-900">{new Date(item.fechaAplicacion).toLocaleString('es-MX')} · {item.responsable}: {item.motivo}</p>)}</aside>}
           </div>
         </div>
 
         {/* Columna Derecha: Checklist Detallado de Publicación (4 COLS) */}
         <div className="lg:col-span-4 space-y-4">
-          <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs space-y-4 text-xs">
-            <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
+          <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs space-y-4 text-sm">
+            <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-[#7a132b]" />
               <span>Lista de Verificación (Checklist)</span>
             </h3>
@@ -677,7 +684,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                 )}
                 <div>
                   <div className="font-semibold text-neutral-900">Dictamen de Subdirección</div>
-                  <div className="text-neutral-500 text-[11px]">
+                  <div className="text-neutral-500 text-sm">
                     {checklist.solicitudAutorizada ? 'Autorizado formalmente' : 'Pendiente de dictamen'}
                   </div>
                 </div>
@@ -692,7 +699,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                 )}
                 <div>
                   <div className="font-semibold text-neutral-900">Información General Completa</div>
-                  <div className="text-neutral-500 text-[11px]">
+                  <div className="text-neutral-500 text-sm">
                     {checklist.informacionGeneralCompleta ? 'Título, descripción y ponentes registrados' : 'Faltan datos informativos'}
                   </div>
                 </div>
@@ -707,7 +714,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                 )}
                 <div>
                   <div className="font-semibold text-neutral-900">Asignación de Recintos</div>
-                  <div className="text-neutral-500 text-[11px]">
+                  <div className="text-neutral-500 text-sm">
                     {checklist.todasLasFechasTienenRecinto ? 'Todos los días cuentan con espacio físico' : 'Días sin recinto asignado'}
                   </div>
                 </div>
@@ -722,7 +729,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                 )}
                 <div>
                   <div className="font-semibold text-neutral-900">Distribución de Asientos (1:1)</div>
-                  <div className="text-neutral-500 text-[11px]">
+                  <div className="text-neutral-500 text-sm">
                     {checklist.todasLasFechasTienenVersionFinal
                       ? 'Versión oficial confirmada en cada día'
                       : 'Faltan fechas por confirmar su distribución'}
@@ -733,7 +740,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
 
             {/* Elementos Pendientes si existen */}
             {checklist.elementosPendientes && checklist.elementosPendientes.length > 0 && (
-              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-950 text-[11px] space-y-1">
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-950 text-sm space-y-1">
                 <span className="font-bold block text-amber-900">Pendiente para Publicar:</span>
                 <ul className="list-disc list-inside space-y-0.5">
                   {checklist.elementosPendientes.map((item, idx) => (

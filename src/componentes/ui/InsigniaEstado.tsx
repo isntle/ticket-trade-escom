@@ -48,12 +48,16 @@ export const InsigniaEstado: React.FC<PropiedadesInsigniaEstado> = ({ estado }) 
     etiqueta = 'Autorizada';
     icono = <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />;
     clasesColor = 'text-emerald-800 bg-emerald-50 border-emerald-200';
+  } else if (estado === 'requiere_correccion') {
+    etiqueta = 'Por corregir';
+    icono = <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />;
+    clasesColor = 'text-amber-900 bg-amber-50 border-amber-200';
   } else if (estado === 'rechazada') {
     etiqueta = 'Rechazada';
     icono = <XCircle className="w-3.5 h-3.5 text-rose-600" />;
     clasesColor = 'text-rose-800 bg-rose-50 border-rose-200';
   } else if (estado === 'cancelada' || estado === 'cancelado') {
-    etiqueta = 'Cancelado';
+    etiqueta = estado === 'cancelada' ? 'Cancelada' : 'Cancelado';
     icono = <Ban className="w-3.5 h-3.5 text-neutral-400" />;
     clasesColor = 'text-neutral-600 bg-neutral-100 border-neutral-200 line-through';
   }

@@ -34,6 +34,8 @@ import {
   generarAsientosSala14,
   generarEstacionesLaboratorio
 } from '../datos/datosIniciales';
+import { useAutenticacion } from './AutenticacionContexto';
+import { registrarCambioSolicitud, validarAnticipacionSolicitud, validarProgramacion, versionSolicitud } from '../dominio/solicitudes';
 import { generarIdentificadorQr } from '../utilidades/identificadores';
 
 interface ContextoDatosTipo {
@@ -70,13 +72,49 @@ interface ContextoDatosTipo {
 
   dictaminarSolicitud: (
     idSolicitud: string,
-    decision: 'autorizada' | 'rechazada',
+    decision: "autorizada" | "rechazada",
     motivo?: string,
-    nombreRevisor?: string
-  ) => void;
-  devolverSolicitud: (idSolicitud: string, observaciones: string, nombreRevisor?: string) => void;
-  actualizarSolicitud: (idSolicitud: string, cambios: Partial<Pick<SolicitudEvento, 'tituloEvento' | 'descripcionEvento' | 'fechasSolicitadas' | 'modalidadAsistencia' | 'visibilidad' | 'asistenciaEstimada' | 'justificacionExcepcional' | 'correoContacto' | 'telefonoContacto' | 'nombreDocumento' | 'urlDocumento' | 'nombreBanner' | 'urlImagen'>>, reenviar?: boolean) => void;
-  cancelarSolicitud: (idSolicitud: string) => void;
+    nombreRevisor?: string,
+    versionEsperada?: number,
+  ) => { exito: boolean; error?: string };
+  atenderSolicitudExtraordinaria: (
+    idSolicitud: string,
+    versionEsperada: number,
+  ) => { exito: boolean; error?: string };
+  devolverSolicitud: (
+    idSolicitud: string,
+    observaciones: string,
+    nombreRevisor?: string,
+    versionEsperada?: number,
+  ) => { exito: boolean; error?: string };
+  actualizarSolicitud: (
+    idSolicitud: string,
+    cambios: Partial<
+      Pick<
+        SolicitudEvento,
+        | "esExcepcional"
+        | "tituloEvento"
+        | "descripcionEvento"
+        | "fechasSolicitadas"
+        | "modalidadAsistencia"
+        | "visibilidad"
+        | "asistenciaEstimada"
+        | "justificacionExcepcional"
+        | "correoContacto"
+        | "telefonoContacto"
+        | "nombreDocumento"
+        | "urlDocumento"
+        | "nombreBanner"
+        | "urlImagen"
+      >
+    >,
+    reenviar?: boolean,
+    versionEsperada?: number,
+  ) => { exito: boolean; error?: string };
+  cancelarSolicitud: (
+    idSolicitud: string,
+    versionEsperada?: number,
+  ) => { exito: boolean; error?: string };
 
   crearEventoInstitucionalDirecto: (datosEvento: Partial<Evento>) => Evento;
   actualizarEvento: (idEvento: string, parcial: Partial<Evento>) => void;
@@ -227,6 +265,7 @@ const bloqueoAfectaSesion = (
 };
 
 export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { usuarioActual } = useAutenticacion();
   const [listaEventos, setListaEventos] = useState<Evento[]>(() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_eventos`);
     return g ? JSON.parse(g) : EVENTOS_INICIALES;
@@ -724,69 +763,201 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   };
 
-  // Crear Solicitud de Evento
-  const crearSolicitud = (
-    datos: Omit<SolicitudEvento, 'id' | 'fechaCreacion' | 'estado'>
-  ): SolicitudEvento => {
-    const id = `sol-${Date.now().toString(36)}`;
+  const persistirSolicitudes = (solicitudes: SolicitudEvento[]) => {
+    try {
+      localStorage.setItem(
+        `${CLAVE_ALMACEN_DATOS}_solicitudes`,
+        JSON.stringify(solicitudes),
+      );
+      setListaSolicitudes(solicitudes);
+      return { exito: true };
+    } catch {
+      return {
+        exito: false,
+        error:
+          "No se pudo guardar la solicitud. Libera espacio de almacenamiento; tus cambios siguen en el formulario.",
+      };
+    }
+  };
+
+  const solicitudVigente = (id: string) => {
+    const guardadas = localStorage.getItem(
+      `${CLAVE_ALMACEN_DATOS}_solicitudes`,
+    );
+    const lista: SolicitudEvento[] = guardadas
+      ? JSON.parse(guardadas)
+      : listaSolicitudes;
+    return { lista, solicitud: lista.find((item) => item.id === id) };
+  };
+
+  const crearSolicitud: ContextoDatosTipo["crearSolicitud"] = (datos) => {
+    if (
+      !usuarioActual ||
+      datos.idSolicitante !== usuarioActual.id ||
+      usuarioActual.esVerificado !== true ||
+      usuarioActual.correoConfirmado === false
+    )
+      throw new Error(
+        "Necesitas una cuenta confirmada y verificada para solicitar un evento.",
+      );
+    const error =
+      validarProgramacion(datos.fechasSolicitadas, listaRecintos, {
+        modalidad: datos.modalidadAsistencia,
+        aforo: datos.asistenciaEstimada,
+      }) || validarAnticipacionSolicitud(datos);
+    if (error) throw new Error(error);
+    const ahora = new Date().toISOString();
     const nuevaSolicitud: SolicitudEvento = {
       ...datos,
-      id,
-      estado: 'en_revision',
-      fechaCreacion: new Date().toISOString()
+      id: `sol-${crypto.randomUUID()}`,
+      estado: "en_revision",
+      fechaCreacion: ahora,
+      fechaEnvioInicial: ahora,
+      version: 1,
     };
-
-    setListaSolicitudes((previas) => [nuevaSolicitud, ...previas]);
+    const resultado = persistirSolicitudes([
+      nuevaSolicitud,
+      ...solicitudVigente("").lista,
+    ]);
+    if (!resultado.exito) throw new Error(resultado.error);
     return nuevaSolicitud;
   };
 
-  const guardarBorradorSolicitud = (datos: Omit<SolicitudEvento, 'id' | 'fechaCreacion' | 'estado'>): SolicitudEvento => {
-    const borrador: SolicitudEvento = { ...datos, id: `sol-${Date.now().toString(36)}`, estado: 'borrador', fechaCreacion: new Date().toISOString() };
-    setListaSolicitudes((previas) => [borrador, ...previas]);
-    return borrador;
-  };
+  const guardarBorradorSolicitud: ContextoDatosTipo["guardarBorradorSolicitud"] =
+    (datos) => {
+      if (
+        !usuarioActual ||
+        datos.idSolicitante !== usuarioActual.id ||
+        usuarioActual.esVerificado !== true ||
+        usuarioActual.correoConfirmado === false
+      )
+        throw new Error(
+          "Necesitas una cuenta confirmada y verificada para guardar solicitudes.",
+        );
+      const error = validarProgramacion(
+        datos.fechasSolicitadas,
+        listaRecintos,
+        {
+          borrador: true,
+          modalidad: datos.modalidadAsistencia,
+          aforo: datos.asistenciaEstimada,
+        },
+      );
+      if (error) throw new Error(error);
+      const borrador: SolicitudEvento = {
+        ...datos,
+        id: `sol-${crypto.randomUUID()}`,
+        estado: "borrador",
+        fechaCreacion: new Date().toISOString(),
+        version: 1,
+      };
+      const resultado = persistirSolicitudes([
+        borrador,
+        ...solicitudVigente("").lista,
+      ]);
+      if (!resultado.exito) throw new Error(resultado.error);
+      return borrador;
+    };
 
-  // Dictaminar Solicitud
-  const dictaminarSolicitud = (
+  const resolverSolicitud = (
     idSolicitud: string,
-    decision: 'autorizada' | 'rechazada',
+    decision: "autorizada" | "rechazada",
     motivo?: string,
-    nombreRevisor?: string
+    versionEsperada?: number,
+    extraordinaria = false,
   ) => {
-    let solicitudActualizada: SolicitudEvento | undefined;
-
-    setListaSolicitudes((previas) =>
-      previas.map((s) => {
-        if (s.id === idSolicitud) {
-          solicitudActualizada = {
-            ...s,
-            estado: decision,
-            motivoRechazo: decision === 'rechazada' ? motivo : undefined,
-            revisadoPor: nombreRevisor || 'Subdirección de ESCOM',
-            fechaRevision: new Date().toISOString()
+    const { lista, solicitud } = solicitudVigente(idSolicitud);
+    if (!usuarioActual?.roles.includes("subdireccion"))
+      return {
+        exito: false,
+        error: "Solo Subdirección puede resolver solicitudes.",
+      };
+    if (!solicitud || solicitud.estado !== "en_revision")
+      return { exito: false, error: "La solicitud ya no está en revisión." };
+    if (
+      versionEsperada !== undefined &&
+      versionSolicitud(solicitud) !== versionEsperada
+    ) {
+      setListaSolicitudes(lista);
+      return {
+        exito: false,
+        error:
+          "La solicitud cambió mientras la revisabas. Consulta la versión actual antes de resolver.",
+      };
+    }
+    if (decision === "rechazada" && !motivo?.trim())
+      return { exito: false, error: "Indica el motivo del rechazo." };
+    if (decision === "autorizada") {
+      if (solicitud.esExcepcional && !extraordinaria)
+        return {
+          exito: false,
+          error:
+            "Esta solicitud requiere la creación expresa de un evento por Subdirección.",
+        };
+      const error = validarProgramacion(
+        solicitud.fechasSolicitadas,
+        listaRecintos,
+        {
+          modalidad: solicitud.modalidadAsistencia,
+          aforo: solicitud.asistenciaEstimada,
+        },
+      );
+      if (error) return { exito: false, error };
+      for (const fecha of solicitud.fechasSolicitadas) {
+        const disponibilidad = verificarDisponibilidadRecinto(
+          fecha.idRecinto,
+          fecha.fecha,
+          fecha.horaInicio,
+          fecha.horaFin,
+        );
+        if (!disponibilidad.disponible)
+          return {
+            exito: false,
+            error: disponibilidad.motivo || "El recinto ya está ocupado.",
           };
-          return solicitudActualizada;
-        }
-        return s;
-      })
+      }
+    }
+    const solicitudActualizada = registrarCambioSolicitud(
+      solicitud,
+      {
+        estado: decision,
+        motivoRechazo: decision === "rechazada" ? motivo?.trim() : undefined,
+        revisadoPor: usuarioActual.nombre,
+        fechaRevision: new Date().toISOString(),
+      },
+      usuarioActual.nombre,
+      decision === "autorizada"
+        ? extraordinaria
+          ? "Creación de evento extraordinario"
+          : "Autorización"
+        : "Rechazo",
+      motivo,
     );
-
-    if (decision === 'autorizada' && solicitudActualizada) {
+    const resultado = persistirSolicitudes(
+      lista.map((item) =>
+        item.id === idSolicitud ? solicitudActualizada : item,
+      ),
+    );
+    if (!resultado.exito) return resultado;
+    if (decision === "autorizada") {
       const sol = solicitudActualizada;
-      const nuevoIdEvento = `evt-${sol.id.replace('sol-', '')}`;
-      const yaExiste = listaEventos.some((e) => e.id === nuevoIdEvento || e.idSolicitud === sol.id);
-
+      const nuevoIdEvento = `evt-${sol.id.replace("sol-", "")}`;
+      const yaExiste = listaEventos.some(
+        (e) => e.id === nuevoIdEvento || e.idSolicitud === sol.id,
+      );
       if (!yaExiste) {
-        const fechasConvertidas: Evento['fechas'] = sol.fechasSolicitadas.map((f, indice) => ({
-          id: `fec-${nuevoIdEvento}-${indice + 1}`,
-          idEvento: nuevoIdEvento,
-          fecha: f.fecha,
-          horaInicio: f.horaInicio,
-          horaFin: f.horaFin,
-          idRecinto: f.idRecinto,
-          esFinalConfirmado: false,
-          ponentes: []
-        }));
+        const fechasConvertidas: Evento["fechas"] = sol.fechasSolicitadas.map(
+          (f, indice) => ({
+            id: `fec-${nuevoIdEvento}-${indice + 1}`,
+            idEvento: nuevoIdEvento,
+            fecha: f.fecha,
+            horaInicio: f.horaInicio,
+            horaFin: f.horaFin,
+            idRecinto: f.idRecinto,
+            esFinalConfirmado: false,
+            ponentes: [],
+          }),
+        );
 
         const nuevoEvento: Evento = {
           id: nuevoIdEvento,
@@ -795,71 +966,238 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
           nombreOrganizador: sol.nombreSolicitante,
           titulo: sol.tituloEvento,
           descripcion: sol.descripcionEvento,
-          categoria: 'Académico',
+          categoria: "Académico",
           visibilidad: sol.visibilidad,
           modalidadAsistencia: sol.modalidadAsistencia,
-          estado: 'configuracion',
+          estado: "configuracion",
           fechas: fechasConvertidas,
           aforoMaximo: sol.asistenciaEstimada,
           ponentes: [],
-          etiquetas: ['ESCOM', sol.modalidadAsistencia]
+          etiquetas: ["ESCOM", sol.modalidadAsistencia],
         };
 
         setListaEventos((previos) => [nuevoEvento, ...previos]);
 
         // Crear borradores iniciales de arreglo para cada fecha
         fechasConvertidas.forEach((f) => {
-          const asientos = f.idRecinto === 'rec-auditorio'
+          const recinto = listaRecintos.find((item) => item.id === f.idRecinto)!;
+          const asientos = recinto.tipo === "auditorio"
             ? generarAsientosAuditorio()
-            : generarAsientosSala14();
+            : recinto.tipo === "laboratorio"
+              ? generarEstacionesLaboratorio(recinto.codigo)
+              : generarAsientosSala14();
 
           const total = asientos.filter((a) => !a.estaEliminado).length;
           const nuevoArreglo: ArregloAsientos = {
             id: `arr-${f.id}-borrador`,
             idFechaEvento: f.id,
             idRecinto: f.idRecinto,
-            nombre: 'Borrador Inicial 1',
-            etiquetaVersion: 'v1.0-borrador',
-            estado: 'borrador',
+            nombre: "Borrador Inicial 1",
+            etiquetaVersion: "v1.0-borrador",
+            estado: "borrador",
             asientos,
             totalAsientos: total,
-            asientosAsistente: asientos.filter((a) => a.categoria === 'asistente' && !a.estaEliminado).length,
-            asientosVip: asientos.filter((a) => a.categoria === 'vip' && !a.estaEliminado).length,
-            asientosOrganizador: asientos.filter((a) => a.categoria === 'organizador' && !a.estaEliminado).length,
-            asientosStaff: asientos.filter((a) => a.categoria === 'staff' && !a.estaEliminado).length,
-            asientosBloqueados: asientos.filter((a) => a.estaBloqueado && !a.estaEliminado).length,
+            asientosAsistente: asientos.filter(
+              (a) => a.categoria === "asistente" && !a.estaEliminado,
+            ).length,
+            asientosVip: asientos.filter(
+              (a) => a.categoria === "vip" && !a.estaEliminado,
+            ).length,
+            asientosOrganizador: asientos.filter(
+              (a) => a.categoria === "organizador" && !a.estaEliminado,
+            ).length,
+            asientosStaff: asientos.filter(
+              (a) => a.categoria === "staff" && !a.estaEliminado,
+            ).length,
+            asientosBloqueados: asientos.filter(
+              (a) => a.estaBloqueado && !a.estaEliminado,
+            ).length,
             asientosSinAsignar: 0,
-            fechaCreacion: new Date().toISOString()
+            fechaCreacion: new Date().toISOString(),
           };
           setListaArreglos((previos) => [...previos, nuevoArreglo]);
         });
       }
     }
+    return { exito: true };
   };
 
-  const devolverSolicitud = (idSolicitud: string, observaciones: string, nombreRevisor?: string) => {
-    if (!observaciones.trim()) return;
-    setListaSolicitudes((previas) => previas.map((s) => s.id === idSolicitud ? {
-      ...s,
-      estado: 'requiere_correccion',
-      observacionesCorreccion: observaciones.trim(),
-      fechaLimiteCorreccion: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      revisadoPor: nombreRevisor || 'Subdirección',
-      fechaRevision: new Date().toISOString()
-    } : s));
+  const dictaminarSolicitud: ContextoDatosTipo["dictaminarSolicitud"] = (
+    id,
+    decision,
+    motivo,
+    _nombre,
+    versionEsperada,
+  ) => resolverSolicitud(id, decision, motivo, versionEsperada);
+  const atenderSolicitudExtraordinaria: ContextoDatosTipo["atenderSolicitudExtraordinaria"] =
+    (id, versionEsperada) =>
+      resolverSolicitud(
+        id,
+        "autorizada",
+        "Creación expresa por Subdirección tras revisar la urgencia y disponibilidad.",
+        versionEsperada,
+        true,
+      );
+
+  const devolverSolicitud: ContextoDatosTipo["devolverSolicitud"] = (
+    id,
+    observaciones,
+    _nombre,
+    versionEsperada,
+  ) => {
+    const { lista, solicitud } = solicitudVigente(id);
+    if (
+      !usuarioActual?.roles.includes("subdireccion") ||
+      !solicitud ||
+      solicitud.estado !== "en_revision"
+    )
+      return { exito: false, error: "No puedes devolver esta solicitud." };
+    if (!observaciones.trim())
+      return {
+        exito: false,
+        error: "Indica qué debe corregir el solicitante.",
+      };
+    if (
+      versionEsperada !== undefined &&
+      versionEsperada !== versionSolicitud(solicitud)
+    ) {
+      setListaSolicitudes(lista);
+      return {
+        exito: false,
+        error: "La versión cambió. Revisa la solicitud actualizada.",
+      };
+    }
+    const nueva = registrarCambioSolicitud(
+      solicitud,
+      {
+        estado: "requiere_correccion",
+        observacionesCorreccion: observaciones.trim(),
+        fechaLimiteCorreccion: new Date(Date.now() + 86400000).toISOString(),
+        revisadoPor: usuarioActual.nombre,
+        fechaRevision: new Date().toISOString(),
+      },
+      usuarioActual.nombre,
+      "Devolución para corrección",
+      observaciones.trim(),
+    );
+    return persistirSolicitudes(
+      lista.map((item) => (item.id === id ? nueva : item)),
+    );
   };
 
-  const actualizarSolicitud: ContextoDatosTipo['actualizarSolicitud'] = (idSolicitud, cambios, reenviar = false) => {
-    setListaSolicitudes((previas) => previas.map((s) => s.id === idSolicitud ? {
-      ...s, ...cambios,
-      ...(reenviar ? { estado: 'en_revision' as const, observacionesCorreccion: undefined, fechaLimiteCorreccion: undefined, fechaRevision: undefined } : {})
-    } : s));
+  const actualizarSolicitud: ContextoDatosTipo["actualizarSolicitud"] = (
+    id,
+    cambios,
+    reenviar = false,
+    versionEsperada,
+  ) => {
+    const { lista, solicitud } = solicitudVigente(id);
+    if (
+      !solicitud ||
+      usuarioActual?.id !== solicitud.idSolicitante ||
+      !["borrador", "en_revision", "requiere_correccion"].includes(
+        solicitud.estado,
+      )
+    )
+      return {
+        exito: false,
+        error: "Solo el titular puede editar una solicitud pendiente.",
+      };
+    if (
+      versionEsperada !== undefined &&
+      versionEsperada !== versionSolicitud(solicitud)
+    ) {
+      setListaSolicitudes(lista);
+      return {
+        exito: false,
+        error:
+          "La solicitud cambió en otra ventana. Abre la versión actual antes de guardar.",
+      };
+    }
+    if (
+      solicitud.estado === "requiere_correccion" &&
+      solicitud.fechaLimiteCorreccion &&
+      Date.now() > Date.parse(solicitud.fechaLimiteCorreccion)
+    )
+      return {
+        exito: false,
+        error: "Venció el plazo de corrección de 24 horas.",
+      };
+    const error = validarProgramacion(
+      cambios.fechasSolicitadas || solicitud.fechasSolicitadas,
+      listaRecintos,
+      {
+        borrador: !reenviar && solicitud.estado === "borrador",
+        modalidad: cambios.modalidadAsistencia || solicitud.modalidadAsistencia,
+        aforo: cambios.asistenciaEstimada ?? solicitud.asistenciaEstimada,
+      },
+    );
+    if (error) return { exito: false, error };
+    if (reenviar) {
+      const errorAnticipacion = validarAnticipacionSolicitud(
+        { ...solicitud, ...cambios },
+        solicitud,
+      );
+      if (errorAnticipacion) return { exito: false, error: errorAnticipacion };
+    }
+    const nueva = registrarCambioSolicitud(
+      solicitud,
+      {
+        ...cambios,
+        ...(reenviar
+          ? {
+              estado: "en_revision" as const,
+              fechaEnvioInicial:
+                solicitud.fechaEnvioInicial || (solicitud.estado === "borrador" ? new Date().toISOString() : solicitud.fechaCreacion),
+              observacionesCorreccion: undefined,
+              fechaLimiteCorreccion: undefined,
+            }
+          : {}),
+      },
+      usuarioActual.nombre,
+      reenviar ? "Envío a revisión" : "Edición de solicitud",
+    );
+    return persistirSolicitudes(
+      lista.map((item) => (item.id === id ? nueva : item)),
+    );
   };
 
-  const cancelarSolicitud = (idSolicitud: string) => {
-    setListaSolicitudes((previas) => previas.map((s) => s.id === idSolicitud && ['borrador', 'en_revision', 'requiere_correccion'].includes(s.estado)
-      ? { ...s, estado: 'cancelada' }
-      : s));
+  const cancelarSolicitud: ContextoDatosTipo["cancelarSolicitud"] = (
+    id,
+    versionEsperada,
+  ) => {
+    const { lista, solicitud } = solicitudVigente(id);
+    if (
+      !solicitud ||
+      usuarioActual?.id !== solicitud.idSolicitante ||
+      !["borrador", "en_revision", "requiere_correccion"].includes(
+        solicitud.estado,
+      )
+    )
+      return {
+        exito: false,
+        error: "Solo el titular puede cancelar una solicitud pendiente.",
+      };
+    if (
+      versionEsperada !== undefined &&
+      versionEsperada !== versionSolicitud(solicitud)
+    ) {
+      setListaSolicitudes(lista);
+      return {
+        exito: false,
+        error: "La solicitud cambió. Consulta la versión vigente.",
+      };
+    }
+    const nueva = registrarCambioSolicitud(
+      solicitud,
+      { estado: "cancelada" },
+      usuarioActual.nombre,
+      "Cancelación",
+      "Cancelación por el solicitante",
+    );
+    return persistirSolicitudes(
+      lista.map((item) => (item.id === id ? nueva : item)),
+    );
   };
 
   // Crear Evento Institucional Directo (Subdirección)
@@ -1983,6 +2321,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         crearSolicitud,
         guardarBorradorSolicitud,
         dictaminarSolicitud,
+        atenderSolicitudExtraordinaria,
         devolverSolicitud,
         actualizarSolicitud,
         cancelarSolicitud,

@@ -1,3 +1,4 @@
+import { CatalogoRecintosPagina } from './paginas/CatalogoRecintosPagina';
 import React, { useState, useEffect } from 'react';
 
 // Proveedores de Estado Global Institucional
@@ -195,8 +196,12 @@ function ContenidoApp() {
     // -------------------------------------------------------------
     // SUBSISTEMA 02: ORGANIZACIÓN, RECINTOS Y ARREGLOS
     // -------------------------------------------------------------
+    if (rutaActual === '/recintos') return <CatalogoRecintosPagina navigate={navegarA} />;
+    if (rutaActual === '/admin/recintos') return <AdministracionRecintosPagina modo="catalogo" navigate={navegarA} />;
+    if (rutaActual === '/admin/ocupaciones') return <AdministracionRecintosPagina modo="ocupaciones" navigate={navegarA} />;
+
     if (rutaActual === '/solicitar-evento' || rutaActual === '/organizador/solicitudes/nueva') {
-      return <SolicitudEventoPagina navigate={navegarA} requestId={parametrosUrl.get('editar') || undefined} />;
+      return <SolicitudEventoPagina key={parametrosUrl.get('editar') || parametrosUrl.get('tipo') || parametrosUrl.get('recinto') || 'nueva'} navigate={navegarA} requestId={parametrosUrl.get('editar') || undefined} />;
     }
 
     if (rutaActual.startsWith('/organizador/solicitudes/')) {
@@ -248,6 +253,8 @@ function ContenidoApp() {
     if (rutaActual === '/organizador' || rutaActual === '/organizador/eventos') {
       return <PanelOrganizadorPagina navigate={navegarA} />;
     }
+
+    if (rutaActual.startsWith('/subdireccion/solicitudes/')) return <DetalleSolicitudPagina requestId={rutaActual.split('/')[3]} navigate={navegarA} />;
 
     // Operaciones Institucionales de Subdirección
     if (rutaActual.startsWith('/subdireccion')) {
