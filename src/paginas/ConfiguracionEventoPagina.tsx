@@ -1,5 +1,9 @@
 import { inicioEnMexico } from '../dominio/solicitudes';
 import React from 'react';
+import { EditorPrograma, ProgramaDia } from '../componentes/eventos/EditorPrograma';
+import { EditorCartel } from '../componentes/eventos/EditorCartel';
+import { ordenarPrograma, validarPrograma } from '../dominio/programa';
+import type { ActividadPrograma, FechaEvento } from '../tipos';
 import {
   ArrowLeft,
   CheckCircle,
@@ -30,6 +34,8 @@ interface PropuestaEdicionEvento {
   descripcion: string;
   ponentes: string[];
   urlImagen?: string;
+  fechas: FechaEvento[];
+  versionOriginal: string;
 }
 
 interface PropiedadesConfiguracionEvento {
@@ -48,6 +54,10 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   const [urlBannerPropuesto, setUrlBannerPropuesto] = React.useState<string | undefined>();
   const [errorBanner, setErrorBanner] = React.useState('');
   const [nombreBanner, setNombreBanner] = React.useState('');
+  const [cargandoBanner, setCargandoBanner] = React.useState(false);
+  const [cartelModificado, setCartelModificado] = React.useState(false);
+  const [programasEditados, setProgramasEditados] = React.useState<Record<string, ActividadPrograma[]>>({});
+  const [motivoEdicion, setMotivoEdicion] = React.useState('');
 
   const evento = listaEventos.find((e) => e.id === eventId);
   const checklist = obtenerListaDeVerificacion(eventId);
@@ -67,45 +77,22 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
 
   const puedeGestionar = evento.idOrganizador === usuarioActual?.id || rolActivo === 'subdireccion' || rolActivo === 'admin';
 
-  const prepararBanner = async (archivo: File) => {
-    setErrorBanner('');
-    if (!['image/jpeg', 'image/png'].includes(archivo.type) || archivo.size > 5 * 1024 * 1024) {
-      setErrorBanner('Selecciona una imagen JPEG o PNG de máximo 5 MiB.');
-      return;
-    }
-    try {
-      const imagen = new Image();
-      const urlTemporal = URL.createObjectURL(archivo);
-      imagen.src = urlTemporal;
-      await new Promise<void>((resolve, reject) => {
-        imagen.onload = () => resolve();
-        imagen.onerror = () => reject(new Error('No se pudo leer la imagen.'));
-      });
-      const escala = Math.min(1, 1800 / imagen.width, 1200 / imagen.height);
-      const lienzo = document.createElement('canvas');
-      lienzo.width = Math.max(1, Math.round(imagen.width * escala));
-      lienzo.height = Math.max(1, Math.round(imagen.height * escala));
-      const contexto = lienzo.getContext('2d');
-      if (!contexto) throw new Error('No se pudo preparar la vista previa.');
-      contexto.fillStyle = '#ffffff';
-      contexto.fillRect(0, 0, lienzo.width, lienzo.height);
-      contexto.drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
-      const imagenOptimizada = lienzo.toDataURL('image/jpeg', 0.82);
-      URL.revokeObjectURL(urlTemporal);
-      setUrlBannerPropuesto(imagenOptimizada);
-      setPropuestaEdicion((actual) => actual ? { ...actual, urlImagen: imagenOptimizada } : actual);
-      setNombreBanner(archivo.name);
-    } catch {
-      setErrorBanner('No se pudo procesar la imagen seleccionada.');
-    }
-  };
-
   const confirmarEdicionEvento = () => {
     if (!evento || !propuestaEdicion || !usuarioActual) return;
+    if (JSON.stringify(evento) !== propuestaEdicion.versionOriginal) {
+      mostrarNotificacion('El evento cambió', 'Vuelve a revisar los cambios antes de confirmar para no sobrescribir otra modificación.', 'advertencia');
+      setPropuestaEdicion(null);
+      return;
+    }
     if (!puedeGestionar || evento.fechas.some((dia) => inicioEnMexico(dia.fecha, dia.horaInicio) <= Date.now()) || bitacoraEscaneos.some((registro) => registro.idEvento === evento.id && registro.resultado === 'exito')) { mostrarNotificacion('Edición no disponible', 'El evento ya comenzó o tiene entradas registradas.', 'advertencia'); return; }
-    const motivo = window.prompt('Describe el motivo de esta modificación:');
-    if (!motivo?.trim()) {
-      mostrarNotificacion('Modificación cancelada', 'Es necesario registrar un motivo para conservar la trazabilidad.', 'advertencia');
+    const errorPrograma = propuestaEdicion.fechas.map(validarPrograma).find(Boolean);
+    if (errorPrograma || errorBanner || cargandoBanner) {
+      mostrarNotificacion('Revisa los cambios', errorPrograma || errorBanner || 'Espera a que termine la carga del cartel.', 'advertencia');
+      return;
+    }
+    const motivo = motivoEdicion.trim();
+    if (!motivo) {
+      mostrarNotificacion('Indica el motivo', 'Es necesario registrar un motivo para conservar la trazabilidad.', 'advertencia');
       return;
     }
     const anterior = { titulo: evento.titulo, descripcion: evento.descripcion, ponentes: [...evento.ponentes], urlImagen: evento.urlImagen };
@@ -113,20 +100,23 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       anterior.titulo !== propuestaEdicion.titulo && 'título',
       anterior.descripcion !== propuestaEdicion.descripcion && 'descripción',
       JSON.stringify(anterior.ponentes) !== JSON.stringify(propuestaEdicion.ponentes) && 'ponentes',
-      propuestaEdicion.urlImagen !== undefined && propuestaEdicion.urlImagen !== anterior.urlImagen && 'banner'
+      propuestaEdicion.urlImagen !== anterior.urlImagen && 'banner',
+      JSON.stringify(evento.fechas.map(dia => dia.programa || [])) !== JSON.stringify(propuestaEdicion.fechas.map(dia => dia.programa || [])) && 'programa por día'
     ].filter((campo): campo is string => Boolean(campo));
     if (!campos.length) {
       mostrarNotificacion('Sin cambios', 'No modificaste la información del evento.', 'informacion');
       setPropuestaEdicion(null);
       setUrlBannerPropuesto(undefined);
       setNombreBanner('');
+      setCartelModificado(false);
+      setProgramasEditados({});
       return;
     }
     const valoresNuevos = {
       titulo: propuestaEdicion.titulo,
       descripcion: propuestaEdicion.descripcion,
       ponentes: propuestaEdicion.ponentes,
-      ...(propuestaEdicion.urlImagen ? { urlImagen: propuestaEdicion.urlImagen } : {})
+      urlImagen: propuestaEdicion.urlImagen,
     };
     const historialCambios = [...(evento.historialCambios || []), {
       version: (evento.historialCambios?.length || 0) + 1,
@@ -135,13 +125,22 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       motivo: motivo.trim(),
       campos,
       valoresAnteriores: anterior,
-      valoresNuevos
+      valoresNuevos,
+      detalleAnterior: JSON.stringify({ ...anterior, programas: evento.fechas.map(dia => ({ id: dia.id, programa: dia.programa })) }, null, 2),
+      detalleNuevo: JSON.stringify({ ...valoresNuevos, programas: propuestaEdicion.fechas.map(dia => ({ id: dia.id, programa: dia.programa })) }, null, 2),
     }];
-    actualizarEvento(evento.id, { ...valoresNuevos, historialCambios });
+    const resultado = actualizarEvento(evento.id, { ...valoresNuevos, fechas: propuestaEdicion.fechas, historialCambios }, propuestaEdicion.versionOriginal);
+    if (!resultado.exito) {
+      mostrarNotificacion('No se pudo guardar', resultado.error || 'Tus cambios siguen en el formulario.', 'error');
+      return;
+    }
     mostrarNotificacion('Información actualizada', `Se guardó la versión ${historialCambios.length} del evento.`, 'exito');
     setPropuestaEdicion(null);
     setNombreBanner('');
     setUrlBannerPropuesto(undefined);
+    setCartelModificado(false);
+    setProgramasEditados({});
+    setMotivoEdicion('');
   };
 
   const obtenerNombreRecinto = (idRecinto: string) => {
@@ -176,7 +175,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   };
 
   const esPublicado = evento.estado === 'publicado';
-  const puedeEditarInformacion = puedeGestionar && esPublicado && evento.fechas.every((dia) => inicioEnMexico(dia.fecha, dia.horaInicio) > Date.now()) && !bitacoraEscaneos.some((registro) => registro.idEvento === evento.id && registro.resultado === 'exito');
+  const puedeEditarInformacion = puedeGestionar && ['configuracion', 'borrador', 'publicado'].includes(evento.estado) && evento.fechas.every((dia) => inicioEnMexico(dia.fecha, dia.horaInicio) > Date.now()) && !bitacoraEscaneos.some((registro) => registro.idEvento === evento.id && registro.resultado === 'exito');
   const guardarCambioFecha = (e: React.FormEvent<HTMLFormElement>, idFecha: string) => {
     e.preventDefault();
     if (!puedeGestionar) { mostrarNotificacion('Sin autorización', 'Solo el organizador responsable o Subdirección pueden modificar este evento.', 'error'); return; }
@@ -190,6 +189,8 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     if (!fechaActual || !fecha || !horaInicio || !horaFin || horaFin <= horaInicio) {
       mostrarNotificacion('Revisa la programación', 'La fecha y el horario deben ser válidos.', 'advertencia'); return;
     }
+    const errorPrograma = validarPrograma({ ...fechaActual, horaInicio, horaFin });
+    if (errorPrograma) { mostrarNotificacion('Revisa el programa del día', errorPrograma, 'advertencia'); return; }
     if (fecha < new Date().toISOString().slice(0, 10)) {
       mostrarNotificacion('Fecha no válida', 'No se puede reprogramar a una fecha pasada.', 'error'); return;
     }
@@ -377,23 +378,37 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         const titulo = String(data.get('titulo') || '').trim();
         const descripcion = String(data.get('descripcion') || '').trim();
         const ponentes = String(data.get('ponentes') || '').split('\n').map((ponente) => ponente.trim()).filter(Boolean);
-        if (!titulo || !descripcion || !ponentes.length) { mostrarNotificacion('Datos incompletos', 'El título, la descripción y al menos un ponente son obligatorios.', 'advertencia'); return; }
-        setPropuestaEdicion({ titulo, descripcion, ponentes, urlImagen: urlBannerPropuesto });
+        if (!titulo || !descripcion) { mostrarNotificacion('Datos incompletos', 'El título y la descripción son obligatorios; los ponentes son opcionales.', 'advertencia'); return; }
+        const fechas = evento.fechas.map(dia => {
+          const programa = ordenarPrograma(programasEditados[dia.id] ?? dia.programa);
+          const ponentesDia = [...new Set(programa.map(actividad => actividad.ponente).filter((ponente): ponente is string => Boolean(ponente)))];
+          return { ...dia, programa, ponentes: programasEditados[dia.id] !== undefined ? ponentesDia : dia.ponentes };
+        });
+        const errorPrograma = fechas.map(validarPrograma).find(Boolean);
+        if (errorPrograma || errorBanner || cargandoBanner) { mostrarNotificacion('Revisa los cambios', errorPrograma || errorBanner || 'Espera a que termine la carga del cartel.', 'advertencia'); return; }
+        setMotivoEdicion('');
+        setPropuestaEdicion({ titulo, descripcion, ponentes, fechas, urlImagen: cartelModificado ? urlBannerPropuesto : evento.urlImagen, versionOriginal: JSON.stringify(evento) });
       }} className="mb-8 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-5 sm:grid-cols-2">
-        <div className="sm:col-span-2"><h2 className="font-bold">Editar información del evento aprobado</h2><p className="text-sm text-neutral-500">Revisa título, descripción, ponentes y banner. La programación y los compromisos vigentes se conservan.</p></div>
+        <div className="sm:col-span-2"><h2 className="font-bold">Editar información del evento aprobado</h2><p className="text-sm text-neutral-500">Revisa título, descripción, cartel y actividades por día. Las fechas, recintos, horarios generales y compromisos vigentes se conservan.</p></div>
         <label className="text-sm font-semibold">Título<input name="titulo" required defaultValue={evento.titulo} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
-        <label className="text-sm font-semibold">Ponentes (uno por línea)<textarea name="ponentes" required defaultValue={evento.ponentes.join('\n')} rows={2} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
+        <label className="text-sm font-semibold">Ponentes (opcional, uno por línea)<textarea name="ponentes" defaultValue={evento.ponentes.join('\n')} rows={2} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
         <label className="text-sm font-semibold sm:col-span-2">Descripción<textarea name="descripcion" required defaultValue={evento.descripcion} rows={3} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
-        <label className="text-sm font-semibold sm:col-span-2">Cambiar banner (JPEG/PNG, máximo 5 MiB)<input type="file" accept="image/jpeg,image/png" onChange={(e) => { const archivo = e.currentTarget.files?.[0]; if (archivo) void prepararBanner(archivo); }} className="mt-1 block w-full rounded-lg border p-2 text-sm"/>{nombreBanner && <span className="mt-1 block text-sm text-emerald-700">Vista previa preparada: {nombreBanner}</span>}{errorBanner && <span role="alert" className="mt-1 block text-sm text-rose-700">{errorBanner}</span>}</label>
-        {(propuestaEdicion?.urlImagen || evento.urlImagen) && <img src={propuestaEdicion?.urlImagen || evento.urlImagen} alt="Vista previa del banner del evento" className="max-h-48 w-full rounded-xl object-cover sm:col-span-2"/>}
-        <button className="w-fit rounded-lg bg-[#7a132b] px-4 py-2 text-sm font-bold text-white">Revisar cambios</button>
+        <div className="sm:col-span-2"><EditorCartel urlImagen={cartelModificado ? urlBannerPropuesto : evento.urlImagen} nombre={nombreBanner}
+          alCambiar={(url, nombre) => { setUrlBannerPropuesto(url); setCartelModificado(true); setNombreBanner(nombre); setPropuestaEdicion(null); }}
+          alCambiarEstado={({ cargando, error }) => { setCargandoBanner(cargando); setErrorBanner(error); }} /></div>
+        {evento.fechas.map((dia, indice) => <div key={dia.id} className="sm:col-span-2"><h3 className="mb-2 text-sm font-bold">{dia.nombreDia || `Día ${indice + 1}`} · {dia.fecha} · {dia.horaInicio}–{dia.horaFin} · {obtenerNombreRecinto(dia.idRecinto)}</h3>
+          <EditorPrograma nombreDia={dia.nombreDia || `Día ${indice + 1}`} programa={programasEditados[dia.id] ?? dia.programa ?? []} alCambiar={programa => { setProgramasEditados(actual => ({ ...actual, [dia.id]: programa })); setPropuestaEdicion(null); }} /></div>)}
+        <button disabled={cargandoBanner} className="w-fit rounded-lg bg-[#7a132b] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Revisar cambios</button>
       </form>}
 
       {propuestaEdicion && puedeEditarInformacion && <section role="dialog" aria-modal="true" aria-labelledby="confirmar-cambios-evento" className="mb-8 rounded-2xl border border-amber-300 bg-amber-50 p-5">
         <h2 id="confirmar-cambios-evento" className="font-bold">Confirmar modificación del evento</h2>
         <p className="mt-1 text-sm text-neutral-700">Revisa la información propuesta. Al confirmar se guardará una nueva versión en el historial.</p>
+        <label className="mt-4 block text-sm font-semibold">Motivo de la modificación *<textarea aria-label="Motivo de la modificación" value={motivoEdicion} onChange={e => setMotivoEdicion(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border bg-white p-2" /></label>
+        {propuestaEdicion.fechas.map((dia, indice) => <div key={dia.id} className="mt-3"><h3 className="text-sm font-bold">Programa propuesto · {dia.nombreDia || `Día ${indice + 1}`}</h3><ProgramaDia programa={dia.programa} />{!dia.programa?.length && <p className="text-sm">Sin actividades registradas.</p>}</div>)}
+        {!propuestaEdicion.urlImagen && evento.urlImagen && <p className="mt-3 text-sm">Se quitará el cartel actual.</p>}
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="font-semibold">Título</dt><dd>{evento.titulo} → {propuestaEdicion.titulo}</dd></div><div><dt className="font-semibold">Ponentes</dt><dd>{evento.ponentes.join(', ')} → {propuestaEdicion.ponentes.join(', ')}</dd></div><div className="sm:col-span-2"><dt className="font-semibold">Descripción</dt><dd>{evento.descripcion} → {propuestaEdicion.descripcion}</dd></div>{propuestaEdicion.urlImagen && <div className="sm:col-span-2"><dt className="font-semibold">Banner</dt><dd className="mt-2 grid grid-cols-2 gap-3">{evento.urlImagen && <img src={evento.urlImagen} alt="Banner actual" className="max-h-36 w-full rounded-lg object-cover"/>}<img src={propuestaEdicion.urlImagen} alt="Banner propuesto" className="max-h-36 w-full rounded-lg object-cover"/></dd></div>}</dl>
-        <div className="mt-4 flex gap-2"><button type="button" onClick={confirmarEdicionEvento} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">Confirmar cambios</button><button type="button" onClick={() => { setPropuestaEdicion(null); setNombreBanner(''); setUrlBannerPropuesto(undefined); }} className="rounded-lg border px-4 py-2 text-sm font-bold">Cancelar</button></div>
+        <div className="mt-4 flex gap-2"><button type="button" onClick={confirmarEdicionEvento} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">Confirmar cambios</button><button type="button" onClick={() => { setPropuestaEdicion(null); setNombreBanner(''); setUrlBannerPropuesto(undefined); setCartelModificado(false); setProgramasEditados({}); }} className="rounded-lg border px-4 py-2 text-sm font-bold">Cancelar</button></div>
       </section>}
 
       {(evento.historialCambios?.length || 0) > 0 && <section className="mb-8 rounded-2xl border border-neutral-200 bg-white p-5"><h2 className="font-bold">Historial de modificaciones ({evento.historialCambios?.length})</h2><ol className="mt-3 space-y-3 text-sm text-neutral-600">{[...(evento.historialCambios || [])].reverse().map((cambio) => <li key={cambio.version} className="border-t pt-3"><strong>Versión {cambio.version}</strong> · {new Date(cambio.fecha).toLocaleString('es-MX')} · {cambio.responsable}<p className="mt-1">Campos: {cambio.campos.join(', ')}</p>{cambio.motivo && <p className="mt-1"><strong>Motivo:</strong> {cambio.motivo}</p>}{(cambio.detalleAnterior || cambio.detalleNuevo) && <details className="mt-1"><summary className="cursor-pointer font-semibold">Consultar valores antes y después</summary><div className="mt-2 grid gap-2 sm:grid-cols-2"><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Antes: {cambio.detalleAnterior || JSON.stringify(cambio.valoresAnteriores, null, 2)}</pre><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Después: {cambio.detalleNuevo || JSON.stringify(cambio.valoresNuevos, null, 2)}</pre></div></details>}{cambio.resultadoNotificacion && <p role="status" className="mt-2 rounded bg-amber-50 p-2 text-amber-900">Correo no enviado: no hay proveedor de correo configurado. Destinatarios previstos: {cambio.resultadoNotificacion.destinatarios.join(', ') || 'ninguno registrado'}.</p>}</li>)}</ol></section>}

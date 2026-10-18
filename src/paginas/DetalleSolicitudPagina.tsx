@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { ProgramaDia } from '../componentes/eventos/EditorPrograma';
 import {
   ArrowLeft,
   CalendarDays,
@@ -174,6 +175,7 @@ export const DetalleSolicitudPagina: React.FC<{
             d.horaInicio + "–" + d.horaFin,
             nombreRecinto(d.idRecinto),
             d.actividadOPrograma,
+            d.programa?.map((actividad: { hora: string; horaFin?: string; titulo: string; descripcion?: string; ponente?: string }) => [actividad.hora, actividad.horaFin, actividad.titulo, actividad.descripcion, actividad.ponente].filter(Boolean).join(' · ')).join('\n'),
           ]
             .filter(Boolean)
             .join(" · "),
@@ -205,7 +207,8 @@ export const DetalleSolicitudPagina: React.FC<{
               <MapPin size={15} />
               {nombreRecinto(d.idRecinto)}
             </p>
-            {d.actividadOPrograma && (
+            <ProgramaDia programa={d.programa} />
+            {!d.programa?.length && d.actividadOPrograma && (
               <p className="mt-2 whitespace-pre-line text-sm leading-6">
                 {d.actividadOPrograma}
               </p>

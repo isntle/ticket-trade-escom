@@ -58,6 +58,14 @@ export type VisibilidadEvento = 'publico' | 'interno' | 'privado';
 export type ModalidadAsistencia = 'libre' | 'registro' | 'controlado';
 
 // Elemento de fecha solicitada
+export interface ActividadPrograma {
+  hora: string;
+  horaFin?: string;
+  titulo: string;
+  ponente?: string;
+  descripcion?: string;
+}
+
 export interface ElementoFechaSolicitada {
   id: string;
   fecha: string; // AAAA-MM-DD
@@ -66,6 +74,7 @@ export interface ElementoFechaSolicitada {
   idRecinto: string;
   nombreDia?: string; // ej: "Día 1", "Día 2", etc.
   actividadOPrograma?: string; // Descripción del programa de ese día
+  programa?: ActividadPrograma[];
   fueraDeAnticipacion?: boolean;
 }
 
@@ -136,12 +145,7 @@ export interface FechaEvento {
   horaFin: string;
   idRecinto: string;
   nombreDia?: string; // ej: "Día 1", "Día 2", etc.
-  programa?: Array<{
-    hora: string;
-    titulo: string;
-    ponente?: string;
-    descripcion?: string;
-  }>;
+  programa?: ActividadPrograma[];
   idArregloFinal?: string;
   esFinalConfirmado: boolean;
   ponentes: string[];

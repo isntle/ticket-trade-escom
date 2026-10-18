@@ -37,6 +37,8 @@ import {
 import { useAutenticacion } from './AutenticacionContexto';
 import { registrarCambioSolicitud, validarAnticipacionSolicitud, validarProgramacion, versionSolicitud } from '../dominio/solicitudes';
 import { generarIdentificadorQr } from '../utilidades/identificadores';
+import { convertirDiasSolicitud } from '../dominio/programa';
+import { guardarLoteLocal } from '../dominio/almacenamiento';
 
 interface ContextoDatosTipo {
   listaEventos: Evento[];
@@ -117,7 +119,7 @@ interface ContextoDatosTipo {
   ) => { exito: boolean; error?: string };
 
   crearEventoInstitucionalDirecto: (datosEvento: Partial<Evento>) => Evento;
-  actualizarEvento: (idEvento: string, parcial: Partial<Evento>) => void;
+  actualizarEvento: (idEvento: string, parcial: Partial<Evento>, versionEsperada?: string) => { exito: boolean; error?: string };
   publicarEvento: (idEvento: string) => { exito: boolean; error?: string };
   agregarFechaEvento: (
     idEvento: string,
@@ -729,8 +731,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const solicitudAutorizada = !evento.idSolicitud || solicitud?.estado === 'autorizada';
     const informacionGeneralCompleta =
       Boolean(evento.titulo?.trim()) &&
-      Boolean(evento.descripcion?.trim()) &&
-      evento.ponentes?.length > 0;
+      Boolean(evento.descripcion?.trim());
     const tieneFechas = evento.fechas && evento.fechas.length > 0;
     const todasLasFechasTienenRecinto =
       tieneFechas && evento.fechas.every((f) => Boolean(f.idRecinto));
@@ -747,7 +748,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const elementosPendientes: string[] = [];
     if (!solicitudAutorizada) elementosPendientes.push('Solicitud formal autorizada por Subdirección');
-    if (!informacionGeneralCompleta) elementosPendientes.push('Información completa (título, descripción, ponentes)');
+    if (!informacionGeneralCompleta) elementosPendientes.push('Información completa (título y descripción)');
     if (!tieneFechas) elementosPendientes.push('Al menos un día programado');
     if (!todasLasFechasTienenRecinto) elementosPendientes.push('Asignación de recinto para todas las fechas');
     if (!todasLasFechasTienenVersionFinal) elementosPendientes.push('Versión final confirmada de lugares para cada fecha');
@@ -933,12 +934,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         : "Rechazo",
       motivo,
     );
-    const resultado = persistirSolicitudes(
-      lista.map((item) =>
-        item.id === idSolicitud ? solicitudActualizada : item,
-      ),
-    );
-    if (!resultado.exito) return resultado;
+    const solicitudesNuevas = lista.map((item) => item.id === idSolicitud ? solicitudActualizada : item);
+    let eventosNuevos = listaEventos;
+    let arreglosNuevos = listaArreglos;
     if (decision === "autorizada") {
       const sol = solicitudActualizada;
       const nuevoIdEvento = `evt-${sol.id.replace("sol-", "")}`;
@@ -946,18 +944,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         (e) => e.id === nuevoIdEvento || e.idSolicitud === sol.id,
       );
       if (!yaExiste) {
-        const fechasConvertidas: Evento["fechas"] = sol.fechasSolicitadas.map(
-          (f, indice) => ({
-            id: `fec-${nuevoIdEvento}-${indice + 1}`,
-            idEvento: nuevoIdEvento,
-            fecha: f.fecha,
-            horaInicio: f.horaInicio,
-            horaFin: f.horaFin,
-            idRecinto: f.idRecinto,
-            esFinalConfirmado: false,
-            ponentes: [],
-          }),
-        );
+        const fechasConvertidas = convertirDiasSolicitud(sol, nuevoIdEvento);
 
         const nuevoEvento: Evento = {
           id: nuevoIdEvento,
@@ -973,11 +960,11 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
           estado: "configuracion",
           fechas: fechasConvertidas,
           aforoMaximo: sol.asistenciaEstimada,
-          ponentes: [],
+          ponentes: [...new Set(fechasConvertidas.flatMap((dia) => dia.ponentes))],
           etiquetas: ["ESCOM", sol.modalidadAsistencia],
         };
 
-        setListaEventos((previos) => [nuevoEvento, ...previos]);
+        eventosNuevos = [nuevoEvento, ...eventosNuevos];
 
         // Crear borradores iniciales de arreglo para cada fecha
         fechasConvertidas.forEach((f) => {
@@ -1016,10 +1003,20 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
             asientosSinAsignar: 0,
             fechaCreacion: new Date().toISOString(),
           };
-          setListaArreglos((previos) => [...previos, nuevoArreglo]);
+          arreglosNuevos = [...arreglosNuevos, nuevoArreglo];
         });
       }
     }
+    if (decision !== 'autorizada') return persistirSolicitudes(solicitudesNuevas);
+    const resultadoGuardado = guardarLoteLocal(localStorage, {
+      [`${CLAVE_ALMACEN_DATOS}_solicitudes`]: solicitudesNuevas,
+      [`${CLAVE_ALMACEN_DATOS}_eventos`]: eventosNuevos,
+      [`${CLAVE_ALMACEN_DATOS}_arreglos`]: arreglosNuevos,
+    });
+    if (!resultadoGuardado.exito) return resultadoGuardado;
+    setListaSolicitudes(solicitudesNuevas);
+    setListaEventos(eventosNuevos);
+    setListaArreglos(arreglosNuevos);
     return { exito: true };
   };
 
@@ -1224,10 +1221,22 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     return nuevo;
   };
 
-  const actualizarEvento = (idEvento: string, parcial: Partial<Evento>) => {
-    setListaEventos((previos) =>
-      previos.map((e) => (e.id === idEvento ? { ...e, ...parcial } : e))
-    );
+  const actualizarEvento = (idEvento: string, parcial: Partial<Evento>, versionEsperada?: string) => {
+    let vigentes = listaEventos;
+    try {
+      const guardados = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_eventos`);
+      if (guardados) vigentes = JSON.parse(guardados);
+    } catch { return { exito: false, error: 'No se pudo consultar la versión guardada. No se modificó el evento.' }; }
+    const vigente = vigentes.find((evento) => evento.id === idEvento);
+    if (!vigente) return { exito: false, error: 'El evento ya no está disponible.' };
+    if (versionEsperada !== undefined && JSON.stringify(vigente) !== versionEsperada) {
+      setListaEventos(vigentes);
+      return { exito: false, error: 'El evento cambió en otra ventana. Revisa la versión actual antes de guardar.' };
+    }
+    const nuevos = vigentes.map((evento) => evento.id === idEvento ? { ...evento, ...parcial } : evento);
+    const resultado = guardarLoteLocal(localStorage, { [`${CLAVE_ALMACEN_DATOS}_eventos`]: nuevos });
+    if (resultado.exito) setListaEventos(nuevos);
+    return resultado;
   };
 
   const publicarEvento = (idEvento: string): { exito: boolean; error?: string } => {
@@ -1239,14 +1248,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       };
     }
 
-    setListaEventos((previos) =>
-      previos.map((e) =>
-        e.id === idEvento
-          ? { ...e, estado: 'publicado', fechaPublicacion: new Date().toISOString() }
-          : e
-      )
-    );
-    return { exito: true };
+    return actualizarEvento(idEvento, { estado: 'publicado', fechaPublicacion: new Date().toISOString() });
   };
 
   const agregarFechaEvento = (

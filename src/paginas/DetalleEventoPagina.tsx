@@ -534,7 +534,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                             className="p-3.5 rounded-xl border border-neutral-100 bg-neutral-50/70 hover:bg-neutral-50 transition-colors flex flex-col sm:flex-row sm:items-start gap-3 text-xs"
                           >
                             <span className="font-mono font-bold text-[#7a132b] bg-white px-2.5 py-1 rounded-lg border border-neutral-200 shrink-0 self-start">
-                              {item.hora}
+                              {item.hora}{item.horaFin ? `–${item.horaFin}` : ''}
                             </span>
                             <div className="space-y-1 flex-1">
                               <h5 className="font-bold text-neutral-900 text-xs sm:text-sm">
