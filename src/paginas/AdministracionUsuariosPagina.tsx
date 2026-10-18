@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Users,
   Shield,
@@ -13,50 +13,56 @@ import {
   Search,
   Filter,
   CheckCircle,
-  AlertTriangle
-} from 'lucide-react';
-import { useAutenticacion } from '../contextos/AutenticacionContexto';
-import { useDatos } from '../contextos/DatosContexto';
-import { useNotificaciones } from '../contextos/NotificacionesContexto';
-import { RolUsuario, Usuario } from '../tipos';
-import { MATRIZ_PERMISOS_ROLES } from '../utilidades/validaciones';
+  AlertTriangle,
+} from "lucide-react";
+import { useAutenticacion } from "../contextos/AutenticacionContexto";
+import { useDatos } from "../contextos/DatosContexto";
+import { useNotificaciones } from "../contextos/NotificacionesContexto";
+import { RolUsuario, Usuario } from "../tipos";
+import { MATRIZ_PERMISOS_ROLES } from "../utilidades/validaciones";
 
 interface PropiedadesAdministracionUsuarios {
   navigate: (ruta: string) => void;
 }
 
-export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsuarios> = ({
-  navigate
-}) => {
+export const AdministracionUsuariosPagina: React.FC<
+  PropiedadesAdministracionUsuarios
+> = ({ navigate }) => {
   const {
     todosLosUsuarios,
     asignarRolesAUsuario,
     asociarStaffAEvento,
     alternarEstadoUsuario,
-    actualizarPerfil
+    cambiarAutoaprobacion,
   } = useAutenticacion();
   const { listaEventos } = useDatos();
   const { mostrarNotificacion } = useNotificaciones();
 
-  const [busqueda, setBusqueda] = useState('');
-  const [filtroRol, setFiltroRol] = useState<string>('todos');
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroRol, setFiltroRol] = useState<string>("todos");
 
   // Modal para gestionar roles
-  const [usuarioEditandoRoles, setUsuarioEditandoRoles] = useState<Usuario | null>(null);
-  const [rolesSeleccionados, setRolesSeleccionados] = useState<RolUsuario[]>([]);
+  const [usuarioEditandoRoles, setUsuarioEditandoRoles] =
+    useState<Usuario | null>(null);
+  const [rolesSeleccionados, setRolesSeleccionados] = useState<RolUsuario[]>(
+    [],
+  );
+  const [autoaprobar, setAutoaprobar] = useState(false);
 
   // Modal para asociar staff a eventos
-  const [usuarioEditandoStaff, setUsuarioEditandoStaff] = useState<Usuario | null>(null);
+  const [usuarioEditandoStaff, setUsuarioEditandoStaff] =
+    useState<Usuario | null>(null);
 
   const usuariosFiltrados = todosLosUsuarios.filter((u) => {
     const coincideTexto =
       u.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
       u.correo.toLowerCase().includes(busqueda.toLowerCase()) ||
       (u.boleta && u.boleta.includes(busqueda)) ||
-      (u.numeroEmpleado && u.numeroEmpleado.toLowerCase().includes(busqueda.toLowerCase()));
+      (u.numeroEmpleado &&
+        u.numeroEmpleado.toLowerCase().includes(busqueda.toLowerCase()));
 
     const coincideRol =
-      filtroRol === 'todos' || u.roles.includes(filtroRol as RolUsuario);
+      filtroRol === "todos" || u.roles.includes(filtroRol as RolUsuario);
 
     return coincideTexto && coincideRol;
   });
@@ -64,11 +70,16 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
   const abrirModalRoles = (u: Usuario) => {
     setUsuarioEditandoRoles(u);
     setRolesSeleccionados([...u.roles]);
+    setAutoaprobar(u.puedeAutoaprobar === true);
   };
 
   const alternarRol = (r: RolUsuario) => {
-    if (r === 'asistente' && rolesSeleccionados.includes('asistente')) {
-      mostrarNotificacion('Aviso', 'El rol de Asistente es la base y no puede removerse.', 'informacion');
+    if (r === "asistente" && rolesSeleccionados.includes("asistente")) {
+      mostrarNotificacion(
+        "Aviso",
+        "El rol de Asistente es la base y no puede removerse.",
+        "informacion",
+      );
       return;
     }
 
@@ -81,12 +92,27 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
 
   const guardarRoles = () => {
     if (!usuarioEditandoRoles) return;
-    const res = asignarRolesAUsuario(usuarioEditandoRoles.id, rolesSeleccionados);
+    const res = asignarRolesAUsuario(
+      usuarioEditandoRoles.id,
+      rolesSeleccionados,
+    );
     if (res.exito) {
-      mostrarNotificacion('Permisos Actualizados', res.mensaje, 'exito');
+      const permiso = cambiarAutoaprobacion(
+        usuarioEditandoRoles.id,
+        autoaprobar,
+      );
+      if (!permiso.exito) {
+        mostrarNotificacion(
+          "No se pudo cambiar autoaprobación",
+          permiso.mensaje,
+          "error",
+        );
+        return;
+      }
+      mostrarNotificacion("Permisos Actualizados", res.mensaje, "exito");
       setUsuarioEditandoRoles(null);
     } else {
-      mostrarNotificacion('Error', res.mensaje, 'error');
+      mostrarNotificacion("Error", res.mensaje, "error");
     }
   };
 
@@ -96,10 +122,15 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
 
   const alternarAsignacionStaffEvento = (idEvento: string) => {
     if (!usuarioEditandoStaff) return;
-    const yaAsignado = usuarioEditandoStaff.eventosAsignadosStaff?.includes(idEvento) || false;
-    const res = asociarStaffAEvento(usuarioEditandoStaff.id, idEvento, !yaAsignado);
+    const yaAsignado =
+      usuarioEditandoStaff.eventosAsignadosStaff?.includes(idEvento) || false;
+    const res = asociarStaffAEvento(
+      usuarioEditandoStaff.id,
+      idEvento,
+      !yaAsignado,
+    );
     if (res.exito) {
-      mostrarNotificacion('Staff Actualizado', res.mensaje, 'exito');
+      mostrarNotificacion("Staff Actualizado", res.mensaje, "exito");
       // Actualizar estado local del modal
       const actuales = usuarioEditandoStaff.eventosAsignadosStaff || [];
       const nuevos = yaAsignado
@@ -107,7 +138,7 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
         : [...actuales, idEvento];
       setUsuarioEditandoStaff({
         ...usuarioEditandoStaff,
-        eventosAsignadosStaff: nuevos
+        eventosAsignadosStaff: nuevos,
       });
     }
   };
@@ -117,7 +148,7 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
       <div className="flex items-center justify-between mb-6">
         <button
           type="button"
-          onClick={() => navigate('/eventos')}
+          onClick={() => navigate("/eventos")}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -126,7 +157,7 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
 
         <button
           type="button"
-          onClick={() => navigate('/registro')}
+          onClick={() => navigate("/registro")}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#7a132b] text-white rounded-xl text-xs font-bold hover:bg-[#620f23] transition-colors"
         >
           <UserPlus className="w-3.5 h-3.5" />
@@ -142,10 +173,31 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
           Administración de Cuentas, Roles y Permisos
         </h1>
         <p className="text-xs text-neutral-500 mt-1">
-          Configura roles (Asistente, Organizador, Staff, Subdirección, Admin) y asocia al personal operativo con sus eventos.
+          Configura roles (Asistente, Organizador, Staff, Subdirección, Admin) y
+          asocia al personal operativo con sus eventos.
         </p>
       </div>
 
+      <nav className="mb-5 flex flex-wrap gap-3 text-sm">
+        <button
+          className="rounded-xl border p-3"
+          onClick={() => navigate("/admin/expedientes")}
+        >
+          Revisar expedientes
+        </button>
+        <button
+          className="rounded-xl border p-3"
+          onClick={() => navigate("/admin/restricciones")}
+        >
+          Resolver restricciones
+        </button>
+        <button
+          className="rounded-xl border p-3"
+          onClick={() => navigate("/organizador/staff")}
+        >
+          Asignar personal de acceso
+        </button>
+      </nav>
       {/* Barra de Filtros y Búsqueda */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-4 mb-6 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
         <div className="relative w-full sm:w-80">
@@ -161,7 +213,9 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <Filter className="w-3.5 h-3.5 text-neutral-400" />
-          <span className="text-neutral-500 font-semibold text-[11px]">Filtrar por Rol:</span>
+          <span className="text-neutral-500 font-semibold text-[11px]">
+            Filtrar por Rol:
+          </span>
           <select
             value={filtroRol}
             onChange={(e) => setFiltroRol(e.target.value)}
@@ -194,10 +248,15 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {usuariosFiltrados.map((u) => (
-                <tr key={u.id} className="hover:bg-neutral-50/50 transition-colors">
+                <tr
+                  key={u.id}
+                  className="hover:bg-neutral-50/50 transition-colors"
+                >
                   <td className="px-5 py-3.5">
                     <div className="font-bold text-neutral-900">{u.nombre}</div>
-                    <div className="text-[11px] text-neutral-400 font-mono">{u.correo}</div>
+                    <div className="text-[11px] text-neutral-400 font-mono">
+                      {u.correo}
+                    </div>
                   </td>
 
                   <td className="px-5 py-3.5">
@@ -232,7 +291,7 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
                   </td>
 
                   <td className="px-5 py-3.5">
-                    {u.roles.includes('staff') ? (
+                    {u.roles.includes("staff") ? (
                       <button
                         type="button"
                         onClick={() => abrirModalStaff(u)}
@@ -250,7 +309,9 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
                       type="button"
                       onClick={() => alternarEstadoUsuario(u.id)}
                       className={`inline-flex items-center gap-1 font-bold text-[11px] cursor-pointer ${
-                        u.estaActivo ? 'text-emerald-700' : 'text-neutral-400 line-through'
+                        u.estaActivo
+                          ? "text-emerald-700"
+                          : "text-neutral-400 line-through"
                       }`}
                     >
                       {u.estaActivo ? (
@@ -291,10 +352,17 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
           {MATRIZ_PERMISOS_ROLES.map((matriz) => (
-            <div key={matriz.rol} className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col justify-between">
+            <div
+              key={matriz.rol}
+              className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col justify-between"
+            >
               <div>
-                <span className="font-bold text-neutral-900 text-sm block mb-1">{matriz.nombre}</span>
-                <p className="text-[11px] text-neutral-500 mb-3">{matriz.descripcion}</p>
+                <span className="font-bold text-neutral-900 text-sm block mb-1">
+                  {matriz.nombre}
+                </span>
+                <p className="text-[11px] text-neutral-500 mb-3">
+                  {matriz.descripcion}
+                </p>
                 <ul className="space-y-1.5 text-[11px] text-neutral-700">
                   {matriz.permisos.map((p, idx) => (
                     <li key={idx} className="flex items-start gap-1.5">
@@ -323,7 +391,15 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
             </p>
 
             <div className="space-y-2 mb-6">
-              {(['asistente', 'organizador', 'staff', 'subdireccion', 'admin'] as RolUsuario[]).map((rol) => {
+              {(
+                [
+                  "asistente",
+                  "organizador",
+                  "staff",
+                  "subdireccion",
+                  "admin",
+                ] as RolUsuario[]
+              ).map((rol) => {
                 const seleccionado = rolesSeleccionados.includes(rol);
                 return (
                   <button
@@ -332,25 +408,37 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
                     onClick={() => alternarRol(rol)}
                     className={`w-full p-2.5 rounded-xl border flex items-center justify-between text-left transition-all ${
                       seleccionado
-                        ? 'border-[#7a132b] bg-[#7a132b]/5 text-[#7a132b] font-bold'
-                        : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                        ? "border-[#7a132b] bg-[#7a132b]/5 text-[#7a132b] font-bold"
+                        : "border-neutral-200 text-neutral-600 hover:bg-neutral-50"
                     }`}
                   >
                     <span className="capitalize">{rol}</span>
                     <span
                       className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] ${
                         seleccionado
-                          ? 'border-[#7a132b] bg-[#7a132b] text-white'
-                          : 'border-neutral-300'
+                          ? "border-[#7a132b] bg-[#7a132b] text-white"
+                          : "border-neutral-300"
                       }`}
                     >
-                      {seleccionado && '✓'}
+                      {seleccionado && "✓"}
                     </span>
                   </button>
                 );
               })}
             </div>
 
+            <label className="mb-5 block text-sm">
+              <input
+                type="checkbox"
+                checked={autoaprobar}
+                onChange={(e) => setAutoaprobar(e.target.checked)}
+              />{" "}
+              Permitir autoaprobación de solicitudes propias ordinarias
+            </label>
+            <p className="mb-4 text-xs text-neutral-500">
+              No concede aprobación de eventos ajenos ni la excepción de menos
+              de siete días. Subdirección conserva sus facultades propias.
+            </p>
             <div className="flex gap-2 justify-end">
               <button
                 type="button"
@@ -382,20 +470,26 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
               <span>Asociar Staff con Eventos Oficiales</span>
             </h3>
             <p className="text-neutral-500 text-[11px] mb-4">
-              Selecciona los eventos donde <strong className="text-neutral-800">{usuarioEditandoStaff.nombre}</strong> tendrá autorización de escaneo y acceso.
+              Selecciona los eventos donde{" "}
+              <strong className="text-neutral-800">
+                {usuarioEditandoStaff.nombre}
+              </strong>{" "}
+              tendrá autorización de escaneo y acceso.
             </p>
 
             <div className="space-y-2 max-h-72 overflow-y-auto mb-6 pr-1">
               {listaEventos.map((ev) => {
-                const asignado = usuarioEditandoStaff.eventosAsignadosStaff?.includes(ev.id) || false;
+                const asignado =
+                  usuarioEditandoStaff.eventosAsignadosStaff?.includes(ev.id) ||
+                  false;
                 return (
                   <div
                     key={ev.id}
                     onClick={() => alternarAsignacionStaffEvento(ev.id)}
                     className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                       asignado
-                        ? 'border-purple-300 bg-purple-50/80 text-purple-950 font-bold'
-                        : 'border-neutral-200 text-neutral-700 hover:bg-neutral-50'
+                        ? "border-purple-300 bg-purple-50/80 text-purple-950 font-bold"
+                        : "border-neutral-200 text-neutral-700 hover:bg-neutral-50"
                     }`}
                   >
                     <div>
@@ -407,11 +501,11 @@ export const AdministracionUsuariosPagina: React.FC<PropiedadesAdministracionUsu
                     <span
                       className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         asignado
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-neutral-100 text-neutral-500'
+                          ? "bg-purple-600 text-white"
+                          : "bg-neutral-100 text-neutral-500"
                       }`}
                     >
-                      {asignado ? 'Asignado' : 'Sin asignar'}
+                      {asignado ? "Asignado" : "Sin asignar"}
                     </span>
                   </div>
                 );

@@ -1,4 +1,5 @@
 import { TipoAfiliacion, RolUsuario, PermisosPorRol } from '../tipos';
+import { boletaIdentidadValida } from '../dominio/identidad';
 
 /**
  * Validaciones institucionales ESCOM — IPN
@@ -25,7 +26,7 @@ export function validarCorreoInstitucional(correo: string): {
   const dominio = partes[1] || '';
 
   const esAlumno = dominio === 'alumno.ipn.mx';
-  const esPersonal = dominio === 'ipn.mx' || dominio === 'escom.ipn.mx';
+  const esPersonal = dominio === 'ipn.mx';
   const esIPN = esAlumno || esPersonal;
 
   return {
@@ -46,19 +47,10 @@ export function validarBoletaIPN(boleta: string): ResultadoValidacion {
     return { esValido: false, mensaje: 'La boleta institucional es obligatoria.' };
   }
 
-  if (!/^\d{10}$/.test(b)) {
+  if (!boletaIdentidadValida(b)) {
     return {
       esValido: false,
-      mensaje: 'La boleta debe tener exactamente 10 dígitos numéricos (ej: 2022630412).'
-    };
-  }
-
-  const anio = parseInt(b.substring(0, 4), 10);
-  const anioActual = new Date().getFullYear();
-  if (anio < 1990 || anio > anioActual) {
-    return {
-      esValido: false,
-      mensaje: `Los primeros 4 dígitos deben corresponder a un año de ingreso válido (entre 1990 y ${anioActual}).`
+      mensaje: 'La boleta debe tener diez dígitos o los prefijos PE o PP seguidos de ocho dígitos.'
     };
   }
 

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ProgramaDia } from '../componentes/eventos/EditorPrograma';
+import { ProgramaDia } from "../componentes/eventos/EditorPrograma";
 import {
   ArrowLeft,
   CalendarDays,
@@ -30,9 +30,9 @@ const formatoFecha = (valor: string) =>
 const archivoSeguro = (url?: string) =>
   Boolean(
     url &&
-      /^(https?:\/\/|data:image\/(png|jpeg|webp);base64,|data:application\/pdf;base64,)/i.test(
-        url,
-      ),
+    /^(https?:\/\/|data:image\/(png|jpeg|webp);base64,|data:application\/pdf;base64,)/i.test(
+      url,
+    ),
   );
 const etiquetas: Record<string, string> = {
   tituloEvento: "Título",
@@ -107,6 +107,8 @@ export const DetalleSolicitudPagina: React.FC<{
   const esRevisor =
     rolActivo === "subdireccion" &&
     usuarioActual?.roles.includes("subdireccion");
+  const puedeAutoaprobar =
+    esTitular && usuarioActual?.puedeAutoaprobar && !solicitud.esExcepcional;
   const pendientes =
     esRevisor || usuarioActual?.roles.includes("admin")
       ? solicitudesCoincidentes(solicitud, listaSolicitudes)
@@ -175,7 +177,26 @@ export const DetalleSolicitudPagina: React.FC<{
             d.horaInicio + "–" + d.horaFin,
             nombreRecinto(d.idRecinto),
             d.actividadOPrograma,
-            d.programa?.map((actividad: { hora: string; horaFin?: string; titulo: string; descripcion?: string; ponente?: string }) => [actividad.hora, actividad.horaFin, actividad.titulo, actividad.descripcion, actividad.ponente].filter(Boolean).join(' · ')).join('\n'),
+            d.programa
+              ?.map(
+                (actividad: {
+                  hora: string;
+                  horaFin?: string;
+                  titulo: string;
+                  descripcion?: string;
+                  ponente?: string;
+                }) =>
+                  [
+                    actividad.hora,
+                    actividad.horaFin,
+                    actividad.titulo,
+                    actividad.descripcion,
+                    actividad.ponente,
+                  ]
+                    .filter(Boolean)
+                    .join(" · "),
+              )
+              .join("\n"),
           ]
             .filter(Boolean)
             .join(" · "),
@@ -577,36 +598,39 @@ export const DetalleSolicitudPagina: React.FC<{
                   : ""}
               </p>
             )}
-            {esRevisor && solicitud.estado === "en_revision" && (
-              <div className="mt-4 space-y-3">
-                <p className="text-sm leading-6 text-neutral-600">
-                  Revisa el expediente y los posibles conflictos antes de
-                  resolver la versión {version}.
-                </p>
-                <button
-                  onClick={() => abrir("autorizar")}
-                  className={primario + " w-full"}
-                >
-                  {solicitud.esExcepcional
-                    ? "Revisar creación extraordinaria"
-                    : "Revisar autorización"}
-                </button>
-                <div className="flex flex-wrap gap-2">
+            {(esRevisor || puedeAutoaprobar) &&
+              solicitud.estado === "en_revision" && (
+                <div className="mt-4 space-y-3">
+                  <p className="text-sm leading-6 text-neutral-600">
+                    Revisa el expediente y los posibles conflictos antes de
+                    resolver la versión {version}.
+                  </p>
                   <button
-                    onClick={() => abrir("devolver")}
-                    className={boton + " flex-1"}
+                    onClick={() => abrir("autorizar")}
+                    className={primario + " w-full"}
                   >
-                    Pedir correcciones
+                    {solicitud.esExcepcional
+                      ? "Revisar creación extraordinaria"
+                      : "Revisar autorización"}
                   </button>
-                  <button
-                    onClick={() => abrir("rechazar")}
-                    className={boton + " flex-1 text-rose-700"}
-                  >
-                    Rechazar
-                  </button>
+                  {esRevisor && (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => abrir("devolver")}
+                        className={boton + " flex-1"}
+                      >
+                        Pedir correcciones
+                      </button>
+                      <button
+                        onClick={() => abrir("rechazar")}
+                        className={boton + " flex-1 text-rose-700"}
+                      >
+                        Rechazar
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
             {esTitular &&
               ["borrador", "en_revision", "requiere_correccion"].includes(
                 solicitud.estado,

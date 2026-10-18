@@ -1,19 +1,36 @@
-import React, { useState } from 'react';
-import { Plus, Calendar, FileText, Settings, Users, ArrowRight, Layers, MapPin, Eye } from 'lucide-react';
-import { useDatos } from '../contextos/DatosContexto';
-import { useAutenticacion } from '../contextos/AutenticacionContexto';
-import { InsigniaEstado } from '../componentes/ui/InsigniaEstado';
-import { EstadoVacio } from '../componentes/ui/EstadoVacio';
+import React, { useState } from "react";
+import {
+  Plus,
+  Calendar,
+  FileText,
+  Settings,
+  Users,
+  ArrowRight,
+  Layers,
+  MapPin,
+  Eye,
+} from "lucide-react";
+import { useDatos } from "../contextos/DatosContexto";
+import { useAutenticacion } from "../contextos/AutenticacionContexto";
+import { InsigniaEstado } from "../componentes/ui/InsigniaEstado";
+import { EstadoVacio } from "../componentes/ui/EstadoVacio";
 
 interface PropiedadesPanelOrganizador {
   navigate: (ruta: string) => void;
+  soloSolicitudes?: boolean;
 }
 
-export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ navigate }) => {
-  const { listaEventos, listaSolicitudes, listaRecintos, listaArreglos } = useDatos();
+export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
+  navigate,
+  soloSolicitudes = false,
+}) => {
+  const { listaEventos, listaSolicitudes, listaRecintos, listaArreglos } =
+    useDatos();
   const { usuarioActual } = useAutenticacion();
 
-  const [pestañaActiva, setPestañaActiva] = useState<'eventos' | 'solicitudes' | 'arreglos'>('eventos');
+  const [pestañaActiva, setPestañaActiva] = useState<
+    "eventos" | "solicitudes" | "arreglos"
+  >(soloSolicitudes ? "solicitudes" : "eventos");
 
   // Filtrar eventos y solicitudes donde el usuario es el organizador
   const misEventos = usuarioActual
@@ -22,10 +39,11 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
   const misSolicitudes = usuarioActual
     ? listaSolicitudes.filter((s) => s.idSolicitante === usuarioActual.id)
     : [];
+  const misArreglos = listaArreglos.filter(a => misEventos.some(e => e.fechas.some(f => f.id === a.idFechaEvento)));
 
   const obtenerNombreRecinto = (idRecinto: string) => {
     const r = listaRecintos.find((rec) => rec.id === idRecinto);
-    return r ? r.nombre : 'Recinto ESCOM';
+    return r ? r.nombre : "Recinto ESCOM";
   };
 
   return (
@@ -37,16 +55,17 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
             Gestión Académica de Espacios
           </span>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 mt-0.5">
-            Mis eventos y solicitudes
+            {soloSolicitudes ? "Mis solicitudes" : "Mis eventos y solicitudes"}
           </h1>
           <p className="text-sm sm:text-sm text-neutral-500 mt-1">
-            Tramita propuestas ante Subdirección, edita la distribución de butacas en auditorios, salas y laboratorios, y publica tus eventos.
+            Tramita propuestas ante Subdirección, edita la distribución de
+            butacas en auditorios, salas y laboratorios, y publica tus eventos.
           </p>
         </div>
 
         <button
           type="button"
-          onClick={() => navigate('/solicitar-evento')}
+          onClick={() => navigate("/solicitar-evento")}
           className="boton-primario px-4 py-2.5 text-sm inline-flex items-center gap-2 cursor-pointer shadow-xs"
         >
           <Plus className="w-4 h-4" />
@@ -56,36 +75,42 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
 
       {/* Pestañas */}
       <div className="flex items-center gap-4 border-b border-neutral-200 mb-6">
+        {!soloSolicitudes && (
+          <button
+            type="button"
+            onClick={() => setPestañaActiva("eventos")}
+            className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer ${
+              pestañaActiva === "eventos"
+                ? "border-[#7a132b] text-[#7a132b]"
+                : "border-transparent text-neutral-500 hover:text-neutral-900"
+            }`}
+          >
+            Mis Eventos ({misEventos.length})
+          </button>
+        )}
+        {!soloSolicitudes && (
+          <button
+            type="button"
+            onClick={() => setPestañaActiva("arreglos")}
+            className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+              pestañaActiva === "arreglos"
+                ? "border-[#7a132b] text-[#7a132b]"
+                : "border-transparent text-neutral-500 hover:text-neutral-900"
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5 text-[#7a132b]" />
+            <span>
+              Editor de Distribución de Asientos ({misArreglos.length})
+            </span>
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => setPestañaActiva('eventos')}
+          onClick={() => setPestañaActiva("solicitudes")}
           className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer ${
-            pestañaActiva === 'eventos'
-              ? 'border-[#7a132b] text-[#7a132b]'
-              : 'border-transparent text-neutral-500 hover:text-neutral-900'
-          }`}
-        >
-          Mis Eventos ({misEventos.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setPestañaActiva('arreglos')}
-          className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
-            pestañaActiva === 'arreglos'
-              ? 'border-[#7a132b] text-[#7a132b]'
-              : 'border-transparent text-neutral-500 hover:text-neutral-900'
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5 text-[#7a132b]" />
-          <span>Editor de Distribución de Asientos ({listaArreglos.length})</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setPestañaActiva('solicitudes')}
-          className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer ${
-            pestañaActiva === 'solicitudes'
-              ? 'border-[#7a132b] text-[#7a132b]'
-              : 'border-transparent text-neutral-500 hover:text-neutral-900'
+            pestañaActiva === "solicitudes"
+              ? "border-[#7a132b] text-[#7a132b]"
+              : "border-transparent text-neutral-500 hover:text-neutral-900"
           }`}
         >
           Solicitudes en Trámite ({misSolicitudes.length})
@@ -93,7 +118,7 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
       </div>
 
       {/* Contenido Pestaña Eventos */}
-      {pestañaActiva === 'eventos' && (
+      {!soloSolicitudes && pestañaActiva === "eventos" && (
         <div>
           {misEventos.length === 0 ? (
             <EstadoVacio
@@ -101,7 +126,7 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
               titulo="No tienes eventos registrados aún"
               descripcion="Envía una solicitud formal a Subdirección para iniciar la reserva de recintos."
               textoAccion="Solicitar nuevo evento"
-              alHacerAccion={() => navigate('/solicitar-evento')}
+              alHacerAccion={() => navigate("/solicitar-evento")}
             />
           ) : (
             <div className="space-y-4">
@@ -114,13 +139,21 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-neutral-900 text-sm">{evento.titulo}</span>
+                        <span className="font-bold text-neutral-900 text-sm">
+                          {evento.titulo}
+                        </span>
                         <InsigniaEstado estado={evento.estado} />
                         <InsigniaEstado estado={evento.modalidadAsistencia} />
                       </div>
-                      <p className="text-sm text-neutral-500 line-clamp-1">{evento.descripcion}</p>
+                      <p className="text-sm text-neutral-500 line-clamp-1">
+                        {evento.descripcion}
+                      </p>
                       <div className="text-sm text-neutral-400">
-                        {evento.fechas.length} fecha(s) programada(s) · Categoría: {evento.categoria} · {fechaPrincipal ? obtenerNombreRecinto(fechaPrincipal.idRecinto) : ''}
+                        {evento.fechas.length} fecha(s) programada(s) ·
+                        Categoría: {evento.categoria} ·{" "}
+                        {fechaPrincipal
+                          ? obtenerNombreRecinto(fechaPrincipal.idRecinto)
+                          : ""}
                       </div>
                     </div>
 
@@ -130,7 +163,7 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
                           type="button"
                           onClick={() =>
                             navigate(
-                              `/organizador/eventos/${evento.id}/fechas/${fechaPrincipal.id}/arreglos`
+                              `/organizador/eventos/${evento.id}/fechas/${fechaPrincipal.id}/arreglos`,
                             )
                           }
                           className="px-3.5 py-2 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-800 hover:border-[#7a132b] hover:bg-neutral-50 flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -142,7 +175,9 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
 
                       <button
                         type="button"
-                        onClick={() => navigate(`/organizador/eventos/${evento.id}`)}
+                        onClick={() =>
+                          navigate(`/organizador/eventos/${evento.id}`)
+                        }
                         className="px-4 py-2 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
                       >
                         <Settings className="w-3.5 h-3.5" />
@@ -158,7 +193,7 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
       )}
 
       {/* Contenido Pestaña Editor de Arreglos / Distribución de Butacas */}
-      {pestañaActiva === 'arreglos' && (
+      {!soloSolicitudes && pestañaActiva === "arreglos" && (
         <div className="space-y-6">
           <div className="p-4 bg-[#7a132b]/5 border border-[#7a132b]/20 rounded-2xl text-sm text-neutral-700 flex items-start gap-3">
             <Layers className="w-5 h-5 text-[#7a132b] shrink-0 mt-0.5" />
@@ -166,18 +201,24 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
               <span className="font-bold text-neutral-900 block mb-0.5">
                 Editor Visual de Distribución de Asientos por Recinto (1:1)
               </span>
-              Personaliza la asignación de butacas (VIP, Staff, Organizadores, Asistente General), bloquea lugares por logística y retira módulos en espacios flexibles como la Sala 14.
+              Personaliza la asignación de butacas (VIP, Staff, Organizadores,
+              Asistente General), bloquea lugares por logística y retira módulos
+              en espacios flexibles como la Sala 14.
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {listaArreglos.map((arreglo) => {
-              const recinto = listaRecintos.find((r) => r.id === arreglo.idRecinto);
+            {misArreglos.map((arreglo) => {
+              const recinto = listaRecintos.find(
+                (r) => r.id === arreglo.idRecinto,
+              );
               // Buscar evento asociado a esta fecha
               const evento = listaEventos.find((e) =>
-                e.fechas.some((f) => f.id === arreglo.idFechaEvento)
+                e.fechas.some((f) => f.id === arreglo.idFechaEvento),
               );
-              const fecha = evento?.fechas.find((f) => f.id === arreglo.idFechaEvento);
+              const fecha = evento?.fechas.find(
+                (f) => f.id === arreglo.idFechaEvento,
+              );
 
               return (
                 <div
@@ -193,8 +234,12 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
                     </div>
 
                     <div>
-                      <h3 className="font-bold text-neutral-900 text-sm">{arreglo.nombre}</h3>
-                      <p className="text-sm text-[#7a132b] font-semibold mt-0.5">{recinto?.nombre}</p>
+                      <h3 className="font-bold text-neutral-900 text-sm">
+                        {arreglo.nombre}
+                      </h3>
+                      <p className="text-sm text-[#7a132b] font-semibold mt-0.5">
+                        {recinto?.nombre}
+                      </p>
                       {evento && (
                         <p className="text-sm text-neutral-500 line-clamp-1 mt-0.5">
                           Evento: {evento.titulo}
@@ -204,16 +249,28 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
 
                     <div className="grid grid-cols-3 gap-2 text-center text-sm pt-1">
                       <div className="p-2 bg-neutral-50 rounded-lg border border-neutral-100">
-                        <span className="text-sm text-neutral-400 block">Total</span>
-                        <span className="font-bold text-neutral-900">{arreglo.totalAsientos}</span>
+                        <span className="text-sm text-neutral-400 block">
+                          Total
+                        </span>
+                        <span className="font-bold text-neutral-900">
+                          {arreglo.totalAsientos}
+                        </span>
                       </div>
                       <div className="p-2 bg-amber-50 rounded-lg border border-amber-100">
-                        <span className="text-sm text-amber-700 block">VIP</span>
-                        <span className="font-bold text-amber-800">{arreglo.asientosVip}</span>
+                        <span className="text-sm text-amber-700 block">
+                          VIP
+                        </span>
+                        <span className="font-bold text-amber-800">
+                          {arreglo.asientosVip}
+                        </span>
                       </div>
                       <div className="p-2 bg-neutral-50 rounded-lg border border-neutral-100">
-                        <span className="text-sm text-neutral-400 block">Bloqueados</span>
-                        <span className="font-bold text-neutral-500">{arreglo.asientosBloqueados}</span>
+                        <span className="text-sm text-neutral-400 block">
+                          Bloqueados
+                        </span>
+                        <span className="font-bold text-neutral-500">
+                          {arreglo.asientosBloqueados}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -222,9 +279,9 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
                     <button
                       type="button"
                       onClick={() => {
-                        const idEvt = evento ? evento.id : 'evt-simposio-ia';
+                        const idEvt = evento ? evento.id : "evt-simposio-ia";
                         navigate(
-                          `/organizador/eventos/${idEvt}/fechas/${arreglo.idFechaEvento}/arreglos`
+                          `/organizador/eventos/${idEvt}/fechas/${arreglo.idFechaEvento}/arreglos`,
                         );
                       }}
                       className="w-full py-2 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
@@ -241,7 +298,7 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
       )}
 
       {/* Contenido Pestaña Solicitudes */}
-      {pestañaActiva === 'solicitudes' && (
+      {(soloSolicitudes || pestañaActiva === "solicitudes") && (
         <div>
           {misSolicitudes.length === 0 ? (
             <EstadoVacio
@@ -258,7 +315,9 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-neutral-900 text-sm">{sol.tituloEvento}</span>
+                      <span className="font-bold text-neutral-900 text-sm">
+                        {sol.tituloEvento}
+                      </span>
                       <InsigniaEstado estado={sol.estado} />
                       {sol.esExcepcional && (
                         <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-sm font-bold">
@@ -266,15 +325,20 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({ 
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-neutral-500 line-clamp-1">{sol.descripcionEvento}</p>
+                    <p className="text-sm text-neutral-500 line-clamp-1">
+                      {sol.descripcionEvento}
+                    </p>
                     <div className="text-sm text-neutral-400">
-                      Fecha de radicación: {new Date(sol.fechaCreacion).toLocaleDateString('es-MX')}
+                      Fecha de radicación:{" "}
+                      {new Date(sol.fechaCreacion).toLocaleDateString("es-MX")}
                     </div>
                   </div>
 
                   <button
                     type="button"
-                    onClick={() => navigate(`/organizador/solicitudes/${sol.id}`)}
+                    onClick={() =>
+                      navigate(`/organizador/solicitudes/${sol.id}`)
+                    }
                     className="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-1 cursor-pointer"
                   >
                     <span>Ver dictamen</span>

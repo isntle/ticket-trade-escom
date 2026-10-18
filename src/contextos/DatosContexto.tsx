@@ -39,6 +39,7 @@ import { registrarCambioSolicitud, validarAnticipacionSolicitud, validarPrograma
 import { generarIdentificadorQr } from '../utilidades/identificadores';
 import { convertirDiasSolicitud } from '../dominio/programa';
 import { guardarLoteLocal } from '../dominio/almacenamiento';
+import { restriccionIdentidadVigente, verificacionIdentidadVigente } from '../dominio/identidad';
 
 interface ContextoDatosTipo {
   listaEventos: Evento[];
@@ -267,7 +268,7 @@ const bloqueoAfectaSesion = (
 };
 
 export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { usuarioActual } = useAutenticacion();
+  const { usuarioActual, refrescarUsuarios } = useAutenticacion();
   const [listaEventos, setListaEventos] = useState<Evento[]>(() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_eventos`);
     return g ? JSON.parse(g) : EVENTOS_INICIALES;
@@ -795,8 +796,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if (
       !usuarioActual ||
       datos.idSolicitante !== usuarioActual.id ||
-      usuarioActual.esVerificado !== true ||
-      usuarioActual.correoConfirmado === false
+      !verificacionIdentidadVigente(usuarioActual) ||
+      usuarioActual.correoConfirmado !== true ||
+      restriccionIdentidadVigente(usuarioActual)
     )
       throw new Error(
         "Necesitas una cuenta confirmada y verificada para solicitar un evento.",
@@ -829,8 +831,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       if (
         !usuarioActual ||
         datos.idSolicitante !== usuarioActual.id ||
-        usuarioActual.esVerificado !== true ||
-        usuarioActual.correoConfirmado === false
+        !verificacionIdentidadVigente(usuarioActual) ||
+        usuarioActual.correoConfirmado !== true ||
+        restriccionIdentidadVigente(usuarioActual)
       )
         throw new Error(
           "Necesitas una cuenta confirmada y verificada para guardar solicitudes.",
@@ -868,7 +871,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     extraordinaria = false,
   ) => {
     const { lista, solicitud } = solicitudVigente(idSolicitud);
-    if (!usuarioActual?.roles.includes("subdireccion"))
+    const autoaprobacionPropia = !!usuarioActual?.puedeAutoaprobar && solicitud?.idSolicitante === usuarioActual.id && decision === "autorizada" && !solicitud.esExcepcional && !validarAnticipacionSolicitud(solicitud);
+    if (!usuarioActual?.roles.includes("subdireccion") && !autoaprobacionPropia)
       return {
         exito: false,
         error: "Solo Subdirección puede resolver solicitudes.",
@@ -1008,7 +1012,40 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }
     if (decision !== 'autorizada') return persistirSolicitudes(solicitudesNuevas);
+    let usuariosNuevos: Usuario[];
+    try {
+      usuariosNuevos = JSON.parse(
+        localStorage.getItem("tt_usuarios_sistema_v2") || "[]",
+      );
+      const titular = usuariosNuevos.find(
+        (u) => u.id === solicitud.idSolicitante,
+      );
+      if (!titular)
+        return {
+          exito: false,
+          error: "No se pudo consultar la cuenta del solicitante.",
+        };
+      usuariosNuevos = usuariosNuevos.map((u) =>
+        u.id === titular.id
+          ? {
+              ...u,
+              roles: [
+                ...new Set<Usuario["roles"][number]>([
+                  ...u.roles,
+                  "organizador",
+                ]),
+              ],
+            }
+          : u,
+      );
+    } catch {
+      return {
+        exito: false,
+        error: "No se pudo consultar la identidad del solicitante.",
+      };
+    }
     const resultadoGuardado = guardarLoteLocal(localStorage, {
+      tt_usuarios_sistema_v2: usuariosNuevos,
       [`${CLAVE_ALMACEN_DATOS}_solicitudes`]: solicitudesNuevas,
       [`${CLAVE_ALMACEN_DATOS}_eventos`]: eventosNuevos,
       [`${CLAVE_ALMACEN_DATOS}_arreglos`]: arreglosNuevos,
@@ -1017,6 +1054,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     setListaSolicitudes(solicitudesNuevas);
     setListaEventos(eventosNuevos);
     setListaArreglos(arreglosNuevos);
+    refrescarUsuarios();
     return { exito: true };
   };
 

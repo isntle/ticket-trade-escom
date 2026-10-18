@@ -1,4 +1,5 @@
 import { VentanaModal } from "../componentes/ui/VentanaModal";
+import { restriccionIdentidadVigente } from "../dominio/identidad";
 import { CalendarioRecinto } from "../componentes/calendario/CalendarioRecinto";
 import {
   esFechaUrgente,
@@ -8,8 +9,11 @@ import {
   versionSolicitud,
 } from "../dominio/solicitudes";
 import React, { useState } from "react";
-import { EditorPrograma, ProgramaDia } from '../componentes/eventos/EditorPrograma';
-import { EditorCartel } from '../componentes/eventos/EditorCartel';
+import {
+  EditorPrograma,
+  ProgramaDia,
+} from "../componentes/eventos/EditorPrograma";
+import { EditorCartel } from "../componentes/eventos/EditorCartel";
 import {
   Calendar,
   Clock,
@@ -107,8 +111,8 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
   const [viaExtraordinaria, setViaExtraordinaria] = useState(() =>
     Boolean(
       solicitudEnEdicion?.esExcepcional ||
-        new URLSearchParams(window.location.search).get("tipo") ===
-          "extraordinaria",
+      new URLSearchParams(window.location.search).get("tipo") ===
+        "extraordinaria",
     ),
   );
 
@@ -159,7 +163,9 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
   const requiereJustificacion = viaExtraordinaria;
   const validarFormulario = (borrador: boolean): boolean => {
     if (cargandoBanner) {
-      setErrorFormulario('Espera a que termine de prepararse el cartel antes de guardar.');
+      setErrorFormulario(
+        "Espera a que termine de prepararse el cartel antes de guardar.",
+      );
       return false;
     }
     const error = validarProgramacion(fechas, listaRecintos, {
@@ -339,16 +345,16 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     if (usuarioActual && usuarioActual.esVerificado !== true) {
       mostrarNotificacion(
         "Verificación requerida",
-        "Envía tu expediente documental y espera el dictamen de Subdirección.",
+        "Envía tu expediente documental y espera el dictamen de Administración.",
         "advertencia",
       );
       navigate("/perfil");
       return;
     }
     if (
-      usuarioActual?.restriccionSolicitudesHasta &&
-      usuarioActual.restriccionSolicitudesHasta >=
-        new Date().toISOString().slice(0, 10)
+      !solicitudEnEdicion &&
+      usuarioActual &&
+      restriccionIdentidadVigente(usuarioActual)
     ) {
       mostrarNotificacion(
         "Solicitud restringida",
@@ -722,9 +728,18 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-              <EditorCartel urlImagen={urlImagen} nombre={nombreBanner}
-                alCambiar={(url, nombre) => { setUrlImagen(url); setNombreBanner(nombre); }}
-                alCambiarEstado={({ cargando, error }) => { setCargandoBanner(cargando); setErrorBanner(error); }} />
+              <EditorCartel
+                urlImagen={urlImagen}
+                nombre={nombreBanner}
+                alCambiar={(url, nombre) => {
+                  setUrlImagen(url);
+                  setNombreBanner(nombre);
+                }}
+                alCambiarEstado={({ cargando, error }) => {
+                  setCargandoBanner(cargando);
+                  setErrorBanner(error);
+                }}
+              />
               <label className="text-sm font-semibold text-neutral-800">
                 Documento de respaldo (PDF/JPEG/PNG, máximo 1 MiB)
                 <input
@@ -994,9 +1009,14 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                         />
                       </div>
                     </details>
-                    <EditorPrograma nombreDia={etiquetaDia} programa={f.programa || []}
+                    <EditorPrograma
+                      nombreDia={etiquetaDia}
+                      programa={f.programa || []}
                       textoAnterior={f.actividadOPrograma}
-                      alCambiar={programa => actualizarFecha(f.id, 'programa', programa)} />
+                      alCambiar={(programa) =>
+                        actualizarFecha(f.id, "programa", programa)
+                      }
+                    />
                   </div>
                 );
               })}
@@ -1105,7 +1125,13 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
           anchoMaximo="lg"
         >
           <div className="space-y-4 text-sm">
-            {urlImagen && <img src={urlImagen} alt="Vista previa del cartel antes de enviar" className="max-h-80 w-full rounded-xl bg-neutral-50 object-contain" />}
+            {urlImagen && (
+              <img
+                src={urlImagen}
+                alt="Vista previa del cartel antes de enviar"
+                className="max-h-80 w-full rounded-xl bg-neutral-50 object-contain"
+              />
+            )}
             <h3 className="text-lg font-bold">{titulo}</h3>
             <p className="whitespace-pre-line leading-6">{descripcion}</p>
             <ul className="space-y-2">

@@ -1,137 +1,150 @@
 import React, { useState } from "react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
+import { MarcoAcceso } from "../componentes/layout/MarcoAcceso";
 import { modoDemostracionActivo } from "../dominio/demostracion";
-
+const campo = "mt-2 w-full rounded-xl border border-neutral-300 p-3 text-sm";
+const boton =
+  "rounded-xl border border-neutral-300 px-4 py-3 text-sm font-semibold";
 export function ConfirmacionCorreoPagina({
   navigate,
 }: {
   navigate: (ruta: string) => void;
 }) {
-  const {
-    usuarioActual,
-    solicitarConfirmacionCorreo,
-    confirmarCorreo,
-    reiniciarConfirmacionPrueba,
-  } = useAutenticacion();
-  const [codigo, setCodigo] = useState("");
-  const [codigoPrueba, setCodigoPrueba] = useState("");
+  const auth = useAutenticacion(),
+    parametros = new URLSearchParams(window.location.search);
+  const [token, setToken] = useState(parametros.get("token") || "");
+  const [correo, setCorreo] = useState(
+    parametros.get("correo") ||
+      auth.usuarioActual?.correoPendiente ||
+      auth.usuarioActual?.correo ||
+      "",
+  );
   const [mensaje, setMensaje] = useState("");
+  const [confirmado, setConfirmado] = useState(false);
+  const [codigo, setCodigo] = useState(() => {
+    if (!modoDemostracionActivo()) return "";
+    try {
+      const dato = JSON.parse(
+        sessionStorage.getItem("tt_confirmacion_demo") || "null",
+      );
+      return dato?.correo.toLowerCase() === correo.toLowerCase()
+        ? dato.codigo
+        : "";
+    } catch {
+      return "";
+    }
+  });
   return (
-    <div className="min-h-screen bg-[#f5f3f0] px-4 py-12">
-      <section className="mx-auto max-w-lg rounded-3xl border bg-white p-7 shadow-sm">
-        <p className="font-bold text-[#7a132b]">Ticket Trade</p>
-        <h1 className="mt-4 text-2xl font-bold">
-          Confirmar correo electrónico
-        </h1>
-      {!modoDemostracionActivo() && <button onClick={() => navigate('/confirmar-correo?demo=1')} className="mt-4 rounded-xl border px-4 py-3 text-sm font-semibold">Activar demostración de correo</button>}
-        {!usuarioActual ? (
+    <MarcoAcceso>
+      <h2 className="text-3xl font-black">Confirmar correo electrónico</h2>
+      <p className="my-4 text-sm leading-6">
+        Confirma tu correo con el enlace recibido. Esto no equivale a
+        verificación documental ni concede facultades para organizar eventos.
+      </p>
+      <p className="mb-5 rounded-xl bg-amber-50 p-4 text-sm">
+        El envío real todavía no está conectado. En demostración puedes probar
+        el recorrido con un código; no acredita acceso a un buzón real.
+      </p>
+      {mensaje && (
+        <p role="status" className="my-4 text-sm">
+          {mensaje}
+        </p>
+      )}
+      {confirmado ? (
+        <>
+          <p className="rounded-xl bg-emerald-50 p-4 text-emerald-900">
+            Correo confirmado correctamente.
+          </p>
           <button
+            className={boton + " mt-4"}
             onClick={() => navigate("/login")}
-            className="mt-5 rounded-xl border px-4 py-3"
           >
             Iniciar sesión
           </button>
-        ) : usuarioActual.correoConfirmado === true ? (
-          <>
-            <p className="mt-5 rounded-xl bg-emerald-50 p-4 text-emerald-900">
-              Tu correo ya está confirmado.
+        </>
+      ) : (
+        <>
+          {codigo && (
+            <p className="my-4 break-all rounded-xl border p-4 text-sm">
+              Código de demostración (24 horas, un solo uso):{" "}
+              <output className="block select-all font-mono">{codigo}</output>
             </p>
-            <button
-              onClick={() => navigate("/eventos")}
-              className="mt-5 rounded-xl bg-[#7a132b] px-4 py-3 text-white"
-            >
-              Ver eventos
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="mt-4 text-sm leading-6">
-              Confirma el acceso a <strong>{usuarioActual.correo}</strong> para
-              reservar y participar. Puedes consultar la cartelera mientras
-              tanto.
-            </p>
-            <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm leading-6">
-              Demostración: todavía no se envían correos reales. El código de
-              prueba aparece aquí; permite probar el recorrido, pero no
-              demuestra acceso a tu buzón.
-            </p>
-            <button
-              onClick={() => {
-                const r = solicitarConfirmacionCorreo();
-                setMensaje(r.mensaje);
-                setCodigoPrueba(r.codigoPrueba || "");
-                setCodigo("");
-              }}
-              className="mt-4 rounded-xl border px-4 py-3 font-semibold"
-            >
-              Solicitar código de confirmación
-            </button>
-            {codigoPrueba && (
-              <div className="mt-4 rounded-xl bg-neutral-50 p-4 text-sm">
-                <p>
-                  Código de prueba · válido durante 24 horas mientras esta
-                  sesión permanezca abierta
-                </p>
-                <output className="mt-2 block break-all select-all font-mono">
-                  {codigoPrueba}
-                </output>
-              </div>
-            )}
-            <form
-              className="mt-5 space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const r = confirmarCorreo(codigo);
-                setMensaje(r.mensaje);
-                if (r.exito) {
-                  setCodigo("");
-                  setCodigoPrueba("");
-                }
-              }}
-            >
-              <label className="block text-sm font-semibold">
-                Código de confirmación
-                <input
-                  required
-                  autoComplete="one-time-code"
-                  value={codigo}
-                  onChange={(e) => setCodigo(e.target.value)}
-                  className="mt-2 w-full rounded-xl border px-3 py-3"
-                />
-              </label>
-              <button className="rounded-xl bg-[#7a132b] px-4 py-3 font-semibold text-white">
-                Confirmar correo
-              </button>
-            </form>
-          </>
-        )}
-        {mensaje && (
-          <p role="status" className="mt-4 text-sm leading-6">
-            {mensaje}
-          </p>
-        )}
-        {modoDemostracionActivo() &&
-          usuarioActual?.id === "usr-estudiante-sin-confirmar" &&
-          usuarioActual.correoConfirmado === true && (
-            <button
-              onClick={() => {
-                reiniciarConfirmacionPrueba();
-                setMensaje(
-                  "La cuenta de prueba vuelve a tener el correo pendiente.",
-                );
-              }}
-              className="mt-5 block rounded-xl border px-4 py-2 text-sm"
-            >
-              Reiniciar prueba de correo de Lucía
-            </button>
           )}
-        <button
-          onClick={() => navigate("/perfil")}
-          className="mt-6 text-sm underline"
-        >
-          Volver a mi perfil
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const r = auth.confirmarCorreo(token);
+              setMensaje(r.mensaje);
+              if (r.exito) {
+                setConfirmado(true);
+                setToken("");
+                setCodigo("");
+                sessionStorage.removeItem("tt_confirmacion_demo");
+              }
+            }}
+          >
+            <label className="block text-sm font-semibold">
+              Código de confirmación
+              <input
+                required
+                className={campo}
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+              />
+            </label>
+            <button className={boton + " bg-[#7a132b] text-white"}>
+              Confirmar correo
+            </button>
+          </form>
+          <form
+            className="mt-6 space-y-4 border-t pt-5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const r = auth.reenviarConfirmacionCorreo(correo);
+              setMensaje(r.mensaje);
+              setCodigo(r.codigoPrueba || "");
+            }}
+          >
+            <label className="block text-sm">
+              Correo pendiente o nuevo correo
+              <input
+                type="email"
+                required
+                className={campo}
+                value={correo}
+                onChange={(e) => setCorreo(e.target.value)}
+              />
+            </label>
+            <button className={boton}>Solicitar nuevo enlace</button>
+            <p className="text-xs text-neutral-500">
+              Máximo un enlace por minuto y cinco por hora.
+            </p>
+          </form>
+        </>
+      )}
+      <nav className="mt-6 flex flex-wrap gap-4 border-t pt-5 text-sm">
+        <button onClick={() => navigate("/login")}>Volver al acceso</button>
+        {auth.usuarioActual && (
+          <button onClick={() => navigate("/perfil")}>Mi perfil</button>
+        )}
+        <button onClick={() => navigate("/eventos")}>
+          Consultar cartelera
         </button>
-      </section>
-    </div>
+      </nav>
+      {modoDemostracionActivo() &&
+        auth.usuarioActual?.id === "usr-estudiante-sin-confirmar" &&
+        auth.usuarioActual.correoConfirmado && (
+          <button
+            className={boton + " mt-4"}
+            onClick={() => {
+              auth.reiniciarConfirmacionPrueba();
+              setConfirmado(false);
+            }}
+          >
+            Reiniciar prueba de correo de Lucía
+          </button>
+        )}
+    </MarcoAcceso>
   );
 }

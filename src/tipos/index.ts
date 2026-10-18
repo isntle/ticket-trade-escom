@@ -9,10 +9,12 @@
  */
 
 // Roles de usuario en el sistema
-export type RolUsuario = 'asistente' | 'organizador' | 'staff' | 'subdireccion' | 'admin';
+export type RolUsuario =
+  "asistente" | "organizador" | "staff" | "subdireccion" | "admin";
 
 // Tipos de afiliación institucional
-export type TipoAfiliacion = 'alumno' | 'profesor' | 'administrativo' | 'pae' | 'externo';
+export type TipoAfiliacion =
+  "alumno" | "profesor" | "administrativo" | "pae" | "externo";
 
 // Modelo de Usuario Institucional
 export interface Usuario {
@@ -34,12 +36,76 @@ export interface Usuario {
   urlFoto?: string;
   esVerificado?: boolean;
   correoConfirmado?: boolean;
+  versionIdentidad?: number;
+  versionCredenciales?: number;
+  tipoExterno?: "asistente" | "representante";
+  rfc?: string;
+  puedeAutoaprobar?: boolean;
+  archivosExpediente?: DocumentoIdentidad[];
+  verificacionHasta?: string;
+  periodoVerificado?: string;
+  restriccionSolicitudesDesde?: string;
+  peticionesRestriccion?: Array<{
+    id: string;
+    accion: "aplicar" | "levantar";
+    motivo: string;
+    solicitudes: string;
+    responsable: string;
+    fecha: string;
+    estado: "pendiente" | "aceptada" | "rechazada";
+    resolucion?: string;
+  }>;
+  historialIdentidad?: Array<{
+    accion: string;
+    fecha: string;
+    responsable: string;
+    motivo: string;
+  }>;
+  avisosIdentidad?: Array<{ fecha: string; mensaje: string }>;
+  fallosLogin?: number[];
+  historialRecuperacion?: number[];
+  correoPendiente?: string;
+  tokenConfirmacionCambioCorreo?: string;
+  historialReenviosCorreo?: number[];
+  tokenConfirmacionCorreo?: string;
+  expiracionConfirmacionCorreo?: number;
+  estadoExpediente?:
+    | "sin_enviar"
+    | "en_revision"
+    | "requiere_correccion"
+    | "aprobado"
+    | "rechazado"
+    | "revocado";
+  documentosExpediente?: string[];
+  motivoExpediente?: string;
+  historialExpediente?: Array<{
+    estado: string;
+    motivo?: string;
+    responsable: string;
+    fecha: string;
+    documentos: string[];
+    archivos?: DocumentoIdentidad[];
+  }>;
   restriccionSolicitudesHasta?: string;
   motivoRestriccion?: string;
+  intentosFallidosLogin?: number;
+  primerFalloLoginEn?: number;
+  bloqueadaLoginHasta?: number;
   tokenRecuperacion?: string;
   tokenExpiracion?: number;
   eventosAsignadosStaff?: string[]; // IDs de eventos a los que este usuario está asignado como Staff de acceso
   fechaRegistro?: string;
+}
+
+export interface DocumentoIdentidad {
+  id: string;
+  nombre: string;
+  tipo: "constancia" | "adscripcion" | "existencia" | "representacion";
+  tamano: number;
+  fechaEmision: string;
+  vigenteHasta?: string;
+  periodo?: string;
+  periodoActual?: boolean;
 }
 
 // Estructura de Permisos Granulares por Rol
@@ -51,11 +117,17 @@ export interface PermisosPorRol {
 }
 
 // Estados del flujo de solicitudes
-export type EstadoSolicitud = 'borrador' | 'en_revision' | 'requiere_correccion' | 'autorizada' | 'rechazada' | 'cancelada';
+export type EstadoSolicitud =
+  | "borrador"
+  | "en_revision"
+  | "requiere_correccion"
+  | "autorizada"
+  | "rechazada"
+  | "cancelada";
 
 // Dimensiones de visibilidad y modalidad
-export type VisibilidadEvento = 'publico' | 'interno' | 'privado';
-export type ModalidadAsistencia = 'libre' | 'registro' | 'controlado';
+export type VisibilidadEvento = "publico" | "interno" | "privado";
+export type ModalidadAsistencia = "libre" | "registro" | "controlado";
 
 // Elemento de fecha solicitada
 export interface ActividadPrograma {
@@ -121,10 +193,16 @@ export interface SolicitudEvento {
 }
 
 // Estados del ciclo de vida de un evento
-export type EstadoEvento = 'borrador' | 'configuracion' | 'publicado' | 'en_curso' | 'finalizado' | 'cancelado';
+export type EstadoEvento =
+  | "borrador"
+  | "configuracion"
+  | "publicado"
+  | "en_curso"
+  | "finalizado"
+  | "cancelado";
 
 // Estado operativo de la taquilla para una sesión concreta
-export type EstadoInscripciones = 'abiertas' | 'cerradas';
+export type EstadoInscripciones = "abiertas" | "cerradas";
 
 export interface RegistroCambioInscripciones {
   id: string;
@@ -132,7 +210,7 @@ export interface RegistroCambioInscripciones {
   fechaCambio: string;
   idResponsable: string;
   responsable: string;
-  causa: 'apertura_manual' | 'cierre_manual' | 'cierre_automatico';
+  causa: "apertura_manual" | "cierre_manual" | "cierre_automatico";
 }
 
 // Fecha individual de un evento (No son sinónimos)
@@ -156,7 +234,13 @@ export interface FechaEvento {
 }
 
 // Categorías temáticas de eventos ESCOM
-export type CategoriaEvento = 'Conferencia' | 'Congreso' | 'Taller' | 'Académico' | 'Cultural' | 'Institucional';
+export type CategoriaEvento =
+  | "Conferencia"
+  | "Congreso"
+  | "Taller"
+  | "Académico"
+  | "Cultural"
+  | "Institucional";
 
 // Entidad Principal de Evento
 export interface Evento {
@@ -180,19 +264,34 @@ export interface Evento {
   inscripcionesAbiertas?: boolean;
   fechaCierreInscripcion?: string;
   publicoPermitido?: RolUsuario[];
-  historialExcepcionesAnticipacion?: Array<{ idFechaEvento: string; fechaAplicacion: string; motivo: string; responsable: string }>;
+  historialExcepcionesAnticipacion?: Array<{
+    idFechaEvento: string;
+    fechaAplicacion: string;
+    motivo: string;
+    responsable: string;
+  }>;
   historialCambios?: Array<{
     version: number;
     fecha: string;
     responsable: string;
     motivo?: string;
     campos: string[];
-    valoresAnteriores: { titulo: string; descripcion: string; ponentes: string[]; urlImagen?: string };
-    valoresNuevos: { titulo: string; descripcion: string; ponentes: string[]; urlImagen?: string };
+    valoresAnteriores: {
+      titulo: string;
+      descripcion: string;
+      ponentes: string[];
+      urlImagen?: string;
+    };
+    valoresNuevos: {
+      titulo: string;
+      descripcion: string;
+      ponentes: string[];
+      urlImagen?: string;
+    };
     detalleAnterior?: string;
     detalleNuevo?: string;
     resultadoNotificacion?: {
-      estado: 'no_configurada';
+      estado: "no_configurada";
       destinatarios: string[];
       fechaRegistro: string;
     };
@@ -200,7 +299,7 @@ export interface Evento {
 }
 
 // Tipos de recintos físicos en ESCOM
-export type TipoRecinto = 'auditorio' | 'sala' | 'laboratorio';
+export type TipoRecinto = "auditorio" | "sala" | "laboratorio";
 
 // Recinto Físico
 export interface Recinto {
@@ -218,7 +317,8 @@ export interface Recinto {
 }
 
 // Categorías funcionales de lugares en un arreglo
-export type CategoriaAsiento = 'asistente' | 'vip' | 'organizador' | 'staff' | 'sin_definir';
+export type CategoriaAsiento =
+  "asistente" | "vip" | "organizador" | "staff" | "sin_definir";
 export type CategoriaLugar = CategoriaAsiento;
 
 // Configuración de un Lugar individual (Asiento, Módulo o Estación de Trabajo)
@@ -230,7 +330,7 @@ export interface ConfiguracionAsiento {
   categoria: CategoriaAsiento;
   estaBloqueado: boolean;
   estaEliminado?: boolean; // Espacios modulares en Sala 14
-  seccion?: 'izq' | 'centro' | 'der' | 'norte' | 'sur' | string; // Bloque en auditorio o zona en laboratorio
+  seccion?: "izq" | "centro" | "der" | "norte" | "sur" | string; // Bloque en auditorio o zona en laboratorio
   equipoComputo?: string; // En laboratorios: Identificador visual de estación (ej: PC-01, PC-12)
   posicionX?: number;
   posicionY?: number;
@@ -238,7 +338,7 @@ export interface ConfiguracionAsiento {
 export type Lugar = ConfiguracionAsiento;
 
 // Estados del arreglo de lugares
-export type EstadoArreglo = 'borrador' | 'bloqueado' | 'version_final';
+export type EstadoArreglo = "borrador" | "bloqueado" | "version_final";
 
 // Arreglo físico de lugares por fecha
 export interface ArregloAsientos {
@@ -292,7 +392,8 @@ export interface BloqueoRecinto {
 }
 
 // Estados de la reservación de boleto
-export type EstadoReservacion = 'apartado_temporal' | 'confirmada' | 'cancelada';
+export type EstadoReservacion =
+  "apartado_temporal" | "confirmada" | "cancelada";
 
 // Reservación de lugar
 export interface Reservacion {
@@ -313,10 +414,10 @@ export interface Reservacion {
 }
 
 // Estados del boleto emitido
-export type EstadoBoleto = 'valido' | 'utilizado' | 'cancelado';
+export type EstadoBoleto = "valido" | "utilizado" | "cancelado";
 
 // Categorías de acreditación emitidas directamente por el Organizador
-export type TipoBoletoEspecial = 'organizador' | 'staff' | 'vip';
+export type TipoBoletoEspecial = "organizador" | "staff" | "vip";
 
 // Boleto Digital con Código QR
 export interface BoletoDigital {
@@ -362,7 +463,14 @@ export interface EntradaListaEspera {
   etiquetaAsientoOferta?: string;
   rolesUsuario?: RolUsuario[];
   correoConfirmado?: boolean;
-  estado: 'esperando' | 'notificado' | 'convertido' | 'cancelado' | 'retirada' | 'rechazada' | 'vencida';
+  estado:
+    | "esperando"
+    | "notificado"
+    | "convertido"
+    | "cancelado"
+    | "retirada"
+    | "rechazada"
+    | "vencida";
 }
 
 // Intención de asistencia para eventos de entrada libre.
@@ -379,17 +487,17 @@ export interface RegistroIntencionAsistencia {
 
 // Resultado del escaneo de acceso
 export type ResultadoEscaneo =
-  | 'exito'
-  | 'ya_utilizado'
-  | 'evento_invalido'
-  | 'fecha_invalida'
-  | 'cancelado'
-  | 'reservacion_no_vigente'
-  | 'codigo_no_reconocido'
-  | 'inexistente'
-  | 'no_autorizado'
-  | 'fuera_de_horario'
-  | 'suspendido';
+  | "exito"
+  | "ya_utilizado"
+  | "evento_invalido"
+  | "fecha_invalida"
+  | "cancelado"
+  | "reservacion_no_vigente"
+  | "codigo_no_reconocido"
+  | "inexistente"
+  | "no_autorizado"
+  | "fuera_de_horario"
+  | "suspendido";
 
 // Bitácora de escaneos de check-in en puerta
 export interface RegistroEscaneo {
@@ -410,7 +518,13 @@ export interface ResultadoDisponibilidadRecinto {
   disponible: boolean;
   codigoMensaje?: string;
   motivo?: string;
-  tipoConflicto?: 'evento' | 'clase' | 'bloqueo' | 'actividad_institucional' | 'ocupacion_interna' | 'margen_despeje';
+  tipoConflicto?:
+    | "evento"
+    | "clase"
+    | "bloqueo"
+    | "actividad_institucional"
+    | "ocupacion_interna"
+    | "margen_despeje";
   tituloConflicto?: string;
   detallesConflicto?: {
     horarioConflicto?: string;
@@ -434,7 +548,12 @@ export interface OcupacionAgenda {
   fecha: string;
   horaInicio: string;
   horaFin: string;
-  tipo: 'evento' | 'clase' | 'actividad_institucional' | 'ocupacion_interna' | 'bloqueo';
+  tipo:
+    | "evento"
+    | "clase"
+    | "actividad_institucional"
+    | "ocupacion_interna"
+    | "bloqueo";
   titulo: string;
   descripcion?: string;
   responsable?: string;
@@ -451,7 +570,7 @@ export interface OcupacionInterna {
   fechaFin: string;
   horaFin: string;
   responsable: string;
-  estado: 'activa' | 'cancelada';
+  estado: "activa" | "cancelada";
   fechaCreacion: string;
 }
 

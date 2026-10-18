@@ -38,6 +38,12 @@ interface CasoDeUso {
   estado?: EstadoCaso;
   usuarioDemo?: string;
   rolDemo?: "asistente" | "organizador" | "staff" | "subdireccion" | "admin";
+  accesos?: Array<{
+    nombre: string;
+    ruta: string;
+    usuario: string;
+    rol: "asistente" | "organizador" | "subdireccion" | "admin";
+  }>;
 }
 
 interface Subequipo {
@@ -61,21 +67,27 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-ID01",
         nombre: "Registrar cuenta de usuario",
         actor: "Visitante",
-        interfaz: "UI-02 · Registro y acreditación",
+        interfaz: "UI-IP-02 · Registro",
         descripcion:
           "El visitante captura sus datos, elige su afiliación y crea una cuenta sin recibir automáticamente habilitación documental.",
         ruta: "/registro",
-        estado: "parcial",
+        estado: "comprobable",
+        control: "Registrar cuenta",
+        respuesta:
+          "Valida la categoría y crea una cuenta pendiente de confirmación, sin roles operativos.",
       },
       {
         id: "CU-ID02",
         nombre: "Confirmar correo electrónico",
         actor: "Titular de cuenta",
-        interfaz: "UI-02 · Registro y acreditación",
+        interfaz: "UI-IP-03 · Confirmación de correo",
         descripcion:
           "El titular solicita y captura un código de prueba. El envío real de correo requiere integración con el servidor.",
         ruta: "/confirmar-correo",
-        estado: "parcial",
+        estado: "comprobable",
+        control: "Confirmar correo / Solicitar nuevo enlace",
+        respuesta:
+          "Consume un código vigente o informa que es inválido; limita los reenvíos.",
         usuarioDemo: "usr-estudiante-sin-confirmar",
         rolDemo: "asistente",
       },
@@ -83,61 +95,115 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-ID03",
         nombre: "Iniciar y cerrar sesión",
         actor: "Visitante o usuario registrado",
-        interfaz: "UI-01 · Inicio de sesión institucional",
+        interfaz: "UI-IP-01 · Acceso",
         descripcion:
           "El usuario captura sus credenciales, accede con el rol permitido y puede cerrar la sesión activa.",
         ruta: "/login",
-        estado: "parcial",
+        estado: "comprobable",
+        control: "Iniciar sesión / Cerrar sesión",
+        respuesta:
+          "Autentica, cuenta fallos, aplica bloqueo temporal y permite cerrar la sesión.",
       },
       {
         id: "CU-ID04",
         nombre: "Recuperar y cambiar contraseña",
         actor: "Titular de cuenta",
-        interfaz: "UI-03 · Recuperación de acceso",
+        interfaz: "UI-IP-04 / UI-IP-05 / UI-IP-06 · Recuperación y seguridad",
         descripcion:
           "El titular solicita un código de recuperación y define una nueva contraseña cuando el token es válido.",
         ruta: "/recuperar-password",
-        estado: "parcial",
+        estado: "comprobable",
+        control: "Solicitar enlace / Validar enlace / Restablecer contraseña",
+        respuesta:
+          "Comprueba vigencia y uso único; cambia la contraseña e invalida sesiones anteriores.",
+        accesos: [
+          {
+            nombre: "Cambiar contraseña desde mi perfil",
+            ruta: "/perfil",
+            usuario: "usr-carlos",
+            rol: "asistente",
+          },
+        ],
       },
       {
         id: "CU-ID05",
         nombre: "Gestionar perfil y cambio de correo",
         actor: "Usuario registrado",
-        interfaz: "UI-04 · Perfil de usuario",
+        interfaz: "UI-IP-07 · Mi perfil",
         descripcion:
           "El usuario consulta y edita los datos permitidos de su perfil y solicita la confirmación de un nuevo correo.",
         ruta: "/perfil",
-        estado: "parcial",
+        estado: "comprobable",
+        control: "Revisar cambios / Confirmar modificación",
+        respuesta:
+          "Actualiza los datos permitidos y conserva el correo anterior hasta confirmar el nuevo.",
+        usuarioDemo: "usr-carlos",
+        rolDemo: "asistente",
       },
       {
         id: "CU-ID06",
         nombre: "Gestionar expediente de verificación documental",
         actor: "Usuario registrado",
-        interfaz: "UI-04 · Perfil de usuario",
+        interfaz: "UI-IP-08 · Mi expediente",
         descripcion:
           "El usuario integra o corrige evidencias para solicitar la revisión documental que le permite obtener facultades adicionales.",
-        ruta: "/perfil",
-        estado: "pendiente",
+        ruta: "/mi-expediente",
+        estado: "comprobable",
+        control: "Revisar expediente / Enviar a revisión",
+        respuesta:
+          "Valida documentos PDF y vigencia declarada, conserva la versión e informa el estado.",
+        usuarioDemo: "usr-carlos",
+        rolDemo: "asistente",
       },
       {
         id: "CU-ID07",
         nombre: "Evaluar expediente y revocar/renovar verificación",
         actor: "Administrador",
-        interfaz: "UI-05 · Revisión de expedientes",
+        interfaz: "UI-IP-09 / UI-IP-10 · Revisión y detalle de expediente",
         descripcion:
-          "La evaluación documental corresponde al Administrador según el Sprint 3. La integración del módulo de identidad debe completar este recorrido.",
-        ruta: "/admin",
-        estado: "parcial",
+          "Administración consulta los PDF y versiones, confirma aprobación, corrección o rechazo y puede revocar una verificación con motivo.",
+        ruta: "/admin/expedientes",
+        estado: "comprobable",
+        control: "Ver detalle / Aprobar expediente / Confirmar decisión",
+        respuesta:
+          "Comprueba permiso, estado y versión; registra la decisión sin cancelar eventos o reservaciones.",
+        usuarioDemo: "usr-admin",
+        rolDemo: "admin",
       },
       {
         id: "CU-ID08",
         nombre: "Gestionar restricciones y asignación de roles",
-        actor: "Subdirección o Administrador",
-        interfaz: "UI-70 · Administración técnica de usuarios",
+        actor: "Subdirección, Administrador u Organizador",
+        interfaz: "UI-IP-11 / UI-IP-12 · Restricciones y roles",
         descripcion:
-          "El actor autorizado restringe solicitudes o administra roles, estado de cuenta y asociación de Staff a eventos.",
-        ruta: "/admin",
+          "Subdirección solicita una restricción; Administración decide su aplicación y gestiona roles y autoaprobación. El Organizador asigna Staff de sus propios eventos.",
+        ruta: "/admin/restricciones",
         estado: "comprobable",
+        control: "Confirmar restricción / Aceptar petición / Rechazar petición",
+        respuesta:
+          "Registra motivo y periodo; limita solo nuevas solicitudes y conserva historial y avisos.",
+        usuarioDemo: "usr-admin",
+        rolDemo: "admin",
+        accesos: [
+          {
+            nombre: "Pedir restricción desde Subdirección",
+            ruta: "/subdireccion/restricciones",
+            usuario: "usr-subdireccion",
+            rol: "subdireccion",
+          },
+          {
+            nombre: "Administrar roles y autoaprobación",
+            ruta: "/admin",
+            usuario: "usr-admin",
+            rol: "admin",
+          },
+          {
+            nombre: "Asignar Staff de mis eventos",
+            ruta: "/organizador/staff",
+            usuario: "usr-silva",
+            rol: "organizador",
+          },
+        ],
       },
     ],
   },
@@ -1003,6 +1069,23 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({
                                 No hay una pantalla implementada para este caso.
                               </p>
                             )}
+                            {caso.accesos?.map((acceso) => (
+                              <button
+                                key={acceso.ruta}
+                                type="button"
+                                className="ml-2 mt-3 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold"
+                                onClick={() =>
+                                  abrirPantalla({
+                                    ...caso,
+                                    ruta: acceso.ruta,
+                                    usuarioDemo: acceso.usuario,
+                                    rolDemo: acceso.rol,
+                                  })
+                                }
+                              >
+                                {acceso.nombre}
+                              </button>
+                            ))}
                           </div>
                         )}
                       </div>

@@ -93,6 +93,9 @@ export const BarraSuperior: React.FC<{
     ...(estaAutenticado && rolActivo !== "asistente"
       ? [{ nombre: panelRol[rolActivo], ruta: inicioRol[rolActivo] }]
       : []),
+    ...(estaAutenticado && rolActivo === "asistente"
+      ? [{ nombre: "Mis solicitudes", ruta: "/mis-solicitudes" }]
+      : []),
   ];
   const activo = (ruta: string) =>
     ruta === "/eventos"

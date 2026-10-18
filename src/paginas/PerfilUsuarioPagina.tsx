@@ -1,522 +1,441 @@
-import React, { useState } from 'react';
-import {
-  UserCheck,
-  Shield,
-  Upload,
-  FileText,
-  CheckCircle,
-  ArrowLeft,
-  Calendar,
-  Lock,
-  Mail,
-  Building,
-  KeyRound,
-  IdCard,
-  Briefcase
-} from 'lucide-react';
-import { useAutenticacion } from '../contextos/AutenticacionContexto';
-import { useDatos } from '../contextos/DatosContexto';
-import { useNotificaciones } from '../contextos/NotificacionesContexto';
-import { TipoAfiliacion } from '../tipos';
-import {
-  validarBoletaIPN,
-  validarNumeroEmpleadoIPN,
-  validarContrasena,
-  MATRIZ_PERMISOS_ROLES
-} from '../utilidades/validaciones';
+import React, { useState } from "react";
+import { useAutenticacion } from "../contextos/AutenticacionContexto";
+import { useDatos } from "../contextos/DatosContexto";
+import { MATRIZ_PERMISOS_ROLES } from "../utilidades/validaciones";
 
-interface PropiedadesPerfilUsuario {
+const campo = "mt-2 w-full rounded-xl border border-neutral-300 p-3 text-sm";
+const boton =
+  "rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-semibold";
+export function PerfilUsuarioPagina({
+  navigate,
+}: {
   navigate: (ruta: string) => void;
-}
-
-export const PerfilUsuarioPagina: React.FC<PropiedadesPerfilUsuario> = ({ navigate }) => {
-  const {
-    usuarioActual,
-    actualizarPerfil,
-    solicitarPermisoOrganizador,
-    cerrarSesion
-  } = useAutenticacion();
+}) {
+  const auth = useAutenticacion();
+  const { usuarioActual: u, rolActivo } = auth;
   const { listaEventos } = useDatos();
-  const { mostrarNotificacion } = useNotificaciones();
-
-  if (!usuarioActual) {
+  const [edicion, setEdicion] = useState(false);
+  const [nombre, setNombre] = useState("");
+  const [entidad, setEntidad] = useState("");
+  const [cargo, setCargo] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [version, setVersion] = useState(0);
+  const [revisar, setRevisar] = useState(false);
+  const [correo, setCorreo] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [confirmarCorreo, setConfirmarCorreo] = useState(false);
+  const [actual, setActual] = useState("");
+  const [nueva, setNueva] = useState("");
+  const [repetida, setRepetida] = useState("");
+  const [mensaje, setMensaje] = useState("");
+  if (!u)
     return (
-      <div className="max-w-md mx-auto px-4 py-16 text-center">
-        <div className="bg-white rounded-3xl border border-neutral-200 p-8 shadow-sm">
-          <p className="text-sm text-neutral-600 mb-4">No hay ninguna sesión activa.</p>
+      <section className="mx-auto max-w-lg p-8">
+        <h1 className="text-2xl font-bold">No hay una sesión activa</h1>
+        <button className={boton} onClick={() => navigate("/login")}>
+          Iniciar sesión
+        </button>
+      </section>
+    );
+  return (
+    <section className="mx-auto max-w-4xl space-y-6 px-4 py-8">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-black">Mi perfil</h1>
+        <button
+          className={boton}
+          onClick={() => {
+            auth.cerrarSesion();
+            navigate("/login");
+          }}
+        >
+          Cerrar sesión
+        </button>
+      </header>
+      {mensaje && (
+        <p
+          role="status"
+          className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm"
+        >
+          {mensaje}
+        </p>
+      )}
+      <article className="space-y-4 rounded-3xl border bg-white p-6">
+        <h2 className="text-xl font-bold">{u.nombre}</h2>
+        <p className="break-all">
+          {u.correo}{" "}
+          {u.correoConfirmado ? "· Confirmado" : "· Pendiente de confirmación"}
+        </p>
+        <p className="text-sm">
+          Categoría declarada: {u.afiliacion}.{" "}
+          {u.boleta && "Boleta: " + u.boleta}{" "}
+          {u.numeroEmpleado && "Identificador declarado: " + u.numeroEmpleado}
+        </p>
+        <p className="text-sm">
+          Verificación documental:{" "}
+          {u.esVerificado
+            ? "Aprobada"
+            : (u.estadoExpediente || "Sin solicitar").replaceAll("_", " ")}{" "}
+          {u.verificacionHasta && " · Vigente hasta " + u.verificacionHasta}
+        </p>
+        <p className="text-sm text-neutral-600">
+          Aviso de datos: tus datos y documentos se usan para gestionar la
+          cuenta y sus permisos; no se publican en la cartelera. Usa datos
+          ficticios durante la demostración. Contacto: soporte_ti@escom.ipn.mx.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <button className={boton} onClick={() => navigate("/mi-expediente")}>
+            {u.esVerificado
+              ? "Consultar o renovar expediente"
+              : "Mi expediente"}
+          </button>
+          {!u.correoConfirmado && (
+            <button
+              className={boton}
+              onClick={() => navigate("/confirmar-correo")}
+            >
+              Confirmar correo
+            </button>
+          )}
           <button
-            onClick={() => navigate('/login')}
-            className="px-5 py-2.5 rounded-xl bg-[#7a132b] text-white text-xs font-bold"
+            className={boton}
+            onClick={() => {
+              setNombre(u.nombre);
+              setEntidad(u.nombreOrganizacion || "");
+              setCargo(u.puestoContacto || "");
+              setTelefono(u.telefonoContacto || "");
+              setVersion(u.versionIdentidad || 0);
+              setEdicion(true);
+              setRevisar(false);
+            }}
           >
-            Ir a Iniciar Sesión
+            Editar nombre y contacto
           </button>
         </div>
-      </div>
-    );
-  }
-
-  const [modoEdicion, setModoEdicion] = useState(false);
-  const [nombre, setNombre] = useState(usuarioActual.nombre);
-  const [afiliacion, setAfiliacion] = useState<TipoAfiliacion>(usuarioActual.afiliacion);
-  const [identificador, setIdentificador] = useState(
-    usuarioActual.boleta || usuarioActual.numeroEmpleado || usuarioActual.nombreOrganizacion || ''
-  );
-  const [puesto, setPuesto] = useState(usuarioActual.puestoContacto || '');
-  const [telefono, setTelefono] = useState(usuarioActual.telefonoContacto || '');
-  const [nombreDocumento, setNombreDocumento] = useState(usuarioActual.nombreDocumento || '');
-
-  // Cambio de contraseña
-  const [mostrarCambioPass, setMostrarCambioPass] = useState(false);
-  const [passwordActual, setPasswordActual] = useState('');
-  const [nuevoPassword, setNuevoPassword] = useState('');
-
-  // Eventos asociados al Staff si el usuario tiene rol 'staff'
-  const eventosAsignados = listaEventos.filter((e) =>
-    usuarioActual.eventosAsignadosStaff?.includes(e.id)
-  );
-
-  const manejarGuardarPerfil = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validaciones por tipo de afiliación
-    if (afiliacion === 'alumno') {
-      const val = validarBoletaIPN(identificador);
-      if (!val.esValido) {
-        mostrarNotificacion('Boleta inválida', val.mensaje || '', 'error');
-        return;
-      }
-    } else if (afiliacion === 'profesor' || afiliacion === 'administrativo' || afiliacion === 'pae') {
-      const val = validarNumeroEmpleadoIPN(identificador);
-      if (!val.esValido) {
-        mostrarNotificacion('Identificador inválido', val.mensaje || '', 'error');
-        return;
-      }
-    }
-
-    const res = actualizarPerfil(usuarioActual.id, {
-      nombre: nombre.trim(),
-      afiliacion,
-      boleta: afiliacion === 'alumno' ? identificador.trim() : undefined,
-      numeroEmpleado:
-        afiliacion === 'profesor' || afiliacion === 'administrativo' || afiliacion === 'pae'
-          ? identificador.trim()
-          : undefined,
-      nombreOrganizacion: afiliacion === 'externo' ? identificador.trim() : undefined,
-      puestoContacto: puesto.trim(),
-      telefonoContacto: telefono.trim(),
-      nombreDocumento: nombreDocumento.trim()
-    });
-
-    if (res.exito) {
-      mostrarNotificacion('Perfil Actualizado', res.mensaje, 'exito');
-      setModoEdicion(false);
-    } else {
-      mostrarNotificacion('Error', res.mensaje, 'error');
-    }
-  };
-
-  const manejarCambiarPassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (usuarioActual.password && passwordActual !== usuarioActual.password) {
-      mostrarNotificacion('Error', 'La contraseña actual no es correcta.', 'error');
-      return;
-    }
-
-    const val = validarContrasena(nuevoPassword);
-    if (!val.esValido) {
-      mostrarNotificacion('Seguridad', val.mensaje || '', 'error');
-      return;
-    }
-
-    actualizarPerfil(usuarioActual.id, { password: nuevoPassword });
-    mostrarNotificacion('Contraseña Cambiada', 'Tu nueva clave de acceso ha sido guardada.', 'exito');
-    setPasswordActual('');
-    setNuevoPassword('');
-    setMostrarCambioPass(false);
-  };
-
-  const manejarAcreditacionOrganizador = () => {
-    const res = solicitarPermisoOrganizador(
-      afiliacion,
-      identificador.trim(),
-      nombreDocumento.trim() || 'credencial_ipn_comprobante.pdf'
-    );
-    if (res.exito) {
-      mostrarNotificacion('Capacidad Habilitada', res.mensaje, 'exito');
-    }
-  };
-
-  return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 animate-in fade-in duration-200">
-      <div className="flex items-center justify-between mb-6">
-        <button
-          type="button"
-          onClick={() => navigate('/eventos')}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Volver a la cartelera</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            cerrarSesion();
-            mostrarNotificacion('Sesión Cerrada', 'Has cerrado tu sesión exitosamente.', 'informacion');
-            navigate('/login');
-          }}
-          className="text-xs text-rose-700 hover:text-rose-900 font-semibold px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition-colors"
-        >
-          Cerrar Sesión
-        </button>
-      </div>
-
-      {/* Tarjeta de Cabecera del Perfil */}
-      <section className="mb-6 rounded-2xl border bg-white p-5"><h2 className="font-bold">Correo electrónico</h2><p className="mt-2 text-sm">{usuarioActual.correoConfirmado === true ? 'Correo confirmado.' : 'Tu correo está pendiente de confirmación.'}</p>{usuarioActual.correoConfirmado !== true && <button onClick={() => navigate('/confirmar-correo')} className="mt-3 rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-semibold text-white">Confirmar correo</button>}</section>
-      <div className="bg-white rounded-3xl border border-neutral-200 p-6 sm:p-8 shadow-xs mb-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-neutral-100 pb-6">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#7a132b] to-[#500c1c] text-white flex items-center justify-center font-black text-2xl shadow-sm">
-              {usuarioActual.nombre.charAt(0)}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-neutral-900">
-                  {usuarioActual.nombre}
-                </h1>
-                {usuarioActual.esVerificado && (
-                  <span className="p-0.5 rounded-full bg-emerald-100 text-emerald-700" title="Cuenta verificada IPN">
-                    <CheckCircle className="w-4 h-4" />
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-neutral-500 font-mono mt-0.5">{usuarioActual.correo}</p>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="px-2 py-0.5 rounded-md bg-neutral-100 text-neutral-700 text-[11px] font-bold capitalize">
-                  {usuarioActual.afiliacion}
-                </span>
-                {usuarioActual.boleta && (
-                  <span className="font-mono text-[11px] text-neutral-600 bg-neutral-50 px-2 py-0.5 rounded border border-neutral-200">
-                    Boleta: {usuarioActual.boleta}
-                  </span>
-                )}
-                {usuarioActual.numeroEmpleado && (
-                  <span className="font-mono text-[11px] text-neutral-600 bg-neutral-50 px-2 py-0.5 rounded border border-neutral-200">
-                    No. Empleado: {usuarioActual.numeroEmpleado}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {!modoEdicion ? (
-              <button
-                type="button"
-                onClick={() => setModoEdicion(true)}
-                className="px-4 py-2 rounded-xl bg-neutral-900 text-white text-xs font-bold hover:bg-neutral-800 transition-colors shadow-2xs cursor-pointer"
-              >
-                Editar Perfil
+        {edicion && (
+          <form
+            className="space-y-4 border-t pt-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!revisar) {
+                if (!nombre.trim())
+                  return setMensaje("El nombre es obligatorio.");
+                setRevisar(true);
+                return;
+              }
+              const r = auth.actualizarPerfil(
+                u.id,
+                {
+                  nombre: nombre.trim(),
+                  telefonoContacto: telefono.trim(),
+                  ...(u.afiliacion === "externo"
+                    ? {
+                        nombreOrganizacion: entidad.trim(),
+                        puestoContacto: cargo.trim(),
+                      }
+                    : {}),
+                },
+                version,
+              );
+              setMensaje(r.mensaje);
+              if (r.exito) {
+                setEdicion(false);
+                setRevisar(false);
+              }
+            }}
+          >
+            <label className="block text-sm">
+              Nombre completo
+              <input
+                required
+                readOnly={revisar}
+                className={campo}
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+              />
+            </label>
+            {u.afiliacion === "externo" && (
+              <>
+                <label className="block text-sm">
+                  Entidad (si deseas solicitar eventos)
+                  <input
+                    readOnly={revisar}
+                    className={campo}
+                    value={entidad}
+                    onChange={(e) => setEntidad(e.target.value)}
+                  />
+                </label>
+                <label className="block text-sm">
+                  Cargo o relación de representación
+                  <input
+                    readOnly={revisar}
+                    className={campo}
+                    value={cargo}
+                    onChange={(e) => setCargo(e.target.value)}
+                  />
+                </label>
+              </>
+            )}
+            <label className="block text-sm">
+              Teléfono de contacto (opcional)
+              <input
+                readOnly={revisar}
+                type="tel"
+                className={campo}
+                value={telefono}
+                onChange={(e) => setTelefono(e.target.value)}
+              />
+            </label>
+            {revisar && (
+              <p className="rounded-xl bg-amber-50 p-4 text-sm">
+                {u.esVerificado
+                  ? "Cambiar nombre, entidad o relación exige renovar la verificación. Se conservarán tus eventos y reservaciones."
+                  : "Confirma los datos antes de guardarlos."}{" "}
+                La categoría y los identificadores institucionales no se
+                modifican en este formulario.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-3">
+              <button className={boton}>
+                {revisar ? "Confirmar modificación" : "Revisar cambios"}
               </button>
-            ) : (
+              {revisar && (
+                <button
+                  type="button"
+                  className={boton}
+                  onClick={() => setRevisar(false)}
+                >
+                  Regresar a editar
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setModoEdicion(false)}
-                className="px-4 py-2 rounded-xl border border-neutral-300 text-neutral-700 text-xs font-bold hover:bg-neutral-50 transition-colors cursor-pointer"
+                className={boton}
+                onClick={() => {
+                  setEdicion(false);
+                  setRevisar(false);
+                }}
               >
                 Cancelar
               </button>
-            )}
-          </div>
-        </div>
-
-        {/* Roles del Usuario */}
-        <div className="pt-4 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div>
-            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">
-              Roles y Capacidades Activas
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {usuarioActual.roles.map((r) => (
-                <span
-                  key={r}
-                  className="px-2.5 py-1 rounded-lg bg-neutral-100 border border-neutral-200 text-neutral-800 font-bold text-[11px] capitalize"
-                >
-                  {r === 'asistente' && '🎓 Alumno / Asistente'}
-                  {r === 'organizador' && '📋 Comité Organizador'}
-                  {r === 'staff' && '📱 Staff de Acceso'}
-                  {r === 'subdireccion' && '🏛️ Subdirección SEIS'}
-                  {r === 'admin' && '⚙️ Administrador TI'}
-                </span>
-              ))}
             </div>
-          </div>
-
-          {!usuarioActual.roles.includes('organizador') && (
+          </form>
+        )}
+      </article>
+      <article className="space-y-4 rounded-3xl border bg-white p-6">
+        <h2 className="text-xl font-bold">Cambiar correo electrónico</h2>
+        {u.correoPendiente && (
+          <p className="break-all text-sm">
+            Nuevo correo pendiente: {u.correoPendiente}. El correo actual
+            continúa vigente.
+          </p>
+        )}
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!confirmarCorreo) {
+              setConfirmarCorreo(true);
+              return;
+            }
+            const r = auth.solicitarCambioCorreo(u.id, correo);
+            setMensaje(r.mensaje);
+            setCodigo(r.codigoPrueba || "");
+            if (r.exito) {
+              setConfirmarCorreo(false);
+              setCorreo("");
+            }
+          }}
+        >
+          <label className="block text-sm">
+            Nuevo correo
+            <input
+              required
+              type="email"
+              className={campo}
+              value={correo}
+              onChange={(e) => {
+                setCorreo(e.target.value);
+                setConfirmarCorreo(false);
+              }}
+            />
+          </label>
+          {confirmarCorreo && (
+            <p className="rounded-xl bg-amber-50 p-4 text-sm">
+              El correo actual no cambia hasta confirmar el nuevo. Si estabas
+              verificado, necesitarás una nueva revisión después de confirmarlo.
+              ¿Deseas solicitar el cambio?
+            </p>
+          )}
+          <button className={boton}>
+            {confirmarCorreo
+              ? "Confirmar solicitud de cambio"
+              : "Revisar cambio de correo"}
+          </button>
+          {confirmarCorreo && (
             <button
               type="button"
-              onClick={manejarAcreditacionOrganizador}
-              className="px-3.5 py-1.5 rounded-xl bg-[#7a132b]/10 text-[#7a132b] hover:bg-[#7a132b]/20 font-bold text-xs transition-colors cursor-pointer"
+              className={boton}
+              onClick={() => setConfirmarCorreo(false)}
             >
-              + Acreditarme como Organizador
+              Cancelar
+            </button>
+          )}
+        </form>
+        {codigo && (
+          <p className="break-all text-sm">
+            Código de demostración:{" "}
+            <output className="select-all font-mono">{codigo}</output>
+          </p>
+        )}
+        {(codigo || u.correoPendiente) && (
+          <button
+            className={boton}
+            onClick={() => navigate("/confirmar-correo")}
+          >
+            Confirmar el nuevo correo
+          </button>
+        )}
+      </article>
+      <article className="rounded-3xl border bg-white p-6">
+        <h2 className="mb-4 text-xl font-bold">Seguridad</h2>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const r = auth.cambiarPassword(actual, nueva, repetida);
+            setMensaje(r.mensaje);
+            if (r.exito) {
+              setActual("");
+              setNueva("");
+              setRepetida("");
+              navigate("/login");
+            }
+          }}
+        >
+          <label className="block text-sm">
+            Contraseña actual
+            <input
+              required
+              autoComplete="current-password"
+              type="password"
+              className={campo}
+              value={actual}
+              onChange={(e) => setActual(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm">
+            Nueva contraseña
+            <input
+              required
+              autoComplete="new-password"
+              type="password"
+              className={campo}
+              value={nueva}
+              onChange={(e) => setNueva(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm">
+            Confirmar nueva contraseña
+            <input
+              required
+              autoComplete="new-password"
+              type="password"
+              className={campo}
+              value={repetida}
+              onChange={(e) => setRepetida(e.target.value)}
+            />
+          </label>
+          <p className="text-sm">
+            Al guardar se invalidarán las sesiones anteriores y deberás iniciar
+            sesión nuevamente.
+          </p>
+          <button className={boton}>Guardar contraseña</button>
+        </form>
+      </article>
+      <article className="space-y-3 rounded-3xl border bg-white p-6">
+        <h2 className="text-xl font-bold">Roles y accesos</h2>
+        <p className="text-sm">
+          Perfil activo: {rolActivo}. Roles asignados: {u.roles.join(", ")}.
+        </p>
+        {MATRIZ_PERMISOS_ROLES.filter((r) => u.roles.includes(r.rol)).map(
+          (r) => (
+            <details key={r.rol}>
+              <summary>{r.nombre}</summary>
+              <p className="text-sm">{r.descripcion}</p>
+              <ul className="list-disc pl-5 text-sm">
+                {r.permisos.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            </details>
+          ),
+        )}
+        <div className="flex flex-wrap gap-3">
+          {rolActivo === "admin" && (
+            <>
+              <button
+                className={boton}
+                onClick={() => navigate("/admin/expedientes")}
+              >
+                Revisar expedientes
+              </button>
+              <button
+                className={boton}
+                onClick={() => navigate("/admin/restricciones")}
+              >
+                Resolver restricciones
+              </button>
+              <button className={boton} onClick={() => navigate("/admin")}>
+                Administrar roles
+              </button>
+            </>
+          )}
+          {rolActivo === "subdireccion" && (
+            <button
+              className={boton}
+              onClick={() => navigate("/subdireccion/restricciones")}
+            >
+              Solicitar restricción o levantamiento
+            </button>
+          )}
+          {["organizador", "admin"].includes(rolActivo) && (
+            <button
+              className={boton}
+              onClick={() => navigate("/organizador/staff")}
+            >
+              Asignar personal de acceso
             </button>
           )}
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Columna Principal: Datos y Edición */}
-        <div className="lg:col-span-2 space-y-6">
-          {modoEdicion ? (
-            <form onSubmit={manejarGuardarPerfil} className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs space-y-4 text-xs">
-              <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2 border-b pb-3">
-                <UserCheck className="w-4 h-4 text-[#7a132b]" />
-                <span>Modificar Datos de Cuenta</span>
-              </h2>
-
-              <div>
-                <label className="block font-semibold text-neutral-700 mb-1">Nombre Completo *</label>
-                <input
-                  type="text"
-                  required
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Afiliación Institucional</label>
-                  <select
-                    value={afiliacion}
-                    onChange={(e) => setAfiliacion(e.target.value as TipoAfiliacion)}
-                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl"
-                  >
-                    <option value="alumno">Alumno ESCOM</option>
-                    <option value="profesor">Profesor / Docente</option>
-                    <option value="administrativo">Administrativo</option>
-                    <option value="pae">Personal de Apoyo (PAE)</option>
-                    <option value="externo">Entidad Externa</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">
-                    {afiliacion === 'alumno' && 'Boleta (10 dígitos) *'}
-                    {(afiliacion === 'profesor' || afiliacion === 'administrativo' || afiliacion === 'pae') && 'No. Empleado *'}
-                    {afiliacion === 'externo' && 'Organización / Empresa *'}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={identificador}
-                    onChange={(e) => setIdentificador(e.target.value)}
-                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl font-mono text-xs"
-                  />
-                </div>
-              </div>
-
-              {afiliacion === 'externo' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-neutral-700 mb-1">Puesto de Contacto</label>
-                    <input
-                      type="text"
-                      value={puesto}
-                      onChange={(e) => setPuesto(e.target.value)}
-                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-neutral-700 mb-1">Teléfono</label>
-                    <input
-                      type="tel"
-                      value={telefono}
-                      onChange={(e) => setTelefono(e.target.value)}
-                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block font-semibold text-neutral-700 mb-1">
-                  Documento Probatorio / Comprobante Registrado
-                </label>
-                <input
-                  type="text"
-                  placeholder="ej: credencial_ipn_2026.pdf"
-                  value={nombreDocumento}
-                  onChange={(e) => setNombreDocumento(e.target.value)}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-mono"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setModoEdicion(false)}
-                  className="px-4 py-2 border rounded-xl text-neutral-600 font-bold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-[#7a132b] text-white rounded-xl font-bold hover:bg-[#620f23] transition-colors"
-                >
-                  Guardar Cambios
-                </button>
-              </div>
-            </form>
-          ) : (
-            <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs space-y-4 text-xs">
-              <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2 border-b pb-3">
-                <IdCard className="w-4 h-4 text-[#7a132b]" />
-                <span>Expediente de Identidad y Acreditación</span>
-              </h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-100">
-                  <span className="text-[10px] text-neutral-400 font-bold uppercase block">Afiliación Registrada</span>
-                  <span className="text-sm font-bold text-neutral-800 capitalize mt-0.5 block">{usuarioActual.afiliacion}</span>
-                </div>
-
-                <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-100">
-                  <span className="text-[10px] text-neutral-400 font-bold uppercase block">Identificador Oficial</span>
-                  <span className="text-sm font-mono font-bold text-neutral-800 mt-0.5 block">
-                    {usuarioActual.boleta || usuarioActual.numeroEmpleado || usuarioActual.nombreOrganizacion || 'No especificado'}
-                  </span>
-                </div>
-
-                {usuarioActual.nombreOrganizacion && (
-                  <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-100 col-span-2">
-                    <span className="text-[10px] text-neutral-400 font-bold uppercase block">Razón Social Externa</span>
-                    <span className="text-xs font-bold text-neutral-800 mt-0.5 block">{usuarioActual.nombreOrganizacion}</span>
-                  </div>
-                )}
-
-                {usuarioActual.nombreDocumento && (
-                  <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-100 col-span-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-[#7a132b]" />
-                      <div>
-                        <span className="text-[10px] text-neutral-400 font-bold uppercase block">Comprobante Adjunto</span>
-                        <span className="font-mono text-xs font-medium text-neutral-800">{usuarioActual.nombreDocumento}</span>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">Validado</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Seguridad y Contraseña */}
-          <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b pb-3">
-              <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
-                <Lock className="w-4 h-4 text-[#7a132b]" />
-                <span>Seguridad de la Cuenta</span>
-              </h2>
-              <button
-                type="button"
-                onClick={() => setMostrarCambioPass(!mostrarCambioPass)}
-                className="text-xs font-bold text-[#7a132b] hover:underline cursor-pointer"
-              >
-                {mostrarCambioPass ? 'Cerrar' : 'Cambiar Contraseña'}
-              </button>
-            </div>
-
-            {mostrarCambioPass ? (
-              <form onSubmit={manejarCambiarPassword} className="space-y-3 pt-1">
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Contraseña Actual *</label>
-                  <input
-                    type="password"
-                    required
-                    value={passwordActual}
-                    onChange={(e) => setPasswordActual(e.target.value)}
-                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Nueva Contraseña *</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Mín. 8 caracteres, Mayús y Núm"
-                    value={nuevoPassword}
-                    onChange={(e) => setNuevoPassword(e.target.value)}
-                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-neutral-900 text-white rounded-xl font-bold hover:bg-neutral-800 transition-colors"
-                >
-                  Actualizar Contraseña
-                </button>
-              </form>
-            ) : (
-              <div className="flex items-center justify-between text-neutral-500">
-                <span>Tu contraseña se encuentra activa y resguardada.</span>
-                <span className="text-[11px] font-mono">••••••••••••</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Columna Lateral: Permisos y Asignaciones de Staff */}
-        <div className="space-y-6">
-          {/* Si tiene rol de Staff, mostrar eventos asignados */}
-          {usuarioActual.roles.includes('staff') && (
-            <div className="bg-white rounded-2xl border border-purple-200 p-5 shadow-xs space-y-3 text-xs">
-              <h3 className="font-bold text-purple-950 uppercase tracking-wide flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-purple-700" />
-                <span>Eventos Asignados al Staff</span>
-              </h3>
-              <p className="text-[11px] text-neutral-500 leading-relaxed">
-                Eventos donde este usuario tiene autorización operativa para escanear boletos y controlar puerta.
-              </p>
-
-              {eventosAsignados.length > 0 ? (
-                <div className="space-y-2 pt-1">
-                  {eventosAsignados.map((ev) => (
-                    <div key={ev.id} className="p-2.5 rounded-xl bg-purple-50/60 border border-purple-100 flex flex-col gap-1">
-                      <span className="font-bold text-purple-900 text-[11px]">{ev.titulo}</span>
-                      <span className="text-[10px] text-neutral-500 font-mono">
-                        {ev.fechas[0]?.fecha} · {ev.fechas[0]?.horaInicio} hrs
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-3 bg-neutral-50 rounded-xl text-center text-neutral-400 text-[11px]">
-                  No estás asignado a eventos específicos aún.
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Resumen de Matriz de Permisos */}
-          <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs space-y-4 text-xs">
-            <h3 className="font-bold text-neutral-900 uppercase tracking-wide flex items-center gap-2">
-              <Shield className="w-4 h-4 text-[#7a132b]" />
-              <span>Matriz de Permisos por Rol</span>
-            </h3>
-
-            <div className="space-y-3">
-              {MATRIZ_PERMISOS_ROLES.filter((m) => usuarioActual.roles.includes(m.rol)).map((item) => (
-                <div key={item.rol} className="border-b border-neutral-100 pb-3 last:border-b-0">
-                  <span className="font-bold text-neutral-800 text-[11px] block">{item.nombre}</span>
-                  <p className="text-[10px] text-neutral-500 mt-0.5 leading-snug">{item.descripcion}</p>
-                </div>
+        {u.eventosAsignadosStaff?.length ? (
+          <>
+            <h3 className="font-semibold">Eventos asignados como Staff</h3>
+            {listaEventos
+              .filter((e) => u.eventosAsignadosStaff?.includes(e.id))
+              .map((e) => (
+                <p className="text-sm" key={e.id}>
+                  {e.titulo}
+                </p>
               ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+          </>
+        ) : null}
+      </article>
+      <article className="space-y-3 rounded-3xl border bg-white p-6">
+        <h2 className="text-xl font-bold">Avisos de mi cuenta</h2>
+        {u.avisosIdentidad?.length ? (
+          [...u.avisosIdentidad].reverse().map((a, i) => (
+            <p key={i} className="border-t pt-3 text-sm">
+              {new Date(a.fecha).toLocaleString("es-MX")} · {a.mensaje}
+            </p>
+          ))
+        ) : (
+          <p className="text-sm">No hay avisos nuevos.</p>
+        )}
+        <p className="text-xs text-neutral-500">
+          Los avisos son locales; el envío real de correo aún no está
+          configurado.
+        </p>
+      </article>
+    </section>
   );
-};
+}
