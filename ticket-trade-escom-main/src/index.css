@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* ========================================================= */
+    /* VARIABLES CENTRALES DE ESTILO — TICKET TRADE ESCOM IPN   */
+    /* Modifica estos valores aquí para cambiar el tema global   */
+    /* ========================================================= */
+
+    /* Colores Institucionales IPN - ESCOM */
+    --color-guinda: #7a132b;
+    --color-guinda-oscuro: #630f23;
+    --color-guinda-claro: rgba(122, 19, 43, 0.08);
+    --color-guinda-borde: rgba(122, 19, 43, 0.22);
+    --color-guinda-sombra: rgba(122, 19, 43, 0.2);
+
+    /* Superficies y Fondos */
+    --color-fondo-app: #fafaf9;
+    --color-fondo-tarjeta: #ffffff;
+    --color-fondo-sutil: #f5f5f4;
+    --color-fondo-destacado: #f3f4f6;
+
+    /* Bordes y Divisiones */
+    --color-borde-suave: #e5e7eb;
+    --color-borde-firme: #d1d5db;
+
+    /* Tipografía y Textos */
+    --color-texto-principal: #111827;
+    --color-texto-secundario: #4b5563;
+    --color-texto-atenuado: #9ca3af;
+    --color-texto-blanco: #ffffff;
+
+    /* Estados del Sistema: Éxito (Confirmaciones, Boletos Válidos) */
+    --color-exito: #059669;
+    --color-exito-fondo: #ecfdf5;
+    --color-exito-borde: #a7f3d0;
+    --color-exito-texto: #064e3b;
+
+    /* Estados del Sistema: Advertencia (Excepciones, Apartados 10 min) */
+    --color-advertencia: #d97706;
+    --color-advertencia-fondo: #fffbeb;
+    --color-advertencia-borde: #fde68a;
+    --color-advertencia-texto: #78350f;
+
+    /* Estados del Sistema: Peligro / Rechazo (Boletos Usados, Bloqueos) */
+    --color-peligro: #dc2626;
+    --color-peligro-fondo: #fef2f2;
+    --color-peligro-borde: #fecaca;
+    --color-peligro-texto: #7f1d1d;
+
+    /* Categorías de Butacas y Asientos */
+    --color-asiento-disponible: #ffffff;
+    --color-asiento-seleccionado: #7a132b;
+    --color-asiento-reservado: #e2e8f0;
+    --color-asiento-vip: #fef3c7;
+    --color-asiento-vip-borde: #f59e0b;
+    --color-asiento-organizador: #e0e7ff;
+    --color-asiento-organizador-borde: #6366f1;
+    --color-asiento-staff: #f3e8ff;
+    --color-asiento-staff-borde: #a855f7;
+    --color-asiento-bloqueado: #f3f4f6;
+
+    /* Fuentes Tipográficas */
+    --fuente-principal: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --fuente-codigo: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+    /* Radios y Espaciados Estándar */
+    --radio-tarjeta: 1rem;
+    --radio-boton: 0.5rem;
+  }
+
+  body {
+    font-family: var(--fuente-principal);
+    background-color: var(--color-fondo-app);
+    color: var(--color-texto-principal);
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* ========================================================= */
+/* CLASES UTILITARIAS BASADAS EN VARIABLES CENTRALES        */
+/* ========================================================= */
+
+.texto-guinda {
+  color: var(--color-guinda);
+}
+
+.fondo-guinda {
+  background-color: var(--color-guinda);
+}
+
+.fondo-guinda-claro {
+  background-color: var(--color-guinda-claro);
+}
+
+.borde-guinda {
+  border-color: var(--color-guinda-borde);
+}
+
+/* Botón Principal Institucional */
+.boton-primario {
+  background-color: var(--color-guinda);
+  color: var(--color-texto-blanco);
+  font-weight: 600;
+  border-radius: var(--radio-boton);
+  transition: all 0.15s ease-in-out;
+  border: 1px solid transparent;
+}
+.boton-primario:hover:not(:disabled) {
+  background-color: var(--color-guinda-oscuro);
+  box-shadow: 0 2px 4px var(--color-guinda-sombra);
+}
+.boton-primario:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Botón Secundario / Contorno */
+.boton-secundario {
+  background-color: var(--color-fondo-tarjeta);
+  color: var(--color-texto-principal);
+  border: 1px solid var(--color-borde-firme);
+  font-weight: 500;
+  border-radius: var(--radio-boton);
+  transition: all 0.15s ease-in-out;
+}
+.boton-secundario:hover:not(:disabled) {
+  background-color: var(--color-fondo-sutil);
+  border-color: var(--color-texto-secundario);
+}
+
+/* Tarjeta Institucional Limpia */
+.tarjeta-institucional {
+  background-color: var(--color-fondo-tarjeta);
+  border: 1px solid var(--color-borde-suave);
+  border-radius: var(--radio-tarjeta);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* Barra de desplazamiento suave */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-fondo-sutil);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-borde-firme);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-texto-atenuado);
+}
+
+@media print {
+  body {
+    background: white;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
