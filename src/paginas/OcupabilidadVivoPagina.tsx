@@ -3,6 +3,8 @@ import { ArrowLeft, Users, CheckCircle, Clock, MapPin, RefreshCw } from 'lucide-
 import { useDatos } from '../contextos/DatosContexto';
 import { MapaAsientos } from '../componentes/asientos/MapaAsientos';
 import { EstadoVacio } from '../componentes/ui/EstadoVacio';
+import { useAutenticacion } from '../contextos/AutenticacionContexto';
+import { obtenerContextoOcupacion } from '../dominio/ocupacion';
 
 interface PropiedadesOcupabilidadVivo {
   navigate: (ruta: string) => void;
@@ -16,50 +18,43 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
   initialDateId
 }) => {
   const { listaEventos, listaArreglos, listaBoletos, listaReservaciones, listaRecintos } = useDatos();
+  const { usuarioActual } = useAutenticacion();
 
   // Seleccionar evento y fecha
-  const eventosPublicados = listaEventos.filter((e) => e.estado === 'publicado');
+  const contextoInicial = obtenerContextoOcupacion(listaEventos, usuarioActual, initialEventId, initialDateId);
 
   const [idEventoSeleccionado, setIdEventoSeleccionado] = useState<string>(() => {
-    return initialEventId || eventosPublicados[0]?.id || '';
+    return initialEventId || contextoInicial.evento?.id || '';
   });
 
-  const eventoSeleccionado = listaEventos.find((e) => e.id === idEventoSeleccionado) || eventosPublicados[0];
 
   const [idFechaSeleccionada, setIdFechaSeleccionada] = useState<string>(() => {
-    return initialDateId || eventoSeleccionado?.fechas[0]?.id || '';
+    return initialDateId || contextoInicial.fecha?.id || '';
   });
+  const { eventosPermitidos, evento: eventoSeleccionado, fecha: fechaSeleccionada } = obtenerContextoOcupacion(listaEventos, usuarioActual, idEventoSeleccionado, idFechaSeleccionada);
 
   // Sincronizar los parámetros de la ruta con los selectores cuando el monitor
   // se abre desde otro caso de uso sin desmontar la página.
   useEffect(() => {
-    const eventoInicial =
-      (initialEventId && eventosPublicados.some((evento) => evento.id === initialEventId)
-        ? initialEventId
-        : eventosPublicados[0]?.id) || '';
-    const datosEventoInicial = eventosPublicados.find((evento) => evento.id === eventoInicial);
-    const fechaInicial =
-      (initialDateId && datosEventoInicial?.fechas.some((fecha) => fecha.id === initialDateId)
-        ? initialDateId
-        : datosEventoInicial?.fechas[0]?.id) || '';
+    const contexto = obtenerContextoOcupacion(listaEventos, usuarioActual, initialEventId, initialDateId);
+    const eventoInicial = initialEventId || contexto.evento?.id || '';
+    const fechaInicial = initialDateId || contexto.fecha?.id || '';
 
     setIdEventoSeleccionado((actual) => (actual === eventoInicial ? actual : eventoInicial));
     setIdFechaSeleccionada((actual) => (actual === fechaInicial ? actual : fechaInicial));
-  }, [initialEventId, initialDateId, listaEventos]);
-
-  const fechaSeleccionada = eventoSeleccionado?.fechas.find((f) => f.id === idFechaSeleccionada) || eventoSeleccionado?.fechas[0];
+  }, [initialEventId, initialDateId, listaEventos, usuarioActual]);
   const recinto = listaRecintos.find((r) => r.id === fechaSeleccionada?.idRecinto);
 
   const arregloFinal = listaArreglos.find(
     (a) => a.idFechaEvento === fechaSeleccionada?.id && a.estado === 'version_final'
-  ) || listaArreglos.find((a) => a.idFechaEvento === fechaSeleccionada?.id);
+  );
 
   if (!eventoSeleccionado || !fechaSeleccionada || !arregloFinal) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16">
         <EstadoVacio
-          titulo="No hay datos de ocupación disponibles"
-          descripcion="Selecciona un evento publicado con versión final de asientos confirmada."
+          titulo={!eventoSeleccionado ? 'Evento no disponible para tu cuenta' : !fechaSeleccionada ? 'Día no disponible' : 'Sin distribución final confirmada'}
+          descripcion={!eventoSeleccionado ? 'Consulta únicamente tus eventos o los asignados a tu cuenta de personal de acceso.' : !fechaSeleccionada ? 'El día solicitado no pertenece al evento seleccionado.' : 'La ocupación requiere una distribución final de lugares para ese día.'}
           textoAccion="Volver al escáner"
           alHacerAccion={() => navigate('/staff')}
         />
@@ -109,25 +104,28 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
             Monitor de Control en Puerta
           </span>
           <h1 className="text-xl sm:text-2xl font-bold text-neutral-900 mt-0.5">
-            Ocupabilidad de Sala en Tiempo Real
+            Ocupación de lugares
           </h1>
           <p className="text-xs text-neutral-500 mt-1">
-            Recinto: <span className="font-semibold text-neutral-800">{recinto?.nombre}</span> · Sesión: <span className="font-semibold text-neutral-800">{fechaSeleccionada.fecha}</span>
+            Recinto: <span className="font-semibold text-neutral-800">{recinto?.nombre}</span> · Día: <span className="font-semibold text-neutral-800">{fechaSeleccionada.fecha}</span>
           </p>
         </div>
 
         {/* Selectores de Evento y Fecha */}
         <div className="flex flex-wrap items-center gap-2">
           <select
-            value={idEventoSeleccionado}
+            aria-label="Evento para consultar ocupación"
+            value={eventoSeleccionado.id}
             onChange={(e) => {
-              setIdEventoSeleccionado(e.target.value);
-              const ev = listaEventos.find((evItem) => evItem.id === e.target.value);
-              if (ev?.fechas[0]) setIdFechaSeleccionada(ev.fechas[0].id);
+              const ev = eventosPermitidos.find(item => item.id === e.target.value);
+              if (!ev) return;
+              setIdEventoSeleccionado(ev.id);
+              setIdFechaSeleccionada(ev.fechas[0]?.id || '');
+              navigate('/staff/ocupacion?eventId=' + encodeURIComponent(ev.id) + '&dateId=' + encodeURIComponent(ev.fechas[0]?.id || ''));
             }}
             className="px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-800 focus:outline-none"
           >
-            {eventosPublicados.map((ev) => (
+            {eventosPermitidos.map((ev) => (
               <option key={ev.id} value={ev.id}>
                 {ev.titulo}
               </option>
@@ -136,8 +134,13 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
 
           {eventoSeleccionado.fechas.length > 1 && (
             <select
+              aria-label="Día para consultar ocupación"
               value={idFechaSeleccionada}
-              onChange={(e) => setIdFechaSeleccionada(e.target.value)}
+              onChange={(e) => {
+                if (!eventoSeleccionado.fechas.some(dia => dia.id === e.target.value)) return;
+                setIdFechaSeleccionada(e.target.value);
+                navigate('/staff/ocupacion?eventId=' + encodeURIComponent(eventoSeleccionado.id) + '&dateId=' + encodeURIComponent(e.target.value));
+              }}
               className="px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-800 focus:outline-none"
             >
               {eventoSeleccionado.fechas.map((f, i) => (
@@ -175,7 +178,7 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
           <div className="text-2xl font-black text-neutral-800 mt-1">
             {Math.max(0, idsAsientosReservados.length - idsAsientosCheckIn.length)}
           </div>
-          <span className="text-[11px] text-neutral-400 mt-0.5 block">En camino al recinto</span>
+          <span className="text-[11px] text-neutral-400 mt-0.5 block">Reservados sin entrada registrada</span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-neutral-200 text-center shadow-xs">
