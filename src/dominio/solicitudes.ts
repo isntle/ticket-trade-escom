@@ -4,6 +4,7 @@ import type {
   SolicitudEvento,
   Usuario,
 } from "../tipos";
+import { validarPrograma } from './programa';
 
 export const ZONA_HORARIA = "America/Mexico_City";
 export const HORAS_ANTICIPACION = 168;
@@ -69,6 +70,8 @@ export function validarProgramacion(
       return `${etiqueta}: la fecha y hora de inicio ya pasaron. Selecciona un horario futuro.`;
     if (fin <= inicio)
       return `${etiqueta}: la hora de término debe ser posterior a la de inicio.`;
+    const errorPrograma = validarPrograma({ ...fecha, nombreDia: etiqueta });
+    if (errorPrograma) return errorPrograma;
     if (dias.has(fecha.fecha))
       return `${etiqueta}: ya registraste esa fecha. Cada día debe tener un solo recinto y horario general.`;
     dias.add(fecha.fecha);

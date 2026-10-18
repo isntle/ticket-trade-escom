@@ -8,6 +8,8 @@ import {
   versionSolicitud,
 } from "../dominio/solicitudes";
 import React, { useState } from "react";
+import { EditorPrograma, ProgramaDia } from '../componentes/eventos/EditorPrograma';
+import { EditorCartel } from '../componentes/eventos/EditorCartel';
 import {
   Calendar,
   Clock,
@@ -91,6 +93,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     () => solicitudEnEdicion?.urlImagen,
   );
   const [errorBanner, setErrorBanner] = useState("");
+  const [cargandoBanner, setCargandoBanner] = useState(false);
   const [nombreDocumento, setNombreDocumento] = useState(
     () => solicitudEnEdicion?.nombreDocumento || "",
   );
@@ -155,6 +158,10 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
   );
   const requiereJustificacion = viaExtraordinaria;
   const validarFormulario = (borrador: boolean): boolean => {
+    if (cargandoBanner) {
+      setErrorFormulario('Espera a que termine de prepararse el cartel antes de guardar.');
+      return false;
+    }
     const error = validarProgramacion(fechas, listaRecintos, {
       borrador,
       modalidad,
@@ -239,7 +246,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
   const actualizarFecha = (
     id: string,
     campo: keyof ElementoFechaSolicitada,
-    valor: string,
+    valor: ElementoFechaSolicitada[keyof ElementoFechaSolicitada],
   ) => {
     setFechas((previas) =>
       previas.map((f) => (f.id === id ? { ...f, [campo]: valor } : f)),
@@ -256,46 +263,6 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       lector.onerror = () => reject(new Error("No se pudo leer el archivo."));
       lector.readAsDataURL(archivo);
     });
-
-  const prepararBanner = async (archivo?: File) => {
-    setErrorBanner("");
-    if (!archivo) return;
-    if (
-      !["image/jpeg", "image/png"].includes(archivo.type) ||
-      archivo.size > 5 * 1024 * 1024
-    ) {
-      setErrorBanner("Selecciona una imagen JPEG o PNG de máximo 5 MiB.");
-      return;
-    }
-    let urlTemporal = "";
-    try {
-      const imagen = new Image();
-      urlTemporal = URL.createObjectURL(archivo);
-      await new Promise<void>((resolve, reject) => {
-        imagen.onload = () => resolve();
-        imagen.onerror = () => reject(new Error("No se pudo leer la imagen."));
-        imagen.src = urlTemporal;
-      });
-      const escala = Math.min(1, 1800 / imagen.width, 1200 / imagen.height);
-      const lienzo = document.createElement("canvas");
-      lienzo.width = Math.max(1, Math.round(imagen.width * escala));
-      lienzo.height = Math.max(1, Math.round(imagen.height * escala));
-      const contexto = lienzo.getContext("2d");
-      if (!contexto) throw new Error("No se pudo preparar la vista previa.");
-      contexto.fillStyle = "#ffffff";
-      contexto.fillRect(0, 0, lienzo.width, lienzo.height);
-      contexto.drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
-      const imagenOptimizada = lienzo.toDataURL("image/jpeg", 0.78);
-      if (imagenOptimizada.length > 1_500_000)
-        throw new Error("La imagen optimizada es demasiado grande.");
-      setUrlImagen(imagenOptimizada);
-      setNombreBanner(archivo.name);
-    } catch {
-      setErrorBanner("No se pudo procesar la imagen seleccionada.");
-    } finally {
-      if (urlTemporal) URL.revokeObjectURL(urlTemporal);
-    }
-  };
 
   const prepararDocumento = async (archivo?: File) => {
     setErrorDocumento("");
@@ -755,30 +722,9 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-              <label className="text-sm font-semibold text-neutral-800">
-                Cartel o imagen del evento (opcional, JPEG/PNG, máximo 5 MiB)
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png"
-                  onChange={(e) => {
-                    void prepararBanner(e.currentTarget.files?.[0]);
-                  }}
-                  className="mt-2 block w-full text-sm"
-                />
-                {nombreBanner && (
-                  <span className="mt-1 block font-normal text-emerald-700">
-                    Imagen lista: {nombreBanner}
-                  </span>
-                )}
-                {errorBanner && (
-                  <span
-                    role="alert"
-                    className="mt-1 block font-normal text-rose-700"
-                  >
-                    {errorBanner}
-                  </span>
-                )}
-              </label>
+              <EditorCartel urlImagen={urlImagen} nombre={nombreBanner}
+                alCambiar={(url, nombre) => { setUrlImagen(url); setNombreBanner(nombre); }}
+                alCambiarEstado={({ cargando, error }) => { setCargandoBanner(cargando); setErrorBanner(error); }} />
               <label className="text-sm font-semibold text-neutral-800">
                 Documento de respaldo (PDF/JPEG/PNG, máximo 1 MiB)
                 <input
@@ -803,13 +749,6 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                   </span>
                 )}
               </label>
-              {urlImagen && (
-                <img
-                  src={urlImagen}
-                  alt="Vista previa del cartel del evento"
-                  className="max-h-80 w-full rounded-lg bg-neutral-50 object-contain sm:col-span-2"
-                />
-              )}
             </div>
 
             {/* Parámetros integrados de asistencia, visibilidad y aforo */}
@@ -1055,27 +994,9 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                         />
                       </div>
                     </details>
-                    {/* Programa / Actividades específicas de este día */}
-                    <div>
-                      <label className="block font-semibold text-neutral-700 mb-1 text-sm">
-                        Programa o Actividades Previstas para {etiquetaDia}{" "}
-                        (opcional)
-                      </label>
-                      <input
-                        type="text"
-                        aria-label={`Programa del ${etiquetaDia}`}
-                        value={f.actividadOPrograma || ""}
-                        onChange={(e) =>
-                          actualizarFecha(
-                            f.id,
-                            "actividadOPrograma",
-                            e.target.value,
-                          )
-                        }
-                        placeholder="ej: 10:00 Conferencia inaugural, 11:30 Panel de debate, 13:00 Ronda de preguntas"
-                        className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 text-sm focus:outline-none focus:border-[#7a132b]"
-                      />
-                    </div>
+                    <EditorPrograma nombreDia={etiquetaDia} programa={f.programa || []}
+                      textoAnterior={f.actividadOPrograma}
+                      alCambiar={programa => actualizarFecha(f.id, 'programa', programa)} />
                   </div>
                 );
               })}
@@ -1193,6 +1114,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                   <strong>{dia.nombreDia || "Día " + (i + 1)}</strong>:{" "}
                   {dia.fecha} · {dia.horaInicio}–{dia.horaFin} ·{" "}
                   {listaRecintos.find((r) => r.id === dia.idRecinto)?.nombre}
+                  <ProgramaDia programa={dia.programa} />
                 </li>
               ))}
             </ul>
