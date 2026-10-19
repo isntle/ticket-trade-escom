@@ -65,6 +65,7 @@ export const DetalleSolicitudPagina: React.FC<{
   navigate: (ruta: string) => void;
 }> = ({ requestId, navigate }) => {
   const {
+    calendarioRevision,
     listaSolicitudes,
     listaRecintos,
     listaEventos,
@@ -354,6 +355,7 @@ export const DetalleSolicitudPagina: React.FC<{
               </div>
             )}
           </section>
+          <section className={seccion}><h2 className="text-lg font-bold">Plazos de revisión</h2><p className="mt-3 text-sm">Envío inicial: {formatoFecha(solicitud.fechaEnvioInicial || solicitud.fechaCreacion)}</p>{solicitud.estado==='requiere_correccion'?<><p className="mt-2">Revisión pausada. Tiempo restante: {solicitud.tiempoRevisionRestanteMs===undefined?'Sin plazo calculado':Math.ceil(solicitud.tiempoRevisionRestanteMs/3600000)+' horas'}.</p><p>Corrección hasta: {solicitud.fechaLimiteCorreccion?formatoFecha(solicitud.fechaLimiteCorreccion):'Sin registrar'}.</p></>:<p className="mt-2">Vencimiento de revisión: {solicitud.fechaVencimientoRevision?formatoFecha(solicitud.fechaVencimientoRevision):'Sin plazo calculado para este registro anterior'}.</p>}{!calendarioRevision&&<p className="mt-3 text-amber-800">Administración debe configurar el calendario hábil antes de recibir solicitudes nuevas.</p>}<p className="mt-2 text-sm text-neutral-500">Hora de Ciudad de México. El vencimiento se comprueba al consultar y mientras la aplicación está abierta; el proceso de servidor se integra con la base de datos.</p></section>
           <section className={seccion}>
             <h2 className="text-lg font-bold">Días, horarios y recintos</h2>
             <p className="mt-1 text-sm text-neutral-500">

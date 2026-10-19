@@ -218,7 +218,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-01",
         nombre: "Preparar borrador de solicitud",
         actor: "Solicitante verificado",
-        interfaz: "UI.03 · Detalle de solicitud",
+        interfaz: "UI.03 → UI.16 · Solicitud y expediente",
         descripcion:
           "El solicitante captura la información del evento y conserva los datos como borrador antes de enviarlos.",
         ruta: "/solicitar-evento",
@@ -229,7 +229,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-02",
         nombre: "Consultar historial de solicitudes propias",
         actor: "Solicitante verificado",
-        interfaz: "UI.02 · Historial de solicitudes propias",
+        interfaz: "UI.02 → UI.16 · Historial y expediente",
         descripcion:
           "Consulta sus trámites, estados, versiones, observaciones y abre su detalle.",
         ruta: "/organizador",
@@ -240,7 +240,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-03",
         nombre: "Revisar y resolver solicitud ordinaria",
         actor: "Subdirección",
-        interfaz: "UI.06–UI.07 · Solicitudes y detalle",
+        interfaz: "UI.06 → UI.16 · Solicitudes y expediente",
         descripcion:
           "Revisa la solicitud y puede autorizarla, devolverla para corrección o rechazarla con motivo.",
         ruta: "/subdireccion",
@@ -253,7 +253,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-04",
         nombre: "Consultar catálogo y detalle de recintos",
         actor: "Solicitante verificado",
-        interfaz: "UI.05–UI.06 · Catálogo y detalle de recinto",
+        interfaz: "UI.14 → UI.15 · Catálogo y calendario del recinto",
         descripcion:
           "Consulta características, capacidad, distribución y disponibilidad antes de elegir un espacio.",
         ruta: "/recintos",
@@ -265,17 +265,17 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-05",
         nombre: "Configurar arreglo de asientos",
         actor: "Organizador",
-        interfaz: "UI.07 · Editor de arreglos",
+        interfaz: "UI.03 → UI.07 · Distribución antes del envío",
         descripcion: "Configura lugares para un día y recinto del evento.",
-        ruta: "/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos",
-        control: "Crear primera distribución / Confirmar versión final",
+        ruta: "/solicitar-evento?distribucion=1",
+        control: "Configurar distribución del Día 1 → Confirmar distribución del Día 1",
         respuesta: "Guarda la distribución del día seleccionado.",
       },
       {
         id: "CU-OR-06.1",
         nombre: "Enviar solicitud ordinaria",
         actor: "Solicitante verificado",
-        interfaz: "UI.03 y UI.08 · Solicitud y revisión",
+        interfaz: "UI.03 → UI.08 → UI.16 · Envío ordinario",
         descripcion:
           "Confirma el envío de la solicitud ordinaria y consulta su folio y estado.",
         ruta: "/solicitar-evento",
@@ -286,7 +286,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-06.2",
         nombre: "Enviar solicitud extraordinaria",
         actor: "Solicitante verificado",
-        interfaz: "UI.09 y UI.08 · Preparación y revisión extraordinaria",
+        interfaz: "UI.03 → UI.08 → UI.16 · Envío extraordinario",
         descripcion:
           "Captura la justificación y confirma el envío extraordinario para revisión prioritaria.",
         ruta: "/solicitar-evento?tipo=extraordinaria",
@@ -298,7 +298,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-07",
         nombre: "Editar solicitud en revisión",
         actor: "Solicitante verificado",
-        interfaz: "UI.03 · Detalle de solicitud",
+        interfaz: "UI.16 → UI.04 · Edición de solicitud",
         descripcion:
           "Edita los datos permitidos de una solicitud en revisión y guarda la nueva versión.",
         ruta: "/organizador/solicitudes/sol-revision-ordinaria-demo",
@@ -309,7 +309,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-08",
         nombre: "Corregir solicitud devuelta",
         actor: "Solicitante verificado",
-        interfaz: "UI.04 · Corrección de solicitud",
+        interfaz: "UI.16 → UI.04 · Corrección de solicitud",
         descripcion:
           "Atiende las observaciones dentro del plazo y reenvía el trámite corregido.",
         ruta: "/organizador/solicitudes/sol-correccion-demo",
@@ -320,7 +320,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-09",
         nombre: "Cancelar solicitud pendiente",
         actor: "Solicitante verificado",
-        interfaz: "UI.05 · Confirmación de cancelación",
+        interfaz: "UI.16 → UI.05 · Cancelación de solicitud",
         descripcion:
           "Confirma la cancelación de un borrador o trámite aún no resuelto.",
         ruta: "/organizador/solicitudes/sol-borrador-demo",
@@ -331,7 +331,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-10",
         nombre: "Atender solicitud extraordinaria",
         actor: "Subdirección",
-        interfaz: "UI.06–UI.07 · Solicitudes y detalle",
+        interfaz: "UI.06 → UI.16 · Revisión extraordinaria",
         descripcion:
           "Revisa la justificación, urgencia y disponibilidad, y emite una decisión motivada.",
         ruta: "/subdireccion",
@@ -343,7 +343,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-11",
         nombre: "Crear evento propio (Autoaprobación)",
         actor: "Subdirección",
-        interfaz: "UI.08 · Crear evento propio",
+        interfaz: "UI.17 · Creación de evento institucional",
         descripcion:
           "Registra y publica directamente un evento institucional, omitiendo la bandeja de revisión y la anticipación de 168 horas.",
         ruta: "/subdireccion?tab=evento_directo",
@@ -355,7 +355,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-12",
         nombre: "Aplicar excepción de anticipación",
         actor: "Subdirección",
-        interfaz: "UI.09–UI.10 · Edición y modal de excepción",
+        interfaz: "UI.20 → UI.21 · Excepción de anticipación",
         descripcion:
           "Reprograma un evento a menos de 168 horas con justificación, validación de disponibilidad y registro del motivo.",
         ruta: "/organizador/eventos/evt-simposio-ia",
@@ -368,7 +368,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         nombre: "Configurar arreglo del recinto",
         actor: "Organizador",
         interfaz:
-          "UI-ORG-01 → UI-ORG-02 → UI-ORG-03 · Mis eventos, detalle y configuración del arreglo",
+          "UI.01 → UI.20 → UI.07 · Distribución de lugares",
         descripcion:
           "Abre un evento, selecciona una fecha y configura el arreglo de lugares correspondiente.",
         ruta: "/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos",
@@ -380,7 +380,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         nombre: "Gestionar versiones de arreglos",
         actor: "Organizador",
         interfaz:
-          "UI-ORG-01 → UI-ORG-02 → UI-ORG-04 · Mis eventos, detalle e historial de versiones",
+          "UI.07 · Versiones de distribución",
         descripcion:
           "Consulta el historial de arreglos guardados y revisa sus versiones desde el detalle del evento.",
         ruta: "/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos",
@@ -392,7 +392,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         nombre: "Establecer versión final del arreglo",
         actor: "Organizador",
         interfaz:
-          "UI-ORG-01 → UI-ORG-02 → UI-ORG-04 · Mis eventos, detalle e historial de versiones",
+          "UI.07 · Versión final de distribución",
         descripcion:
           "Selecciona una versión guardada y la establece como arreglo final vigente.",
         ruta: "/organizador/eventos/evt-taller-devops-config/fechas/fec-devops-d1/arreglos",
@@ -404,7 +404,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         nombre: "Consultar constancia operativa",
         actor: "Organizador",
         interfaz:
-          "UI-ORG-01 → UI-ORG-02 → UI-ORG-08 · Mis eventos, detalle y constancia operativa",
+          "UI.20 → UI.22 · Constancia operativa",
         descripcion:
           "Desde el detalle del evento selecciona «Imprimir constancia operativa» para consultar e imprimir la constancia con sus días aprobados.",
         ruta: "/organizador/eventos/evt-simposio-ia",
@@ -416,7 +416,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         nombre: "Modificar información de un evento aprobado",
         actor: "Organizador",
         interfaz:
-          "UI-ORG-01 → UI-ORG-02 → UI-ORG-05 → UI-ORG-07 · Mis eventos, detalle, edición y confirmación",
+          "UI.20 → UI.21 · Información y confirmación",
         descripcion:
           "Edita los datos permitidos del evento y revisa los cambios antes de confirmarlos.",
         ruta: "/organizador/eventos/evt-simposio-ia",
@@ -429,7 +429,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         nombre: "Reprogramar fecha u horario de un evento",
         actor: "Organizador o Subdirección",
         interfaz:
-          "UI-ORG-01 → UI-ORG-02 → UI-ORG-06 → UI-ORG-07 · Mis eventos, detalle, programación y confirmación",
+          "UI.20 → UI.21 · Reprogramación del día",
         descripcion:
           "Propone fecha u horario; el sistema comprueba disponibilidad y solicita confirmación o la excepción institucional correspondiente.",
         ruta: "/organizador/eventos/evt-simposio-ia",
@@ -441,7 +441,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         nombre: "Cambiar recinto de una fecha aprobada",
         actor: "Organizador",
         interfaz:
-          "UI-ORG-01 → UI-ORG-02 → UI-ORG-06 → UI-ORG-07 · Mis eventos, detalle, cambio de recinto y confirmación",
+          "UI.20 → UI.21 · Cambio de recinto",
         descripcion:
           "Propone otro recinto para un día y confirma el cambio después de validar capacidad, disponibilidad y compromisos.",
         ruta: "/organizador/eventos/evt-simposio-ia",
@@ -453,7 +453,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         nombre: "Retirar una fecha o sesión sin compromisos",
         actor: "Organizador",
         interfaz:
-          "UI-ORG-01 → UI-ORG-02 → UI-ORG-07 · Mis eventos, detalle y confirmación",
+          "UI.20 → UI.21 · Retiro de día",
         descripcion:
           "Retira un día sin reservaciones ni otros compromisos, previa confirmación del cambio.",
         ruta: "/organizador/eventos/evt-simposio-ia",
@@ -464,7 +464,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-23",
         nombre: "Cancelar evento aprobado",
         actor: "Organizador",
-        interfaz: "UI-ORG-01 → UI-ORG-02 · Mis eventos y detalle del evento",
+        interfaz: "UI.20 → UI.21 · Cancelación de evento",
         descripcion:
           "Desde el detalle solicita y confirma la cancelación del evento después de revisar sus afectaciones.",
         ruta: "/organizador/eventos/evt-simposio-ia",
@@ -476,7 +476,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         nombre: "Cancelar una fecha o sesión de un evento",
         actor: "Organizador",
         interfaz:
-          "UI-ORG-01 → UI-ORG-02 → UI-ORG-07 · Mis eventos, detalle y confirmación",
+          "UI.20 → UI.21 · Cancelación de día",
         descripcion:
           "Cancela un día específico tras revisar sus reservaciones y boletos, conservando los demás días.",
         ruta: "/organizador/eventos/evt-simposio-ia",
@@ -488,7 +488,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         nombre: "Resolver fecha suspendida por bloqueo institucional",
         actor: "Organizador o Subdirección",
         interfaz:
-          "UI-ORG-01 → UI-ORG-09 → UI-ORG-07 · Mis eventos, resolución de suspensión y confirmación",
+          "UI.20 → UI.21 · Resolución de día suspendido",
         descripcion:
           "Reprograma o cancela un día suspendido por un bloqueo institucional y confirma la resolución.",
         ruta: "/organizador/eventos/evt-simposio-ia",
@@ -499,7 +499,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-26",
         nombre: "Administrar catálogo de recintos",
         actor: "Administrador",
-        interfaz: "UI.02–UI.05 · Catálogo administrativo",
+        interfaz: "UI.18 · Administración de recintos",
         descripcion:
           "Registra, actualiza y activa o desactiva recintos institucionales.",
         ruta: "/admin/recintos",
@@ -510,7 +510,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-27",
         nombre: "Gestionar ocupaciones internas",
         actor: "Administrador",
-        interfaz: "UI.06–UI.08 · Agenda y ocupación interna",
+        interfaz: "UI.19 · Actividades internas",
         descripcion:
           "Registra y cancela actividades internas que afectan la disponibilidad de los recintos.",
         ruta: "/admin/ocupaciones",
@@ -521,7 +521,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CU-OR-28",
         nombre: "Gestionar bloqueos institucionales",
         actor: "Administrador",
-        interfaz: "UI.09–UI.12 · Gestión de bloqueos",
+        interfaz: "UI.09 → UI.10 → UI.11 → UI.12 · Bloqueos y afectaciones",
         descripcion:
           "Registra y mantiene bloqueos institucionales, consultando el impacto en los recintos.",
         ruta: "/subdireccion?tab=bloqueos",
@@ -823,7 +823,7 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({
   const [casoActivo, setCasoActivo] = useState<string | null>("CU-ID01");
   const [escenarioActivo, setEscenarioActivo] = useState<string | null>(null);
   const { cambiarUsuario, cambiarRolActivo } = useAutenticacion();
-  const { listaEventos } = useDatos();
+  const { listaEventos, prepararSuspensionDemostracion, prepararSolicitudDemostracion } = useDatos();
   const { mostrarNotificacion } = useNotificaciones();
 
   const equipo = useMemo(
@@ -851,6 +851,20 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({
     if (perfilDemo) {
       cambiarUsuario(perfilDemo.usuario);
       cambiarRolActivo(perfilDemo.rol);
+    }
+    if(['CU-OR-07','CU-OR-08','CU-OR-09'].includes(caso.id)){
+      const resultado=prepararSolicitudDemostracion(caso.id==='CU-OR-08'?'requiere_correccion':'en_revision');
+      if(!resultado.exito){mostrarNotificacion('No se preparó el escenario',resultado.error||'','error');return;}
+      setEstaAbierto(false);navegarA('/organizador/solicitudes/'+resultado.id);
+      mostrarNotificacion('Solicitud de demostración','Puedes seguir el recorrido desde este expediente vigente.','informacion');
+      return;
+    }
+    if(caso.id==='CU-OR-25'){
+      const resultado=prepararSuspensionDemostracion();
+      if(!resultado.exito){mostrarNotificacion('No se preparó el escenario',resultado.error||'','error');return;}
+      setEstaAbierto(false);navegarA('/organizador/eventos/'+resultado.id);
+      mostrarNotificacion('Día suspendido de demostración','Puedes reprogramarlo o cancelarlo desde su configuración.','informacion');
+      return;
     }
     if (caso.ruta) {
       setEstaAbierto(false);

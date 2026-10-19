@@ -23,8 +23,13 @@ export function resolverRutaDocumentacion(
         inicioEnMexico(fecha.fecha, fecha.horaInicio) > ahora.getTime(),
     ),
   );
+  if(caso.id==='CU-OR-25') {
+    const suspendido=propios.find(e=>e.fechas.some(d=>d.suspendida&&!d.cancelada&&inicioEnMexico(d.fecha,d.horaInicio)>ahora.getTime()));
+    return suspendido ? '/organizador/eventos/'+suspendido.id : '/organizador?estado=suspendidos';
+  }
   if (caso.ruta.includes("/arreglos")) {
     const evento =
+      futuros.find(item=>['CU-OR-16','CU-OR-17'].includes(caso.id)&&item.fechas.some(d=>d.esFinalConfirmado&&!d.cancelada&&!d.suspendida&&inicioEnMexico(d.fecha,d.horaInicio)>ahora.getTime())) ||
       futuros.find((item) => item.id === "evt-taller-devops-config") ||
       futuros[0];
     const fecha = evento?.fechas.find(

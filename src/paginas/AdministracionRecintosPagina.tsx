@@ -1,3 +1,4 @@
+import { ConfiguracionCalendarioRevision } from '../componentes/recintos/CalendarioRevision';
 import React, { useState } from 'react';
 import { ArrowLeft, Building2, CalendarDays, Plus, Save, XCircle } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
@@ -58,7 +59,7 @@ export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupac
   return <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
     <button onClick={() => navigate('/admin')} className="mb-5 inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-950"><ArrowLeft size={16}/>Volver a administración</button>
     <header className="mb-6"><p className="text-sm font-bold  text-[#7a132b]">Organización y recintos</p><h1 className="text-2xl font-black mt-1">{modo === 'catalogo' ? 'Administrar recintos' : 'Actividades internas'}</h1><p className="text-sm text-neutral-600 mt-2">{modo === 'catalogo' ? 'Consulta, registra y actualiza la información y el estado de los espacios.' : 'Registra actividades institucionales y consulta su impacto en la agenda.'}</p></header>
-    {modo === 'catalogo' ? <>
+    {modo === 'catalogo' ? <><ConfiguracionCalendarioRevision/>
       <div className="flex justify-end mb-4"><button onClick={() => abrirEdicion()} className="inline-flex items-center gap-2 rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-bold text-white"><Plus size={16}/>Agregar recinto</button></div>
       <section className="grid gap-3 md:grid-cols-2">{listaRecintos.map((recinto) => <article key={recinto.id} className="rounded-2xl border border-neutral-200 bg-white p-5">
         <div className="flex justify-between gap-3"><div className="flex gap-3"><Building2 className="mt-1 text-[#7a132b]"/><div><h2 className="font-bold">{recinto.nombre}</h2><p className="text-sm text-neutral-500">{recinto.codigo} · {recinto.tipo} · capacidad {recinto.capacidad}</p></div></div><span className={`h-fit rounded-full px-2 py-1 text-sm font-semibold ${recinto.activo === false ? 'bg-neutral-100 text-neutral-600' : 'bg-emerald-50 text-emerald-700'}`}>{recinto.activo === false ? 'Desactivado' : 'Activo'}</span></div>

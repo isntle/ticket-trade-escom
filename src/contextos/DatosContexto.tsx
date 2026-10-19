@@ -35,19 +35,32 @@ import {
   generarEstacionesLaboratorio
 } from '../datos/datosIniciales';
 import { useAutenticacion } from './AutenticacionContexto';
-import { registrarCambioSolicitud, validarAnticipacionSolicitud, validarProgramacion, versionSolicitud } from '../dominio/solicitudes';
+import { inicioEnMexico, registrarCambioSolicitud, validarAnticipacionSolicitud, validarProgramacion, versionSolicitud } from '../dominio/solicitudes';
 import { generarIdentificadorQr } from '../utilidades/identificadores';
 import { convertirDiasSolicitud } from '../dominio/programa';
 import { guardarLoteLocal } from '../dominio/almacenamiento';
 import { restriccionIdentidadVigente, verificacionIdentidadVigente } from '../dominio/identidad';
 
+import { modoDemostracionActivo } from '../dominio/demostracion';
+import { escenarioSuspension } from '../dominio/escenarioSuspension';
+import { duracionProgramada, validarLimitesEvento, puedeModificarEvento } from '../dominio/cambiosEvento';
+import { afectaBloqueo, revisarBloqueo, type PropuestaBloqueo } from '../dominio/bloqueos';
+import { CLAVE_CALENDARIO, validarCalendario, vencimientoRevision, motivoVencimiento, pausarRevision, reanudarRevision, type CalendarioRevision } from '../dominio/calendarioRevision';
+import { validarDistribuciones, arregloDesdeSolicitud, lugaresDelRecinto } from '../dominio/distribucionSolicitud';
 interface ContextoDatosTipo {
+  prepararSolicitudDemostracion: (estado:'en_revision'|'requiere_correccion') => {exito:boolean;error?:string;id?:string};
+  prepararSuspensionDemostracion: () => {exito:boolean;error?:string;id?:string};
+  calendarioRevision: CalendarioRevision | null;
+  guardarCalendarioRevision: (datos: CalendarioRevision) => {exito:boolean;error?:string};
   listaEventos: Evento[];
   listaSolicitudes: SolicitudEvento[];
   listaRecintos: Recinto[];
   listaOcupacionesInternas: OcupacionInterna[];
   listaArreglos: ArregloAsientos[];
   listaBloqueos: BloqueoRecinto[];
+  revisarBloqueoInstitucional: (datos: PropuestaBloqueo, id?:string) => {afectados?: ReturnType<typeof revisarBloqueo>['afectados']; firma?:string; error?:string};
+  guardarBloqueoInstitucional: (datos:PropuestaBloqueo,id?:string,version?:number,firma?:string) => {exito:boolean;error?:string;id?:string;version?:number};
+  cancelarBloqueoInstitucional: (id:string,motivo:string,version?:number) => {exito:boolean;error?:string};
   listaReservaciones: Reservacion[];
   listaBoletos: BoletoDigital[];
   listaEspera: EntradaListaEspera[];
@@ -120,6 +133,7 @@ interface ContextoDatosTipo {
   ) => { exito: boolean; error?: string };
 
   crearEventoInstitucionalDirecto: (datosEvento: Partial<Evento>) => Evento;
+  cancelarUnidadEvento: (idEvento:string,idFecha:string|undefined,motivo:string,retirar:boolean,versionEsperada:string) => {exito:boolean;error?:string};
   actualizarEvento: (idEvento: string, parcial: Partial<Evento>, versionEsperada?: string) => { exito: boolean; error?: string };
   publicarEvento: (idEvento: string) => { exito: boolean; error?: string };
   agregarFechaEvento: (
@@ -219,8 +233,6 @@ interface ContextoDatosTipo {
     mensaje: string;
   };
 
-  crearBloqueoRecinto: (bloqueo: Omit<BloqueoRecinto, 'id' | 'fechaCreacion'>) => BloqueoRecinto;
-  eliminarBloqueoRecinto: (idBloqueo: string) => void;
   guardarRecinto: (recinto: Recinto) => void;
   crearOcupacionInterna: (ocupacion: Omit<OcupacionInterna, 'id' | 'fechaCreacion' | 'estado'>) => OcupacionInterna;
   cancelarOcupacionInterna: (id: string) => void;
@@ -242,33 +254,22 @@ const obtenerEstadoInscripciones = (
   fecha: Evento['fechas'][0],
   estadoEvento: Evento['estado']
 ): EstadoInscripciones =>
-  fecha.estadoInscripciones ||
+  fecha.cancelada || fecha.suspendida ? 'cerradas' : fecha.estadoInscripciones ||
   (estadoEvento === 'publicado' || estadoEvento === 'en_curso' ? 'abiertas' : 'cerradas');
 
-const bloqueoAfectaSesion = (
-  bloqueo: BloqueoRecinto,
-  fecha: Evento['fechas'][0]
-): boolean => {
-  const aplicaRecinto =
-    bloqueo.idRecinto === fecha.idRecinto ||
-    bloqueo.idRecinto === 'todos' ||
-    Boolean(bloqueo.idsRecintos?.includes(fecha.idRecinto));
-
-  if (!aplicaRecinto || fecha.fecha < bloqueo.fechaInicio) return false;
-  if (bloqueo.esIndefinido) return true;
-
-  const fechaFin = bloqueo.fechaFin || bloqueo.fechaInicio;
-  const horaInicio = bloqueo.horaInicio || '00:00';
-  const horaFin = bloqueo.horaFin || '23:59';
-  return (
-    fecha.fecha <= fechaFin &&
-    fecha.horaInicio < horaFin &&
-    fecha.horaFin > horaInicio
-  );
-};
+const bloqueoAfectaSesion = afectaBloqueo;
 
 export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { usuarioActual, refrescarUsuarios } = useAutenticacion();
+  const { usuarioActual, refrescarUsuarios, todosLosUsuarios } = useAutenticacion();
+  const [calendarioRevision, setCalendarioRevision] = useState<CalendarioRevision | null>(() => { try {return JSON.parse(localStorage.getItem(CLAVE_CALENDARIO) || 'null');} catch {return null;} });
+  const guardarCalendarioRevision = (datos: CalendarioRevision) => {
+    if (!usuarioActual?.roles.includes('admin')) return {exito:false,error:'Solo Administración configura el calendario hábil.'};
+    const error = validarCalendario(datos); if(error) return {exito:false,error};
+    const nuevo = {...datos, diasLaborables:[...new Set(datos.diasLaborables)], diasInhabiles:[...new Set(datos.diasInhabiles)], responsable:usuarioActual.nombre,fechaConfiguracion:new Date().toISOString()};
+    const solicitudes=listaSolicitudes.map(s=>s.estado==='en_revision'&&!s.fechaVencimientoRevision?{...s,fechaVencimientoRevision:vencimientoRevision(s.fechaEnvioInicial||s.fechaCreacion,nuevo)}:s);
+    const resultado=guardarLoteLocal(localStorage,{[CLAVE_CALENDARIO]:nuevo,[`${CLAVE_ALMACEN_DATOS}_solicitudes`]:solicitudes});
+    if(resultado.exito){setCalendarioRevision(nuevo);setListaSolicitudes(solicitudes);} return resultado;
+  };
   const [listaEventos, setListaEventos] = useState<Evento[]>(() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_eventos`);
     return g ? JSON.parse(g) : EVENTOS_INICIALES;
@@ -479,39 +480,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         tituloConflicto: 'Recinto no disponible'
       };
     }
-    // 1. Validar contra bloqueos de Subdirección (específicos o generales)
-    for (const b of listaBloqueos) {
-      const aplicaRecinto =
-        b.idRecinto === idRecinto ||
-        b.idRecinto === 'todos' ||
-        (b.idsRecintos && b.idsRecintos.includes(idRecinto));
-
-      if (aplicaRecinto) {
-        if (b.esIndefinido && fecha >= b.fechaInicio) {
-          return {
-            disponible: false,
-            codigoMensaje: 'MSG-VENUE-003',
-            motivo: `Recinto bajo bloqueo oficial indefinido: "${b.titulo}" (${b.motivo})`,
-            tipoConflicto: 'bloqueo',
-            tituloConflicto: b.titulo
-          };
-        }
-        const fechaFinBloqueo = b.fechaFin || b.fechaInicio;
-        if (fecha >= b.fechaInicio && fecha <= fechaFinBloqueo) {
-          const inicioB = b.horaInicio || '00:00';
-          const finB = b.horaFin || '23:59';
-          if (horaInicio < finB && horaFin > inicioB) {
-            return {
-              disponible: false,
-              codigoMensaje: 'MSG-VENUE-003',
-              motivo: `Bloqueo institucional programado: "${b.titulo}" (${inicioB} a ${finB}) — Motivo: ${b.motivo}`,
-              tipoConflicto: 'bloqueo',
-              tituloConflicto: b.titulo
-            };
-          }
-        }
-      }
-    }
+    const bloqueo=listaBloqueos.find(b=>afectaBloqueo(b,{id:'',idEvento:'',idRecinto,fecha,horaInicio,horaFin,esFinalConfirmado:false,ponentes:[]}));
+    if(bloqueo)return {disponible:false,codigoMensaje:'MSG-VENUE-003',motivo:'Bloqueo institucional: '+bloqueo.titulo,tipoConflicto:'bloqueo',tituloConflicto:bloqueo.titulo};
 
     // 2. Validar contra clases docentes regulares si el recinto es un laboratorio
     const fechaObj = new Date(`${fecha}T12:00:00Z`);
@@ -561,7 +531,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     for (const evento of listaEventos) {
       if (evento.estado === 'cancelado') continue;
       for (const fec of evento.fechas) {
-        if (idFechaEventoExcluir && fec.id === idFechaEventoExcluir) continue;
+        if (fec.cancelada || fec.suspendida || (idFechaEventoExcluir && fec.id === idFechaEventoExcluir)) continue;
         const coincideRecinto =
           fec.idRecinto === idRecinto ||
           (idRecinto === 'rec-lab-3' && fec.idRecinto === 'rec-lab-computo-3') ||
@@ -635,6 +605,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     for (const evento of listaEventos) {
       if (evento.estado === 'cancelado') continue;
       for (const fec of evento.fechas) {
+        if (fec.cancelada || fec.suspendida) continue;
         const coincideRecinto =
           fec.idRecinto === idRecinto ||
           (idRecinto === 'rec-lab-3' && fec.idRecinto === 'rec-lab-computo-3') ||
@@ -782,6 +753,16 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  useEffect(() => {
+    const cerrarVencidas = () => {
+      const actuales: SolicitudEvento[] = JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_solicitudes`) || 'null') || listaSolicitudes;
+      let cambiaron=false;
+      const nuevas=actuales.map(s=>{const motivo=motivoVencimiento(s);if(!motivo)return s;cambiaron=true;return registrarCambioSolicitud(s,{estado:'rechazada',motivoRechazo:motivo,fechaRevision:new Date().toISOString(),revisadoPor:'Vencimiento automático'},'Sistema','Rechazo por vencimiento',motivo);});
+      if(cambiaron) persistirSolicitudes(nuevas);
+    };
+    cerrarVencidas(); const intervalo=setInterval(cerrarVencidas,30000); return ()=>clearInterval(intervalo);
+  }, [listaSolicitudes]);
+
   const solicitudVigente = (id: string) => {
     const guardadas = localStorage.getItem(
       `${CLAVE_ALMACEN_DATOS}_solicitudes`,
@@ -809,6 +790,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         aforo: datos.asistenciaEstimada,
       }) || validarAnticipacionSolicitud(datos);
     if (error) throw new Error(error);
+    const errorDistribucion=validarDistribuciones(datos,listaRecintos);
+    if(errorDistribucion) throw new Error(errorDistribucion);
+    if(!calendarioRevision) throw new Error('Administración debe configurar el calendario hábil de revisión antes del envío.');
     const ahora = new Date().toISOString();
     const nuevaSolicitud: SolicitudEvento = {
       ...datos,
@@ -816,6 +800,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       estado: "en_revision",
       fechaCreacion: ahora,
       fechaEnvioInicial: ahora,
+      fechaVencimientoRevision: vencimientoRevision(ahora,calendarioRevision),
       version: 1,
     };
     const resultado = persistirSolicitudes([
@@ -877,6 +862,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         exito: false,
         error: "Solo Subdirección puede resolver solicitudes.",
       };
+    if (solicitud && motivoVencimiento(solicitud)) return {exito:false,error:motivoVencimiento(solicitud)};
     if (!solicitud || solicitud.estado !== "en_revision")
       return { exito: false, error: "La solicitud ya no está en revisión." };
     if (
@@ -908,6 +894,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         },
       );
       if (error) return { exito: false, error };
+      const errorDistribucion=validarDistribuciones(solicitud,listaRecintos);
+      if(errorDistribucion) return {exito:false,error:errorDistribucion};
       for (const fecha of solicitud.fechasSolicitadas) {
         const disponibilidad = verificarDisponibilidadRecinto(
           fecha.idRecinto,
@@ -961,8 +949,10 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
           categoria: "Académico",
           visibilidad: sol.visibilidad,
           modalidadAsistencia: sol.modalidadAsistencia,
-          estado: "configuracion",
-          fechas: fechasConvertidas,
+          estado: "publicado",
+          fechaPublicacion: new Date().toISOString(),
+          limitesAprobados:{numeroFechas:fechasConvertidas.length,duracionMinutos:duracionProgramada(fechasConvertidas)},
+          fechas: fechasConvertidas.map((f,i)=>({...f,esFinalConfirmado:true,idArregloFinal:sol.modalidadAsistencia==="controlado"?`arr-${f.id}-aprobado`:undefined})),
           aforoMaximo: sol.asistenciaEstimada,
           ponentes: [...new Set(fechasConvertidas.flatMap((dia) => dia.ponentes))],
           etiquetas: ["ESCOM", sol.modalidadAsistencia],
@@ -970,45 +960,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
         eventosNuevos = [nuevoEvento, ...eventosNuevos];
 
-        // Crear borradores iniciales de arreglo para cada fecha
-        fechasConvertidas.forEach((f) => {
-          const recinto = listaRecintos.find((item) => item.id === f.idRecinto)!;
-          const asientos = recinto.tipo === "auditorio"
-            ? generarAsientosAuditorio()
-            : recinto.tipo === "laboratorio"
-              ? generarEstacionesLaboratorio(recinto.codigo)
-              : generarAsientosSala14();
-
-          const total = asientos.filter((a) => !a.estaEliminado).length;
-          const nuevoArreglo: ArregloAsientos = {
-            id: `arr-${f.id}-borrador`,
-            idFechaEvento: f.id,
-            idRecinto: f.idRecinto,
-            nombre: "Borrador Inicial 1",
-            etiquetaVersion: "v1.0-borrador",
-            estado: "borrador",
-            asientos,
-            totalAsientos: total,
-            asientosAsistente: asientos.filter(
-              (a) => a.categoria === "asistente" && !a.estaEliminado,
-            ).length,
-            asientosVip: asientos.filter(
-              (a) => a.categoria === "vip" && !a.estaEliminado,
-            ).length,
-            asientosOrganizador: asientos.filter(
-              (a) => a.categoria === "organizador" && !a.estaEliminado,
-            ).length,
-            asientosStaff: asientos.filter(
-              (a) => a.categoria === "staff" && !a.estaEliminado,
-            ).length,
-            asientosBloqueados: asientos.filter(
-              (a) => a.estaBloqueado && !a.estaEliminado,
-            ).length,
-            asientosSinAsignar: 0,
-            fechaCreacion: new Date().toISOString(),
-          };
-          arreglosNuevos = [...arreglosNuevos, nuevoArreglo];
-        });
+        if(sol.modalidadAsistencia==='controlado') {
+          arreglosNuevos=[...arreglosNuevos,...fechasConvertidas.map((f,i)=>arregloDesdeSolicitud(sol.fechasSolicitadas[i],f.id))];
+        }
       }
     }
     if (decision !== 'autorizada') return persistirSolicitudes(solicitudesNuevas);
@@ -1103,9 +1057,11 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         error: "La versión cambió. Revisa la solicitud actualizada.",
       };
     }
+    if(motivoVencimiento(solicitud)) return {exito:false,error:motivoVencimiento(solicitud)};
     const nueva = registrarCambioSolicitud(
       solicitud,
       {
+        ...pausarRevision(solicitud),
         estado: "requiere_correccion",
         observacionesCorreccion: observaciones.trim(),
         fechaLimiteCorreccion: new Date(Date.now() + 86400000).toISOString(),
@@ -1169,7 +1125,11 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       },
     );
     if (error) return { exito: false, error };
+    if(motivoVencimiento(solicitud)) return {exito:false,error:motivoVencimiento(solicitud)};
     if (reenviar) {
+      if(!calendarioRevision) return {exito:false,error:'Administración debe configurar el calendario hábil antes de enviar.'};
+      const errorDistribucion=validarDistribuciones({...solicitud,...cambios},listaRecintos);
+      if(errorDistribucion) return {exito:false,error:errorDistribucion};
       const errorAnticipacion = validarAnticipacionSolicitud(
         { ...solicitud, ...cambios },
         solicitud,
@@ -1183,6 +1143,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         ...(reenviar
           ? {
               estado: "en_revision" as const,
+              fechaVencimientoRevision: reanudarRevision(solicitud,calendarioRevision!),
+              tiempoRevisionRestanteMs: undefined,
               fechaEnvioInicial:
                 solicitud.fechaEnvioInicial || (solicitud.estado === "borrador" ? new Date().toISOString() : solicitud.fechaCreacion),
               observacionesCorreccion: undefined,
@@ -1238,6 +1200,10 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Crear Evento Institucional Directo (Subdirección)
   const crearEventoInstitucionalDirecto = (datosEvento: Partial<Evento>): Evento => {
+    if(!usuarioActual?.roles.includes('subdireccion'))throw new Error('Solo Subdirección crea eventos institucionales.');
+    const error=validarProgramacion(datosEvento.fechas||[],listaRecintos,{modalidad:datosEvento.modalidadAsistencia,aforo:datosEvento.aforoMaximo});
+    if(error)throw new Error(error);
+    for(const d of datosEvento.fechas||[]){const r=verificarDisponibilidadRecinto(d.idRecinto,d.fecha,d.horaInicio,d.horaFin);if(!r.disponible)throw new Error(r.motivo||'Recinto no disponible.');}
     const id = `evt-inst-${Date.now().toString(36)}`;
     const nuevo: Evento = {
       id,
@@ -1248,13 +1214,17 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       categoria: datosEvento.categoria || 'Institucional',
       visibilidad: datosEvento.visibilidad || 'interno',
       modalidadAsistencia: datosEvento.modalidadAsistencia || 'libre',
-      estado: 'configuracion',
+      estado: 'publicado',
+      fechaPublicacion:new Date().toISOString(),
+      limitesAprobados:{numeroFechas:datosEvento.fechas?.length||0,duracionMinutos:duracionProgramada(datosEvento.fechas||[])},
       fechas: datosEvento.fechas || [],
       ponentes: datosEvento.ponentes || ['Comité Institucional'],
       etiquetas: datosEvento.etiquetas || ['Institucional', 'ESCOM'],
       aforoMaximo: datosEvento.aforoMaximo || 120
     };
 
+    const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_eventos`]:[nuevo,...listaEventos]});
+    if(!resultado.exito)throw new Error(resultado.error);
     setListaEventos((previos) => [nuevo, ...previos]);
     return nuevo;
   };
@@ -1271,12 +1241,52 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       setListaEventos(vigentes);
       return { exito: false, error: 'El evento cambió en otra ventana. Revisa la versión actual antes de guardar.' };
     }
-    const nuevos = vigentes.map((evento) => evento.id === idEvento ? { ...evento, ...parcial } : evento);
+    if(!puedeModificarEvento(usuarioActual,vigente))return {exito:false,error:'Solo el Organizador propietario o Subdirección pueden modificar el evento.'};
+    const original=EVENTOS_INICIALES.find(e=>e.id===vigente.id)||vigente;
+    if(parcial.fechas){
+      const error=validarLimitesEvento(vigente,parcial.fechas,original);if(error)return {exito:false,error};
+      for(const d of vigente.fechas){
+        const nueva=parcial.fechas.find(f=>f.id===d.id);
+        if(JSON.stringify(d)===JSON.stringify(nueva))continue;
+        if(d.cancelada||inicioEnMexico(d.fecha,d.horaInicio)<=Date.now()||bitacoraEscaneos.some(r=>r.idFechaEvento===d.id&&r.resultado==='exito'))return {exito:false,error:'No se pueden modificar días cancelados, iniciados o con entradas registradas.'};
+        if(!nueva) return {exito:false,error:'Retira el día mediante la operación que comprueba sus compromisos.'};
+        const cambioProgramacion=d.fecha!==nueva.fecha||d.horaInicio!==nueva.horaInicio||d.horaFin!==nueva.horaFin||d.idRecinto!==nueva.idRecinto;
+        if(cambioProgramacion){
+          const error=validarProgramacion([nueva],listaRecintos,{modalidad:vigente.modalidadAsistencia,aforo:vigente.aforoMaximo});if(error)return {exito:false,error};
+          const disponibilidad=verificarDisponibilidadRecinto(nueva.idRecinto,nueva.fecha,nueva.horaInicio,nueva.horaFin,d.id);if(!disponibilidad.disponible)return {exito:false,error:disponibilidad.motivo};
+          if(d.fecha!==nueva.fecha&&inicioEnMexico(nueva.fecha,nueva.horaInicio)-Date.now()<168*3600000&&!(usuarioActual?.roles.includes('subdireccion')&&parcial.historialExcepcionesAnticipacion?.some(h=>h.idFechaEvento===d.id&&h.motivo.trim())))return {exito:false,error:'La excepción de anticipación requiere Subdirección y un motivo registrado.'};
+          if(d.idRecinto!==nueva.idRecinto&&(listaReservaciones.some(r=>r.idFechaEvento===d.id&&(r.estado==='confirmada'||r.estado==='apartado_temporal'&&(r.tiempoExpiracionApartado||0)>Date.now()))||listaBoletos.some(b=>b.idFechaEvento===d.id&&b.estado!=='cancelado')||listaEspera.some(e=>e.idFechaEvento===d.id&&e.estado==='notificado')))return {exito:false,error:'Resuelve los boletos, apartados y ofertas vigentes antes de cambiar el recinto.'};
+        }
+      }
+    }
+    const nuevos = vigentes.map((evento) => evento.id === idEvento ? { ...evento, ...parcial,limitesAprobados:evento.limitesAprobados||{numeroFechas:original.fechas.length,duracionMinutos:duracionProgramada(original.fechas)} } : evento);
     const resultado = guardarLoteLocal(localStorage, { [`${CLAVE_ALMACEN_DATOS}_eventos`]: nuevos });
     if (resultado.exito) setListaEventos(nuevos);
     return resultado;
   };
 
+  const cancelarUnidadEvento:ContextoDatosTipo['cancelarUnidadEvento']=(idEvento,idFecha,motivo,retirar,versionEsperada)=>{
+    try {
+      const a=leerEstadoBloqueos();const evento=a.eventos.find(e=>e.id===idEvento);
+      if(!evento||!puedeModificarEvento(usuarioActual,evento)||!motivo.trim())return {exito:false,error:'No hay autorización o falta el motivo de la operación.'};
+      if(JSON.stringify(evento)!==versionEsperada)return {exito:false,error:'El evento cambió. Revisa su versión actual antes de confirmar.'};
+      const dias=evento.fechas.filter(d=>!d.cancelada&&(!idFecha||d.id===idFecha));const ids=new Set(dias.map(d=>d.id));
+      const boletos:BoletoDigital[]=JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_boletos`)||'null')||listaBoletos;
+      if(!dias.length||dias.some(d=>inicioEnMexico(d.fecha,d.horaInicio)<=Date.now()||a.escaneos.some(r=>r.idFechaEvento===d.id&&r.resultado==='exito')))return {exito:false,error:'Solo se pueden retirar o cancelar días futuros sin entradas registradas.'};
+      if(retirar&&(evento.fechas.length<=1||a.reservas.some(r=>ids.has(r.idFechaEvento)&&(r.estado==='confirmada'||r.estado==='apartado_temporal'&&(r.tiempoExpiracionApartado||0)>Date.now()))||boletos.some(b=>ids.has(b.idFechaEvento)&&b.estado!=='cancelado')||a.espera.some(e=>ids.has(e.idFechaEvento)&&['esperando','notificado'].includes(e.estado))))return {exito:false,error:'No se puede retirar el último día ni un día con boletos, apartados, ofertas o personas en espera.'};
+      const fechas=retirar?evento.fechas.filter(d=>!ids.has(d.id)):evento.fechas.map(d=>ids.has(d.id)?{...d,cancelada:true,estadoInscripciones:'cerradas' as const}:d);
+      const reservas=a.reservas.map(r=>ids.has(r.idFechaEvento)?{...r,estado:'cancelada' as const}:r);
+      const nuevosBoletos=boletos.map(b=>ids.has(b.idFechaEvento)?{...b,estado:'cancelado' as const,motivoInvalidacion:motivo.trim(),fechaInvalidacion:new Date().toISOString(),invalidadoPor:usuarioActual!.nombre}:b);
+      const espera=a.espera.map(e=>ids.has(e.idFechaEvento)&&['esperando','notificado'].includes(e.estado)?{...e,estado:'cancelado' as const}:e);
+      const valores={titulo:evento.titulo,descripcion:evento.descripcion,ponentes:evento.ponentes,urlImagen:evento.urlImagen};
+      const destinatarios=[...new Set([todosLosUsuarios.find(u=>u.id===evento.idOrganizador)?.correo,...a.reservas.filter(r=>ids.has(r.idFechaEvento)).map(r=>r.correoUsuario),...boletos.filter(b=>ids.has(b.idFechaEvento)).map(b=>b.correoUsuario)].filter((correo): correo is string => Boolean(correo)))];
+      const original=EVENTOS_INICIALES.find(e=>e.id===evento.id)||evento;
+      const actualizado:Evento={...evento,fechas,estado:idFecha?evento.estado:'cancelado',limitesAprobados:evento.limitesAprobados||{numeroFechas:original.fechas.length,duracionMinutos:duracionProgramada(original.fechas)},historialCambios:[...(evento.historialCambios||[]),{version:(evento.historialCambios?.length||0)+1,fecha:new Date().toISOString(),responsable:usuarioActual!.nombre,motivo:motivo.trim(),campos:[retirar?'Retiro de día':'Cancelación'],valoresAnteriores:valores,valoresNuevos:valores,detalleAnterior:JSON.stringify(evento.fechas),detalleNuevo:JSON.stringify(fechas),resultadoNotificacion:{estado:'no_configurada',destinatarios,fechaRegistro:new Date().toISOString()}}]};
+      const eventos=a.eventos.map(e=>e.id===idEvento?actualizado:e);
+      const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_eventos`]:eventos,[`${CLAVE_ALMACEN_DATOS}_reservaciones`]:reservas,[`${CLAVE_ALMACEN_DATOS}_boletos`]:nuevosBoletos,[`${CLAVE_ALMACEN_DATOS}_espera`]:espera});
+      if(resultado.exito){setListaEventos(eventos);setListaReservaciones(reservas);setListaBoletos(nuevosBoletos);setListaEspera(espera);}return resultado;
+    }catch{return {exito:false,error:'No se confirmó la operación; no se pudo guardar el conjunto de cambios.'};}
+  };
   const publicarEvento = (idEvento: string): { exito: boolean; error?: string } => {
     const checklist = obtenerListaDeVerificacion(idEvento);
     if (!checklist.puedePublicar) {
@@ -1725,10 +1735,10 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     const bloqueo = listaBloqueos.find((elemento) => bloqueoAfectaSesion(elemento, fecha));
-    if (bloqueo) {
+    if (bloqueo || fecha.suspendida) {
       return {
         exito: false,
-        error: `ERR-TR-10 · SUSPENDIDO: ${bloqueo.titulo}.`
+        error: `ERR-TR-10 · SUSPENDIDO: ${bloqueo?.titulo || 'Día pendiente de reprogramación'}.`
       };
     }
 
@@ -1899,10 +1909,10 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (datos.nuevoEstado === 'abiertas') {
         const bloqueo = listaBloqueos.find((elemento) => bloqueoAfectaSesion(elemento, fecha));
-        if (bloqueo) {
+        if (bloqueo || fecha.suspendida) {
           return {
             exito: false,
-            error: `ERR-TR-10 · SUSPENDIDO: ${bloqueo.titulo}. No es posible abrir inscripciones.`
+            error: `ERR-TR-10 · SUSPENDIDO: ${bloqueo?.titulo || 'Día pendiente de reprogramación'}. No es posible abrir inscripciones.`
           };
         }
 
@@ -1987,6 +1997,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     nombreUsuario: string,
     correoUsuario: string
   ): { exito: boolean; registro?: RegistroIntencionAsistencia; error?: string } => {
+    const eventoIntencion=listaEventos.find(e=>e.id===idEvento);
+    const diaIntencion=eventoIntencion?.fechas.find(d=>d.id===idFechaEvento);
+    if(!eventoIntencion||!diaIntencion||diaIntencion.suspendida||diaIntencion.cancelada||eventoIntencion.estado!=='publicado')return {exito:false,error:'El día no admite registros de asistencia.'};
     const yaExiste = listaIntencionesAsistencia.some(
       (registro) =>
         registro.idEvento === idEvento &&
@@ -2231,7 +2244,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       return rechazar('evento_invalido', 'El evento o el día seleccionado ya no está disponible.');
     }
     const bloqueo = listaBloqueos.find((elemento) => bloqueoAfectaSesion(elemento, fechaObjetivo));
-    if (eventoObjetivo.estado === 'cancelado' || bloqueo) {
+    if (eventoObjetivo.estado === 'cancelado' || fechaObjetivo.suspendida || bloqueo) {
       return rechazar('suspendido', bloqueo ? `Día suspendido: ${bloqueo.titulo}.` : 'El evento está cancelado.');
     }
     if (eventoObjetivo.modalidadAsistencia !== 'controlado') {
@@ -2290,21 +2303,73 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   };
 
-  // Bloqueos de Recinto
-  const crearBloqueoRecinto = (
-    bloqueo: Omit<BloqueoRecinto, 'id' | 'fechaCreacion'>
-  ): BloqueoRecinto => {
-    const nuevo: BloqueoRecinto = {
-      ...bloqueo,
-      id: `bloq-${Date.now().toString(36)}`,
-      fechaCreacion: new Date().toISOString()
-    };
-    setListaBloqueos((previos) => [nuevo, ...previos]);
-    return nuevo;
+  const prepararSolicitudDemostracion:ContextoDatosTipo['prepararSolicitudDemostracion']=(estado)=>{
+    if(!modoDemostracionActivo())return {exito:false,error:'Este escenario solo está disponible en demostración.'};
+    try {
+      const solicitudes:SolicitudEvento[]=JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_solicitudes`) || 'null') || listaSolicitudes;
+      const existente=solicitudes.find(s=>s.idSolicitante==='usr-silva'&&s.estado===estado&&!motivoVencimiento(s)&&s.fechasSolicitadas.every(d=>inicioEnMexico(d.fecha,d.horaInicio)>Date.now()));
+      if(existente)return {exito:true,id:existente.id};
+      const plantilla=SOLICITUDES_INICIALES.find(s=>s.id===(estado==='en_revision'?'sol-revision-ordinaria-demo':'sol-correccion-demo'))!;
+      const recinto=listaRecintos.find(r=>r.id==='rec-sala14'&&r.activo!==false);
+      if(!recinto)return {exito:false,error:'El recinto de demostración no está disponible.'};
+      const fecha=new Date(Date.now()+21*86400000).toISOString().slice(0,10);
+      const ahora=new Date().toISOString();
+      const nueva:SolicitudEvento={...plantilla,id:'sol-demo-'+crypto.randomUUID(),estado,fechaCreacion:ahora,fechaEnvioInicial:ahora,version:1,historialVersiones:undefined,fechaRevision:estado==='requiere_correccion'?ahora:undefined,
+        fechaVencimientoRevision:estado==='en_revision'&&calendarioRevision?vencimientoRevision(ahora,calendarioRevision):undefined,
+        fechaLimiteCorreccion:estado==='requiere_correccion'?new Date(Date.now()+86400000).toISOString():undefined,tiempoRevisionRestanteMs:estado==='requiere_correccion'?2*86400000:undefined,
+        fechasSolicitadas:[{...plantilla.fechasSolicitadas[0],fecha,idRecinto:recinto.id,distribucion:lugaresDelRecinto(recinto),distribucionConfirmada:true}]};
+      const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_solicitudes`]:[nueva,...solicitudes]});
+      if(resultado.exito)setListaSolicitudes([nueva,...solicitudes]);
+      return {...resultado,id:resultado.exito?nueva.id:undefined};
+    }catch{return {exito:false,error:'No se pudo preparar la solicitud de demostración.'};}
   };
-
-  const eliminarBloqueoRecinto = (idBloqueo: string) => {
-    setListaBloqueos((previos) => previos.filter((b) => b.id !== idBloqueo));
+  const prepararSuspensionDemostracion:ContextoDatosTipo['prepararSuspensionDemostracion']=()=>{
+    if(!modoDemostracionActivo())return {exito:false,error:'Este escenario solo está disponible en demostración.'};
+    const existente=listaEventos.find(e=>e.idOrganizador==='usr-silva'&&e.fechas.some(d=>d.suspendida&&!d.cancelada&&inicioEnMexico(d.fecha,d.horaInicio)>Date.now()));
+    if(existente)return {exito:true,id:existente.id};
+    const demo=escenarioSuspension();
+    const eventos=[demo.evento,...listaEventos.filter(e=>e.id!==demo.evento.id)];
+    const bloqueos=[demo.bloqueo,...listaBloqueos.filter(b=>b.id!==demo.bloqueo.id)];
+    const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_eventos`]:eventos,[`${CLAVE_ALMACEN_DATOS}_bloqueos`]:bloqueos});
+    if(resultado.exito){setListaEventos(eventos);setListaBloqueos(bloqueos);}return {...resultado,id:resultado.exito?demo.evento.id:undefined};
+  };
+  const leerEstadoBloqueos = () => {
+    const leer=<T,>(clave:string,actual:T):T=>JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_${clave}`) || 'null') || actual;
+    return {eventos:leer('eventos',listaEventos),bloqueos:leer('bloqueos',listaBloqueos),ocupaciones:leer('ocupaciones_internas',listaOcupacionesInternas),escaneos:leer('escaneos',bitacoraEscaneos),reservas:leer('reservaciones',listaReservaciones),espera:leer('espera',listaEspera)};
+  };
+  const revisarBloqueoInstitucional:ContextoDatosTipo['revisarBloqueoInstitucional']=(datos,id)=>{
+    if(!usuarioActual?.roles.includes('admin')) return {error:'Solo Administración gestiona bloqueos.'};
+    try {const a=leerEstadoBloqueos();const revision=revisarBloqueo(datos,a.eventos,listaRecintos,a.ocupaciones,a.bloqueos,a.escaneos,id);
+      return {...revision,firma:JSON.stringify([revision.firma,a.reservas,a.espera])};
+    } catch(e){return {error:e instanceof Error?e.message:'No se pudieron consultar las afectaciones.'};}
+  };
+  const guardarBloqueoInstitucional:ContextoDatosTipo['guardarBloqueoInstitucional']=(datos,id,version,firma)=>{
+    const revision=revisarBloqueoInstitucional(datos,id);
+    if(revision.error)return {exito:false,error:revision.error};
+    if(!firma||firma!==revision.firma)return {exito:false,error:'ERR-TR-08 · Las afectaciones cambiaron. Revisa el resumen actualizado.'};
+    try {
+      const actuales=leerEstadoBloqueos(); const anterior=actuales.bloqueos.find(b=>b.id===id);
+      if(id&&(!anterior||anterior.estado==='cancelado'||inicioEnMexico(anterior.fechaInicio,anterior.horaInicio)<=Date.now()||(anterior.version||1)!==version))return {exito:false,error:'ERR-TR-08 · El bloqueo cambió o ya no admite modificación.'};
+      const identificador=id||'bloq-'+crypto.randomUUID();
+      const ids=new Set((revision.afectados||[]).map(a=>a.idFecha));
+      const nuevo:BloqueoRecinto={...datos,id:identificador,estado:'activo',version:(anterior?.version||0)+1,fechaCreacion:anterior?.fechaCreacion||new Date().toISOString(),creadoPor:anterior?.creadoPor||usuarioActual!.nombre,historial:[...(anterior?.historial||[]),{fecha:new Date().toISOString(),responsable:usuarioActual!.nombre,accion:id?'Modificación':'Registro',motivo:datos.motivo}]};
+      const bloques=id?actuales.bloqueos.map(b=>b.id===id?nuevo:b):[nuevo,...actuales.bloqueos];
+      const eventos=actuales.eventos.map(e=>({...e,fechas:e.fechas.map(d=>ids.has(d.id)?{...d,suspendida:true,idBloqueoSuspension:identificador,estadoInscripciones:'cerradas' as const}:d)}));
+      const reservas=actuales.reservas.map(r=>ids.has(r.idFechaEvento)&&r.estado==='apartado_temporal'?{...r,estado:'cancelada' as const}:r);
+      const espera=actuales.espera.map(e=>ids.has(e.idFechaEvento)&&e.estado==='notificado'?{...e,estado:'esperando' as const,fechaOferta:undefined,fechaExpiracionOferta:undefined,idReservacionOferta:undefined,idAsientoOferta:undefined,etiquetaAsientoOferta:undefined}:e);
+      const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_bloqueos`]:bloques,[`${CLAVE_ALMACEN_DATOS}_eventos`]:eventos,[`${CLAVE_ALMACEN_DATOS}_reservaciones`]:reservas,[`${CLAVE_ALMACEN_DATOS}_espera`]:espera});
+      if(!resultado.exito)return resultado;
+      setListaBloqueos(bloques);setListaEventos(eventos);setListaReservaciones(reservas);setListaEspera(espera);
+      return {exito:true,id:identificador,version:nuevo.version};
+    } catch {return {exito:false,error:'No se guardó el bloqueo. Conserva el formulario e inténtalo de nuevo.'};}
+  };
+  const cancelarBloqueoInstitucional:ContextoDatosTipo['cancelarBloqueoInstitucional']=(id,motivo,version)=>{
+    if(!usuarioActual?.roles.includes('admin')||!motivo.trim()) return {exito:false,error:'Se requiere Administración y un motivo de cancelación.'};
+    try {const actuales=leerEstadoBloqueos();const b=actuales.bloqueos.find(b=>b.id===id);
+      if(!b||b.estado==='cancelado'||(b.version||1)!==version||(!b.esIndefinido&&inicioEnMexico(b.fechaFin||b.fechaInicio,b.horaFin||'23:59')<=Date.now())) return {exito:false,error:'El bloqueo cambió, ya terminó o está cancelado.'};
+      const nuevos=actuales.bloqueos.map(item=>item.id===id?{...item,estado:'cancelado' as const,motivoCancelacion:motivo.trim(),version:(item.version||1)+1,historial:[...(item.historial||[]),{fecha:new Date().toISOString(),responsable:usuarioActual.nombre,accion:'Cancelación',motivo:motivo.trim()}]}:item);
+      const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_bloqueos`]:nuevos});if(resultado.exito)setListaBloqueos(nuevos);return resultado;
+    } catch{return {exito:false,error:'No se pudo guardar la cancelación del bloqueo.'};}
   };
 
   const guardarRecinto = (recinto: Recinto) => {
@@ -2345,10 +2410,17 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       value={{
         listaEventos,
         listaSolicitudes,
+        prepararSuspensionDemostracion,
+        prepararSolicitudDemostracion,
+        calendarioRevision,
+        guardarCalendarioRevision,
         listaRecintos,
         listaOcupacionesInternas,
         listaArreglos,
         listaBloqueos,
+        revisarBloqueoInstitucional,
+        guardarBloqueoInstitucional,
+        cancelarBloqueoInstitucional,
         listaReservaciones,
         listaBoletos,
         listaEspera,
@@ -2368,6 +2440,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         cancelarSolicitud,
         crearEventoInstitucionalDirecto,
         actualizarEvento,
+        cancelarUnidadEvento,
         publicarEvento,
         agregarFechaEvento,
         eliminarFechaEvento,
@@ -2389,8 +2462,6 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         retirarseDeListaDeEspera,
         responderOfertaListaDeEspera,
         procesarCheckIn,
-        crearBloqueoRecinto,
-        eliminarBloqueoRecinto,
         guardarRecinto,
         crearOcupacionInterna,
         cancelarOcupacionInterna,

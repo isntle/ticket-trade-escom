@@ -147,12 +147,16 @@ export interface ElementoFechaSolicitada {
   nombreDia?: string; // ej: "Día 1", "Día 2", etc.
   actividadOPrograma?: string; // Descripción del programa de ese día
   programa?: ActividadPrograma[];
+  distribucion?: ConfiguracionAsiento[];
+  distribucionConfirmada?: boolean;
   fueraDeAnticipacion?: boolean;
 }
 
 // Solicitud formal de evento
 export interface SolicitudEvento {
   version?: number;
+  fechaVencimientoRevision?: string;
+  tiempoRevisionRestanteMs?: number;
   fechaEnvioInicial?: string;
   fechaUltimoCambio?: string;
   historialVersiones?: Array<{
@@ -215,6 +219,8 @@ export interface RegistroCambioInscripciones {
 
 // Fecha individual de un evento (No son sinónimos)
 export interface FechaEvento {
+  suspendida?: boolean;
+  idBloqueoSuspension?: string;
   id: string;
   cancelada?: boolean;
   idEvento: string;
@@ -244,6 +250,7 @@ export type CategoriaEvento =
 
 // Entidad Principal de Evento
 export interface Evento {
+  limitesAprobados?: { numeroFechas:number; duracionMinutos:number };
   id: string;
   idSolicitud?: string;
   idOrganizador: string;
@@ -376,6 +383,10 @@ export interface HorarioClaseRegular {
 
 // Bloqueo operativo o de mantenimiento por Subdirección
 export interface BloqueoRecinto {
+  estado?: 'activo' | 'cancelado';
+  version?: number;
+  motivoCancelacion?: string;
+  historial?: Array<{fecha:string; responsable:string; accion:string; motivo:string}>;
   id: string;
   idRecinto: string; // ID específico o 'todos'
   idsRecintos?: string[]; // Permite seleccionar varios recintos simultáneos

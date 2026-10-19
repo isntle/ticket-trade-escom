@@ -1,3 +1,5 @@
+import { lugaresDelRecinto } from "../src/dominio/distribucionSolicitud";
+import { RECINTOS_INICIALES } from "../src/datos/datosIniciales";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
@@ -548,6 +550,8 @@ test("aprobar solicitud asigna Organizador al titular junto con evento y días, 
     version: 1,
     fechasSolicitadas: [
       {
+        distribucion: lugaresDelRecinto(RECINTOS_INICIALES.find(r=>r.id==="rec-auditorio")!),
+        distribucionConfirmada: true,
         id: "fecha-prueba",
         fecha: "2030-01-15",
         horaInicio: "10:00",

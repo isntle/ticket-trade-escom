@@ -129,6 +129,8 @@ export function validarAnticipacionSolicitud(
 }
 
 const camposVersion = [
+  "fechaVencimientoRevision",
+  "tiempoRevisionRestanteMs",
   "tituloEvento",
   "descripcionEvento",
   "fechasSolicitadas",

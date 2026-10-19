@@ -1,3 +1,5 @@
+import { DistribucionSolicitud } from "../componentes/recintos/DistribucionSolicitud";
+import { validarDistribuciones } from "../dominio/distribucionSolicitud";
 import { VentanaModal } from "../componentes/ui/VentanaModal";
 import { restriccionIdentidadVigente } from "../dominio/identidad";
 import { CalendarioRecinto } from "../componentes/calendario/CalendarioRecinto";
@@ -173,9 +175,10 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       modalidad,
       aforo: asistenciaEstimada,
     });
-    if (error) {
-      setErrorFormulario(error);
-      mostrarNotificacion("Revisa la programación", error, "advertencia");
+    const errorDistribucion = !borrador ? validarDistribuciones({fechasSolicitadas:fechas,modalidadAsistencia:modalidad,asistenciaEstimada},listaRecintos) : undefined;
+    if (error || errorDistribucion) {
+      setErrorFormulario(error || errorDistribucion || '');
+      mostrarNotificacion("Revisa la programación", error || errorDistribucion || "", "advertencia");
       return false;
     }
     if (
@@ -255,7 +258,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     valor: ElementoFechaSolicitada[keyof ElementoFechaSolicitada],
   ) => {
     setFechas((previas) =>
-      previas.map((f) => (f.id === id ? { ...f, [campo]: valor } : f)),
+      previas.map((f) => (f.id === id ? { ...f, [campo]: valor, ...(campo === "idRecinto" ? {distribucion:undefined,distribucionConfirmada:false}: {}) } : f)),
     );
   };
 
@@ -1009,6 +1012,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                         />
                       </div>
                     </details>
+                    {modalidad === "controlado" && listaRecintos.find(r=>r.id===f.idRecinto) && <DistribucionSolicitud key={f.id+"-"+f.idRecinto} dia={f} recinto={listaRecintos.find(r=>r.id===f.idRecinto)!} alGuardar={dia=>setFechas(prev=>prev.map(item=>item.id===dia.id?dia:item))} />}
                     <EditorPrograma
                       nombreDia={etiquetaDia}
                       programa={f.programa || []}
