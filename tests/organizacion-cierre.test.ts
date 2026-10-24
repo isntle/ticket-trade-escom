@@ -111,8 +111,9 @@ test('formulario por pasos conserva el acceso directo a programa y distribución
     React.createElement(DiaSolicitud,{dia:{...dia,nombreDia:'Día 1'},indice:0,modalidad:'controlado',aforo:20,puedeEliminar:false,alCambiar:()=>{},alEliminar:()=>{}}))));
   assert.match(html,/Configurar distribución del/);
   assert.match(html,/Programa del/);
-  assert.match(html,/Guardar programación del día/);
-  assert.match(html,/El recinto no está disponible para este horario/);
+  assert.match(html,/Ir al paso 1: Fecha/);
+  assert.match(html,/Ir al paso 4: Programa y lugares/);
+  assert.match(html,/Se revisan eventos, clases, actividades internas y bloqueos registrados/);
 });
 test('solicitante sin permiso administrativo no registra bloqueos ni configura calendario',()=>{
   const c=contexto('usr-silva');
