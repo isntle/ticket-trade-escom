@@ -74,6 +74,16 @@ function ContenidoApp() {
 
   // Parámetros de consulta (query params)
   const parametrosUrl = new URLSearchParams(parametrosBusqueda);
+  useEffect(() => {
+    const interfaz = new URLSearchParams(parametrosBusqueda).get('interfaz');
+    if (!interfaz) return;
+    const cuadro = requestAnimationFrame(() => {
+      const destino = [...document.querySelectorAll<HTMLElement>('[data-interfaz]')].find(nodo => nodo.dataset.interfaz === interfaz);
+      destino?.scrollIntoView({block:'start',behavior:'instant'});
+      destino?.focus({preventScroll:true});
+    });
+    return () => cancelAnimationFrame(cuadro);
+  }, [rutaActual,parametrosBusqueda]);
 
   // Mapeo declarativo de rutas de la aplicación
   const renderizarRuta = () => {
@@ -459,7 +469,7 @@ function ContenidoApp() {
       )}
 
       {/* Contenedor Dinámico de la Página */}
-      <main className={esRutaAutenticacion ? "min-h-screen" : "flex-1"}>
+      <main key={rutaActual+parametrosBusqueda} className={esRutaAutenticacion ? "min-h-screen" : "flex-1"}>
         {renderizarRuta()}
       </main>
 

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import { ProgramaDia } from "../componentes/eventos/EditorPrograma";
 import {
   ArrowLeft,
@@ -82,6 +83,12 @@ export const DetalleSolicitudPagina: React.FC<{
   const [error, setError] = useState("");
   const [versionConsultada, setVersionConsultada] = useState(1);
   const solicitud = listaSolicitudes.find((s) => s.id === requestId);
+  useEffect(() => {
+    if (interfazSolicitada() === "UI.05" && solicitud && solicitud.idSolicitante === usuarioActual?.id && ["borrador","en_revision","requiere_correccion"].includes(solicitud.estado)) {
+      setVersionConsultada(versionSolicitud(solicitud));
+      setAccion("cancelar");
+    }
+  }, [requestId,usuarioActual?.id]);
   const regreso =
     usuarioActual?.roles.some(
       (rol) => rol === "subdireccion" || rol === "admin",

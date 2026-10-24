@@ -77,7 +77,7 @@ export function CatalogoRecintosPagina({
           ))}
         </nav>
         {seleccionado ? (
-          <section className="min-w-0 space-y-5">
+          <section data-interfaz="UI.15" tabIndex={-1} className="min-w-0 scroll-mt-24 space-y-5">
             <div className="rounded-2xl border bg-white p-6">
               <h2 className="text-2xl font-bold">{seleccionado.nombre}</h2>
               <p className="mt-3 text-sm leading-7 text-neutral-600">

@@ -297,7 +297,7 @@ export function PerfilUsuarioPagina({
         )}
       </article>
       <article className="rounded-3xl border bg-white p-6">
-        <h2 className="mb-4 text-xl font-bold">Seguridad</h2>
+        <h2 data-interfaz="UI-IP-06" tabIndex={-1} className="mb-4 scroll-mt-24 text-xl font-bold">Seguridad</h2>
         <form
           className="space-y-4"
           onSubmit={(e) => {

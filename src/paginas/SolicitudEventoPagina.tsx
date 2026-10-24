@@ -10,7 +10,8 @@ import {
   validarProgramacion,
   versionSolicitud,
 } from "../dominio/solicitudes";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import {
   EditorPrograma,
   ProgramaDia,
@@ -148,6 +149,9 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
   const [justificacionExcepcional, setJustificacionExcepcional] = useState(
     () => solicitudEnEdicion?.justificacionExcepcional || "",
   );
+  useEffect(() => {
+    if (interfazSolicitada() === "UI.08" && solicitudEnEdicion && solicitudEnEdicion.idSolicitante === usuarioActual?.id) manejarEnvio();
+  }, [requestId]);
 
   const hoy = new Date();
   const cadenaHoy = fechaHoyMexico(hoy);

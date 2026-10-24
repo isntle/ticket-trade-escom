@@ -1,4 +1,5 @@
 import { resolverRutaDocumentacion } from "../../dominio/navegacionDocumentacion";
+import { pantallasDelCaso, rutaDeInterfaz, type PantallaDocumentada } from "../../dominio/pantallasDocumentacion";
 import { useDatos } from "../../contextos/DatosContexto";
 import { modoDemostracionActivo } from "../../dominio/demostracion";
 import React, { useMemo, useState } from "react";
@@ -823,7 +824,7 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({
   const [casoActivo, setCasoActivo] = useState<string | null>("CU-ID01");
   const [escenarioActivo, setEscenarioActivo] = useState<string | null>(null);
   const { cambiarUsuario, cambiarRolActivo } = useAutenticacion();
-  const { listaEventos, prepararSuspensionDemostracion, prepararSolicitudDemostracion } = useDatos();
+  const { listaEventos, prepararSuspensionDemostracion, prepararSolicitudDemostracion, prepararEventoDemostracion } = useDatos();
   const { mostrarNotificacion } = useNotificaciones();
 
   const equipo = useMemo(
@@ -842,33 +843,46 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({
     setCasoActivo(siguiente.casos[0].id);
   };
 
-  const abrirPantalla = (caso: CasoDeUso) => {
+  const abrirPantalla = (caso: CasoDeUso, pantalla?: PantallaDocumentada) => {
     setCasoActivo(caso.id);
     const perfilDemo =
-      caso.usuarioDemo && caso.rolDemo
+      pantalla?.id === 'UI-IP-06'
+        ? {usuario:'usr-carlos',rol:'asistente' as const}
+        : caso.usuarioDemo && caso.rolDemo
         ? { usuario: caso.usuarioDemo, rol: caso.rolDemo }
         : PERFILES_DEMO_ORGANIZACION[caso.id];
     if (perfilDemo) {
       cambiarUsuario(perfilDemo.usuario);
       cambiarRolActivo(perfilDemo.rol);
     }
-    if(['CU-OR-07','CU-OR-08','CU-OR-09'].includes(caso.id)){
-      const resultado=prepararSolicitudDemostracion(caso.id==='CU-OR-08'?'requiere_correccion':'en_revision');
+    const interfaz = pantalla?.id;
+    if (pantalla) caso = {...caso, ruta: pantalla.ruta};
+    if((['CU-OR-07','CU-OR-08','CU-OR-09'].includes(caso.id) && !pantalla) || ['UI.04','UI.05','UI.08','UI.16'].includes(interfaz || '')){
+      const estadoSolicitud=interfaz==='UI.08'||caso.id==='CU-OR-01'?'borrador':caso.id==='CU-OR-08'?'requiere_correccion':'en_revision';
+      const resultado=prepararSolicitudDemostracion(estadoSolicitud, ['CU-OR-06.2','CU-OR-10'].includes(caso.id));
       if(!resultado.exito){mostrarNotificacion('No se preparó el escenario',resultado.error||'','error');return;}
-      setEstaAbierto(false);navegarA('/organizador/solicitudes/'+resultado.id);
+      const destino = ['UI.04','UI.08'].includes(interfaz || '') ? '/solicitar-evento?editar='+resultado.id : '/organizador/solicitudes/'+resultado.id;
+      setEstaAbierto(false);navegarA(interfaz ? rutaDeInterfaz(destino,interfaz,caso.id) : destino);
       mostrarNotificacion('Solicitud de demostración','Puedes seguir el recorrido desde este expediente vigente.','informacion');
       return;
     }
     if(caso.id==='CU-OR-25'){
       const resultado=prepararSuspensionDemostracion();
       if(!resultado.exito){mostrarNotificacion('No se preparó el escenario',resultado.error||'','error');return;}
-      setEstaAbierto(false);navegarA('/organizador/eventos/'+resultado.id);
+      const destino = '/organizador/eventos/'+resultado.id;
+      setEstaAbierto(false);navegarA(interfaz ? rutaDeInterfaz(destino,interfaz,caso.id) : destino);
       mostrarNotificacion('Día suspendido de demostración','Puedes reprogramarlo o cancelarlo desde su configuración.','informacion');
       return;
     }
     if (caso.ruta) {
+      let eventos = listaEventos;
+      if (caso.ruta.startsWith('/organizador/eventos/') || (caso.id.startsWith('CU-MT-') && caso.ruta.startsWith('/eventos/'))) {
+        const resultado=prepararEventoDemostracion();
+        if(!resultado.exito || !resultado.evento){mostrarNotificacion('No se preparó el evento',resultado.error||'','error');return;}
+        eventos=[resultado.evento,...listaEventos.filter(e=>e.id!==resultado.evento!.id)];
+      }
       setEstaAbierto(false);
-      navegarA(resolverRutaDocumentacion(caso, listaEventos) || caso.ruta);
+      navegarA(resolverRutaDocumentacion(caso, eventos) || caso.ruta);
     }
     if (perfilDemo) {
       mostrarNotificacion(
@@ -1069,20 +1083,15 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({
                                 {caso.respuesta}
                               </p>
                             )}
-                            {caso.ruta ? (
-                              <button
-                                type="button"
-                                onClick={() => abrirPantalla(caso)}
-                                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-[#7a132b] px-3 py-2 text-[11px] font-bold text-white transition hover:bg-[#620f23] focus:outline-none focus:ring-4 focus:ring-[#7a132b]/15"
-                              >
-                                <ExternalLink className="h-3.5 w-3.5" /> Ver
-                                pantalla relacionada
-                              </button>
-                            ) : (
-                              <p className="mt-3 text-[11px] font-semibold text-neutral-500">
-                                No hay una pantalla implementada para este caso.
-                              </p>
-                            )}
+                            <div className="mt-3 flex flex-wrap gap-2" aria-label={"Pantallas de "+caso.id}>
+                              {pantallasDelCaso(caso).map(pantalla => (
+                                <button key={pantalla.id} type="button" onClick={() => abrirPantalla(caso,pantalla)}
+                                  className="inline-flex items-center gap-2 rounded-lg bg-[#7a132b] px-3 py-2 text-left text-xs font-semibold text-white hover:bg-[#620f23] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7a132b]">
+                                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                                  <span><span className="block font-mono text-[11px] text-white/75">{pantalla.id}</span>{pantalla.nombre}</span>
+                                </button>
+                              ))}
+                            </div>
                             {caso.accesos?.map((acceso) => (
                               <button
                                 key={acceso.ruta}

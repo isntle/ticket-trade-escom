@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { MarcoAcceso } from "../componentes/layout/MarcoAcceso";
 import { modoDemostracionActivo } from "../dominio/demostracion";
+import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import { USUARIOS_INICIALES } from "../datos/datosIniciales";
 import type { TipoAfiliacion } from "../tipos";
 
@@ -45,7 +46,7 @@ export function AutenticacionPagina({
     if (view === "recuperar" && enlace) {
       setToken(enlace);
       setPaso("token");
-    } else setPaso("solicitar");
+    } else setPaso(view === "recuperar" && interfazSolicitada() === "UI-IP-05" ? "token" : "solicitar");
   }, [view]);
   const afiliacion: TipoAfiliacion =
     categoria === "representante" ? "externo" : (categoria as TipoAfiliacion);

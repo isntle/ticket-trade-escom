@@ -1,4 +1,5 @@
-import React,{useState} from 'react';
+import React,{useState,useEffect} from 'react';
+import { interfazSolicitada } from '../../dominio/pantallasDocumentacion';
 import { useDatos } from '../../contextos/DatosContexto';
 import { useAutenticacion } from '../../contextos/AutenticacionContexto';
 import { VentanaModal } from '../ui/VentanaModal';
@@ -14,6 +15,24 @@ export function GestionBloqueos({navigate}:{navigate:(ruta:string)=>void}) {
   const [version,setVersion]=useState<number|undefined>();
   const b=listaBloqueos.find(b=>b.id===detalle);
   const abrir=(b?:BloqueoRecinto)=>{setError('');setRevision(null);setDetalle(null);setIdEdicion(b?.id);setVersion(b?.version||1);setEdicion(b?structuredClone(b):{titulo:'',motivo:'',idRecinto:listaRecintos.find(r=>r.activo!==false)?.id||'',fechaInicio:fechaHoyMexico(new Date(Date.now()+86400000)),horaInicio:'08:00',fechaFin:fechaHoyMexico(new Date(Date.now()+86400000)),horaFin:'18:00',esIndefinido:false,creadoPor:usuarioActual?.nombre||''});};
+  useEffect(() => {
+    const interfaz=interfazSolicitada();
+    if(!admin)return;
+    if(interfaz==='UI.10')abrir();
+    if(interfaz==='UI.12'){
+      const bloqueo=listaBloqueos[0];
+      if(bloqueo){setDetalle(bloqueo.id);setVersion(bloqueo.version||1);}
+      else setError('No hay bloqueos registrados para consultar. Registra uno desde el formulario.');
+    }
+    if(interfaz==='UI.11'){
+      // La propuesta es solo un borrador en memoria: abrir la revisión no registra un bloqueo.
+      const fecha=fechaHoyMexico(new Date(Date.now()+21*86400000));
+      const propuesta:PropuestaBloqueo={titulo:'Revisión de bloqueo de demostración',motivo:'Propuesta de prueba para consultar afectaciones antes de confirmar.',idRecinto:listaRecintos.find(r=>r.activo!==false)?.id||'',fechaInicio:fecha,horaInicio:'07:00',fechaFin:fecha,horaFin:'08:00',esIndefinido:false,creadoPor:usuarioActual?.nombre||''};
+      const resultado=revisarBloqueoInstitucional(propuesta);
+      setEdicion(propuesta);
+      if(resultado.error)setError(resultado.error);else setRevision(resultado);
+    }
+  }, [admin]);
   const textoRecintos=(b:PropuestaBloqueo)=>b.idRecinto==='todos'?'Todas las instalaciones':(b.idsRecintos?.length?b.idsRecintos:[b.idRecinto]).map(id=>listaRecintos.find(r=>r.id===id)?.nombre||id).join(', ');
   return <section className="rounded-2xl border bg-white p-5 space-y-4"><header className="flex flex-wrap justify-between gap-3"><div><h2 className="text-xl font-bold">Bloqueos de recintos</h2><p className="text-sm">Consulta el periodo, las afectaciones y el historial de cada bloqueo.</p></div>{admin&&<button className="rounded-xl border px-4 py-2 font-bold" onClick={()=>abrir()}>Registrar bloqueo</button>}</header><div className="flex flex-wrap gap-3"><input className="rounded border p-2" aria-label="Buscar bloqueo" placeholder="Buscar bloqueo o motivo" value={filtro} onChange={e=>setFiltro(e.target.value)}/><select aria-label="Estado del bloqueo" value={estado} onChange={e=>setEstado(e.target.value)}><option value="todos">Todos los estados</option><option value="activo">Activos</option><option value="cancelado">Cancelados</option></select><label>Desde<input type="date" value={desde} onChange={e=>setDesde(e.target.value)}/></label><label>Hasta<input type="date" value={hasta} onChange={e=>setHasta(e.target.value)}/></label></div>
     {listaBloqueos.filter(b=>(estado==='todos'||(b.estado||'activo')===estado)&&(!desde||b.esIndefinido||(b.fechaFin||b.fechaInicio)>=desde)&&(!hasta||b.fechaInicio<=hasta)&&`${b.titulo} ${b.motivo} ${textoRecintos(b)}`.toLowerCase().includes(filtro.toLowerCase())).map(b=><article key={b.id} className="rounded-xl border p-4"><h3 className="font-bold">{b.titulo} · {b.estado==='cancelado'?'Cancelado':'Activo'}</h3><p>{textoRecintos(b)} · {b.fechaInicio} {b.horaInicio} – {b.esIndefinido?'Hasta nuevo aviso':`${b.fechaFin} ${b.horaFin}`}</p><p>{b.motivo}</p><button className="mt-3 rounded border px-3 py-2" onClick={()=>{setDetalle(b.id);setVersion(b.version||1);setError('');setCancelando(false);}}>Ver detalle del bloqueo</button></article>)}

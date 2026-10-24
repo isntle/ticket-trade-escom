@@ -48,7 +48,8 @@ import { afectaBloqueo, revisarBloqueo, type PropuestaBloqueo } from '../dominio
 import { CLAVE_CALENDARIO, validarCalendario, vencimientoRevision, motivoVencimiento, pausarRevision, reanudarRevision, type CalendarioRevision } from '../dominio/calendarioRevision';
 import { validarDistribuciones, arregloDesdeSolicitud, lugaresDelRecinto } from '../dominio/distribucionSolicitud';
 interface ContextoDatosTipo {
-  prepararSolicitudDemostracion: (estado:'en_revision'|'requiere_correccion') => {exito:boolean;error?:string;id?:string};
+  prepararEventoDemostracion: () => {exito:boolean;error?:string;evento?:Evento};
+  prepararSolicitudDemostracion: (estado:'borrador'|'en_revision'|'requiere_correccion', extraordinaria?:boolean) => {exito:boolean;error?:string;id?:string};
   prepararSuspensionDemostracion: () => {exito:boolean;error?:string;id?:string};
   calendarioRevision: CalendarioRevision | null;
   guardarCalendarioRevision: (datos: CalendarioRevision) => {exito:boolean;error?:string};
@@ -2303,21 +2304,39 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   };
 
-  const prepararSolicitudDemostracion:ContextoDatosTipo['prepararSolicitudDemostracion']=(estado)=>{
+  const prepararEventoDemostracion:ContextoDatosTipo['prepararEventoDemostracion']=()=>{
+    if(!modoDemostracionActivo())return {exito:false,error:'Solo disponible en demostración.'};
+    const vigente=listaEventos.find(e=>e.idOrganizador==='usr-silva'&&e.estado==='publicado'&&e.inscripcionesAbiertas!==false&&(!e.fechaCierreInscripcion||Date.parse(e.fechaCierreInscripcion)>Date.now())&&e.fechas.some(d=>!d.cancelada&&!d.suspendida&&d.esFinalConfirmado&&d.estadoInscripciones!=='cerradas'&&(!d.fechaLimiteInscripciones||Date.parse(d.fechaLimiteInscripciones)>Date.now())&&inicioEnMexico(d.fecha,d.horaInicio)>Date.now()));
+    if(vigente)return {exito:true,evento:vigente};
+    const plantilla=EVENTOS_INICIALES.find(e=>e.id==='evt-simposio-ia')!;
+    const id='evt-recorrido-'+crypto.randomUUID(),idDia='fec-'+crypto.randomUUID();
+    const arregloOriginal=ARREGLOS_INICIALES.find(a=>a.idFechaEvento===plantilla.fechas[0].id&&a.estado==='version_final');
+    if(!arregloOriginal)return {exito:false,error:'No hay distribución de prueba disponible.'};
+    const arreglo={...structuredClone(arregloOriginal),id:'arr-'+crypto.randomUUID(),idFechaEvento:idDia,etiquetaVersion:'Demostración 1',fechaCreacion:new Date().toISOString(),fechaConfirmacionFinal:new Date().toISOString()};
+    const dia={...structuredClone(plantilla.fechas[0]),id:idDia,idEvento:id,fecha:new Date(Date.now()+21*86400000).toISOString().slice(0,10),idArregloFinal:arreglo.id,esFinalConfirmado:true,estadoInscripciones:'abiertas' as const,fechaLimiteInscripciones:undefined,historialInscripciones:[]};
+    const evento:Evento={...structuredClone(plantilla),id,idSolicitud:undefined,titulo:'Evento de demostración de Ticket Trade',descripcion:'Evento de prueba para recorrer interfaces sin modificar los eventos existentes.',fechas:[dia],fechaPublicacion:new Date().toISOString(),inscripcionesAbiertas:true,fechaCierreInscripcion:undefined,historialCambios:[],limitesAprobados:{numeroFechas:1,duracionMinutos:duracionProgramada([dia])}};
+    const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_eventos`]:[evento,...listaEventos],[`${CLAVE_ALMACEN_DATOS}_arreglos`]:[arreglo,...listaArreglos]});
+    if(resultado.exito){setListaEventos([evento,...listaEventos]);setListaArreglos([arreglo,...listaArreglos]);}
+    return {...resultado,evento:resultado.exito?evento:undefined};
+  };
+  const prepararSolicitudDemostracion:ContextoDatosTipo['prepararSolicitudDemostracion']=(estado, extraordinaria=false)=>{
     if(!modoDemostracionActivo())return {exito:false,error:'Este escenario solo está disponible en demostración.'};
     try {
       const solicitudes:SolicitudEvento[]=JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_solicitudes`) || 'null') || listaSolicitudes;
-      const existente=solicitudes.find(s=>s.idSolicitante==='usr-silva'&&s.estado===estado&&!motivoVencimiento(s)&&s.fechasSolicitadas.every(d=>inicioEnMexico(d.fecha,d.horaInicio)>Date.now()));
+      const existente=solicitudes.find(s=>s.idSolicitante==='usr-silva'&&s.estado===estado&&Boolean(s.esExcepcional)===extraordinaria&&!motivoVencimiento(s)&&(estado!=='borrador'||!validarDistribuciones(s,listaRecintos))&&s.fechasSolicitadas.every(d=>inicioEnMexico(d.fecha,d.horaInicio)>Date.now()));
       if(existente)return {exito:true,id:existente.id};
-      const plantilla=SOLICITUDES_INICIALES.find(s=>s.id===(estado==='en_revision'?'sol-revision-ordinaria-demo':'sol-correccion-demo'))!;
+      const plantilla=SOLICITUDES_INICIALES.find(s=>s.id===(estado==='borrador'?'sol-borrador-demo':estado==='en_revision'?'sol-revision-ordinaria-demo':'sol-correccion-demo'))!;
       const recinto=listaRecintos.find(r=>r.id==='rec-sala14'&&r.activo!==false);
       if(!recinto)return {exito:false,error:'El recinto de demostración no está disponible.'};
-      const fecha=new Date(Date.now()+21*86400000).toISOString().slice(0,10);
+      const fecha=new Date(Date.now()+(extraordinaria?3:21)*86400000).toISOString().slice(0,10);
       const ahora=new Date().toISOString();
-      const nueva:SolicitudEvento={...plantilla,id:'sol-demo-'+crypto.randomUUID(),estado,fechaCreacion:ahora,fechaEnvioInicial:ahora,version:1,historialVersiones:undefined,fechaRevision:estado==='requiere_correccion'?ahora:undefined,
-        fechaVencimientoRevision:estado==='en_revision'&&calendarioRevision?vencimientoRevision(ahora,calendarioRevision):undefined,
+      const distribucion=lugaresDelRecinto(recinto);
+      const lugaresHabilitados=distribucion.filter(l=>!l.estaBloqueado&&!l.estaEliminado).length;
+      const nueva:SolicitudEvento={...plantilla,id:'sol-demo-'+crypto.randomUUID(),estado,fechaCreacion:ahora,fechaEnvioInicial:estado==='borrador'?undefined:ahora,asistenciaEstimada:Math.min(plantilla.asistenciaEstimada,recinto.capacidad,lugaresHabilitados),version:1,historialVersiones:undefined,fechaRevision:estado==='requiere_correccion'?ahora:undefined,
+        esExcepcional:extraordinaria,justificacionExcepcional:extraordinaria?'Demostración de una solicitud urgente para revisar su recorrido.':undefined,
+        fechaVencimientoRevision:estado==='en_revision'&&!extraordinaria&&calendarioRevision?vencimientoRevision(ahora,calendarioRevision):undefined,
         fechaLimiteCorreccion:estado==='requiere_correccion'?new Date(Date.now()+86400000).toISOString():undefined,tiempoRevisionRestanteMs:estado==='requiere_correccion'?2*86400000:undefined,
-        fechasSolicitadas:[{...plantilla.fechasSolicitadas[0],fecha,idRecinto:recinto.id,distribucion:lugaresDelRecinto(recinto),distribucionConfirmada:true}]};
+        fechasSolicitadas:[{...plantilla.fechasSolicitadas[0],fecha,idRecinto:recinto.id,distribucion,distribucionConfirmada:true}]};
       const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_solicitudes`]:[nueva,...solicitudes]});
       if(resultado.exito)setListaSolicitudes([nueva,...solicitudes]);
       return {...resultado,id:resultado.exito?nueva.id:undefined};
@@ -2411,6 +2430,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         listaEventos,
         listaSolicitudes,
         prepararSuspensionDemostracion,
+        prepararEventoDemostracion,
         prepararSolicitudDemostracion,
         calendarioRevision,
         guardarCalendarioRevision,

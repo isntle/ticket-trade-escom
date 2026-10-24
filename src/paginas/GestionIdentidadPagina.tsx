@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import { ArrowLeft, FileCheck2 } from "lucide-react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { useDatos } from "../contextos/DatosContexto";
@@ -66,7 +67,9 @@ export function GestionIdentidadPagina({
   useEffect(() => {
     setArchivos(cuenta?.archivosExpediente || []);
     setRevision(null);
-    setSeleccion(null);
+    const ejemplo = vista === "revision" && admin && interfazSolicitada() === "UI-IP-10"
+      ? usuarios.find(u => (u.estadoExpediente && u.estadoExpediente !== "sin_enviar") || u.esVerificado) : undefined;
+    setSeleccion(ejemplo ? {id:ejemplo.id,version:ejemplo.versionIdentidad || 0} : null);
     setMensaje("");
     setDocumento(null);
   }, [cuenta?.id, vista]);

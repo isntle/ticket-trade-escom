@@ -1,5 +1,6 @@
 import { inicioEnMexico } from '../dominio/solicitudes';
 import React from 'react';
+import { interfazSolicitada } from '../dominio/pantallasDocumentacion';
 import { VentanaModal } from '../componentes/ui/VentanaModal';
 import { EditorPrograma, ProgramaDia } from '../componentes/eventos/EditorPrograma';
 import { EditorCartel } from '../componentes/eventos/EditorCartel';
@@ -61,9 +62,19 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   const [motivoEdicion, setMotivoEdicion] = React.useState('');
   const [cancelacion, setCancelacion] = React.useState<{idFecha?:string; retirar:boolean; version:string} | null>(null);
   const [motivoCancelacion, setMotivoCancelacion] = React.useState('');
+  const [verConstancia,setVerConstancia] = React.useState(interfazSolicitada() === 'UI.22');
 
   const evento = listaEventos.find((e) => e.id === eventId);
   const checklist = obtenerListaDeVerificacion(eventId);
+  const casoDocumentado = new URLSearchParams(window.location.search).get('caso');
+  React.useEffect(() => {
+    if (interfazSolicitada() !== 'UI.21' || !evento || !(evento.idOrganizador === usuarioActual?.id || rolActivo === 'subdireccion')) return;
+    const dia = evento.fechas.find(d => !d.cancelada && inicioEnMexico(d.fecha,d.horaInicio)>Date.now());
+    if (['CU-OR-22','CU-OR-23','CU-OR-24','CU-OR-25'].includes(casoDocumentado || '') && dia) {
+      setCancelacion({idFecha:casoDocumentado === 'CU-OR-23'?undefined:dia.id,retirar:casoDocumentado==='CU-OR-22',version:JSON.stringify(evento)});
+    }
+    if (casoDocumentado === 'CU-OR-19') setPropuestaEdicion({titulo:evento.titulo,descripcion:evento.descripcion,ponentes:evento.ponentes,urlImagen:evento.urlImagen,fechas:evento.fechas,versionOriginal:JSON.stringify(evento)});
+  }, [eventId,usuarioActual?.id]);
 
   if (!evento) {
     return (
@@ -264,6 +275,12 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <VentanaModal estaAbierto={verConstancia} alCerrar={() => setVerConstancia(false)} titulo="Constancia operativa del evento" anchoMaximo="4xl">
+        <h2 className="text-xl font-bold">{evento.titulo}</h2>
+        <p className="my-3">{evento.descripcion}</p><p>Folio: {evento.id} · Organiza: {evento.nombreOrganizador}</p>
+        <ul className="my-5 space-y-3">{evento.fechas.map((dia,i) => <li className="rounded-lg border p-3" key={dia.id}><strong>Día {i+1} · {dia.fecha}</strong><p>{dia.horaInicio}–{dia.horaFin} · {obtenerNombreRecinto(dia.idRecinto)}</p><p>{dia.cancelada?'Cancelado':dia.suspendida?'Pendiente de reprogramación':'Programado'}</p></li>)}</ul>
+        <button type="button" onClick={imprimirConstancia} className="rounded-lg border px-4 py-2">Imprimir constancia operativa</button>
+      </VentanaModal>
       <VentanaModal estaAbierto={Boolean(cancelacion)} alCerrar={() => setCancelacion(null)} titulo={cancelacion?.retirar ? 'Retirar día' : 'Confirmar cancelación'}>
         <form onSubmit={e => {e.preventDefault(); ejecutarCancelacion();}} className="space-y-4">
           <p>Se conservará el historial. Al cancelar, se invalidarán los boletos y compromisos del día o evento seleccionado.</p>
@@ -330,7 +347,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         if (errorPrograma || errorBanner || cargandoBanner) { mostrarNotificacion('Revisa los cambios', errorPrograma || errorBanner || 'Espera a que termine la carga del cartel.', 'advertencia'); return; }
         setMotivoEdicion('');
         setPropuestaEdicion({ titulo, descripcion, ponentes, fechas, urlImagen: cartelModificado ? urlBannerPropuesto : evento.urlImagen, versionOriginal: JSON.stringify(evento) });
-      }} className="mb-8 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-5 sm:grid-cols-2">
+      }} data-interfaz={casoDocumentado === 'CU-OR-19' ? 'UI.21' : undefined} tabIndex={-1} className="mb-8 grid scroll-mt-24 gap-3 rounded-2xl border border-neutral-200 bg-white p-5 sm:grid-cols-2">
         <div className="sm:col-span-2"><h2 className="font-bold">Editar información del evento aprobado</h2><p className="text-sm text-neutral-500">Revisa título, descripción, cartel y actividades por día. Las fechas, recintos, horarios generales y compromisos vigentes se conservan.</p></div>
         <label className="text-sm font-semibold">Título<input name="titulo" required defaultValue={evento.titulo} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
         <label className="text-sm font-semibold">Ponentes (opcional, uno por línea)<textarea name="ponentes" defaultValue={evento.ponentes.join('\n')} rows={2} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
@@ -594,7 +611,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                       </div>
                     </div>
 
-                    {!fecha.cancelada && puedeGestionar && <form onSubmit={(e) => guardarCambioFecha(e, fecha.id)} className="grid w-full gap-2 border-t border-neutral-200 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {!fecha.cancelada && puedeGestionar && <form data-interfaz={casoDocumentado !== 'CU-OR-19' ? 'UI.21' : undefined} tabIndex={-1} onSubmit={(e) => guardarCambioFecha(e, fecha.id)} className="grid w-full gap-2 border-t border-neutral-200 pt-3 sm:grid-cols-2 lg:grid-cols-4">
                       <label className="text-sm font-semibold text-neutral-600">Fecha<input name="fecha" type="date" defaultValue={fecha.fecha} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm" /></label>
                       <label className="text-sm font-semibold text-neutral-600">Inicio<input name="horaInicio" type="time" defaultValue={fecha.horaInicio} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm" /></label>
                       <label className="text-sm font-semibold text-neutral-600">Fin<input name="horaFin" type="time" defaultValue={fecha.horaFin} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm" /></label>

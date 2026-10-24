@@ -64,7 +64,7 @@ test('el catálogo usa las referencias corregidas del Word y el CU-OR-05 comienz
   assert.ok(b.every(c=>!c.interfaz.includes('UI-ORG-')));
 });
 class Almacen {datos=new Map<string,string>();getItem(k:string){return this.datos.get(k)??null;}setItem(k:string,v:string){this.datos.set(k,v);}removeItem(k:string){this.datos.delete(k);}}
-function contexto(id='usr-fernando'){
+function contexto(id='usr-fernando',eventos=[evento]){
   const local=new Almacen(),sesion=new Almacen();
   const cuenta=USUARIOS_INICIALES.find(u=>u.roles.includes('admin'))!;
   const usuario=USUARIOS_INICIALES.find(u=>u.id===id)||cuenta;
@@ -72,7 +72,7 @@ function contexto(id='usr-fernando'){
   local.setItem('tt_usuarios_sistema_v2',JSON.stringify(USUARIOS_INICIALES));local.setItem('tt_rol_activo_v2',usuario.rolActivo);
   sesion.setItem('tt_sesion_identidad_v3',JSON.stringify({id:'prueba',usuario:usuario.id,inicio:Date.now(),actividad:Date.now(),version:usuario.versionCredenciales||0}));
   const prefijo='tt_datos_almacen_escom_v7_';
-  local.setItem(prefijo+'eventos',JSON.stringify([evento]));local.setItem(prefijo+'bloqueos','[]');local.setItem(prefijo+'ocupaciones_internas','[]');local.setItem(prefijo+'escaneos','[]');
+  local.setItem(prefijo+'eventos',JSON.stringify(eventos));local.setItem(prefijo+'bloqueos','[]');local.setItem(prefijo+'ocupaciones_internas','[]');local.setItem(prefijo+'escaneos','[]');
   let datos:ReturnType<typeof useDatos>;
   function Capturar(){datos=useDatos();return null;}
   renderToString(React.createElement(ProveedorAutenticacion,null,React.createElement(ProveedorDatos,null,React.createElement(Capturar))));
@@ -132,4 +132,31 @@ test('el ejemplo de corrección caducado no impide abrir un expediente vigente e
   assert.equal(solicitud.estado,'requiere_correccion');
   assert.equal(solicitud.fechasSolicitadas[0].distribucionConfirmada,true);
   assert.equal(c.datos.prepararSolicitudDemostracion('requiere_correccion').id,resultado.id);
+});
+test('el evento de demostración queda vigente con su distribución sin cambiar eventos existentes',()=>{
+  const c=contexto('usr-silva',[]);
+  const resultado=c.datos.prepararEventoDemostracion();
+  assert.equal(resultado.exito,true,resultado.error);
+  assert.equal(resultado.evento!.estado,'publicado');
+  const dia=resultado.evento!.fechas[0];
+  assert.equal(dia.esFinalConfirmado,true);
+  assert.ok(new Date(dia.fecha+'T09:00:00-06:00').getTime()>Date.now());
+  assert.ok(c.leer('arreglos').some((a:{id:string})=>a.id===dia.idArregloFinal));
+  assert.equal(c.leer('eventos').length,1);
+});
+test('la demostración reutiliza el evento vigente y no está disponible sin modo demo',()=>{
+  const c=contexto('usr-silva');
+  assert.equal(c.datos.prepararEventoDemostracion().evento!.id,evento.id);
+  Object.assign(window.location,{hostname:'tickett3.vercel.app'});
+  assert.equal(c.datos.prepararEventoDemostracion().exito,false);
+});
+test('la revisión de envío parte de un borrador válido, sin enviarlo automáticamente',()=>{
+  const c=contexto('usr-silva');
+  c.local.setItem(c.prefijo+'solicitudes','[]');
+  const r=c.datos.prepararSolicitudDemostracion('borrador',true);
+  assert.equal(r.exito,true,r.error);
+  const s=c.leer('solicitudes')[0];
+  assert.equal(s.estado,'borrador');assert.equal(s.fechaEnvioInicial,undefined);
+  assert.equal(s.esExcepcional,true);
+  assert.equal(validarDistribuciones(s,RECINTOS_INICIALES),undefined);
 });
