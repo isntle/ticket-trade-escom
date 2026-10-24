@@ -45,7 +45,7 @@ export function MarcoAcceso({ children }: { children: React.ReactNode }) {
             ))}
           </div>
         </aside>
-        <div className="flex min-w-0 items-center px-5 py-8 sm:px-8 lg:px-[clamp(2rem,4vw,5rem)] lg:py-10">
+        <div className="flex min-w-0 items-start px-5 py-8 sm:px-8 lg:items-center lg:px-[clamp(2rem,4vw,5rem)] lg:py-10">
           <div className="w-full">{children}</div>
         </div>
       </div>
