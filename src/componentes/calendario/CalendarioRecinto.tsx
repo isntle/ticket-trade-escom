@@ -93,7 +93,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
   // Cuadrícula de días
   const celdasCalendario = [];
   for (let i = 0; i < primerDiaMes; i++) {
-    celdasCalendario.push(<div key={`vacio-${i}`} className="h-10 sm:h-12" />);
+    celdasCalendario.push(<div key={`vacio-${i}`} className="h-8 sm:h-9" />);
   }
 
   for (let dia = 1; dia <= diasEnMes; dia++) {
@@ -121,7 +121,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
         key={`dia-${dia}`}
         type="button"
         onClick={() => alSeleccionarFecha && alSeleccionarFecha(fechaActualCadena)}
-        className={`h-10 sm:h-12 border rounded-lg p-1 flex flex-col justify-between items-center transition-all cursor-pointer text-xs ${estiloFondo}`}
+        className={`h-8 sm:h-9 border rounded-lg p-1 flex flex-col justify-between items-center transition-all cursor-pointer text-xs ${estiloFondo}`}
         title={`${fechaActualCadena} ${infoDia.tipo !== 'libre' ? `(${infoDia.tipo})` : '(Libre)'}`}
       >
         <span className="font-mono text-xs">{dia}</span>
@@ -135,9 +135,9 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
     : null;
 
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-xs">
+    <div className="bg-white rounded-xl border border-neutral-200 p-3.5 shadow-xs">
       {/* Cabecera del Mes */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-2">
         <h4 className="text-xs font-bold text-neutral-900 uppercase tracking-wider">
           {nombresMeses[mesActual]} {añoActual}
         </h4>
@@ -172,7 +172,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
       <div className="grid grid-cols-7 gap-1">{celdasCalendario}</div>
 
       {/* Leyenda */}
-      <div className="mt-4 pt-3 border-t border-neutral-100 flex flex-wrap items-center gap-3 text-[11px] text-neutral-600">
+      <div className="mt-2.5 pt-2 border-t border-neutral-100 flex flex-wrap items-center gap-3 text-[11px] text-neutral-600">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded bg-white border border-neutral-300" />
           <span>Libre / Disponible</span>
@@ -193,7 +193,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
 
       {/* Detalle de la fecha seleccionada */}
       {fechaSeleccionada && infoDiaSeleccionado && (
-        <div className="mt-3 p-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-xs">
+        <div className="mt-2 p-2 rounded-lg border border-neutral-200 bg-neutral-50 text-xs">
           <div className="font-semibold text-neutral-900 flex items-center justify-between">
             <span>Fecha seleccionada: {fechaSeleccionada}</span>
             <span

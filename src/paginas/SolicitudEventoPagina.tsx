@@ -1,21 +1,16 @@
 import React, { useState } from 'react';
 import {
-  Calendar,
-  Clock,
-  MapPin,
   AlertTriangle,
-  Plus,
-  Trash2,
   Send,
   ArrowLeft,
   FileText,
-  Info
 } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { useNotificaciones } from '../contextos/NotificacionesContexto';
 import { AlertaMensaje } from '../componentes/ui/AlertaMensaje';
 import { ElementoFechaSolicitada, ModalidadAsistencia, VisibilidadEvento } from '../tipos';
+import { WizardFechas } from '../componentes/wizard/WizardFechas';
 
 interface PropiedadesSolicitudEvento {
   navigate: (ruta: string) => void;
@@ -32,6 +27,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
   const [modalidad, setModalidad] = useState<ModalidadAsistencia>('controlado');
   const [visibilidad, setVisibilidad] = useState<VisibilidadEvento>('publico');
   const [asistenciaEstimada, setAsistenciaEstimada] = useState(120);
+  const [especificaciones, setEspecificaciones] = useState('');
 
   // Lista de fechas solicitadas
   const [fechas, setFechas] = useState<ElementoFechaSolicitada[]>([
@@ -115,7 +111,9 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
       afiliacionSolicitante: usuarioActual.afiliacion,
       identificadorSolicitante: usuarioActual.boleta || usuarioActual.numeroEmpleado || usuarioActual.nombreOrganizacion,
       tituloEvento: titulo,
-      descripcionEvento: descripcion,
+      descripcionEvento: especificaciones.trim()
+        ? `${descripcion}\n\n[Especificaciones / Requerimientos]:\n${especificaciones}`
+        : descripcion,
       fechasSolicitadas: fechas,
       modalidadAsistencia: modalidad,
       visibilidad,
@@ -134,7 +132,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
       {/* Botón Volver */}
       <button
         type="button"
@@ -215,173 +213,62 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({ na
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block font-semibold text-neutral-700 mb-1">Modalidad de Asistencia</label>
-                <select
-                  value={modalidad}
-                  onChange={(e) => setModalidad(e.target.value as ModalidadAsistencia)}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-neutral-800"
-                >
-                  <option value="controlado">Acceso Controlado (QR con Butaca)</option>
-                  <option value="libre">Acceso Libre (Sin boleto)</option>
-                  <option value="registro">Registro de Asistencia</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-neutral-700 mb-1">Visibilidad</label>
-                <select
-                  value={visibilidad}
-                  onChange={(e) => setVisibilidad(e.target.value as VisibilidadEvento)}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-neutral-800"
-                >
-                  <option value="publico">Público General</option>
-                  <option value="interno">Solo Comunidad IPN</option>
-                  <option value="privado">Privado (Solo con Clave)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-neutral-700 mb-1">Aforo Estimado</label>
-                <input
-                  type="number"
-                  min={10}
-                  max={500}
-                  value={asistenciaEstimada}
-                  onChange={(e) => setAsistenciaEstimada(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-neutral-900"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Programación de Fechas y Recintos Solicitados */}
-        <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-wider">
-                Fechas y Recintos Solicitados
-              </h2>
-              <p className="text-xs text-neutral-500">
-                Puedes solicitar una o varias fechas para congresos de múltiples jornadas.
-              </p>
+              <label className="block font-semibold text-neutral-700 mb-1">Visibilidad del Evento</label>
+              <select
+                value={visibilidad}
+                onChange={(e) => setVisibilidad(e.target.value as VisibilidadEvento)}
+                className="w-full sm:w-1/2 px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-neutral-800 text-xs focus:outline-none focus:border-[#7a132b]"
+              >
+                <option value="publico">Público General</option>
+                <option value="interno">Solo Comunidad IPN</option>
+                <option value="privado">Privado (Solo con Clave)</option>
+              </select>
             </div>
-            <button
-              type="button"
-              onClick={agregarFecha}
-              className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Añadir otra fecha</span>
-            </button>
           </div>
-
-          <div className="space-y-3">
-            {fechas.map((f, indice) => {
-              const esMenor7Dias = f.fecha && f.fecha < cadenaLimite7Dias;
-              return (
-                <div
-                  key={f.id}
-                  className={`p-4 rounded-xl border ${
-                    esMenor7Dias ? 'border-amber-300 bg-amber-50/40' : 'border-neutral-200 bg-neutral-50/50'
-                  } grid grid-cols-1 sm:grid-cols-5 gap-3 items-end text-xs`}
-                >
-                  <div>
-                    <label className="block font-semibold text-neutral-700 mb-1">
-                      Fecha (Jornada {indice + 1})
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={f.fecha}
-                      onChange={(e) => actualizarFecha(f.id, 'fecha', e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-neutral-700 mb-1">Hora Inicio</label>
-                    <input
-                      type="time"
-                      required
-                      value={f.horaInicio}
-                      onChange={(e) => actualizarFecha(f.id, 'horaInicio', e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-neutral-700 mb-1">Hora Fin</label>
-                    <input
-                      type="time"
-                      required
-                      value={f.horaFin}
-                      onChange={(e) => actualizarFecha(f.id, 'horaFin', e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-neutral-700 mb-1">Recinto Solicitado</label>
-                    <select
-                      value={f.idRecinto}
-                      onChange={(e) => actualizarFecha(f.id, 'idRecinto', e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg"
-                    >
-                      {listaRecintos.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.nombre} ({r.capacidad} cap)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {fechas.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => eliminarFecha(f.id)}
-                        className="p-2 border border-neutral-300 text-neutral-500 hover:text-rose-600 rounded-lg hover:bg-white"
-                        title="Eliminar esta fecha"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Advertencia y Justificación Excepcional por Regla de Anticipación */}
-          {requiereJustificacion && (
-            <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-3 animate-in fade-in duration-200">
-              <div className="flex items-start gap-2.5 text-xs text-amber-900">
-                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold">Regla de Anticipación Activada (&lt; 7 días):</span>{' '}
-                  El reglamento de recintos de ESCOM establece que las solicitudes deben tramitarse con al menos 1 semana de anticipación. Para continuar con esta solicitud urgente, debes justificar el carácter extraordinario del evento ante la Subdirección.
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-amber-900 text-xs mb-1">
-                  Justificación Excepcional Obligatoria *
-                </label>
-                <textarea
-                  rows={3}
-                  required
-                  value={justificacionExcepcional}
-                  onChange={(e) => setJustificacionExcepcional(e.target.value)}
-                  placeholder="Explica la causa imprevista o urgente (ej: visita no programada de investigador internacional con aval de academia)..."
-                  className="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                />
-              </div>
-            </div>
-          )}
         </div>
+
+        {/* Wizard de Fechas, Horarios, Recintos y Especificaciones */}
+        <WizardFechas
+          fechas={fechas}
+          listaRecintos={listaRecintos}
+          cadenaLimite7Dias={cadenaLimite7Dias}
+          modalidad={modalidad}
+          setModalidad={setModalidad}
+          asistenciaEstimada={asistenciaEstimada}
+          setAsistenciaEstimada={setAsistenciaEstimada}
+          especificaciones={especificaciones}
+          setEspecificaciones={setEspecificaciones}
+          onActualizar={actualizarFecha}
+          onAgregar={agregarFecha}
+          onEliminar={eliminarFecha}
+        />
+
+        {/* Justificación Excepcional por Regla de Anticipación */}
+        {requiereJustificacion && (
+          <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-3 animate-in fade-in duration-200">
+            <div className="flex items-start gap-2.5 text-xs text-amber-900">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Regla de Anticipación Activada (&lt; 7 días):</span>{' '}
+                El reglamento de recintos de ESCOM establece que las solicitudes deben tramitarse con al menos 1 semana de anticipación. Para continuar con esta solicitud urgente, debes justificar el carácter extraordinario del evento ante la Subdirección.
+              </div>
+            </div>
+            <div>
+              <label className="block font-bold text-amber-900 text-xs mb-1">
+                Justificación Excepcional Obligatoria *
+              </label>
+              <textarea
+                rows={3}
+                required
+                value={justificacionExcepcional}
+                onChange={(e) => setJustificacionExcepcional(e.target.value)}
+                placeholder="Explica la causa imprevista o urgente (ej: visita no programada de investigador internacional con aval de academia)..."
+                className="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Acciones de Envío */}
         <div className="flex items-center justify-end gap-3 pt-4">
