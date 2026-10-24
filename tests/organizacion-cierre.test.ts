@@ -12,6 +12,8 @@ import {validarLimitesEvento} from '../src/dominio/cambiosEvento';
 import {escenarioSuspension} from '../src/dominio/escenarioSuspension';
 import {resolverRutaDocumentacion} from '../src/dominio/navegacionDocumentacion';
 import {SUBEQUIPOS} from '../src/componentes/demostracion/ExploradorCasosUso';
+import {CalendarioRecinto} from '../src/componentes/calendario/CalendarioRecinto';
+import {DiaSolicitud} from '../src/componentes/recintos/DiaSolicitud';
 const calendario={diasLaborables:[1,2,3,4,5],diasInhabiles:['2030-01-21'],responsable:'Administración de prueba',fechaConfiguracion:'2030-01-01T12:00:00Z'};
 const recinto=RECINTOS_INICIALES.find(r=>r.id==='rec-sala14')!;
 const dia={id:'fec-prueba',idEvento:'evt-prueba',idRecinto:recinto.id,fecha:'2030-01-25',horaInicio:'10:00',horaFin:'12:00',ponentes:[],esFinalConfirmado:true};
@@ -88,6 +90,29 @@ test('registro, revisión de versión y cancelación de bloqueo conservan suspen
   assert.equal(c.datos.cancelarBloqueoInstitucional(guardado.id!,'Finalizó mantenimiento',guardado.version).exito,true);
   assert.equal(c.leer('bloqueos')[0].estado,'cancelado');assert.equal(c.leer('bloqueos')[0].historial.length,2);
   assert.equal(c.leer('eventos')[0].fechas[0].suspendida,true);
+});
+test('calendario no anuncia disponibilidad cuando el margen de desalojo entra en conflicto',()=>{
+  contexto('usr-silva');
+  const html=renderToString(React.createElement(ProveedorAutenticacion,null,React.createElement(ProveedorDatos,null,
+    React.createElement(CalendarioRecinto,{idRecinto:recinto.id,fechaSeleccionada:dia.fecha,horaInicio:'12:15',horaFin:'13:00'}))));
+  assert.match(html,/Conflicto con evento/);
+  assert.doesNotMatch(html,/Sin conflictos registrados para el horario consultado/);
+});
+test('consulta de disponibilidad cambia con el recinto y el horario, respetando los 30 minutos',()=>{
+  const c=contexto('usr-silva');
+  assert.equal(c.datos.verificarDisponibilidadRecinto(recinto.id,dia.fecha,'12:15','13:00').disponible,false);
+  assert.equal(c.datos.verificarDisponibilidadRecinto(recinto.id,dia.fecha,'12:30','13:30').disponible,true);
+  assert.equal(c.datos.verificarDisponibilidadRecinto('rec-auditorio',dia.fecha,'10:00','12:00').disponible,true);
+});
+test('formulario por pasos conserva el acceso directo a programa y distribución desde documentación',()=>{
+  contexto('usr-silva');
+  window.location.search='?distribucion=1';
+  const html=renderToString(React.createElement(ProveedorAutenticacion,null,React.createElement(ProveedorDatos,null,
+    React.createElement(DiaSolicitud,{dia:{...dia,nombreDia:'Día 1'},indice:0,modalidad:'controlado',aforo:20,puedeEliminar:false,alCambiar:()=>{},alEliminar:()=>{}}))));
+  assert.match(html,/Configurar distribución del/);
+  assert.match(html,/Programa del/);
+  assert.match(html,/Guardar programación del día/);
+  assert.match(html,/El recinto no está disponible para este horario/);
 });
 test('solicitante sin permiso administrativo no registra bloqueos ni configura calendario',()=>{
   const c=contexto('usr-silva');

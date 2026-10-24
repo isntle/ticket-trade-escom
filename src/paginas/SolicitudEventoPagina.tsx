@@ -1,36 +1,28 @@
-import { DistribucionSolicitud } from "../componentes/recintos/DistribucionSolicitud";
+import { DiaSolicitud } from "../componentes/recintos/DiaSolicitud";
 import { validarDistribuciones } from "../dominio/distribucionSolicitud";
 import { VentanaModal } from "../componentes/ui/VentanaModal";
 import { restriccionIdentidadVigente } from "../dominio/identidad";
-import { CalendarioRecinto } from "../componentes/calendario/CalendarioRecinto";
 import {
   esFechaUrgente,
   fechaHoyMexico,
-  inicioEnMexico,
   validarProgramacion,
   versionSolicitud,
 } from "../dominio/solicitudes";
 import React, { useState, useEffect } from "react";
 import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import {
-  EditorPrograma,
   ProgramaDia,
 } from "../componentes/eventos/EditorPrograma";
 import { EditorCartel } from "../componentes/eventos/EditorCartel";
 import {
   Calendar,
   Clock,
-  MapPin,
   AlertTriangle,
   Plus,
-  Trash2,
   Send,
   ArrowLeft,
   FileText,
   Info,
-  Layers,
-  Sparkles,
-  Users,
 } from "lucide-react";
 import { useDatos } from "../contextos/DatosContexto";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
@@ -53,7 +45,6 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
   const {
     listaRecintos,
     listaSolicitudes,
-    verificarDisponibilidadRecinto,
     crearSolicitud,
     guardarBorradorSolicitud,
     actualizarSolicitud,
@@ -154,7 +145,6 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
   }, [requestId]);
 
   const hoy = new Date();
-  const cadenaHoy = fechaHoyMexico(hoy);
   const fechasFueraDeAnticipacion = fechas.filter(
     (fecha) =>
       esFechaUrgente(fecha, hoy) &&
@@ -254,16 +244,6 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
         nombreDia: `Día ${idx + 1}`,
       }));
     });
-  };
-
-  const actualizarFecha = (
-    id: string,
-    campo: keyof ElementoFechaSolicitada,
-    valor: ElementoFechaSolicitada[keyof ElementoFechaSolicitada],
-  ) => {
-    setFechas((previas) =>
-      previas.map((f) => (f.id === id ? { ...f, [campo]: valor, ...(campo === "idRecinto" ? {distribucion:undefined,distribucionConfirmada:false}: {}) } : f)),
-    );
   };
 
   const leerArchivoComoDataUrl = (archivo: File) =>
@@ -590,7 +570,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       {/* Botón Volver */}
       <button
         type="button"
@@ -869,165 +849,19 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
               </button>
             </div>
 
-            <div className="space-y-3">
-              {fechas.map((f, indice) => {
-                const esFechaPasada =
-                  f.fecha &&
-                  inicioEnMexico(f.fecha, f.horaInicio) <= Date.now();
-                const esMenor7Dias = esFechaUrgente(f);
-                const etiquetaDia = f.nombreDia || `Día ${indice + 1}`;
-
-                return (
-                  <div
-                    key={f.id}
-                    className={`p-4 rounded-xl border transition-all ${
-                      esFechaPasada
-                        ? "border-rose-400 bg-rose-50"
-                        : esMenor7Dias
-                          ? "border-amber-300 bg-amber-50/40"
-                          : "border-neutral-200 bg-neutral-50/70 hover:border-neutral-300"
-                    } space-y-3 text-sm`}
-                  >
-                    {/* Encabezado del Día */}
-                    <div className="flex items-center justify-between border-b border-neutral-200/60 pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded-md bg-[#7a132b] text-white font-mono text-sm font-bold">
-                          {etiquetaDia}
-                        </span>
-                        <span className="text-neutral-500 font-medium text-sm">
-                          Día {indice + 1} del evento
-                        </span>
-                        {esFechaPasada && (
-                          <span
-                            role="alert"
-                            className="rounded bg-rose-100 px-2 py-1 text-sm font-semibold text-rose-800"
-                          >
-                            Fecha u hora pasada: selecciona un horario futuro
-                          </span>
-                        )}
-                        {esMenor7Dias && (
-                          <span className="text-sm font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
-                            Urgente (&lt; 7 días)
-                          </span>
-                        )}
-                      </div>
-
-                      {fechas.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => eliminarDia(f.id)}
-                          className="p-1.5 text-neutral-400 hover:text-rose-600 rounded-lg hover:bg-white transition-colors cursor-pointer"
-                          title={`Eliminar ${etiquetaDia}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Controles de Día: Fecha, Horas y Recinto */}
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
-                      <div>
-                        <label className="block font-semibold text-neutral-700 mb-1">
-                          Fecha ({etiquetaDia}) *
-                        </label>
-                        <input
-                          type="date"
-                          min={cadenaHoy}
-                          aria-label={`Fecha del ${etiquetaDia}`}
-                          aria-invalid={Boolean(esFechaPasada)}
-                          required
-                          value={f.fecha}
-                          onChange={(e) =>
-                            actualizarFecha(f.id, "fecha", e.target.value)
-                          }
-                          className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-[#7a132b]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block font-semibold text-neutral-700 mb-1">
-                          Hora Inicio *
-                        </label>
-                        <input
-                          type="time"
-                          required
-                          aria-label={`Hora de inicio del ${etiquetaDia}`}
-                          value={f.horaInicio}
-                          onChange={(e) =>
-                            actualizarFecha(f.id, "horaInicio", e.target.value)
-                          }
-                          className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-[#7a132b]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block font-semibold text-neutral-700 mb-1">
-                          Hora Fin *
-                        </label>
-                        <input
-                          type="time"
-                          required
-                          aria-label={`Hora de término del ${etiquetaDia}`}
-                          value={f.horaFin}
-                          onChange={(e) =>
-                            actualizarFecha(f.id, "horaFin", e.target.value)
-                          }
-                          className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-[#7a132b]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block font-semibold text-neutral-700 mb-1">
-                          Recinto Solicitado *
-                        </label>
-                        <select
-                          aria-label={`Recinto del ${etiquetaDia}`}
-                          value={f.idRecinto}
-                          onChange={(e) =>
-                            actualizarFecha(f.id, "idRecinto", e.target.value)
-                          }
-                          className="w-full px-2.5 py-1.5 bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:border-[#7a132b]"
-                        >
-                          {listaRecintos
-                            .filter((r) => r.activo !== false)
-                            .map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {r.nombre} ({r.capacidad} cap)
-                              </option>
-                            ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <details className="rounded-xl border border-neutral-200 bg-white p-3">
-                      <summary className="cursor-pointer text-sm font-semibold text-[#7a132b]">
-                        Consultar calendario del recinto
-                      </summary>
-                      <div className="mt-3">
-                        <CalendarioRecinto
-                          idRecinto={f.idRecinto}
-                          fechaSeleccionada={f.fecha}
-                          horaInicio={f.horaInicio}
-                          horaFin={f.horaFin}
-                          soloFechasFuturas
-                          alSeleccionarFecha={(fecha) =>
-                            actualizarFecha(f.id, "fecha", fecha)
-                          }
-                        />
-                      </div>
-                    </details>
-                    {modalidad === "controlado" && listaRecintos.find(r=>r.id===f.idRecinto) && <DistribucionSolicitud key={f.id+"-"+f.idRecinto} dia={f} recinto={listaRecintos.find(r=>r.id===f.idRecinto)!} alGuardar={dia=>setFechas(prev=>prev.map(item=>item.id===dia.id?dia:item))} />}
-                    <EditorPrograma
-                      nombreDia={etiquetaDia}
-                      programa={f.programa || []}
-                      textoAnterior={f.actividadOPrograma}
-                      alCambiar={(programa) =>
-                        actualizarFecha(f.id, "programa", programa)
-                      }
-                    />
-                  </div>
-                );
-              })}
+            <div className="space-y-5">
+              {fechas.map((dia, indice) => (
+                <DiaSolicitud
+                  key={dia.id}
+                  dia={dia}
+                  indice={indice}
+                  modalidad={modalidad}
+                  aforo={asistenciaEstimada}
+                  puedeEliminar={fechas.length > 1}
+                  alCambiar={nuevoDia => setFechas(previas => previas.map(item => item.id === dia.id ? nuevoDia : item))}
+                  alEliminar={() => eliminarDia(dia.id)}
+                />
+              ))}
             </div>
 
             {/* Advertencia y Justificación Excepcional por Regla de Anticipación */}

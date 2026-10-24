@@ -98,6 +98,8 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
     } else if (infoDia.tipo === 'evento') {
       estiloFondo = 'bg-amber-50 border-amber-200 text-amber-900';
       insignia = <Clock className="w-3 h-3 text-amber-600" />;
+    } else if (esHoy) {
+      estiloFondo = 'bg-blue-50 border-blue-400 text-blue-900 font-bold';
     }
 
     celdasCalendario.push(
@@ -167,11 +169,11 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
         </div>
         <div className="flex items-center gap-1.5">
           <Clock className="w-3 h-3 text-amber-600" />
-          <span>Ocupado por evento</span>
+          <span>Ocupado en este horario</span>
         </div>
         <div className="flex items-center gap-1.5">
           <Ban className="w-3 h-3 text-rose-600" />
-          <span>Bloqueo Subdirección</span>
+          <span>Bloqueo del recinto</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded bg-[#7a132b]" />
@@ -205,10 +207,13 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="mt-1 text-emerald-700 font-medium">
-              ✓ Sin ocupaciones programadas. Recinto completamente disponible.
+          ) : infoDiaSeleccionado.tipo === 'libre' ? (
+            <p className="mt-1 flex items-center gap-2 text-emerald-700 font-medium">
+              <CheckCircle aria-hidden="true" className="h-4 w-4 shrink-0" />
+              Sin conflictos registrados para el horario consultado.
             </p>
+          ) : (
+            <p className="mt-1 text-rose-800">{infoDiaSeleccionado.titulo || 'Existe un conflicto para el horario consultado.'}</p>
           )}
         </div>
       )}
