@@ -166,6 +166,14 @@ export function GestionAcademicaPagina({
           Tres rechazos dentro del periodo suspenden nuevos envíos hasta el
           siguiente.
         </p>
+        <p className="text-sm text-neutral-600">
+          Sin una configuración previa se utiliza el calendario escolarizado
+          IPN 2026–2027. Se respetan los periodos guardados por Subdirección.
+          Fuera de las fechas de un periodo no se reciben nuevas verificaciones.
+          {" "}<a className="font-semibold text-[#7a132b] underline"
+            href="https://www.ipn.mx/assets/files/website/docs/inicio/calendarioipn-escolarizada.pdf"
+            target="_blank" rel="noreferrer">Consultar calendario oficial</a>.
+        </p>
         <form
           className="space-y-4"
           onSubmit={(e) => {

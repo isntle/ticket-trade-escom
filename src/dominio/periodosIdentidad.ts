@@ -7,6 +7,21 @@ export interface PeriodoIdentidad {
   fuente: string;
 }
 export const CLAVE_PERIODOS_IDENTIDAD = "tt_periodos_identidad_v1";
+// Calendario escolarizado 2026–2027 del IPN; no se extrapolan ciclos futuros.
+export const PERIODOS_IPN_2026_2027: PeriodoIdentidad[] = [
+  {
+    id: "27/1",
+    inicio: "2026-08-24",
+    fin: "2026-12-18",
+    fuente: "IPN, calendario escolarizado 2026–2027: https://www.ipn.mx/assets/files/website/docs/inicio/calendarioipn-escolarizada.pdf",
+  },
+  {
+    id: "27/2",
+    inicio: "2027-01-25",
+    fin: "2027-06-22",
+    fuente: "IPN, calendario escolarizado 2026–2027: https://www.ipn.mx/assets/files/website/docs/inicio/calendarioipn-escolarizada.pdf",
+  },
+];
 export function validarPeriodosIdentidad(
   periodos: PeriodoIdentidad[],
 ): string | undefined {
@@ -40,9 +55,10 @@ export function validarPeriodosIdentidad(
 }
 export function leerPeriodosIdentidad(): PeriodoIdentidad[] {
   try {
-    const p = JSON.parse(
-      localStorage.getItem(CLAVE_PERIODOS_IDENTIDAD) || "[]",
-    );
+    const guardado = localStorage.getItem(CLAVE_PERIODOS_IDENTIDAD);
+    if (guardado === null)
+      return PERIODOS_IPN_2026_2027.map((p) => ({ ...p }));
+    const p = JSON.parse(guardado);
     return Array.isArray(p) && !validarPeriodosIdentidad(p) ? p : [];
   } catch {
     return [];
