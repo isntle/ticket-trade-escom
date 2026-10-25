@@ -371,7 +371,7 @@ export function PerfilUsuarioPagina({
                 className={boton}
                 onClick={() => navigate("/admin/expedientes")}
               >
-                Revisar expedientes
+                Consultar y revocar verificaciones
               </button>
               <button
                 className={boton}
@@ -385,12 +385,12 @@ export function PerfilUsuarioPagina({
             </>
           )}
           {rolActivo === "subdireccion" && (
-            <button
+            <><button className={boton} onClick={()=>navigate("/subdireccion/verificaciones")}>Solicitudes de verificación</button><button className={boton} onClick={()=>navigate("/subdireccion/jefes-academia")}>Jefes de academia y periodos</button><button
               className={boton}
               onClick={() => navigate("/subdireccion/restricciones")}
             >
               Solicitar restricción o levantamiento
-            </button>
+            </button></>
           )}
           {["organizador", "admin"].includes(rolActivo) && (
             <button

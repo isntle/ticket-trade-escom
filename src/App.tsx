@@ -1,3 +1,4 @@
+import { GestionAcademicaPagina } from "./paginas/GestionAcademicaPagina";
 import { esRegreso, alternativaRegreso, destinoInternoSeguro, volverA } from './dominio/navegacion';
 import { CatalogoRecintosPagina } from "./paginas/CatalogoRecintosPagina";
 import React, { useState, useEffect } from "react";
@@ -356,6 +357,8 @@ function ContenidoApp() {
       return <PanelOrganizadorPagina navigate={navegarA} />;
     }
 
+    if (rutaActual === "/subdireccion/jefes-academia") return <GestionAcademicaPagina navigate={navegarA}/>;
+    if (rutaActual === "/subdireccion/verificaciones") return <GestionIdentidadPagina vista="revision" navigate={navegarA}/>;
     if (rutaActual === "/subdireccion/restricciones")
       return (
         <GestionIdentidadPagina vista="restricciones" navigate={navegarA} />

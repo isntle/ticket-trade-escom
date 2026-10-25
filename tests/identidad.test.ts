@@ -312,71 +312,29 @@ test("expediente exige documentos y vigencia por categoría y limita archivos", 
     ),
   );
 });
-test("Administración evalúa versión vigente con motivo; Subdirección no dictamina", () => {
-  preparar("usr-subdireccion");
-  assert.equal(
-    auth.dictaminarExpediente(
-      "usr-carlos",
-      "aprobado",
-      "Revisado",
-      0,
-      "2027-01-01",
-    ).exito,
-    false,
-  );
-  const p = preparar("usr-admin");
-  const cuentas = p.leer();
-  const u = cuentas.find((c) => c.id === "usr-carlos")!;
-  u.estadoExpediente = "en_revision";
-  p.local.setItem("tt_usuarios_sistema_v2", JSON.stringify(cuentas));
-  renderToString(
-    React.createElement(
-      ProveedorAutenticacion,
-      null,
-      React.createElement(capturar),
-    ),
-  );
-  assert.equal(
-    auth.dictaminarExpediente(u.id, "aprobado", "", 0, "2027-01-01").exito,
-    false,
-  );
-  assert.equal(
-    auth.dictaminarExpediente(
-      u.id,
-      "aprobado",
-      "Revisión de muestra",
-      99,
-      "2027-01-01",
-    ).exito,
-    false,
-  );
-  assert.equal(
-    auth.dictaminarExpediente(
-      u.id,
-      "aprobado",
-      "Revisión de muestra",
-      0,
-      "2027-01-01",
-    ).exito,
-    true,
-  );
-  const aprobada = p.leer().find((c) => c.id === u.id)!;
-  assert.equal(aprobada.esVerificado, true);
-  assert.equal(aprobada.roles.includes("admin"), false);
-  assert.equal(
-    auth.dictaminarExpediente(u.id, "revocado", "", aprobada.versionIdentidad!)
-      .exito,
-    false,
-  );
-  assert.equal(
-    auth.dictaminarExpediente(
-      u.id,
-      "revocado",
-      "Renovar evidencia",
-      aprobada.versionIdentidad!,
-    ).exito,
-    true,
-  );
+test("Subdirección revisa con periodo y versión; solo Administración revoca", () => {
+  const p=preparar('usr-subdireccion');
+  const cuentas=p.leer(),u=cuentas.find(c=>c.id==='usr-carlos')!;
+  u.estadoExpediente='en_revision';u.versionIdentidad=0;
+  p.local.setItem('tt_usuarios_sistema_v2',JSON.stringify(cuentas));
+  const periodo={id:'27-1-prueba',inicio:'2026-08-01',fin:'2027-01-31',fuente:'Calendario ficticio de prueba'};
+  p.local.setItem('tt_periodos_identidad_v1',JSON.stringify([periodo]));
+  renderToString(React.createElement(ProveedorAutenticacion,null,React.createElement(capturar)));
+  assert.equal(auth.dictaminarExpediente(u.id,'aprobado','',0,periodo.fin).exito,false);
+  assert.equal(auth.dictaminarExpediente(u.id,'aprobado','Revisado',99,periodo.fin).exito,false);
+  assert.equal(auth.dictaminarExpediente(u.id,'aprobado','Revisado',0,'2028-01-01').exito,false);
+  assert.equal(auth.dictaminarExpediente(u.id,'aprobado','Revisado',0,periodo.fin).exito,true);
+  const aprobada=p.leer().find(c=>c.id===u.id)!;
+  assert.equal(aprobada.esVerificado,true);
+  assert.equal(aprobada.periodoVerificado,periodo.id);
+  assert.equal(aprobada.roles.includes('admin'),false);
+  assert.equal(auth.dictaminarExpediente(u.id,'revocado','Retiro',aprobada.versionIdentidad!).exito,false);
+  const admin=p.leer().find(c=>c.id==='usr-admin')!;
+  p.local.setItem('tt_rol_activo_v2','admin');
+  p.sesion.setItem('tt_sesion_identidad_v3',JSON.stringify({id:'admin',usuario:admin.id,inicio:Date.now(),actividad:Date.now(),version:admin.versionCredenciales||0}));
+  renderToString(React.createElement(ProveedorAutenticacion,null,React.createElement(capturar)));
+  assert.equal(auth.dictaminarExpediente(u.id,'rechazado','No corresponde',aprobada.versionIdentidad!).exito,false);
+  assert.equal(auth.dictaminarExpediente(u.id,'revocado','Renovar evidencia',aprobada.versionIdentidad!).exito,true);
 });
 test("Subdirección pide restricción sin aplicarla; Administración resuelve con periodo y versión", () => {
   const p = preparar("usr-subdireccion");
@@ -501,10 +459,10 @@ test("los ocho CU-ID tienen pantalla, control y respuesta; permisos y alternativ
     assert.ok(c.respuesta);
   }
   assert.equal(casos[5].ruta, "/mi-expediente");
-  assert.equal(casos[6].ruta, "/admin/expedientes");
+  assert.equal(casos[6].ruta, "/subdireccion/verificaciones");
   assert.deepEqual(
     casos[7].accesos?.map((a) => a.ruta),
-    ["/subdireccion/restricciones", "/admin", "/organizador/staff"],
+    ["/subdireccion/restricciones", "/admin", "/subdireccion/jefes-academia", "/organizador/staff"],
   );
 });
 test("la carga comprueba el PDF real y rechaza extensión falsa, cifrado, acciones y exceso de tamaño", async () => {
@@ -621,4 +579,67 @@ test("un fallo de almacenamiento no confirma cambios de perfil ni cambia la sesi
   );
   assert.equal(p.local.getItem("tt_usuarios_sistema_v2"), previo);
   assert.ok(p.sesion.getItem("tt_sesion_identidad_v3"));
+});
+
+test('la jefatura solo la asigna Subdirección a docentes verificados y conserva los roles',()=>{
+  let p=preparar('usr-admin');
+  assert.equal(auth.cambiarAutoaprobacion('usr-silva',true,'Nombramiento',0).exito,false);
+  p=preparar('usr-subdireccion');
+  const docente=auth.todosLosUsuarios.find(u=>u.id==='usr-silva')!;
+  assert.equal(auth.cambiarAutoaprobacion(docente.id,true,'',docente.versionIdentidad||0).exito,false);
+  assert.equal(auth.cambiarAutoaprobacion('usr-carlos',true,'No es docente',0).exito,false);
+  assert.equal(auth.cambiarAutoaprobacion(docente.id,true,'Nombramiento revisado',docente.versionIdentidad||0).exito,true);
+  const asignado=p.leer().find(u=>u.id===docente.id)!;
+  assert.equal(asignado.puedeAutoaprobar,true);
+  assert.deepEqual(asignado.roles,docente.roles);
+  assert.equal(auth.cambiarAutoaprobacion(docente.id,false,'Retiro',docente.versionIdentidad||0).exito,false);
+  assert.equal(auth.cambiarAutoaprobacion(docente.id,false,'Fin del nombramiento',asignado.versionIdentidad).exito,true);
+});
+
+test('la pausa de verificación no bloquea la sesión ni cambia los roles',()=>{
+  const p=preparar('usr-subdireccion');
+  const antes=auth.todosLosUsuarios.find(u=>u.id==='usr-carlos')!;
+  assert.equal(auth.silenciarVerificacion(antes.id,'2030-01-01','Reenvíos reiterados',antes.versionIdentidad||0).exito,true);
+  const despues=p.leer().find(u=>u.id===antes.id)!;
+  assert.equal(despues.estaActivo,antes.estaActivo);
+  assert.deepEqual(despues.roles,antes.roles);
+  assert.equal(despues.verificacionSilenciadaHasta,'2030-01-01');
+  assert.equal(auth.silenciarVerificacion(antes.id,'','Pausa levantada',despues.versionIdentidad!).exito,true);
+  assert.equal(p.leer().find(u=>u.id===antes.id)!.verificacionSilenciadaHasta,undefined);
+});
+
+test('estudiantes pueden adjuntar horario; el RFC no sustituye el número de empleado',()=>{
+  const u={...USUARIOS_INICIALES.find(u=>u.id==='usr-carlos')!,correoConfirmado:true};
+  const hoy=new Date('2026-10-25T12:00:00-06:00');
+  assert.equal(validarExpedienteIdentidad(u,[{...documento,tipo:'horario'}],hoy),undefined);
+  const profesor={...u,afiliacion:'profesor' as const,rfc:'RFCDECLARADO',numeroEmpleado:undefined};
+  assert.match(validarExpedienteIdentidad(profesor,[{...documento,tipo:'adscripcion'}],hoy)!,/número de empleado/);
+});
+
+test('tres rechazos bloquean el cuarto envío, pero una corrección y un PDF inválido no consumen intentos',()=>{
+  const p=preparar('usr-carlos',{esVerificado:false,estadoExpediente:'sin_enviar',versionIdentidad:0});
+  p.local.setItem('tt_periodos_identidad_v1',JSON.stringify([{id:'periodo-prueba',inicio:'2026-08-01',fin:'2027-01-31',fuente:'Calendario ficticio'}]));
+  const entrar=(id:string)=>{
+    const u=p.leer().find(u=>u.id===id)!;
+    p.local.setItem('tt_rol_activo_v2',id==='usr-subdireccion'?'subdireccion':'asistente');
+    p.sesion.setItem('tt_sesion_identidad_v3',JSON.stringify({id:'prueba',usuario:id,inicio:Date.now(),actividad:Date.now(),version:u.versionCredenciales||0}));
+    renderToString(React.createElement(ProveedorAutenticacion,null,React.createElement(capturar)));
+  };
+  entrar('usr-carlos');
+  assert.equal(auth.enviarExpediente('usr-carlos',[],0,'Solicitar eventos').exito,false);
+  assert.equal(auth.enviarExpediente('usr-carlos',[documento],0,'').exito,false);
+  for(let intento=0;intento<3;intento++){
+    entrar('usr-carlos');
+    const u=auth.usuarioActual!;
+    assert.equal(auth.enviarExpediente(u.id,[documento],u.versionIdentidad||0,'Organizar un taller').exito,true);
+    entrar('usr-subdireccion');
+    const enviada=auth.todosLosUsuarios.find(u=>u.id==='usr-carlos')!;
+    assert.equal(auth.dictaminarExpediente(enviada.id,'rechazado','Documento revisado no vigente',enviada.versionIdentidad||0).exito,true);
+  }
+  entrar('usr-carlos');
+  assert.ok(auth.usuarioActual);
+  const r=auth.enviarExpediente('usr-carlos',[documento],auth.usuarioActual!.versionIdentidad||0,'Nuevo envío');
+  assert.equal(r.exito,false);
+  assert.match(r.mensaje,/tres rechazos/);
+  assert.equal(p.leer().find(u=>u.id==='usr-carlos')!.historialExpediente!.filter(h=>h.estado==='rechazado').length,3);
 });

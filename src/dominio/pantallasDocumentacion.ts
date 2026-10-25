@@ -29,8 +29,8 @@ const interfacesIdentidad: Record<string, [string, string]> = {
   'UI-IP-04': ['Solicitar recuperación', '/recuperar-password'],
   'UI-IP-05': ['Validar enlace de recuperación', '/recuperar-password'],
   'UI-IP-06': ['Seguridad de mi cuenta', '/perfil'],
-  'UI-IP-09': ['Listado de expedientes', '/admin/expedientes'],
-  'UI-IP-10': ['Detalle de expediente', '/admin/expedientes'],
+  'UI-IP-09': ['Solicitudes de verificación', '/subdireccion/verificaciones'],
+  'UI-IP-10': ['Detalle de verificación', '/subdireccion/verificaciones'],
   'UI-IP-11': ['Restricciones de solicitudes', '/admin/restricciones'],
   'UI-IP-12': ['Gestión de roles', '/admin'],
 };

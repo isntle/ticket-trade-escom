@@ -44,6 +44,9 @@ export interface Usuario {
   archivosExpediente?: DocumentoIdentidad[];
   verificacionHasta?: string;
   periodoVerificado?: string;
+  motivoSolicitudVerificacion?: string;
+  verificacionSilenciadaHasta?: string;
+  motivoSilencioVerificacion?: string;
   restriccionSolicitudesDesde?: string;
   peticionesRestriccion?: Array<{
     id: string;
@@ -100,7 +103,7 @@ export interface Usuario {
 export interface DocumentoIdentidad {
   id: string;
   nombre: string;
-  tipo: "constancia" | "adscripcion" | "existencia" | "representacion";
+  tipo: "horario" | "constancia" | "adscripcion" | "existencia" | "representacion";
   tamano: number;
   fechaEmision: string;
   vigenteHasta?: string;

@@ -1,3 +1,4 @@
+import { leerPeriodosIdentidad, periodoIdentidadActual } from "./periodosIdentidad";
 import type {
   DocumentoIdentidad,
   Evento,
@@ -67,6 +68,7 @@ export function verificacionIdentidadVigente(
 ) {
   return (
     cuenta.esVerificado === true &&
+    (!cuenta.periodoVerificado || periodoIdentidadActual(leerPeriodosIdentidad(),ahora)?.id === cuenta.periodoVerificado) &&
     (!cuenta.verificacionHasta ||
       ahora < Date.parse(`${cuenta.verificacionHasta}T23:59:59-06:00`))
   );
@@ -81,10 +83,11 @@ export function validarExpedienteIdentidad(
     return "Adjunta entre uno y cinco documentos PDF.";
   const requeridos =
     cuenta.afiliacion === "alumno"
-      ? ["constancia"]
+      ? []
       : cuenta.afiliacion === "externo"
         ? ["existencia", "representacion"]
         : ["adscripcion"];
+  if (cuenta.afiliacion === "alumno" && !archivos.some(a=>["constancia","horario"].includes(a.tipo))) return "Adjunta una constancia de estudios o comprobante de horario vigente.";
   if (requeridos.some((tipo) => !archivos.some((a) => a.tipo === tipo)))
     return `Faltan documentos: ${requeridos.join(", ")}.`;
   if (
@@ -95,10 +98,9 @@ export function validarExpedienteIdentidad(
   if (
     cuenta.afiliacion !== "externo" &&
     cuenta.afiliacion !== "alumno" &&
-    !cuenta.rfc?.trim() &&
     !cuenta.numeroEmpleado?.trim()
   )
-    return "Declara RFC o número de empleado.";
+    return "Registra tu número de empleado.";
   const hoy = ahora.toISOString().slice(0, 10);
   const seisMeses = new Date(ahora);
   seisMeses.setMonth(seisMeses.getMonth() - 6);
@@ -121,8 +123,8 @@ export function validarExpedienteIdentidad(
       (a.vigenteHasta < hoy || a.vigenteHasta < a.fechaEmision)
     )
       return "Un documento está vencido o su vigencia es inválida.";
-    if (a.tipo === "constancia" && (!a.periodo?.trim() || !a.periodoActual))
-      return "Declara el periodo escolar y confirma que la constancia corresponde al periodo actual; Administración revisará su correspondencia.";
+    if (["constancia","horario"].includes(a.tipo) && (!a.periodo?.trim() || !a.periodoActual))
+      return "Declara el periodo escolar y confirma que la constancia o el horario corresponde al periodo actual; Subdirección revisará su correspondencia.";
     if (
       ["adscripcion", "representacion"].includes(a.tipo) &&
       !a.vigenteHasta &&

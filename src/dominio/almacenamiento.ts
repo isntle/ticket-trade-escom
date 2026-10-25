@@ -18,3 +18,16 @@ export function guardarLoteLocal(almacen: Pick<Storage, 'getItem' | 'setItem' | 
     return { exito: false, error: 'No se pudo guardar. Libera espacio del navegador; tus cambios siguen en el formulario y no se confirmó la operación.' };
   }
 }
+
+/** Una pestaña obsoleta debe recargar la lista, nunca sobrescribir cambios ajenos. */
+export function guardarListaSiVigente(almacen:Pick<Storage,'getItem'|'setItem'|'removeItem'>,clave:string,lista:unknown[],versionEsperada:string|null):{exito:boolean;guardado:string|null;error?:string}{
+  let actual:string|null=null;
+  try{
+    actual=almacen.getItem(clave);
+    const serializada=JSON.stringify(lista);
+    if(actual!==versionEsperada&&actual!==serializada)return {exito:false,guardado:actual,error:'La lista cambió en otra pestaña.'};
+    if(actual===serializada)return {exito:true,guardado:actual};
+    const r=guardarLoteLocal(almacen,{[clave]:lista});
+    return {...r,guardado:r.exito?serializada:actual};
+  }catch{return {exito:false,guardado:actual,error:'No se pudo guardar la lista.'};}
+}

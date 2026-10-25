@@ -1,3 +1,4 @@
+import { CLAVE_PERIODOS_IDENTIDAD, leerPeriodosIdentidad, validarPeriodosIdentidad, periodoIdentidadActual, impedimentoVerificacion, type PeriodoIdentidad } from "../dominio/periodosIdentidad";
 import React, {
   createContext,
   useContext,
@@ -112,6 +113,7 @@ function movimiento(
   };
 }
 function usarIdentidad() {
+  const [periodosIdentidad,ponerPeriodosIdentidad] = useState(leerPeriodosIdentidad);
   const [usuarios, ponerUsuarios] = useState(leerUsuarios);
   const cuentasRef = useRef(usuarios);
   const [sesion, ponerSesion] = useState<SesionIdentidad | null>(leerSesion);
@@ -177,6 +179,7 @@ function usarIdentidad() {
   };
   useEffect(() => {
     const sincronizar = (e: StorageEvent) => {
+      if (e.key === CLAVE_PERIODOS_IDENTIDAD) { ponerPeriodosIdentidad(leerPeriodosIdentidad()); ponerAhora(Date.now()); }
       if (e.key === CLAVE) {
         const nuevas = leerUsuarios();
         cuentasRef.current = nuevas;
@@ -290,10 +293,9 @@ function usarIdentidad() {
       return mal("Boleta ya registrada.");
     if (
       !["externo", "alumno"].includes(datos.afiliacion) &&
-      !datos.numeroEmpleado?.trim() &&
-      !datos.rfc?.trim()
+      !datos.numeroEmpleado?.trim()
     )
-      return mal("Declara RFC o número de empleado.");
+      return mal("Registra tu número de empleado.");
     if (
       datos.afiliacion === "externo" &&
       datos.tipoExterno === "representante" &&
@@ -553,6 +555,7 @@ function usarIdentidad() {
             "nombreOrganizacion",
             "puestoContacto",
             "telefonoContacto",
+            "numeroEmpleado",
           ].includes(k),
       )
     )
@@ -561,7 +564,7 @@ function usarIdentidad() {
       );
     if (datos.nombre !== undefined && !datos.nombre.trim())
       return mal("El nombre es obligatorio.");
-    const cambio = ["nombre", "nombreOrganizacion", "puestoContacto"].some(
+    const cambio = ["nombre", "nombreOrganizacion", "puestoContacto", "numeroEmpleado"].some(
       (k) =>
         datos[k as keyof Usuario] !== undefined &&
         datos[k as keyof Usuario] !== u[k as keyof Usuario],
@@ -589,6 +592,7 @@ function usarIdentidad() {
     id: string,
     archivos: DocumentoIdentidad[],
     version: number,
+    motivoSolicitud = "",
   ) => {
     const u = activa();
     if (!u || u.id !== id)
@@ -598,12 +602,16 @@ function usarIdentidad() {
       u.estadoExpediente === "en_revision"
     )
       return mal("El expediente cambió o ya está en revisión.");
+    const impedimento=impedimentoVerificacion(u,leerPeriodosIdentidad());
+    if(impedimento)return mal(impedimento);
+    if(!motivoSolicitud.trim())return mal("Explica por qué solicitas la verificación.");
     const fallo = validarExpedienteIdentidad(u, archivos);
     if (fallo) return mal(fallo);
     const entrada = {
       estado: "en_revision",
       responsable: u.nombre,
       fecha: new Date().toISOString(),
+      motivo: motivoSolicitud.trim(),
       documentos: archivos.map((a) => a.nombre),
       archivos,
     };
@@ -613,6 +621,7 @@ function usarIdentidad() {
           ? movimiento(
               {
                 ...c,
+                motivoSolicitudVerificacion: motivoSolicitud.trim(),
                 archivosExpediente: archivos,
                 documentosExpediente: entrada.documentos,
                 estadoExpediente: "en_revision",
@@ -625,7 +634,7 @@ function usarIdentidad() {
               },
               u.nombre,
               "Expediente enviado",
-              "Pendiente de revisión por Administración.",
+              "Pendiente de revisión por Subdirección.",
             )
           : c,
       ),
@@ -640,8 +649,8 @@ function usarIdentidad() {
   ) => {
     const actor = activa(),
       u = cuentasRef.current.find((c) => c.id === id);
-    if (!puedeAdmin() || !u)
-      return mal("Solo Administración puede evaluar expedientes.");
+    if (!u || (decision === "revocado" ? !puedeAdmin() : !actor?.roles.includes("subdireccion") || rolActivo !== "subdireccion"))
+      return mal(decision === "revocado" ? "Solo Administración puede revocar la verificación." : "Solo Subdirección puede revisar las solicitudes de verificación.");
     if (version !== (u.versionIdentidad || 0))
       return mal("El expediente cambió. Actualiza su detalle.");
     if (
@@ -656,6 +665,8 @@ function usarIdentidad() {
       (!vigencia || vigencia < new Date().toISOString().slice(0, 10))
     )
       return mal("Indica una vigencia válida para la verificación.");
+    const periodo=periodoIdentidadActual(leerPeriodosIdentidad());
+    if(decision === "aprobado" && (!periodo || vigencia !== periodo.fin))return mal("La vigencia debe corresponder al fin del periodo académico configurado.");
     const entrada = {
       estado: decision,
       responsable: actor!.nombre,
@@ -674,6 +685,7 @@ function usarIdentidad() {
                 esVerificado: decision === "aprobado",
                 verificacionHasta:
                   decision === "aprobado" ? vigencia : undefined,
+                periodoVerificado: decision === "aprobado" ? periodo!.id : undefined,
                 motivoExpediente: motivo.trim(),
                 historialExpediente: [
                   ...(c.historialExpediente || []),
@@ -838,20 +850,31 @@ function usarIdentidad() {
       ),
     );
   };
-  const cambiarAutoaprobacion = (id: string, valor: boolean) => {
-    if (!puedeAdmin()) return mal("Solo Administración asigna autoaprobación.");
-    return guardar(
-      cuentasRef.current.map((c) =>
-        c.id === id
-          ? movimiento(
-              { ...c, puedeAutoaprobar: valor },
-              activa()!.nombre,
-              "Autoaprobación modificada",
-              valor ? "Concedida." : "Retirada.",
-            )
-          : c,
-      ),
-    );
+  const cambiarAutoaprobacion = (id:string,valor:boolean,motivo="",version?:number) => {
+    const actor=activa(),u=cuentasRef.current.find(c=>c.id===id);
+    if(!actor?.roles.includes('subdireccion')||rolActivo!=='subdireccion')return mal('Solo Subdirección gestiona a los jefes de academia.');
+    if(!u||!motivo.trim())return mal('Selecciona la cuenta e indica el motivo.');
+    if(version!==u.versionIdentidad && !(version===0&&!u.versionIdentidad))return mal('La cuenta cambió. Revisa su versión actual.');
+    if(valor&&(!u.estaActivo||u.afiliacion!=='profesor'||u.correoConfirmado!==true||!verificacionIdentidadVigente(u)))return mal('La jefatura requiere un docente activo con correo e identidad verificados.');
+    return guardar(cuentasRef.current.map(c=>c.id===id?movimiento({...c,puedeAutoaprobar:valor},actor.nombre,valor?'Jefatura de academia asignada':'Jefatura de academia retirada',motivo.trim()):c));
+  };
+  const configurarPeriodosIdentidad = (periodos:PeriodoIdentidad[],versionEsperada?:string) => {
+    if(!activa()?.roles.includes('subdireccion')||rolActivo!=='subdireccion')return mal('Solo Subdirección configura los periodos de verificación.');
+    const error=validarPeriodosIdentidad(periodos);if(error)return mal(error);
+    const usados=cuentasRef.current.filter(u=>u.periodoVerificado).map(u=>u.periodoVerificado);
+    const anteriores=leerPeriodosIdentidad();
+    if(versionEsperada!==undefined && versionEsperada!==JSON.stringify(anteriores))return mal("El calendario cambió en otra ventana. Recarga los periodos antes de guardar.");
+    if(anteriores.some(p=>(usados.includes(p.id)||cuentasRef.current.some(u=>u.historialExpediente?.some(h=>Date.parse(h.fecha)>=Date.parse(p.inicio+'T00:00:00-06:00')&&Date.parse(h.fecha)<=Date.parse(p.fin+'T23:59:59-06:00'))))&&!periodos.some(n=>JSON.stringify(n)===JSON.stringify(p))))return mal('Conserva los periodos que ya tienen trámites de verificación; añade el siguiente periodo sin alterar el historial.');
+    const r=guardarLoteLocal(localStorage,{[CLAVE_PERIODOS_IDENTIDAD]:periodos});
+    if(r.exito)ponerPeriodosIdentidad(periodos);
+    return r.exito?bien('Periodos guardados.'):mal(r.error!);
+  };
+  const silenciarVerificacion = (id:string,hasta:string,motivo:string,version:number) => {
+    const actor=activa(),u=cuentasRef.current.find(c=>c.id===id);
+    if(!actor?.roles.includes('subdireccion')||rolActivo!=='subdireccion')return mal('Solo Subdirección puede suspender nuevos envíos de verificación.');
+    if(!u||(u.versionIdentidad||0)!==version||!motivo.trim())return mal('Revisa la versión de la cuenta e indica un motivo.');
+    if(hasta&&(!/^\d{4}-\d{2}-\d{2}$/.test(hasta)||!Number.isFinite(Date.parse(hasta))||Date.parse(hasta+'T23:59:59-06:00')<=Date.now()))return mal('Indica una fecha de finalización futura.');
+    return guardar(cuentasRef.current.map(c=>c.id===id?movimiento({...c,verificacionSilenciadaHasta:hasta||undefined,motivoSilencioVerificacion:hasta?motivo.trim():undefined},actor.nombre,hasta?'Envíos de verificación suspendidos':'Envíos de verificación habilitados',motivo.trim()):c));
   };
   const asociarStaffAEvento = (
     id: string,
@@ -976,6 +999,9 @@ function usarIdentidad() {
     solicitarRestriccion,
     actualizarRestriccionSolicitudes,
     cambiarAutoaprobacion,
+    configurarPeriodosIdentidad,
+    periodosIdentidad,
+    silenciarVerificacion,
   };
 }
 const ContextoAutenticacion = createContext<

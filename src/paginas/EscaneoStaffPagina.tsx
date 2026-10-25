@@ -1,3 +1,4 @@
+import { inicioEnMexico } from "../dominio/solicitudes";
 import { modalidadActividad } from '../dominio/actividades';
 import { volverA } from '../dominio/navegacion';
 import React, { useEffect, useRef, useState } from 'react';
@@ -132,8 +133,8 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
   const recintoSeleccionado = listaRecintos.find((recinto) => recinto.id === fechaSeleccionada?.idRecinto);
 
   const estadoDia = (() => {
-    if (!eventoSeleccionado || !fechaSeleccionada) return { disponible: false, etiqueta: 'Día no disponible', detalle: 'Selecciona un evento y un día válido.' };
-    if (eventoSeleccionado.estado === 'cancelado') return { disponible: false, etiqueta: 'Cancelado', detalle: 'Este evento fue cancelado.' };
+    if (!eventoSeleccionado || !fechaSeleccionada) return { disponible: false, etiqueta: 'Actividad no disponible', detalle: 'Selecciona un evento y una actividad válida.' };
+    if (fechaSeleccionada.cancelada || ['cancelado','finalizado'].includes(eventoSeleccionado.estado)) return { disponible: false, etiqueta: 'Cancelado', detalle: 'Este evento fue cancelado.' };
     const bloqueo = listaBloqueos.find((elemento) => {
       const aplicaRecinto = elemento.idRecinto === fechaSeleccionada.idRecinto || elemento.idRecinto === 'todos' || Boolean(elemento.idsRecintos?.includes(fechaSeleccionada.idRecinto));
       if (!aplicaRecinto || fechaSeleccionada.fecha < elemento.fechaInicio) return false;
@@ -142,9 +143,9 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       return fechaSeleccionada.fecha <= finBloqueo && fechaSeleccionada.horaInicio < (elemento.horaFin || '23:59') && fechaSeleccionada.horaFin > (elemento.horaInicio || '00:00');
     });
     if (bloqueo) return { disponible: false, etiqueta: 'Suspendido', detalle: `El día está suspendido por: ${bloqueo.titulo}.` };
-    if ((!fechaSeleccionada || modalidadActividad(fechaSeleccionada,eventoSeleccionado.modalidadAsistencia) !== 'controlado')) return { disponible: false, etiqueta: 'Sin control de acceso', detalle: 'El evento no tiene aforo controlado.' };
-    const inicio = new Date(`${fechaSeleccionada.fecha}T${fechaSeleccionada.horaInicio}:00`).getTime();
-    const fin = new Date(`${fechaSeleccionada.fecha}T${fechaSeleccionada.horaFin}:00`).getTime();
+    if ((!fechaSeleccionada || modalidadActividad(fechaSeleccionada,eventoSeleccionado.modalidadAsistencia) !== 'controlado')) return { disponible: false, etiqueta: 'Sin control de acceso', detalle: 'La actividad no utiliza acceso con boleto.' };
+    const inicio = inicioEnMexico(fechaSeleccionada.fecha,fechaSeleccionada.horaInicio);
+    const fin = inicioEnMexico(fechaSeleccionada.fecha,fechaSeleccionada.horaFin);
     const apertura = inicio - 30 * 60 * 1000;
     if (!Number.isFinite(inicio) || !Number.isFinite(fin) || fin <= inicio) return { disponible: false, etiqueta: 'Horario inválido', detalle: 'No se puede validar el horario de este día.' };
     if (ahoraSistema < apertura) return { disponible: false, etiqueta: 'Aún no disponible', detalle: `El control abre ${new Date(apertura).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}.` };
@@ -262,8 +263,8 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     <div className="max-w-md mx-auto px-4 py-6 min-h-[85vh] flex flex-col justify-between animate-in fade-in duration-200">
       {faseControl === 'seleccion' ? <section className="my-auto rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
         <span className="text-[10px] font-bold uppercase tracking-widest text-[#7a132b]">Check-in · IU-CI01</span>
-        <h1 className="mt-1 text-xl font-black text-neutral-900">Selecciona un día</h1>
-        <p className="mb-4 mt-1 text-sm text-neutral-600">Elige un evento autorizado y un día con aforo controlado para iniciar el control de acceso.</p>
+        <h1 className="mt-1 text-xl font-black text-neutral-900">Selecciona una actividad</h1>
+        <p className="mb-4 mt-1 text-sm text-neutral-600">Elige un evento autorizado y una actividad con aforo controlado para iniciar el control de acceso.</p>
         <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">
           Evento autorizado:
         </label>
@@ -293,7 +294,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
               value={fechaSeleccionada?.id || ''}
               onChange={(e) => { setFechaActivaId(e.target.value); setFaseControl('seleccion'); }}
               className="flex-1 text-xs font-semibold text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 py-1.5 focus:border-[#7a132b]"
-              aria-label="Día del evento que se está validando"
+              aria-label="Actividad del evento que se está validando"
             >
               {eventoSeleccionado.fechas.map((fecha, indice) => (
                 <option key={fecha.id} value={fecha.id}>

@@ -159,17 +159,18 @@ export const SUBEQUIPOS: Subequipo[] = [
       {
         id: "CU-ID07",
         nombre: "Evaluar expediente y revocar/renovar verificación",
-        actor: "Administrador",
+        actor: "Subdirección (revisión) y Administrador (revocación)",
         interfaz: "UI-IP-09 / UI-IP-10 · Revisión y detalle de expediente",
         descripcion:
-          "Administración consulta los PDF y versiones, confirma aprobación, corrección o rechazo y puede revocar una verificación con motivo.",
-        ruta: "/admin/expedientes",
+          "Subdirección revisa documentos y confirma aprobación, corrección o rechazo. Administración puede revocar la verificación con motivo.",
+        ruta: "/subdireccion/verificaciones",
         estado: "comprobable",
         control: "Ver detalle / Aprobar expediente / Confirmar decisión",
         respuesta:
           "Comprueba permiso, estado y versión; registra la decisión sin cancelar eventos o reservaciones.",
-        usuarioDemo: "usr-admin",
-        rolDemo: "admin",
+        usuarioDemo: "usr-subdireccion",
+        rolDemo: "subdireccion",
+        accesos: [{nombre:"Consultar y revocar una verificación",ruta:"/admin/expedientes",usuario:"usr-admin",rol:"admin"}],
       },
       {
         id: "CU-ID08",
@@ -177,7 +178,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         actor: "Subdirección, Administrador u Organizador",
         interfaz: "UI-IP-11 / UI-IP-12 · Restricciones y roles",
         descripcion:
-          "Subdirección solicita una restricción; Administración decide su aplicación y gestiona roles y autoaprobación. El Organizador asigna Staff de sus propios eventos.",
+          "Subdirección solicita una restricción; Administración decide su aplicación y gestiona roles operativos. Subdirección asigna las jefaturas de academia. El Organizador asigna Staff de sus propios eventos.",
         ruta: "/admin/restricciones",
         estado: "comprobable",
         control: "Confirmar restricción / Aceptar petición / Rechazar petición",
@@ -193,11 +194,12 @@ export const SUBEQUIPOS: Subequipo[] = [
             rol: "subdireccion",
           },
           {
-            nombre: "Administrar roles y autoaprobación",
+            nombre: "Administrar roles operativos",
             ruta: "/admin",
             usuario: "usr-admin",
             rol: "admin",
           },
+          {nombre:"Gestionar jefes de academia y periodos",ruta:"/subdireccion/jefes-academia",usuario:"usr-subdireccion",rol:"subdireccion"},
           {
             nombre: "Asignar Staff de mis eventos",
             ruta: "/organizador/staff",

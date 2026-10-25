@@ -1,3 +1,5 @@
+import { useListaLocal } from "./useListaLocal";
+import { accesoDelPase, codigoQrDelEvento } from "../dominio/pasesEvento";
 import { modalidadActividad, aforoActividad, validarItinerarios } from '../dominio/actividades';
 import { ARREGLOS_DEMOSTRACION, incorporarProgramados, cargarEventosProgramados } from '../datos/eventosDemostracion';
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -248,6 +250,13 @@ interface ContextoDatosTipo {
 
 const ContextoDatos = createContext<ContextoDatosTipo | undefined>(undefined);
 const CLAVE_ALMACEN_DATOS = 'tt_datos_almacen_escom_v7';
+function leerListaActual<T>(sufijo:string,anterior:T[]):T[]{
+  const guardado=localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_${sufijo}`);
+  const lista=guardado===null?anterior:JSON.parse(guardado);
+  if(!Array.isArray(lista))throw new Error('El almacenamiento no contiene una lista válida.');
+  return lista;
+}
+
 
 const obtenerFechaLimiteInscripciones = (fecha: Evento['fechas'][0]): number => {
   if (fecha.fechaLimiteInscripciones) {
@@ -276,127 +285,74 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const resultado=guardarLoteLocal(localStorage,{[CLAVE_CALENDARIO]:nuevo,[`${CLAVE_ALMACEN_DATOS}_solicitudes`]:solicitudes});
     if(resultado.exito){setCalendarioRevision(nuevo);setListaSolicitudes(solicitudes);} return resultado;
   };
-  const [listaEventos, setListaEventos] = useState<Evento[]>(() => {
+  const [listaEventos, setListaEventos] = useListaLocal<Evento>(`${CLAVE_ALMACEN_DATOS}_eventos`,() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_eventos`);
     return cargarEventosProgramados(g ? JSON.parse(g) : EVENTOS_INICIALES);
   });
 
-  const [listaSolicitudes, setListaSolicitudes] = useState<SolicitudEvento[]>(() => {
+  const [listaSolicitudes, setListaSolicitudes] = useListaLocal<SolicitudEvento>(`${CLAVE_ALMACEN_DATOS}_solicitudes`,() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_solicitudes`);
     return g ? JSON.parse(g) : SOLICITUDES_INICIALES;
   });
 
-  const [listaRecintos, setListaRecintos] = useState<Recinto[]>(() => {
+  const [listaRecintos, setListaRecintos] = useListaLocal<Recinto>(`${CLAVE_ALMACEN_DATOS}_recintos`,() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_recintos`);
     return g ? JSON.parse(g) : RECINTOS_INICIALES.map((r) => ({ ...r, activo: true }));
   });
 
-  const [listaOcupacionesInternas, setListaOcupacionesInternas] = useState<OcupacionInterna[]>(() => {
+  const [listaOcupacionesInternas, setListaOcupacionesInternas] = useListaLocal<OcupacionInterna>(`${CLAVE_ALMACEN_DATOS}_ocupaciones_internas`,() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_ocupaciones_internas`);
     return g ? JSON.parse(g) : [];
   });
 
-  const [listaArreglos, setListaArreglos] = useState<ArregloAsientos[]>(() => {
+  const [listaArreglos, setListaArreglos] = useListaLocal<ArregloAsientos>(`${CLAVE_ALMACEN_DATOS}_arreglos`,() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_arreglos`);
     return incorporarProgramados<ArregloAsientos>(g ? JSON.parse(g) : ARREGLOS_INICIALES, ARREGLOS_DEMOSTRACION);
   });
 
-  const [listaBloqueos, setListaBloqueos] = useState<BloqueoRecinto[]>(() => {
+  const [listaBloqueos, setListaBloqueos] = useListaLocal<BloqueoRecinto>(`${CLAVE_ALMACEN_DATOS}_bloqueos`,() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_bloqueos`);
     return g ? JSON.parse(g) : BLOQUEOS_INICIALES;
   });
 
-  const [listaReservaciones, setListaReservaciones] = useState<Reservacion[]>(() => {
+  const [listaReservaciones, setListaReservaciones] = useListaLocal<Reservacion>(`${CLAVE_ALMACEN_DATOS}_reservaciones`,() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_reservaciones`);
     return g ? JSON.parse(g) : RESERVACIONES_INICIALES;
   });
 
-  const [listaBoletos, setListaBoletos] = useState<BoletoDigital[]>(() => {
+  const [listaBoletos, setListaBoletos] = useListaLocal<BoletoDigital>(`${CLAVE_ALMACEN_DATOS}_boletos`,() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_boletos`);
     return g ? JSON.parse(g) : BOLETOS_INICIALES;
   });
 
-  const [listaEspera, setListaEspera] = useState<EntradaListaEspera[]>(() => {
+  const [listaEspera, setListaEspera] = useListaLocal<EntradaListaEspera>(`${CLAVE_ALMACEN_DATOS}_espera`,() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_espera`);
     return g ? JSON.parse(g) : [];
   });
 
-  const [listaIntencionesAsistencia, setListaIntencionesAsistencia] = useState<RegistroIntencionAsistencia[]>(() => {
+  const [listaIntencionesAsistencia, setListaIntencionesAsistencia] = useListaLocal<RegistroIntencionAsistencia>(`${CLAVE_ALMACEN_DATOS}_intenciones_asistencia`,() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_intenciones_asistencia`);
     return g ? JSON.parse(g) : [];
   });
 
-  const [bitacoraEscaneos, setBitacoraEscaneos] = useState<RegistroEscaneo[]>(() => {
+  const [bitacoraEscaneos, setBitacoraEscaneos] = useListaLocal<RegistroEscaneo>(`${CLAVE_ALMACEN_DATOS}_escaneos`,() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_escaneos`);
     return g ? JSON.parse(g) : BITACORA_INICIAL_ESCANEOS;
   });
 
   const [listaClasesRegulares] = useState<HorarioClaseRegular[]>(CLASES_REGULARES_INICIALES);
 
-  // Guardar cambios en el almacenamiento local
-  useEffect(() => {
-    localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_eventos`, JSON.stringify(listaEventos));
-  }, [listaEventos]);
-
-  useEffect(() => {
-    localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_solicitudes`, JSON.stringify(listaSolicitudes));
-  }, [listaSolicitudes]);
-
-  useEffect(() => {
-    localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_recintos`, JSON.stringify(listaRecintos));
-  }, [listaRecintos]);
-
-  useEffect(() => {
-    localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_ocupaciones_internas`, JSON.stringify(listaOcupacionesInternas));
-  }, [listaOcupacionesInternas]);
-
-  useEffect(() => {
-    localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_arreglos`, JSON.stringify(listaArreglos));
-  }, [listaArreglos]);
-
-  useEffect(() => {
-    localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_bloqueos`, JSON.stringify(listaBloqueos));
-  }, [listaBloqueos]);
-
-  useEffect(() => {
-    localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_reservaciones`, JSON.stringify(listaReservaciones));
-  }, [listaReservaciones]);
-
-  useEffect(() => {
-    localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_boletos`, JSON.stringify(listaBoletos));
-  }, [listaBoletos]);
-
-  useEffect(() => {
-    localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_espera`, JSON.stringify(listaEspera));
-  }, [listaEspera]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      `${CLAVE_ALMACEN_DATOS}_intenciones_asistencia`,
-      JSON.stringify(listaIntencionesAsistencia)
-    );
-  }, [listaIntencionesAsistencia]);
-
-  useEffect(() => {
-    localStorage.setItem(`${CLAVE_ALMACEN_DATOS}_escaneos`, JSON.stringify(bitacoraEscaneos));
-  }, [bitacoraEscaneos]);
-
   // Limpieza periódica de apartados temporales vencidos (2 minutos)
   useEffect(() => {
     const intervalo = setInterval(() => {
-      const ahora = Date.now();
-      setListaReservaciones((previas) =>
-        previas.map((res) => {
-          if (
-            res.estado === 'apartado_temporal' &&
-            res.tiempoExpiracionApartado &&
-            res.tiempoExpiracionApartado < ahora
-          ) {
-            return { ...res, estado: 'cancelada' };
-          }
-          return res;
-        })
-      );
+      try {
+        const actuales=leerListaActual('reservaciones',listaReservaciones);
+        const nuevas=actuales.map(res=>res.estado==='apartado_temporal'&&(res.tiempoExpiracionApartado||Infinity)<Date.now()?{...res,estado:'cancelada' as const}:res);
+        if(nuevas.some((r,i)=>r!==actuales[i])){
+          const r=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_reservaciones`]:nuevas});
+          if(r.exito)setListaReservaciones(nuevas);
+        }
+      }catch{/* No se modifican apartados si no se pudo consultar su versión guardada. */}
     }, 15000);
     return () => clearInterval(intervalo);
   }, []);
@@ -793,6 +749,12 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     return { lista, solicitud: lista.find((item) => item.id === id) };
   };
 
+  const consultarSolicitanteVigente = () => {
+    try {
+      const cuentas:Usuario[]=JSON.parse(localStorage.getItem('tt_usuarios_sistema_v2')||'[]');
+      return Array.isArray(cuentas)?cuentas.find(u=>u.id===usuarioActual?.id&&u.estaActivo):undefined;
+    } catch { return undefined; }
+  };
   const crearSolicitud: ContextoDatosTipo["crearSolicitud"] = (datos) => {
     if (
       !usuarioActual ||
@@ -826,6 +788,11 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       fechaVencimientoRevision: vencimientoRevision(ahora,calendarioRevision),
       version: 1,
     };
+    if(usuarioActual.puedeAutoaprobar && !nuevaSolicitud.esExcepcional){
+      const resultado=resolverSolicitud(nuevaSolicitud.id,'autorizada','Autorización automática por jefatura de academia.',1,false,nuevaSolicitud);
+      if(!resultado.exito)throw new Error(resultado.error);
+      return {...nuevaSolicitud,estado:'autorizada'};
+    }
     const resultado = persistirSolicitudes([
       nuevaSolicitud,
       ...solicitudVigente("").lista,
@@ -877,10 +844,14 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     motivo?: string,
     versionEsperada?: number,
     extraordinaria = false,
+    propuesta?: SolicitudEvento,
   ) => {
-    const { lista, solicitud } = solicitudVigente(idSolicitud);
-    const autoaprobacionPropia = !!usuarioActual?.puedeAutoaprobar && solicitud?.idSolicitante === usuarioActual.id && decision === "autorizada" && !solicitud.esExcepcional && !validarAnticipacionSolicitud(solicitud);
-    if (!usuarioActual?.roles.includes("subdireccion") && !autoaprobacionPropia)
+    const vigentes=solicitudVigente(idSolicitud);
+    const lista=propuesta?[propuesta,...vigentes.lista.filter(s=>s.id!==idSolicitud)]:vigentes.lista;
+    const solicitud=propuesta||vigentes.solicitud;
+    const actorVigente=consultarSolicitanteVigente();
+    const autoaprobacionPropia = !!actorVigente?.puedeAutoaprobar && verificacionIdentidadVigente(actorVigente) && actorVigente.correoConfirmado === true && !restriccionIdentidadVigente(actorVigente) && solicitud?.idSolicitante === actorVigente.id && decision === "autorizada" && !solicitud.esExcepcional && !validarAnticipacionSolicitud(solicitud);
+    if (!usuarioActual || !actorVigente || !actorVigente.roles.includes("subdireccion") && !autoaprobacionPropia)
       return {
         exito: false,
         error: "Solo Subdirección puede resolver solicitudes.",
@@ -1164,6 +1135,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if(errorItinerarios)return {exito:false,error:errorItinerarios};
     if(motivoVencimiento(solicitud)) return {exito:false,error:motivoVencimiento(solicitud)};
     if (reenviar) {
+      if(!verificacionIdentidadVigente(usuarioActual)||usuarioActual.correoConfirmado!==true||restriccionIdentidadVigente(usuarioActual))return {exito:false,error:'Necesitas una cuenta confirmada, verificada y habilitada para enviar la solicitud.'};
       for(const actividad of cambios.fechasSolicitadas||solicitud.fechasSolicitadas){const d=verificarDisponibilidadRecinto(actividad.idRecinto,actividad.fecha,actividad.horaInicio,actividad.horaFin,undefined,true);if(!d.disponible)return {exito:false,error:d.motivo||'El recinto ya no está disponible.'};}
       if(!calendarioRevision) return {exito:false,error:'Administración debe configurar el calendario hábil antes de enviar.'};
       const errorDistribucion=validarDistribuciones({...solicitud,...cambios},listaRecintos);
@@ -1193,6 +1165,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       usuarioActual.nombre,
       reenviar ? "Envío a revisión" : "Edición de solicitud",
     );
+    if(reenviar && usuarioActual.puedeAutoaprobar && !nueva.esExcepcional)return resolverSolicitud(id,'autorizada','Autorización automática por jefatura de academia.',versionSolicitud(nueva),false,nueva);
     return persistirSolicitudes(
       lista.map((item) => (item.id === id ? nueva : item)),
     );
@@ -1273,6 +1246,18 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       const guardados = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_eventos`);
       if (guardados) vigentes = JSON.parse(guardados);
     } catch { return { exito: false, error: 'No se pudo consultar la versión guardada. No se modificó el evento.' }; }
+    if (!Array.isArray(vigentes)) return { exito: false, error: 'La agenda guardada no es válida.' };
+    let boletosVigentes: BoletoDigital[];
+    let reservasVigentes: Reservacion[];
+    let esperaVigente: EntradaListaEspera[];
+    let escaneosVigentes: RegistroEscaneo[];
+    try {
+      boletosVigentes = JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_boletos`) || 'null') || listaBoletos;
+      reservasVigentes = JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_reservaciones`) || 'null') || listaReservaciones;
+      esperaVigente = JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_espera`) || 'null') || listaEspera;
+      escaneosVigentes = JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_escaneos`) || 'null') || bitacoraEscaneos;
+      if (![boletosVigentes, reservasVigentes, esperaVigente, escaneosVigentes].every(Array.isArray)) throw new Error();
+    } catch { return { exito: false, error: 'No se pudieron comprobar los compromisos guardados. No se modificó el evento.' }; }
     const vigente = vigentes.find((evento) => evento.id === idEvento);
     if (!vigente) return { exito: false, error: 'El evento ya no está disponible.' };
     if (versionEsperada !== undefined && JSON.stringify(vigente) !== versionEsperada) {
@@ -1288,7 +1273,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       for(const d of vigente.fechas){
         const nueva=parcial.fechas.find(f=>f.id===d.id);
         if(JSON.stringify(d)===JSON.stringify(nueva))continue;
-        if(d.cancelada||inicioEnMexico(d.fecha,d.horaInicio)<=Date.now()||bitacoraEscaneos.some(r=>r.idFechaEvento===d.id&&r.resultado==='exito'))return {exito:false,error:'No se pueden modificar días cancelados, iniciados o con entradas registradas.'};
+        if(d.cancelada||inicioEnMexico(d.fecha,d.horaInicio)<=Date.now()||boletosVigentes.some(b=>b.idFechaEvento===d.id&&b.estado==='utilizado')||escaneosVigentes.some(r=>r.idFechaEvento===d.id&&r.resultado==='exito'))return {exito:false,error:'No se pueden modificar días cancelados, iniciados o con entradas registradas.'};
         if(!nueva) return {exito:false,error:'Retira el día mediante la operación que comprueba sus compromisos.'};
         if(nueva.nombreActividad!==undefined&&!nueva.nombreActividad.trim())return {exito:false,error:'Cada actividad necesita un nombre.'};
         if(nueva.modalidadAsistencia!==d.modalidadAsistencia||nueva.asistenciaEstimada!==d.asistenciaEstimada)return {exito:false,error:'Conserva el tipo de acceso y aforo aprobados de la actividad.'};
@@ -1297,13 +1282,28 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
           const error=validarProgramacion(parcial.fechas.filter(f=>!f.cancelada&&(f.id===nueva.id||inicioEnMexico(f.fecha,f.horaInicio)>Date.now())),listaRecintos,{modalidad:vigente.modalidadAsistencia,aforo:vigente.aforoMaximo});if(error)return {exito:false,error};
           const disponibilidad=verificarDisponibilidadRecinto(nueva.idRecinto,nueva.fecha,nueva.horaInicio,nueva.horaFin,d.id,true);if(!disponibilidad.disponible)return {exito:false,error:disponibilidad.motivo};
           if(d.fecha!==nueva.fecha&&inicioEnMexico(nueva.fecha,nueva.horaInicio)-Date.now()<168*3600000&&!(usuarioActual?.roles.includes('subdireccion')&&parcial.historialExcepcionesAnticipacion?.some(h=>h.idFechaEvento===d.id&&h.motivo.trim())))return {exito:false,error:'La excepción de anticipación requiere Subdirección y un motivo registrado.'};
-          if(d.idRecinto!==nueva.idRecinto&&(listaReservaciones.some(r=>r.idFechaEvento===d.id&&(r.estado==='confirmada'||r.estado==='apartado_temporal'&&(r.tiempoExpiracionApartado||0)>Date.now()))||listaBoletos.some(b=>b.idFechaEvento===d.id&&b.estado!=='cancelado')||listaEspera.some(e=>e.idFechaEvento===d.id&&e.estado==='notificado')))return {exito:false,error:'Resuelve los boletos, apartados y ofertas vigentes antes de cambiar el recinto.'};
+          if(d.idRecinto!==nueva.idRecinto&&(reservasVigentes.some(r=>r.idFechaEvento===d.id&&(r.estado==='confirmada'||r.estado==='apartado_temporal'&&(r.tiempoExpiracionApartado||0)>Date.now()))||boletosVigentes.some(b=>b.idFechaEvento===d.id&&b.estado!=='cancelado')||esperaVigente.some(e=>e.idFechaEvento===d.id&&e.estado==='notificado')))return {exito:false,error:'Resuelve los boletos, apartados y ofertas vigentes antes de cambiar el recinto.'};
         }
       }
     }
     const nuevos = vigentes.map((evento) => evento.id === idEvento ? { ...evento, ...parcial,limitesAprobados:evento.limitesAprobados||{numeroFechas:original.fechas.length,duracionMinutos:duracionProgramada(original.fechas)} } : evento);
-    const resultado = guardarLoteLocal(localStorage, { [`${CLAVE_ALMACEN_DATOS}_eventos`]: nuevos });
-    if (resultado.exito) setListaEventos(nuevos);
+    const actualizado = nuevos.find(evento => evento.id === idEvento)!;
+    const boletosActualizados = boletosVigentes.map(boleto => {
+      if (boleto.idEvento !== idEvento || boleto.estado === 'cancelado') return boleto;
+      const actividad = actualizado.fechas.find(fecha => fecha.id === boleto.idFechaEvento);
+      if (!actividad) return boleto;
+      const anterior = vigente.fechas.find(fecha => fecha.id === actividad.id);
+      if (actualizado.titulo === vigente.titulo && anterior?.fecha === actividad.fecha && anterior.horaInicio === actividad.horaInicio && anterior.horaFin === actividad.horaFin && anterior.idRecinto === actividad.idRecinto) return boleto;
+      const recinto = listaRecintos.find(recinto => recinto.id === actividad.idRecinto);
+      return { ...boleto, tituloEvento: actualizado.titulo, fechaEvento: actividad.fecha,
+        horaEvento: `${actividad.horaInicio} - ${actividad.horaFin}`,
+        nombreRecinto: recinto?.nombre || boleto.nombreRecinto };
+    });
+    const resultado = guardarLoteLocal(localStorage, {
+      [`${CLAVE_ALMACEN_DATOS}_eventos`]: nuevos,
+      [`${CLAVE_ALMACEN_DATOS}_boletos`]: boletosActualizados
+    });
+    if (resultado.exito) { setListaEventos(nuevos); setListaBoletos(boletosActualizados); }
     return resultado;
   };
 
@@ -1314,16 +1314,16 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       if(JSON.stringify(evento)!==versionEsperada)return {exito:false,error:'El evento cambió. Revisa su versión actual antes de confirmar.'};
       const dias=evento.fechas.filter(d=>!d.cancelada&&(!idFecha||d.id===idFecha));const ids=new Set(dias.map(d=>d.id));
       const boletos:BoletoDigital[]=JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_boletos`)||'null')||listaBoletos;
-      if(!dias.length||dias.some(d=>inicioEnMexico(d.fecha,d.horaInicio)<=Date.now()||a.escaneos.some(r=>r.idFechaEvento===d.id&&r.resultado==='exito')))return {exito:false,error:'Solo se pueden retirar o cancelar días futuros sin entradas registradas.'};
+      if(!dias.length||dias.some(d=>inicioEnMexico(d.fecha,d.horaInicio)<=Date.now()||boletos.some(b=>b.idFechaEvento===d.id&&b.estado==='utilizado')||a.escaneos.some(r=>r.idFechaEvento===d.id&&r.resultado==='exito')))return {exito:false,error:'Solo se pueden retirar o cancelar días futuros sin entradas registradas.'};
       if(retirar&&(evento.fechas.length<=1||a.reservas.some(r=>ids.has(r.idFechaEvento)&&(r.estado==='confirmada'||r.estado==='apartado_temporal'&&(r.tiempoExpiracionApartado||0)>Date.now()))||boletos.some(b=>ids.has(b.idFechaEvento)&&b.estado!=='cancelado')||a.espera.some(e=>ids.has(e.idFechaEvento)&&['esperando','notificado'].includes(e.estado))))return {exito:false,error:'No se puede retirar el último día ni un día con boletos, apartados, ofertas o personas en espera.'};
       const fechas=retirar?evento.fechas.filter(d=>!ids.has(d.id)):evento.fechas.map(d=>ids.has(d.id)?{...d,cancelada:true,estadoInscripciones:'cerradas' as const}:d);
-      const reservas=a.reservas.map(r=>ids.has(r.idFechaEvento)?{...r,estado:'cancelada' as const}:r);
-      const nuevosBoletos=boletos.map(b=>ids.has(b.idFechaEvento)?{...b,estado:'cancelado' as const,motivoInvalidacion:motivo.trim(),fechaInvalidacion:new Date().toISOString(),invalidadoPor:usuarioActual!.nombre}:b);
+      const reservas=a.reservas.map(r=>ids.has(r.idFechaEvento)&&r.estado!=='cancelada'?{...r,estado:'cancelada' as const,motivoCancelacion:motivo.trim()}:r);
+      const nuevosBoletos=boletos.map(b=>ids.has(b.idFechaEvento)&&b.estado!=='cancelado'?{...b,estado:'cancelado' as const,motivoInvalidacion:motivo.trim(),fechaInvalidacion:new Date().toISOString(),invalidadoPor:usuarioActual!.nombre}:b);
       const espera=a.espera.map(e=>ids.has(e.idFechaEvento)&&['esperando','notificado'].includes(e.estado)?{...e,estado:'cancelado' as const}:e);
       const valores={titulo:evento.titulo,descripcion:evento.descripcion,ponentes:evento.ponentes,urlImagen:evento.urlImagen};
       const destinatarios=[...new Set([todosLosUsuarios.find(u=>u.id===evento.idOrganizador)?.correo,...a.reservas.filter(r=>ids.has(r.idFechaEvento)).map(r=>r.correoUsuario),...boletos.filter(b=>ids.has(b.idFechaEvento)).map(b=>b.correoUsuario)].filter((correo): correo is string => Boolean(correo)))];
       const original=EVENTOS_INICIALES.find(e=>e.id===evento.id)||evento;
-      const actualizado:Evento={...evento,fechas,estado:idFecha?evento.estado:'cancelado',limitesAprobados:evento.limitesAprobados||{numeroFechas:original.fechas.length,duracionMinutos:duracionProgramada(original.fechas)},historialCambios:[...(evento.historialCambios||[]),{version:(evento.historialCambios?.length||0)+1,fecha:new Date().toISOString(),responsable:usuarioActual!.nombre,motivo:motivo.trim(),campos:[retirar?'Retiro de día':'Cancelación'],valoresAnteriores:valores,valoresNuevos:valores,detalleAnterior:JSON.stringify(evento.fechas),detalleNuevo:JSON.stringify(fechas),resultadoNotificacion:{estado:'no_configurada',destinatarios,fechaRegistro:new Date().toISOString()}}]};
+      const actualizado:Evento={...evento,fechas,estado:fechas.every(d=>d.cancelada)?'cancelado':evento.estado,limitesAprobados:evento.limitesAprobados||{numeroFechas:original.fechas.length,duracionMinutos:duracionProgramada(original.fechas)},historialCambios:[...(evento.historialCambios||[]),{version:(evento.historialCambios?.length||0)+1,fecha:new Date().toISOString(),responsable:usuarioActual!.nombre,motivo:motivo.trim(),campos:[retirar?'Retiro de día':'Cancelación'],valoresAnteriores:valores,valoresNuevos:valores,detalleAnterior:JSON.stringify(evento.fechas),detalleNuevo:JSON.stringify(fechas),resultadoNotificacion:{estado:'no_configurada',destinatarios,fechaRegistro:new Date().toISOString()}}]};
       const eventos=a.eventos.map(e=>e.id===idEvento?actualizado:e);
       const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_eventos`]:eventos,[`${CLAVE_ALMACEN_DATOS}_reservaciones`]:reservas,[`${CLAVE_ALMACEN_DATOS}_boletos`]:nuevosBoletos,[`${CLAVE_ALMACEN_DATOS}_espera`]:espera});
       if(resultado.exito){setListaEventos(eventos);setListaReservaciones(reservas);setListaBoletos(nuevosBoletos);setListaEspera(espera);}return resultado;
@@ -1434,20 +1434,29 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     nombreUsuario: string,
     correoUsuario: string
   ): { exito: boolean; reservacion?: Reservacion; error?: string } => {
+    let reservasActuales:Reservacion[],eventosActuales:Evento[],boletosActuales:BoletoDigital[],esperaActual:EntradaListaEspera[],arreglosActuales:ArregloAsientos[],bloqueosActuales:BloqueoRecinto[];
+    try{
+      reservasActuales=leerListaActual('reservaciones',listaReservaciones);eventosActuales=leerListaActual('eventos',listaEventos);
+      boletosActuales=leerListaActual('boletos',listaBoletos);esperaActual=leerListaActual('espera',listaEspera);
+      arreglosActuales=leerListaActual('arreglos',listaArreglos);bloqueosActuales=leerListaActual('bloqueos',listaBloqueos);
+    }catch{return {exito:false,error:'No se pudo consultar la disponibilidad guardada. No se apartó un lugar.'};}
+    if(usuarioActual?.id!==idUsuario)return {exito:false,error:'Solo puedes apartar lugares para tu propia cuenta.'};
     const ahora = Date.now();
-    const eventoTaquilla = listaEventos.find((evento) => evento.id === idEvento);
+    const eventoTaquilla = eventosActuales.find((evento) => evento.id === idEvento);
     const fechaTaquilla = eventoTaquilla?.fechas.find((fecha) => fecha.id === idFechaEvento);
 
     if (!eventoTaquilla || !fechaTaquilla) {
       return { exito: false, error: 'El día seleccionado ya no se encuentra disponible.' };
     }
+    if(eventoTaquilla.estado!=='publicado'||fechaTaquilla.suspendida||bloqueosActuales.some(b=>bloqueoAfectaSesion(b,fechaTaquilla)))return {exito:false,error:'La actividad no está disponible para reservar.'};
+    if(reservasActuales.some(r=>r.idFechaEvento===idFechaEvento&&r.idUsuario===idUsuario&&r.estado==='confirmada'))return {exito:false,error:'Ya tienes una reservación confirmada para esta actividad.'};
     if (fechaTaquilla.cancelada) return { exito: false, error: 'Este día fue cancelado y ya no admite reservaciones.' };
     if (modalidadActividad(fechaTaquilla,eventoTaquilla.modalidadAsistencia) !== 'controlado') return {exito:false,error:'Esta actividad no utiliza reservación de lugares.'};
     if (fechaTaquilla.asistenciaEstimada !== undefined) {
       const comprometidos = new Set([
-        ...listaReservaciones.filter(r=>r.idFechaEvento===idFechaEvento && (r.estado==='confirmada'||r.estado==='apartado_temporal'&&(r.tiempoExpiracionApartado||0)>ahora&&r.idUsuario!==idUsuario)).map(r=>r.idAsiento),
-        ...listaBoletos.filter(b=>b.idFechaEvento===idFechaEvento && ['valido','utilizado'].includes(b.estado)).map(b=>listaReservaciones.find(r=>r.id===b.idReservacion)?.idAsiento || listaArreglos.find(a=>a.idFechaEvento===idFechaEvento&&a.estado==='version_final')?.asientos.find(a=>a.etiqueta===b.etiquetaAsiento)?.id || b.id),
-        ...listaEspera.filter(e=>e.idFechaEvento===idFechaEvento && e.estado==='notificado'&&(e.fechaExpiracionOferta||0)>ahora&&e.idUsuario!==idUsuario).map(e=>e.idAsientoOferta||e.id),
+        ...reservasActuales.filter(r=>r.idFechaEvento===idFechaEvento && (r.estado==='confirmada'||r.estado==='apartado_temporal'&&(r.tiempoExpiracionApartado||0)>ahora&&r.idUsuario!==idUsuario)).map(r=>r.idAsiento),
+        ...boletosActuales.filter(b=>b.idFechaEvento===idFechaEvento && ['valido','utilizado'].includes(b.estado)).map(b=>reservasActuales.find(r=>r.id===b.idReservacion)?.idAsiento || arreglosActuales.find(a=>a.idFechaEvento===idFechaEvento&&a.estado==='version_final')?.asientos.find(a=>a.etiqueta===b.etiquetaAsiento)?.id || b.id),
+        ...esperaActual.filter(e=>e.idFechaEvento===idFechaEvento && e.estado==='notificado'&&(e.fechaExpiracionOferta||0)>ahora&&e.idUsuario!==idUsuario).map(e=>e.idAsientoOferta||e.id),
       ]);
       if(comprometidos.size >= fechaTaquilla.asistenciaEstimada) return {exito:false,error:'Se alcanzó el aforo aprobado de esta actividad.'};
     }
@@ -1464,7 +1473,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     // Validar si el asiento ya se encuentra tomado o apartado
-    const colision = listaReservaciones.find(
+    const colision = reservasActuales.find(
       (r) =>
         r.idFechaEvento === idFechaEvento &&
         r.idAsiento === idAsiento &&
@@ -1475,7 +1484,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
             r.idUsuario !== idUsuario))
     );
 
-    const ofertaVigenteDeOtraPersona = listaEspera.some((entrada) =>
+    const ofertaVigenteDeOtraPersona = esperaActual.some((entrada) =>
       entrada.idFechaEvento === idFechaEvento &&
       entrada.idAsientoOferta === idAsiento &&
       entrada.idUsuario !== idUsuario &&
@@ -1491,7 +1500,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     // Cancelar apartados temporales previos del mismo usuario para esta fecha
-    const reservacionesLimpias = listaReservaciones.filter(
+    const reservacionesLimpias = reservasActuales.filter(
       (r) =>
         !(
           r.idFechaEvento === idFechaEvento &&
@@ -1501,7 +1510,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     );
 
     const nuevaReservacion: Reservacion = {
-      id: `res-${Date.now().toString(36)}`,
+      id: `res-${crypto.randomUUID()}`,
       idEvento,
       idFechaEvento,
       idUsuario,
@@ -1514,7 +1523,10 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       fechaCreacion: new Date().toISOString()
     };
 
-    setListaReservaciones([...reservacionesLimpias, nuevaReservacion]);
+    const nuevas=[...reservacionesLimpias,nuevaReservacion];
+    const guardado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_reservaciones`]:nuevas});
+    if(!guardado.exito)return guardado;
+    setListaReservaciones(nuevas);
     return { exito: true, reservacion: nuevaReservacion };
   };
 
@@ -1527,8 +1539,16 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
   const confirmarReservacion = (
     idReservacion: string
   ): { exito: boolean; boleto?: BoletoDigital; error?: string } => {
-    const res = listaReservaciones.find((r) => r.id === idReservacion);
-    if (!res) {
+    let reservas:Reservacion[],boletos:BoletoDigital[],espera:EntradaListaEspera[],eventos:Evento[],bloqueos:BloqueoRecinto[];
+    try {
+      reservas=leerListaActual('reservaciones',listaReservaciones);
+      boletos=leerListaActual('boletos',listaBoletos);
+      espera=leerListaActual('espera',listaEspera);
+      eventos=leerListaActual('eventos',listaEventos);
+      bloqueos=leerListaActual('bloqueos',listaBloqueos);
+    }catch{return {exito:false,error:'No se pudo comprobar el estado guardado. No se confirmó la reservación.'};}
+    const res = reservas.find((r) => r.id === idReservacion);
+    if (!res || res.idUsuario!==usuarioActual?.id) {
       return { exito: false, error: 'Reservación no encontrada.' };
     }
 
@@ -1550,13 +1570,15 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       };
     }
 
-    const evento = listaEventos.find((e) => e.id === res.idEvento);
+    const evento = eventos.find((e) => e.id === res.idEvento);
     const fecha = evento?.fechas.find((f) => f.id === res.idFechaEvento);
     const recinto = listaRecintos.find((v) => v.id === fecha?.idRecinto);
 
     if (!evento || !fecha) {
       return { exito: false, error: 'El día asociado con el apartado ya no existe.' };
     }
+    if (evento.estado==='cancelado'||fecha.suspendida||bloqueos.some(b=>bloqueoAfectaSesion(b,fecha)))return {exito:false,error:'La actividad está suspendida o cancelada.'};
+    if (reservas.some(r=>r.id!==res.id&&r.idFechaEvento===res.idFechaEvento&&r.estado==='confirmada'&&(r.idUsuario===res.idUsuario||!!res.idAsiento&&r.idAsiento===res.idAsiento)))return {exito:false,error:'La actividad o el asiento ya tienen una reservación confirmada.'};
     if (fecha.cancelada) return { exito: false, error: 'Este día fue cancelado y no se puede confirmar el boleto.' };
 
     if (
@@ -1569,8 +1591,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       };
     }
 
-    const idBoleto = `bol-${Date.now().toString(36)}`;
-    const codigoQr = `TT-${generarIdentificadorQr()}`;
+    const idBoleto = `bol-${crypto.randomUUID()}`;
+    const codigoQr = codigoQrDelEvento(boletos,res.idEvento,res.idUsuario) || `TT-${generarIdentificadorQr()}`;
 
     const nuevoBoleto: BoletoDigital = {
       id: idBoleto,
@@ -1590,25 +1612,16 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       fechaEmision: new Date().toISOString()
     };
 
-    setListaReservaciones((previas) =>
-      previas.map((r) =>
-        r.id === idReservacion
-          ? {
-              ...r,
-              estado: 'confirmada',
-              fechaConfirmacion: new Date().toISOString(),
-              idBoleto
-            }
-          : r
-      )
-    );
-
-    setListaBoletos((previos) => [nuevoBoleto, ...previos]);
-    setListaEspera((previas) => previas.map((entrada) =>
-      entrada.idReservacionOferta === idReservacion && entrada.estado === 'notificado'
-        ? { ...entrada, estado: 'convertido' }
-        : entrada
-    ));
+    const reservasNuevas=reservas.map(r=>r.id===idReservacion?{...r,estado:'confirmada' as const,fechaConfirmacion:new Date().toISOString(),idBoleto}:r);
+    const boletosNuevos=[nuevoBoleto,...boletos];
+    const esperaNueva=espera.map(entrada=>entrada.idReservacionOferta===idReservacion&&entrada.estado==='notificado'?{...entrada,estado:'convertido' as const}:entrada);
+    const guardado=guardarLoteLocal(localStorage,{
+      [`${CLAVE_ALMACEN_DATOS}_reservaciones`]:reservasNuevas,
+      [`${CLAVE_ALMACEN_DATOS}_boletos`]:boletosNuevos,
+      [`${CLAVE_ALMACEN_DATOS}_espera`]:esperaNueva
+    });
+    if(!guardado.exito)return guardado;
+    setListaReservaciones(reservasNuevas);setListaBoletos(boletosNuevos);setListaEspera(esperaNueva);
     return { exito: true, boleto: nuevoBoleto };
   };
 
@@ -2250,15 +2263,20 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     boleto?: BoletoDigital;
     mensaje: string;
   } => {
+    let boletos:BoletoDigital[],reservas:Reservacion[],eventos:Evento[],bloqueos:BloqueoRecinto[],escaneos:RegistroEscaneo[],cuentas:Usuario[];
+    try{
+      boletos=leerListaActual('boletos',listaBoletos);reservas=leerListaActual('reservaciones',listaReservaciones);
+      eventos=leerListaActual('eventos',listaEventos);bloqueos=leerListaActual('bloqueos',listaBloqueos);escaneos=leerListaActual('escaneos',bitacoraEscaneos);
+      cuentas=JSON.parse(localStorage.getItem('tt_usuarios_sistema_v2')||'[]');if(!Array.isArray(cuentas))throw new Error();
+    }catch{return {exito:false,resultado:'no_autorizado',mensaje:'No se pudo comprobar el estado guardado. No se registró una entrada.'};}
+    const operadorVigente=cuentas.find(c=>c.id===usuarioActual?.id&&c.id===operador?.id);
     const codigoNormalizado = codigoQr.trim().toUpperCase();
-    const fechaHora = new Date().toISOString();
+    const fechaHora = new Date(Date.now()).toISOString();
+    const crearRegistro=(datos:Omit<RegistroEscaneo,'id'|'fechaEscaneo'|'escaneadoPor'>):RegistroEscaneo=>({...datos,id:'esc-'+crypto.randomUUID(),fechaEscaneo:fechaHora,escaneadoPor:operadorVigente?.nombre||escaneadoPor});
     const registrarIntento = (datos: Omit<RegistroEscaneo, 'id' | 'fechaEscaneo' | 'escaneadoPor'>) => {
-      setBitacoraEscaneos((previas) => [{
-        ...datos,
-        id: `esc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
-        fechaEscaneo: fechaHora,
-        escaneadoPor
-      }, ...previas]);
+      const nuevas=[crearRegistro(datos),...escaneos];
+      const r=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_escaneos`]:nuevas});
+      if(r.exito)setBitacoraEscaneos(nuevas);
     };
     const rechazar = (
       resultado: RegistroEscaneo['resultado'],
@@ -2280,11 +2298,11 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // La autorización se comprueba contra el evento seleccionado, nunca contra
     // el evento que pudiera revelar el código recibido.
-    const eventoObjetivo = listaEventos.find((evento) => evento.id === idEventoObjetivo);
+    const eventoObjetivo = eventos.find((evento) => evento.id === idEventoObjetivo);
     const puedeOperar = Boolean(
-      operador?.estaActivo && eventoObjetivo && (
-        (operador.roles.includes('organizador') && eventoObjetivo.idOrganizador === operador.id) ||
-        (operador.roles.includes('staff') && operador.eventosAsignadosStaff?.includes(eventoObjetivo.id))
+      operadorVigente?.estaActivo && eventoObjetivo && (
+        (operadorVigente.roles.includes('organizador') && eventoObjetivo.idOrganizador === operadorVigente.id) ||
+        (operadorVigente.roles.includes('staff') && operadorVigente.eventosAsignadosStaff?.includes(eventoObjetivo.id))
       )
     );
     if (!puedeOperar) {
@@ -2295,15 +2313,16 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!eventoObjetivo || !fechaObjetivo) {
       return rechazar('evento_invalido', 'El evento o el día seleccionado ya no está disponible.');
     }
-    const bloqueo = listaBloqueos.find((elemento) => bloqueoAfectaSesion(elemento, fechaObjetivo));
-    if (eventoObjetivo.estado === 'cancelado' || fechaObjetivo.suspendida || bloqueo) {
+    const bloqueo = bloqueos.find((elemento) => bloqueoAfectaSesion(elemento, fechaObjetivo));
+    if (eventoObjetivo.estado !== 'publicado' || fechaObjetivo.cancelada || fechaObjetivo.suspendida || bloqueo) {
       return rechazar('suspendido', bloqueo ? `Día suspendido: ${bloqueo.titulo}.` : 'El evento está cancelado.');
     }
     if (modalidadActividad(fechaObjetivo, eventoObjetivo.modalidadAsistencia) !== 'controlado') {
       return rechazar('evento_invalido', 'Este evento no utiliza control de acceso mediante boleto.');
     }
-    const inicio = new Date(`${fechaObjetivo.fecha}T${fechaObjetivo.horaInicio}:00`).getTime() - 30 * 60 * 1000;
-    const fin = new Date(`${fechaObjetivo.fecha}T${fechaObjetivo.horaFin}:00`).getTime();
+    const inicio = inicioEnMexico(fechaObjetivo.fecha,fechaObjetivo.horaInicio) - 30 * 60 * 1000;
+    const fin = inicioEnMexico(fechaObjetivo.fecha,fechaObjetivo.horaFin);
+    if(!Number.isFinite(inicio)||!Number.isFinite(fin)||fin<=inicio+30*60*1000)return rechazar('evento_invalido','La actividad no tiene un horario válido para registrar entradas.');
     if (Date.now() < inicio || Date.now() >= fin) {
       return rechazar('fuera_de_horario', 'El acceso se habilita 30 minutos antes del inicio y cierra al terminar la actividad.');
     }
@@ -2313,40 +2332,31 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!/^TT-[A-F0-9]{32}$/.test(codigoNormalizado)) {
       return rechazar('codigo_no_reconocido', 'El código no tiene el formato de un boleto Ticket Trade.');
     }
-    const boleto = listaBoletos.find((item) => item.codigoQr.toUpperCase() === codigoNormalizado);
-    if (!boleto) {
-      return rechazar('inexistente', 'Boleto inexistente. El código no corresponde a un boleto emitido.');
-    }
-    if (boleto.idEvento !== eventoObjetivo.id || boleto.idFechaEvento !== fechaObjetivo.id) {
-      return rechazar('fecha_invalida', 'Boleto de otro evento o día. No se muestran datos del boleto presentado.', undefined);
-    }
+    const reconocido = boletos.some(item=>item.codigoQr.toUpperCase()===codigoNormalizado);
+    if(!reconocido)return rechazar('inexistente','El código no corresponde a un boleto emitido.');
+    const boleto = accesoDelPase(boletos,codigoNormalizado,eventoObjetivo.id,fechaObjetivo.id);
+    if(!boleto)return rechazar('fecha_invalida','El pase no tiene una reservación para esta actividad. No se muestran datos de otros eventos.');
     if (boleto.estado === 'cancelado') {
       return rechazar('cancelado', 'Boleto invalidado. No se puede registrar la entrada.', boleto);
     }
-    if (boleto.estado === 'utilizado') {
+    if (boleto.estado === 'utilizado'||escaneos.some(r=>r.idBoleto===boleto.id&&r.resultado==='exito')) {
       const horaAnterior = boleto.fechaCheckIn ? new Date(boleto.fechaCheckIn).toLocaleString('es-MX') : 'hora no disponible';
       return rechazar('ya_utilizado', `Boleto ya utilizado el ${horaAnterior} por ${boleto.revisadoPor || 'Staff'}.`, boleto);
     }
 
     if (!boleto.esEspecial) {
-      const reservacion = listaReservaciones.find((item) => item.id === boleto.idReservacion);
-      if (!reservacion || reservacion.estado !== 'confirmada') {
+      const reservacion = reservas.find((item) => item.id === boleto.idReservacion);
+      if (!reservacion || reservacion.estado !== 'confirmada'||reservacion.idUsuario!==boleto.idUsuario||reservacion.idEvento!==boleto.idEvento||reservacion.idFechaEvento!==boleto.idFechaEvento||!!reservacion.idBoleto&&reservacion.idBoleto!==boleto.id) {
         return rechazar('reservacion_no_vigente', 'La reservación de este boleto ya no está vigente.', boleto);
       }
     }
 
-    // En esta versión local se actualizan boleto y bitácora en el mismo ciclo
-    // del contexto. La atomicidad entre dispositivos requiere persistencia de servidor.
-    const boletoActualizado = { ...boleto, estado: 'utilizado' as const, fechaCheckIn: fechaHora, revisadoPor: escaneadoPor };
-    setListaBoletos((previos) => previos.map((item) => item.id === boleto.id ? boletoActualizado : item));
-    registrarIntento({
-      idBoleto: boleto.id,
-      idEvento: boleto.idEvento,
-      idFechaEvento: boleto.idFechaEvento,
-      resultado: 'exito',
-      nombreAsistente: boleto.nombreUsuario,
-      etiquetaAsiento: boleto.etiquetaAsiento
-    });
+    const boletoActualizado = { ...boleto, estado: 'utilizado' as const, fechaCheckIn: fechaHora, revisadoPor: operadorVigente!.nombre };
+    const boletosNuevos=boletos.map(item=>item.id===boleto.id?boletoActualizado:item);
+    const escaneosNuevos=[crearRegistro({idBoleto:boleto.id,idEvento:boleto.idEvento,idFechaEvento:boleto.idFechaEvento,resultado:'exito',nombreAsistente:boleto.nombreUsuario,etiquetaAsiento:boleto.etiquetaAsiento}),...escaneos];
+    const guardado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_boletos`]:boletosNuevos,[`${CLAVE_ALMACEN_DATOS}_escaneos`]:escaneosNuevos});
+    if(!guardado.exito)return {exito:false,resultado:'reservacion_no_vigente',mensaje:'No se pudo guardar la entrada. No permitas el acceso hasta confirmar el registro.'};
+    setListaBoletos(boletosNuevos);setBitacoraEscaneos(escaneosNuevos);
     return {
       exito: true,
       resultado: 'exito',

@@ -484,8 +484,8 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     }
 
     mostrarNotificacion(
-      "Solicitud enviada a Subdirección",
-      "Puedes consultar su estado y las observaciones desde Mis solicitudes.",
+      usuarioActual.puedeAutoaprobar && !requiereJustificacion ? "Evento autorizado" : "Solicitud enviada a Subdirección",
+      usuarioActual.puedeAutoaprobar && !requiereJustificacion ? "La solicitud cumple las validaciones y quedó autorizada por tu jefatura de academia. Puedes consultar el evento desde Mis eventos y solicitudes." : "Puedes consultar su estado y las observaciones desde Mis solicitudes.",
       "exito",
     );
 

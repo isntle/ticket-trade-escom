@@ -161,6 +161,7 @@ export const PanelSubdireccionPagina: React.FC<
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+      <div className="mb-5 flex flex-wrap gap-3">{esSubdireccion && <><button className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-[#7a132b]" onClick={()=>navigate('/subdireccion/verificaciones')}>Solicitudes de verificación</button><button className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-[#7a132b]" onClick={()=>navigate('/subdireccion/jefes-academia')}>Jefes de academia y periodos</button></>}</div>
       {/* Cabecera de Trabajo */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

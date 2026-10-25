@@ -234,12 +234,12 @@ export function AutenticacionPagina({
               <p className="text-sm text-neutral-500">
                 {afiliacion === "alumno"
                   ? "Usa @alumno.ipn.mx. Boleta: diez dígitos o PE/PP y ocho dígitos."
-                  : "Usa @ipn.mx. RFC o número de empleado como dato declarado; no se consulta un padrón oficial."}
+                  : "Usa @ipn.mx. Número de empleado como dato declarado; no se consulta un padrón oficial."}
               </p>
               <label className="block text-sm font-semibold">
                 {afiliacion === "alumno"
                   ? "Boleta"
-                  : "RFC o número de empleado"}
+                  : "Número de empleado"}
                 <input
                   required
                   className={campo}

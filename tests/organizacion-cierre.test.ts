@@ -5,10 +5,10 @@ import {renderToString} from 'react-dom/server';
 import {ProveedorDatos,useDatos} from '../src/contextos/DatosContexto';
 import {ProveedorAutenticacion} from '../src/contextos/AutenticacionContexto';
 import {USUARIOS_INICIALES,RECINTOS_INICIALES,EVENTOS_INICIALES,SOLICITUDES_INICIALES} from '../src/datos/datosIniciales';
-import {vencimientoRevision,pausarRevision,reanudarRevision,motivoVencimiento,validarCalendario} from '../src/dominio/calendarioRevision';
+import {CLAVE_CALENDARIO,vencimientoRevision,pausarRevision,reanudarRevision,motivoVencimiento,validarCalendario} from '../src/dominio/calendarioRevision';
 import {lugaresDelRecinto,validarDistribuciones} from '../src/dominio/distribucionSolicitud';
 import {afectaBloqueo,revisarBloqueo} from '../src/dominio/bloqueos';
-import {validarLimitesEvento} from '../src/dominio/cambiosEvento';
+import {trasladarPrograma,validarLimitesEvento} from '../src/dominio/cambiosEvento';
 import {escenarioSuspension} from '../src/dominio/escenarioSuspension';
 import {resolverRutaDocumentacion} from '../src/dominio/navegacionDocumentacion';
 import {SUBEQUIPOS} from '../src/componentes/demostracion/ExploradorCasosUso';
@@ -66,14 +66,15 @@ test('el catálogo usa las referencias corregidas del Word y el CU-OR-05 comienz
   assert.ok(b.every(c=>!c.interfaz.includes('UI-ORG-')));
 });
 class Almacen {datos=new Map<string,string>();getItem(k:string){return this.datos.get(k)??null;}setItem(k:string,v:string){this.datos.set(k,v);}removeItem(k:string){this.datos.delete(k);}}
-function contexto(id='usr-fernando',eventos=[evento],reservas?:unknown[]){
+function contexto(id='usr-fernando',eventos=[evento],reservas?:unknown[],cuentas=USUARIOS_INICIALES){
   const local=new Almacen(),sesion=new Almacen();
   const cuenta=USUARIOS_INICIALES.find(u=>u.roles.includes('admin'))!;
-  const usuario=USUARIOS_INICIALES.find(u=>u.id===id)||cuenta;
+  const usuario=cuentas.find(u=>u.id===id)||cuenta;
   Object.assign(globalThis,{localStorage:local,sessionStorage:sesion,window:{location:{search:'',hostname:'localhost'}}});
-  local.setItem('tt_usuarios_sistema_v2',JSON.stringify(USUARIOS_INICIALES));local.setItem('tt_rol_activo_v2',usuario.rolActivo);
+  local.setItem('tt_usuarios_sistema_v2',JSON.stringify(cuentas));local.setItem('tt_rol_activo_v2',usuario.rolActivo);
   sesion.setItem('tt_sesion_identidad_v3',JSON.stringify({id:'prueba',usuario:usuario.id,inicio:Date.now(),actividad:Date.now(),version:usuario.versionCredenciales||0}));
   const prefijo='tt_datos_almacen_escom_v7_';
+  local.setItem(CLAVE_CALENDARIO,JSON.stringify(calendario));
   if(reservas)local.setItem(prefijo+'reservaciones',JSON.stringify(reservas));
   local.setItem(prefijo+'eventos',JSON.stringify(eventos));local.setItem(prefijo+'bloqueos','[]');local.setItem(prefijo+'ocupaciones_internas','[]');local.setItem(prefijo+'escaneos','[]');
   let datos:ReturnType<typeof useDatos>;
@@ -238,3 +239,167 @@ test('la comprobación final detecta una ocupación guardada después de abrir l
   assert.equal(c.leer('solicitudes')[0].estado,'en_revision');
   assert.equal(c.leer('eventos').length,1);
 });
+
+test('reprogramar sincroniza boletos vigentes sin cambiar QR ni afectar otras actividades',()=>{
+  const otra={...dia,id:'fec-otra',fecha:'2030-01-26'};
+  const e={...evento,fechas:[dia,otra]};
+  const c=contexto('usr-silva',[e]);
+  const boleto={id:'boleto',idEvento:e.id,idFechaEvento:dia.id,estado:'valido',codigoQr:'qr-estable',fechaEvento:dia.fecha,horaEvento:'10:00 - 12:00',nombreRecinto:recinto.nombre};
+  const cancelado={...boleto,id:'cancelado',estado:'cancelado',motivoInvalidacion:'Motivo anterior'};
+  const hermano={...boleto,id:'hermano',idFechaEvento:otra.id,fechaEvento:otra.fecha};
+  c.local.setItem(c.prefijo+'boletos',JSON.stringify([boleto,cancelado,hermano]));
+  const r=c.datos.actualizarEvento(e.id,{fechas:[{...dia,horaInicio:'13:00',horaFin:'15:00'},otra]},JSON.stringify(e));
+  assert.equal(r.exito,true,r.error);
+  const boletos=c.leer('boletos');
+  assert.equal(boletos[0].horaEvento,'13:00 - 15:00');
+  assert.equal(boletos[0].codigoQr,boleto.codigoQr);
+  assert.deepEqual(boletos[1],cancelado);
+  assert.deepEqual(boletos[2],hermano);
+});
+
+test('cancelar una actividad conserva las demás y la última cancelación cierra el evento',()=>{
+  const otra={...dia,id:'fec-otra',fecha:'2030-01-26'};
+  const e={...evento,fechas:[dia,otra]};
+  const c=contexto('usr-silva',[e]);
+  c.local.setItem(c.prefijo+'boletos',JSON.stringify([{id:'cancelado',idEvento:e.id,idFechaEvento:dia.id,estado:'cancelado',motivoInvalidacion:'Motivo original'}]));
+  let r=c.datos.cancelarUnidadEvento(e.id,dia.id,'Primera cancelación',false,JSON.stringify(e));
+  assert.equal(r.exito,true,r.error);
+  const vigente=c.leer('eventos')[0];
+  assert.equal(vigente.estado,e.estado);
+  assert.deepEqual(vigente.fechas[1],otra);
+  assert.equal(c.leer('boletos')[0].motivoInvalidacion,'Motivo original');
+  r=c.datos.cancelarUnidadEvento(e.id,otra.id,'Última cancelación',false,JSON.stringify(vigente));
+  assert.equal(r.exito,true,r.error);
+  assert.equal(c.leer('eventos')[0].estado,'cancelado');
+});
+
+test('un boleto utilizado impide reprogramar o cancelar aunque falte su bitácora de escaneo',()=>{
+  const c=contexto('usr-silva');
+  c.local.setItem(c.prefijo+'boletos',JSON.stringify([{id:'utilizado',idEvento:evento.id,idFechaEvento:dia.id,estado:'utilizado'}]));
+  assert.equal(c.datos.actualizarEvento(evento.id,{fechas:[{...dia,horaInicio:'13:00',horaFin:'15:00'}]},JSON.stringify(evento)).exito,false);
+  assert.equal(c.datos.cancelarUnidadEvento(evento.id,dia.id,'Prueba',false,JSON.stringify(evento)).exito,false);
+  assert.deepEqual(c.leer('eventos')[0],JSON.parse(JSON.stringify(evento)));
+});
+
+test('si falla guardar los boletos se restaura también la programación del evento',()=>{
+  const c=contexto('usr-silva');
+  const anteriores=c.local.getItem(c.prefijo+'eventos');
+  const guardar=c.local.setItem.bind(c.local);
+  c.local.setItem=(clave,valor)=>{if(clave===c.prefijo+'boletos')throw new Error('Cuota agotada');guardar(clave,valor);};
+  const r=c.datos.actualizarEvento(evento.id,{fechas:[{...dia,horaInicio:'13:00',horaFin:'15:00'}]},JSON.stringify(evento));
+  assert.equal(r.exito,false);
+  assert.equal(c.local.getItem(c.prefijo+'eventos'),anteriores);
+});
+
+test('una entrada registrada desde otra ventana impide reprogramar con estado local obsoleto',()=>{
+  const c=contexto('usr-silva');
+  c.local.setItem(c.prefijo+'escaneos',JSON.stringify([{id:'entrada-nueva',idFechaEvento:dia.id,resultado:'exito'}]));
+  const r=c.datos.actualizarEvento(evento.id,{fechas:[{...dia,horaInicio:'13:00',horaFin:'15:00'}]},JSON.stringify(evento));
+  assert.equal(r.exito,false);
+  assert.equal(c.leer('eventos')[0].fechas[0].horaInicio,dia.horaInicio);
+});
+
+test('la solicitud de un jefe se autoriza conjuntamente y conserva cartel, categoría e itinerarios',()=>{
+  const cuentas=USUARIOS_INICIALES.map(u=>u.id==='usr-silva'?{...u,puedeAutoaprobar:true}:u);
+  const c=contexto('usr-silva',[],undefined,cuentas);
+  const programa=[{hora:'10:00',titulo:'Actividad de prueba',ponente:'Ponente',descripcion:'Contenido'}];
+  const datos={...SOLICITUDES_INICIALES[0],idSolicitante:'usr-silva',nombreSolicitante:'Silva',correoSolicitante:'silva@ipn.mx',esExcepcional:false,categoria:'Taller' as const,urlImagen:'data:image/png;base64,imagen',itinerarios:[{fecha:dia.fecha,nombreArchivo:'itinerario.png',urlImagen:'data:image/png;base64,itinerario'}],modalidadAsistencia:'controlado' as const,asistenciaEstimada:20,fechasSolicitadas:[{...dia,nombreActividad:'Taller principal',descripcionActividad:'Descripción',programa,distribucion:lugaresDelRecinto(recinto),distribucionConfirmada:true}]};
+  const s=c.datos.crearSolicitud(datos);
+  assert.equal(s.estado,'autorizada');
+  const publicado=c.leer('eventos').find((e:typeof evento)=>e.idSolicitud===s.id);
+  assert.equal(publicado.urlImagen,datos.urlImagen);
+  assert.equal(publicado.categoria,datos.categoria);
+  assert.deepEqual(publicado.itinerarios,datos.itinerarios);
+  assert.equal(publicado.fechas[0].nombreActividad,'Taller principal');
+  assert.deepEqual(publicado.fechas[0].programa,programa);
+  assert.equal(c.leer('solicitudes').find((n:{id:string})=>n.id===s.id).estado,'autorizada');
+});
+
+test('una jefatura retirada desde otra ventana no autoriza solicitudes con el perfil anterior',()=>{
+  const cuentas=USUARIOS_INICIALES.map(u=>u.id==='usr-silva'?{...u,puedeAutoaprobar:true}:u);
+  const c=contexto('usr-silva',[],undefined,cuentas);
+  c.local.setItem('tt_usuarios_sistema_v2',JSON.stringify(cuentas.map(u=>({...u,puedeAutoaprobar:false}))));
+  const datos={...SOLICITUDES_INICIALES[0],idSolicitante:'usr-silva',esExcepcional:false,modalidadAsistencia:'controlado' as const,asistenciaEstimada:20,fechasSolicitadas:[{...dia,distribucion:lugaresDelRecinto(recinto),distribucionConfirmada:true}]};
+  assert.throws(()=>c.datos.crearSolicitud(datos),/Subdirección/);
+  assert.equal(c.leer('solicitudes'),null);
+  assert.deepEqual(c.leer('eventos'),[]);
+});
+
+ test('reprogramar desplaza el programa sin perder ponentes ni alterar el original',()=>{
+  const original={...dia,programa:[{hora:'10:00',horaFin:'10:30',titulo:'Apertura',ponente:'Ponente de prueba'}]};
+  const ajustado=trasladarPrograma(original,'13:00')!;
+  assert.equal(ajustado[0].hora,'13:00');assert.equal(ajustado[0].horaFin,'13:30');
+  assert.equal(ajustado[0].ponente,original.programa[0].ponente);
+  assert.equal(original.programa[0].hora,'10:00');
+  assert.throws(()=>trasladarPrograma({...original,programa:[{...original.programa[0],hora:'11:00',horaFin:'12:00'}]},'23:30'),/fuera del día/);
+ });
+
+test('confirmar dos actividades emite el mismo QR y rechaza confirmar dos veces el apartado',(t)=>{
+  t.mock.method(Date,'now',()=>Date.parse('2030-01-24T12:00:00-06:00'));
+  const otra={...dia,id:'fec-otra',fecha:'2030-01-26'};
+  const c=contexto('usr-carlos',[{...evento,fechas:[dia,otra]}]);
+  const base={idEvento:evento.id,idUsuario:'usr-carlos',nombreUsuario:'Carlos de prueba',correoUsuario:'prueba@example.test',estado:'apartado_temporal',tiempoExpiracionApartado:Date.now()+120000,fechaCreacion:new Date().toISOString()};
+  c.local.setItem(c.prefijo+'reservaciones',JSON.stringify([{...base,id:'r1',idFechaEvento:dia.id,idAsiento:'A-1',etiquetaAsiento:'A1'},{...base,id:'r2',idFechaEvento:otra.id,idAsiento:'A-2',etiquetaAsiento:'A2'}]));
+  c.local.setItem(c.prefijo+'boletos','[]');
+  const primero=c.datos.confirmarReservacion('r1');assert.equal(primero.exito,true,primero.error);
+  const segundo=c.datos.confirmarReservacion('r2');assert.equal(segundo.exito,true,segundo.error);
+  assert.equal(primero.boleto!.codigoQr,segundo.boleto!.codigoQr);
+  assert.notEqual(primero.boleto!.id,segundo.boleto!.id);
+  assert.equal(c.datos.confirmarReservacion('r1').exito,false);
+  assert.equal(c.leer('boletos').length,2);
+});
+
+test('escanear el mismo pase en dos actividades conserva controles independientes y evita duplicados',(t)=>{
+ let ahora=Date.parse('2030-01-25T10:30:00-06:00');t.mock.method(Date,'now',()=>ahora);
+ const otra={...dia,id:'fec-otra',horaInicio:'13:00',horaFin:'15:00'};
+ const c=contexto('usr-silva',[{...evento,fechas:[dia,otra]}]);
+ const qr='TT-'+'A'.repeat(32);
+ const base={idEvento:evento.id,idUsuario:'usr-carlos',nombreUsuario:'Carlos de prueba',correoUsuario:'prueba@example.test',codigoQr:qr,estado:'valido',fechaEmision:'2029-01-01T00:00:00Z'};
+ c.local.setItem(c.prefijo+'boletos',JSON.stringify([{...base,id:'b1',idReservacion:'r1',idFechaEvento:dia.id},{...base,id:'b2',idReservacion:'r2',idFechaEvento:otra.id,codigoQr:'TT-'+'B'.repeat(32)}]));
+ c.local.setItem(c.prefijo+'reservaciones',JSON.stringify([{id:'r1',idEvento:evento.id,idFechaEvento:dia.id,idUsuario:'usr-carlos',estado:'confirmada'},{id:'r2',idEvento:evento.id,idFechaEvento:otra.id,idUsuario:'usr-carlos',estado:'confirmada'}]));
+ const operador=USUARIOS_INICIALES.find(u=>u.id==='usr-silva')!;
+ const primero=c.datos.procesarCheckIn(qr,operador.nombre,dia.id,operador,evento.id);
+ assert.equal(primero.exito,true,primero.mensaje);
+ assert.equal(c.leer('boletos')[1].estado,'valido');
+ assert.equal(c.datos.procesarCheckIn(qr,operador.nombre,dia.id,operador,evento.id).resultado,'ya_utilizado');
+ ahora=Date.parse('2030-01-25T13:30:00-06:00');
+ assert.equal(c.datos.procesarCheckIn(qr,operador.nombre,otra.id,operador,evento.id).exito,true);
+ assert.equal(c.leer('boletos').filter((b:{estado:string})=>b.estado==='utilizado').length,2);
+ assert.equal(c.leer('escaneos').filter((r:{resultado:string})=>r.resultado==='exito').length,2);
+});
+
+test('un fallo al guardar la bitácora no consume el acceso del pase',(t)=>{
+ t.mock.method(Date,'now',()=>Date.parse('2030-01-25T10:30:00-06:00'));
+ const c=contexto('usr-silva');const qr='TT-'+'C'.repeat(32);
+ const boleto={id:'b1',idEvento:evento.id,idFechaEvento:dia.id,idUsuario:'invitado',codigoQr:qr,estado:'valido',esEspecial:true};
+ c.local.setItem(c.prefijo+'boletos',JSON.stringify([boleto]));
+ const guardar=c.local.setItem.bind(c.local);c.local.setItem=(clave,valor)=>{if(clave===c.prefijo+'escaneos')throw new Error('Cuota agotada');guardar(clave,valor);};
+ const operador=USUARIOS_INICIALES.find(u=>u.id==='usr-silva')!;
+ assert.equal(c.datos.procesarCheckIn(qr,operador.nombre,dia.id,operador,evento.id).exito,false);
+ assert.deepEqual(c.leer('boletos'),[boleto]);
+ assert.deepEqual(c.leer('escaneos'),[]);
+});
+
+ test('el apartado queda guardado antes de devolver su identificador y se confirma sin esperar un efecto',(t)=>{
+  t.mock.method(Date,'now',()=>Date.parse('2030-01-23T12:00:00-06:00'));
+  const c=contexto('usr-carlos');
+  const res=c.datos.apartarAsiento(evento.id,dia.id,'asiento-prueba','A-1','usr-carlos','Carlos de prueba','prueba@example.test');
+  assert.equal(res.exito,true,res.error);
+  assert.ok(c.leer('reservaciones').some((r:{id:string})=>r.id===res.reservacion!.id));
+  const confirmado=c.datos.confirmarReservacion(res.reservacion!.id);
+  assert.equal(confirmado.exito,true,confirmado.error);
+  assert.equal(c.leer('reservaciones').find((r:{id:string})=>r.id===res.reservacion!.id).estado,'confirmada');
+ });
+
+ test('el lector no revela titulares de otro evento ni acepta operadores ajenos',(t)=>{
+  t.mock.method(Date,'now',()=>Date.parse('2030-01-25T10:30:00-06:00'));
+  const c=contexto('usr-silva');const qr='TT-'+'D'.repeat(32);
+  c.local.setItem(c.prefijo+'boletos',JSON.stringify([{id:'ajeno',idEvento:'evento-ajeno',idFechaEvento:'actividad-ajena',idUsuario:'otra-persona',nombreUsuario:'Nombre privado de prueba',codigoQr:qr,estado:'valido'}]));
+  const operador=USUARIOS_INICIALES.find(u=>u.id==='usr-silva')!;
+  const r=c.datos.procesarCheckIn(qr,operador.nombre,dia.id,operador,evento.id);
+  assert.equal(r.exito,false);assert.equal(r.boleto,undefined);assert.equal(r.resultado,'fecha_invalida');
+  assert.ok(!JSON.stringify(c.leer('escaneos')).includes('Nombre privado de prueba'));
+  const ajeno=USUARIOS_INICIALES.find(u=>u.roles.includes('staff'))!;
+  const sinPermiso=c.datos.procesarCheckIn(qr,ajeno.nombre,dia.id,ajeno,evento.id);
+  assert.equal(sinPermiso.resultado,'no_autorizado');
+ });

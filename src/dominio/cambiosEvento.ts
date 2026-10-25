@@ -12,3 +12,15 @@ export function validarLimitesEvento(evento:Evento,fechas:FechaEvento[],original
 export function puedeModificarEvento(usuario:Usuario|null,evento:Evento):boolean {
   return !!usuario?.estaActivo&&(usuario.roles.includes('subdireccion')||usuario.id===evento.idOrganizador);
 }
+
+/** Conserva los intervalos del programa al mover el inicio de una actividad. */
+export function trasladarPrograma(fecha:FechaEvento,horaInicio:string):FechaEvento['programa'] {
+  const minutos=(hora:string)=>Number(hora.slice(0,2))*60+Number(hora.slice(3));
+  const diferencia=minutos(horaInicio)-minutos(fecha.horaInicio);
+  const trasladar=(hora:string)=>{
+    const total=minutos(hora)+diferencia;
+    if(!Number.isInteger(total)||total<0||total>=1440)throw new Error('El programa ajustado quedaría fuera del día. Revisa sus horarios antes de reprogramar.');
+    return String(Math.floor(total/60)).padStart(2,'0')+':'+String(total%60).padStart(2,'0');
+  };
+  return fecha.programa?.map(actividad=>({...actividad,hora:trasladar(actividad.hora),...(actividad.horaFin?{horaFin:trasladar(actividad.horaFin)}:{})}));
+}

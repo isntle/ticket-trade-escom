@@ -1,3 +1,5 @@
+import { accesoPendienteDelEvento, agruparPasesEvento } from "../dominio/pasesEvento";
+import { inicioEnMexico } from "../dominio/solicitudes";
 import { nombreActividad } from '../dominio/actividades';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Clock, Ticket } from 'lucide-react';
@@ -49,7 +51,12 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
     () => usuarioActual ? listaBoletos.filter((boleto) => boleto.idUsuario === usuarioActual.id) : [],
     [listaBoletos, usuarioActual]
   );
-  const boletosActivos = boletosDelUsuario.filter((boleto) => boleto.estado === 'valido');
+  const pasesDelUsuario=agruparPasesEvento(boletosDelUsuario);
+  const pendiente=(boleto:BoletoDigital)=>accesoPendienteDelEvento(boleto,listaEventos.find(e=>e.id===boleto.idEvento));
+  const pasesActivos = pasesDelUsuario.filter(pase=>pase.accesos.some(pendiente));
+  const pasesAnteriores = pasesDelUsuario.filter(pase=>!pase.accesos.some(pendiente));
+  const paseSeleccionado=pasesDelUsuario.find(pase=>pase.idEvento===boletoParaQR?.idEvento);
+  const accesosVista=(accesos:BoletoDigital[])=>accesos.map(b=>({...b,nombreDia:obtenerDatosDia(b.idEvento,b.idFechaEvento).dia,entradaPendiente:pendiente(b),restriccionCancelacion:obtenerRestriccionCancelacion(b)||undefined}));
   const ofertaActiva = usuarioActual
     ? listaEspera.find((entrada) => entrada.idUsuario === usuarioActual.id && entrada.estado === 'notificado')
     : undefined;
@@ -87,8 +94,8 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
       return 'El día del evento ya no admite cancelaciones.';
     }
 
-    const inicio = new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime();
-    const fin = new Date(`${fecha.fecha}T${fecha.horaFin}:00`).getTime();
+    const inicio = inicioEnMexico(fecha.fecha,fecha.horaInicio);
+    const fin = inicioEnMexico(fecha.fecha,fecha.horaFin);
     const ahora = Date.now();
     if (!Number.isFinite(inicio) || !Number.isFinite(fin)) return 'No se pudo verificar el horario del evento.';
     if (ahora >= inicio) return 'No se puede cancelar una reservación cuando el día ya comenzó o terminó.';
@@ -179,7 +186,7 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
     .map((reserva) => {
       const { evento, fecha, dia, recinto } = obtenerDatosDia(reserva.idEvento, reserva.idFechaEvento);
       return {
-        id: listaBoletos.find((boleto) => boleto.idReservacion === reserva.id)?.codigoQr || reserva.id,
+        id: reserva.id,
         evento: evento?.titulo || 'Evento no disponible',
         dia,
         fecha: fecha?.fecha || '—',
@@ -249,7 +256,7 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
       <div className="mb-7">
         <span className="text-[11px] font-bold text-[#7a132b] uppercase tracking-wider">Taquilla digital</span>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 mt-0.5">Mis boletos e historial</h1>
-        <p className="text-sm text-neutral-500 mt-1">Consulta tus boletos, días de evento y participaciones.</p>
+        <p className="text-sm text-neutral-500 mt-1">Un boleto por evento con tus actividades reservadas y su estado de entrada.</p>
       </div>
 
       {totalRegistros === 0 && (
@@ -279,7 +286,7 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
 
       <div className="flex border-b border-neutral-200 mb-6" role="tablist" aria-label="Boletos e historial">
         <button type="button" role="tab" aria-selected={pestanaActiva === 'activos'} onClick={() => setPestanaActiva('activos')} className={`py-3 px-5 text-sm border-b-2 ${pestanaActiva === 'activos' ? 'border-[#7a132b] text-[#7a132b] font-semibold' : 'border-transparent text-neutral-500'}`}>
-          Boletos activos ({boletosActivos.length})
+          Boletos activos ({pasesActivos.length})
         </button>
         <button type="button" role="tab" aria-selected={pestanaActiva === 'historial'} onClick={() => setPestanaActiva('historial')} className={`py-3 px-5 text-sm border-b-2 ${pestanaActiva === 'historial' ? 'border-[#7a132b] text-[#7a132b] font-semibold' : 'border-transparent text-neutral-500'}`}>
           Historial ({filasReservaciones.length + filasIntenciones.length + filasListaEspera.length})
@@ -287,30 +294,26 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
       </div>
 
       {pestanaActiva === 'activos' ? (
-        boletosActivos.length === 0 ? (
+        pasesActivos.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 py-12 text-center">
             <Ticket className="w-10 h-10 mx-auto text-neutral-400 mb-3" />
             <h2 className="font-semibold text-neutral-800">No tienes boletos activos</h2>
             <p className="text-sm text-neutral-500 mt-1">Tus reservaciones anteriores y participaciones están en Historial.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {boletosActivos.map((boleto) => {
-              const { fecha, dia } = obtenerDatosDia(boleto.idEvento, boleto.idFechaEvento);
-              const boletoVista: BoletoConDia = {
-                ...boleto,
-                nombreDia: dia,
-                restriccionCancelacion: obtenerRestriccionCancelacion(boleto) || undefined
-              };
-              return <TarjetaBoleto key={boleto.id} boleto={boletoVista} alAmpliarQr={setBoletoParaQR} alCancelar={abrirCancelacion} />;
+          <div className={`grid grid-cols-1 gap-6 ${pasesActivos.length>1 ? "md:grid-cols-2" : ""}`}>
+            {pasesActivos.map(pase=>{
+              const accesos=accesosVista(pase.accesos);
+              const principal={...accesos.find(a=>a.estado==='valido')!,codigoQr:pase.codigoQr};
+              return <TarjetaBoleto key={pase.idEvento} boleto={principal} accesos={accesos} alAmpliarQr={setBoletoParaQR} alCancelar={abrirCancelacion}/>;
             })}
           </div>
         )
       ) : (
-        <HistorialBoletos reservaciones={filasReservaciones} intenciones={filasIntenciones} listaEspera={filasListaEspera} alRetirarse={retirarseDeLista} />
+        <div className="space-y-6">{pasesAnteriores.length>0&&<section aria-label="Boletos anteriores" className="grid gap-6 md:grid-cols-2">{pasesAnteriores.map(pase=>{const accesos=accesosVista(pase.accesos);return <TarjetaBoleto key={pase.idEvento} boleto={{...accesos[0],codigoQr:pase.codigoQr}} accesos={accesos} alAmpliarQr={setBoletoParaQR} alCancelar={abrirCancelacion}/>;})}</section>}<HistorialBoletos reservaciones={filasReservaciones} intenciones={filasIntenciones} listaEspera={filasListaEspera} alRetirarse={retirarseDeLista} /></div>
       )}
 
-      <ModalBoletoQR boleto={boletoParaQR} alCerrar={() => setBoletoParaQR(null)} />
+      <ModalBoletoQR boleto={boletoParaQR && paseSeleccionado ? {...(paseSeleccionado.accesos.find(pendiente)||paseSeleccionado.accesos[0]),codigoQr:paseSeleccionado.codigoQr}:null} accesos={paseSeleccionado ? accesosVista(paseSeleccionado.accesos) : []} alCerrar={() => setBoletoParaQR(null)} />
       <ModalCancelarReservacion boleto={boletoACancelar} alConservar={() => setBoletoACancelar(null)} alConfirmar={confirmarCancelacion} />
       <ModalListaEspera
         estaAbierto={participacionParaRetirar !== null}

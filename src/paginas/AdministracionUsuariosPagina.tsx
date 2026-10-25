@@ -34,7 +34,6 @@ export const AdministracionUsuariosPagina: React.FC<
     asignarRolesAUsuario,
     asociarStaffAEvento,
     alternarEstadoUsuario,
-    cambiarAutoaprobacion,
   } = useAutenticacion();
   const { listaEventos } = useDatos();
   const { mostrarNotificacion } = useNotificaciones();
@@ -48,7 +47,6 @@ export const AdministracionUsuariosPagina: React.FC<
   const [rolesSeleccionados, setRolesSeleccionados] = useState<RolUsuario[]>(
     [],
   );
-  const [autoaprobar, setAutoaprobar] = useState(false);
 
   // Modal para asociar staff a eventos
   const [usuarioEditandoStaff, setUsuarioEditandoStaff] =
@@ -71,7 +69,6 @@ export const AdministracionUsuariosPagina: React.FC<
   const abrirModalRoles = (u: Usuario) => {
     setUsuarioEditandoRoles(u);
     setRolesSeleccionados([...u.roles]);
-    setAutoaprobar(u.puedeAutoaprobar === true);
   };
 
   const alternarRol = (r: RolUsuario) => {
@@ -98,18 +95,6 @@ export const AdministracionUsuariosPagina: React.FC<
       rolesSeleccionados,
     );
     if (res.exito) {
-      const permiso = cambiarAutoaprobacion(
-        usuarioEditandoRoles.id,
-        autoaprobar,
-      );
-      if (!permiso.exito) {
-        mostrarNotificacion(
-          "No se pudo cambiar autoaprobación",
-          permiso.mensaje,
-          "error",
-        );
-        return;
-      }
       mostrarNotificacion("Permisos Actualizados", res.mensaje, "exito");
       setUsuarioEditandoRoles(null);
     } else {
@@ -426,18 +411,7 @@ export const AdministracionUsuariosPagina: React.FC<
               })}
             </div>
 
-            <label className="mb-5 block text-sm">
-              <input
-                type="checkbox"
-                checked={autoaprobar}
-                onChange={(e) => setAutoaprobar(e.target.checked)}
-              />{" "}
-              Permitir autoaprobación de solicitudes propias ordinarias
-            </label>
-            <p className="mb-4 text-xs text-neutral-500">
-              No concede aprobación de eventos ajenos ni la excepción de menos
-              de siete días. Subdirección conserva sus facultades propias.
-            </p>
+            <p className="mb-4 text-sm text-neutral-500">La asignación de jefes de academia corresponde a Subdirección.</p>
             <div className="flex gap-2 justify-end">
               <button
                 type="button"

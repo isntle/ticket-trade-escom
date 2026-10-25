@@ -1,7 +1,8 @@
+import { trasladarPrograma } from "../dominio/cambiosEvento";
 import { EditorItinerarios, VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
 import { validarItinerarios, nombreActividad } from '../dominio/actividades';
 import type { ItinerarioDia } from '../tipos';
-import { aforoActividad } from '../dominio/actividades';
+import { modalidadActividad, aforoActividad } from '../dominio/actividades';
 import { volverA } from '../dominio/navegacion';
 import { inicioEnMexico } from '../dominio/solicitudes';
 import React from 'react';
@@ -70,6 +71,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   const [actividadesEditadas,setActividadesEditadas] = React.useState<Record<string,{nombreActividad:string;descripcionActividad:string}>>({});
   const [motivoEdicion, setMotivoEdicion] = React.useState('');
   const [cancelacion, setCancelacion] = React.useState<{idFecha?:string; retirar:boolean; version:string} | null>(null);
+  const [reprogramacion,setReprogramacion] = React.useState<{anterior:FechaEvento;nueva:FechaEvento;confirmar:()=>void} | null>(null);
   const [motivoCancelacion, setMotivoCancelacion] = React.useState('');
   const [verConstancia,setVerConstancia] = React.useState(interfazSolicitada() === 'UI.22');
 
@@ -218,7 +220,13 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     if (!fechaActual || !fecha || !horaInicio || !horaFin || horaFin <= horaInicio) {
       mostrarNotificacion('Revisa la programación', 'La fecha y el horario deben ser válidos.', 'advertencia'); return;
     }
-    const errorPrograma = validarPrograma({ ...fechaActual, horaInicio, horaFin });
+    if (fecha === fechaActual.fecha && horaInicio === fechaActual.horaInicio && horaFin === fechaActual.horaFin && idRecinto === fechaActual.idRecinto && !fechaActual.suspendida) {
+      mostrarNotificacion('Sin cambios', 'Modifica la fecha, el horario o el recinto antes de revisar.', 'informacion'); return;
+    }
+    let programa:FechaEvento['programa'];
+    try { programa=trasladarPrograma(fechaActual,horaInicio); }
+    catch(error){mostrarNotificacion('Revisa el programa',(error as Error).message,'advertencia');return;}
+    const errorPrograma = validarPrograma({ ...fechaActual, horaInicio, horaFin,programa });
     if (errorPrograma) { mostrarNotificacion('Revisa el programa del día', errorPrograma, 'advertencia'); return; }
     if (inicioEnMexico(fecha,horaInicio) <= Date.now()) {
       mostrarNotificacion('Fecha no válida', 'No se puede reprogramar a una fecha pasada.', 'error'); return;
@@ -238,7 +246,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     }
     const motivoCambio = String(datos.get('motivoCambio') || '').trim();
     if (!motivoCambio?.trim()) { mostrarNotificacion('Cambio cancelado', 'Se requiere un motivo para registrar la modificación.', 'advertencia'); return; }
-    const fechaNueva = { ...fechaActual, fecha, horaInicio, horaFin, idRecinto, suspendida:false, idBloqueoSuspension:undefined, ...(idRecinto!==fechaActual.idRecinto?{idArregloFinal:undefined,esFinalConfirmado:false}:{}) };
+    const fechaNueva = { ...fechaActual, programa, fecha, horaInicio, horaFin, idRecinto, suspendida:false, idBloqueoSuspension:undefined, ...(idRecinto!==fechaActual.idRecinto?{idArregloFinal:undefined,esFinalConfirmado:false}:{}) };
     const registrarCambioFecha = (historialExcepcionesAnticipacion = evento.historialExcepcionesAnticipacion) => {
       const historialCambios = [...(evento.historialCambios || []), {
         version: (evento.historialCambios?.length || 0) + 1,
@@ -257,21 +265,28 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         ...(historialExcepcionesAnticipacion ? { historialExcepcionesAnticipacion } : {})
       }, JSON.stringify(evento));
     };
-    const horasAnticipacion = (new Date(`${fecha}T${horaInicio}:00`).getTime() - Date.now()) / 3600000;
+    const horasAnticipacion = (inicioEnMexico(fecha,horaInicio) - Date.now()) / 3600000;
+    const revisar = (confirmar:()=>void) => setReprogramacion({anterior:fechaActual,nueva:fechaNueva,confirmar});
     if (fecha !== fechaActual.fecha && horasAnticipacion < 168) {
       if (rolActivo !== 'subdireccion') {
         mostrarNotificacion('Requiere autorización', 'Los cambios con menos de 168 horas deben ser aplicados por Subdirección con una excepción motivada.', 'advertencia'); return;
       }
       const motivo = String(datos.get('motivoExcepcion') || '').trim();
       if (!motivo?.trim()) { mostrarNotificacion('Excepción cancelada', 'Se requiere una justificación para aplicar el cambio urgente.', 'advertencia'); return; }
+      revisar(() => {
       const resultado = registrarCambioFecha([...(evento.historialExcepcionesAnticipacion || []), { idFechaEvento: idFecha, fechaAplicacion: new Date().toISOString(), motivo: motivo.trim(), responsable: usuarioActual?.nombre || 'Subdirección' }]);
       if (!resultado.exito) { mostrarNotificacion('No se pudo reprogramar', resultado.error || 'Revisa los datos e inténtalo nuevamente.', 'error'); return; }
       mostrarNotificacion('Excepción aplicada', 'La justificación quedó registrada en la bitácora del evento.', 'informacion');
+      setReprogramacion(null);
+      });
       return;
     }
+    revisar(() => {
     const resultado = registrarCambioFecha();
     if (!resultado.exito) { mostrarNotificacion('No se pudo reprogramar', resultado.error || 'Revisa los datos e inténtalo nuevamente.', 'error'); return; }
     mostrarNotificacion('Programación actualizada', `Cambio registrado como versión ${(evento.historialCambios?.length || 0) + 1}.`, 'exito');
+    setReprogramacion(null);
+    });
   };
 
   const confirmarCancelacion = (idFecha?:string, retirar=false) => {
@@ -290,6 +305,15 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <VentanaModal estaAbierto={Boolean(reprogramacion)} alCerrar={()=>setReprogramacion(null)} titulo="Revisar cambio de actividad">
+        {reprogramacion && <div className="space-y-4">
+          <h3 className="font-bold">{nombreActividad(reprogramacion.anterior)}</h3>
+          <div className="grid gap-3 sm:grid-cols-2">{[{titulo:'Programación actual',actividad:reprogramacion.anterior},{titulo:'Nueva programación',actividad:reprogramacion.nueva}].map(({titulo,actividad})=><div key={titulo} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><p className="font-semibold">{titulo}</p><p>{actividad.fecha} · {actividad.horaInicio}–{actividad.horaFin}</p><p>{obtenerNombreRecinto(actividad.idRecinto)}</p></div>)}</div>
+          {reprogramacion.nueva.programa?.length && reprogramacion.nueva.horaInicio!==reprogramacion.anterior.horaInicio ? <details className="rounded-xl border border-neutral-200 p-4"><summary className="cursor-pointer font-semibold">Programa ajustado al nuevo inicio</summary><p className="my-2 text-sm text-neutral-500">Se conservan los intervalos y la duración de las actividades del programa.</p><ProgramaDia programa={reprogramacion.nueva.programa}/></details>:null}
+          <p className="rounded-xl bg-sky-50 p-4 text-sm text-sky-900">Los boletos vigentes conservarán su código QR y mostrarán la nueva programación. Las demás actividades conservarán sus reservas. Este cambio no envía correos.</p>
+          <div className="flex gap-3"><button type="button" onClick={()=>setReprogramacion(null)} className="rounded-lg border border-neutral-200 px-4 py-2">Seguir editando</button><button type="button" onClick={()=>reprogramacion.confirmar()} className="rounded-lg bg-sky-700 px-4 py-2 font-semibold text-white">Confirmar cambio</button></div>
+        </div>}
+      </VentanaModal>
       <VentanaModal estaAbierto={verConstancia} alCerrar={() => setVerConstancia(false)} titulo="Constancia operativa del evento" anchoMaximo="4xl">
         <h2 className="text-xl font-bold">{evento.titulo}</h2>
         <p className="my-3">{evento.descripcion}</p><p>Folio: {evento.id} · Organiza: {evento.nombreOrganizador}</p>
@@ -298,7 +322,10 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       </VentanaModal>
       <VentanaModal estaAbierto={Boolean(cancelacion)} alCerrar={() => setCancelacion(null)} titulo={cancelacion?.retirar ? 'Retirar día' : 'Confirmar cancelación'}>
         <form onSubmit={e => {e.preventDefault(); ejecutarCancelacion();}} className="space-y-4">
-          <p>Se conservará el historial. Al cancelar, se invalidarán los boletos y compromisos del día o evento seleccionado.</p>
+          <p>Se conservará el historial. Al cancelar, se invalidarán únicamente los accesos de las actividades seleccionadas.</p>
+          {!cancelacion?.retirar && (!cancelacion?.idFecha || evento.fechas.filter(a=>!a.cancelada).every(a=>a.id===cancelacion.idFecha)) && <p className="rounded-xl bg-rose-50 p-3 text-sm text-rose-900">No quedarán actividades vigentes. El evento completo aparecerá como cancelado, conservando su expediente e historial.</p>}
+          <ul className="space-y-2">{evento.fechas.filter(actividad=>!actividad.cancelada&&(!cancelacion?.idFecha||actividad.id===cancelacion.idFecha)).map((actividad,indice)=><li key={actividad.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3"><strong>{nombreActividad(actividad,indice)}</strong><p className="text-sm">{actividad.fecha} · {actividad.horaInicio}–{actividad.horaFin} · {obtenerNombreRecinto(actividad.idRecinto)}</p><p className="mt-2 text-sm text-neutral-600">{listaReservaciones.filter(r=>r.idFechaEvento===actividad.id&&r.estado==='confirmada').length} reservaciones confirmadas · {listaBoletos.filter(b=>b.idFechaEvento===actividad.id&&b.estado==='valido').length} boletos vigentes</p></li>)}</ul>
+          <p className="text-sm text-neutral-500">Los compromisos se vuelven a comprobar al confirmar. Las demás actividades conservarán sus accesos.</p>
           <label className="block text-sm font-semibold">Motivo de la operación<textarea required value={motivoCancelacion} onChange={e => setMotivoCancelacion(e.target.value)} className="mt-1 w-full rounded-lg border p-3" /></label>
           <div className="flex gap-3"><button type="button" onClick={() => setCancelacion(null)} className="rounded-lg border px-4 py-2">Volver</button><button type="submit" className="rounded-lg bg-rose-700 px-4 py-2 text-white">Confirmar operación</button></div>
         </form>
@@ -362,9 +389,9 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         setPropuestaEdicion({ titulo, descripcion, ponentes, fechas, itinerarios:itinerariosEditados??evento.itinerarios, urlImagen: cartelModificado ? urlBannerPropuesto : evento.urlImagen, versionOriginal: JSON.stringify(evento) });
       }} data-interfaz={casoDocumentado === 'CU-OR-19' ? 'UI.21' : undefined} tabIndex={-1} className="mb-8 grid scroll-mt-24 gap-3 rounded-2xl border border-neutral-200 bg-white p-5 sm:grid-cols-2">
         <div className="sm:col-span-2"><h2 className="font-bold">Editar información del evento aprobado</h2><p className="text-sm text-neutral-500">Revisa título, descripción, cartel y actividades por día. Las fechas, recintos, horarios generales y compromisos vigentes se conservan.</p></div>
-        <label className="text-sm font-semibold">Título<input name="titulo" required defaultValue={evento.titulo} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
-        <label className="text-sm font-semibold">Ponentes (opcional, uno por línea)<textarea name="ponentes" defaultValue={evento.ponentes.join('\n')} rows={2} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
-        <label className="text-sm font-semibold sm:col-span-2">Descripción<textarea name="descripcion" required defaultValue={evento.descripcion} rows={3} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
+        <label className="text-sm font-semibold">Título<input name="titulo" required defaultValue={evento.titulo} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm"/></label>
+        <label className="text-sm font-semibold">Ponentes (opcional, uno por línea)<textarea name="ponentes" defaultValue={evento.ponentes.join('\n')} rows={2} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm"/></label>
+        <label className="text-sm font-semibold sm:col-span-2">Descripción<textarea name="descripcion" required defaultValue={evento.descripcion} rows={3} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm"/></label>
         <div className="sm:col-span-2"><EditorCartel urlImagen={cartelModificado ? urlBannerPropuesto : evento.urlImagen} nombre={nombreBanner}
           alCambiar={(url, nombre) => { setUrlBannerPropuesto(url); setCartelModificado(true); setNombreBanner(nombre); setPropuestaEdicion(null); }}
           alCambiarEstado={({ cargando, error }) => { setCargandoBanner(cargando); setErrorBanner(error); }} /></div>
@@ -569,13 +596,13 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       {/* ========================================================================= */}
       {/* CUERPO PRINCIPAL: DÍAS (IZQUIERDA) + CHECKLIST DETALLADO (DERECHA)   */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         {/* Columna Izquierda: Días y Configuración de Butacas (8 COLS) */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="xl:col-span-8 min-w-0 space-y-6">
           <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs space-y-4">
             <div>
               <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-wider">
-                Días Programados y Arreglos de Lugares (1:1)
+                Actividades y distribución de lugares
               </h2>
               <p className="text-sm text-neutral-500 mt-0.5">
                 Para eventos con acceso controlado, cada fecha debe tener su distribución de butacas o estaciones confirmada.
@@ -591,30 +618,30 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                 return (
                   <div
                     key={fecha.id}
-                    className="p-5 rounded-xl border border-neutral-200 bg-neutral-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm"
+                    className="min-w-0 p-4 sm:p-5 rounded-xl border border-neutral-200 bg-neutral-50/60 space-y-5 text-sm"
                   >
                     <div className="space-y-1.5">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-bold text-neutral-900 text-sm">
-                          Día {i + 1}: {fecha.fecha}
+                          {nombreActividad(fecha,i)} · {fecha.fecha}
                         </span>
                         {fecha.cancelada && <span className="rounded bg-rose-100 px-2 py-0.5 text-sm font-bold text-rose-800">Día cancelado</span>}
                         {fecha.suspendida && !fecha.cancelada && <span className="rounded bg-amber-100 px-2 py-0.5 text-sm font-bold text-amber-900">Pendiente de reprogramación por bloqueo</span>}
-                        {tieneArregloConfirmado ? (
+                        {modalidadActividad(fecha,evento.modalidadAsistencia) !== 'controlado' ? <span className="rounded-lg bg-sky-50 px-2 py-1 text-sky-800">Sin asientos numerados</span> : tieneArregloConfirmado ? (
                           <span className="inline-flex items-center gap-1 text-sm font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            <span>Versión Oficial Lista</span>
+                            <span>Distribución confirmada</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-sm font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                             <AlertCircle className="w-3 h-3 text-amber-600" />
-                            <span>Arreglo Pendiente</span>
+                            <span>Distribución pendiente</span>
                           </span>
                         )}
                       </div>
                       {!fecha.cancelada && !disponibilidadDia.disponible && <div className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm text-amber-950"><strong>{disponibilidadDia.tipoConflicto === 'bloqueo' ? 'Día afectado por bloqueo institucional' : 'Conflicto de agenda'}</strong><p>{disponibilidadDia.motivo}</p><span>Resuelve el conflicto reprogramando el día o cancelándolo de forma segura.</span></div>}
 
-                      <div className="text-neutral-600 flex items-center gap-3">
+                      <div className="text-neutral-600 flex flex-wrap items-center gap-x-4 gap-y-2">
                         <span className="flex items-center gap-1 font-semibold text-neutral-800">
                           <MapPin className="w-3 h-3 text-neutral-400" />
                           {nombreRecinto}
@@ -627,19 +654,19 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                       </div>
                     </div>
 
-                    {!fecha.cancelada && puedeGestionar && <form data-interfaz={casoDocumentado !== 'CU-OR-19' ? 'UI.21' : undefined} tabIndex={-1} onSubmit={(e) => guardarCambioFecha(e, fecha.id)} className="grid w-full gap-2 border-t border-neutral-200 pt-3 sm:grid-cols-2 lg:grid-cols-4">
-                      <label className="text-sm font-semibold text-neutral-600">Fecha<input name="fecha" type="date" defaultValue={fecha.fecha} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm" /></label>
-                      <label className="text-sm font-semibold text-neutral-600">Inicio<input name="horaInicio" type="time" defaultValue={fecha.horaInicio} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm" /></label>
-                      <label className="text-sm font-semibold text-neutral-600">Fin<input name="horaFin" type="time" defaultValue={fecha.horaFin} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm" /></label>
-                      <label className="text-sm font-semibold text-neutral-600">Recinto<select name="idRecinto" defaultValue={fecha.idRecinto} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm">{listaRecintos.filter((r) => r.activo !== false).map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}</select></label>
-                      <label className="text-sm font-semibold text-neutral-600 sm:col-span-2">Motivo del cambio<input name="motivoCambio" required className="mt-1 w-full rounded-lg border p-2 text-sm" /></label>
-                      {rolActivo === 'subdireccion' && <label className="text-sm font-semibold text-neutral-600 sm:col-span-2">Justificación de excepción de anticipación (solo cambios urgentes)<input name="motivoExcepcion" className="mt-1 w-full rounded-lg border p-2 text-sm" /></label>}
-                      <button type="submit" className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-bold text-white">Guardar fecha, horario o recinto</button>
-                      {puedeGestionar && <button type="button" onClick={() => retirarDia(fecha.id)} className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-bold text-rose-700">Retirar día sin compromisos</button>}
-                      {puedeGestionar && !fecha.cancelada && <button type="button" onClick={() => cancelarDia(fecha.id)} className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700">Cancelar este día</button>}
+                    {!fecha.cancelada && puedeGestionar && <form data-interfaz={casoDocumentado !== 'CU-OR-19' ? 'UI.21' : undefined} tabIndex={-1} onSubmit={(e) => guardarCambioFecha(e, fecha.id)} className="grid min-w-0 w-full gap-4 border-t border-neutral-200 pt-4 sm:grid-cols-2">
+                      <label className="text-sm font-semibold text-neutral-600">Fecha<input name="fecha" type="date" defaultValue={fecha.fecha} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>
+                      <label className="text-sm font-semibold text-neutral-600">Inicio<input name="horaInicio" type="time" defaultValue={fecha.horaInicio} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>
+                      <label className="text-sm font-semibold text-neutral-600">Fin<input name="horaFin" type="time" defaultValue={fecha.horaFin} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>
+                      <label className="text-sm font-semibold text-neutral-600">Recinto<select name="idRecinto" defaultValue={fecha.idRecinto} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm">{listaRecintos.filter((r) => r.activo !== false).map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}</select></label>
+                      <label className="text-sm font-semibold text-neutral-600 sm:col-span-2">Motivo del cambio<input name="motivoCambio" required className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>
+                      {rolActivo === 'subdireccion' && <label className="text-sm font-semibold text-neutral-600 sm:col-span-2">Justificación de excepción de anticipación (solo cambios urgentes)<input name="motivoExcepcion" className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>}
+                      <button type="submit" className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-bold text-white">Revisar cambio</button>
+                      {puedeGestionar && <button type="button" onClick={() => retirarDia(fecha.id)} className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-bold text-rose-700">Retirar actividad sin compromisos</button>}
+                      {puedeGestionar && !fecha.cancelada && <button type="button" onClick={() => cancelarDia(fecha.id)} className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700">Cancelar esta actividad</button>}
                     </form>}
 
-                    <button
+                    {modalidadActividad(fecha,evento.modalidadAsistencia) === 'controlado' && <button
                       type="button"
                       onClick={() =>
                         navigate(
@@ -649,8 +676,8 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                       className="px-4 py-2.5 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
                     >
                       <Layers className="w-3.5 h-3.5" />
-                      <span>{tieneArregloConfirmado ? 'Revisar / Modificar Butacas' : 'Diseñar Butacas'}</span>
-                    </button>
+                      <span>{tieneArregloConfirmado ? 'Revisar distribución de lugares' : 'Diseñar distribución de lugares'}</span>
+                    </button>}
                   </div>
                 );
               })}
@@ -661,7 +688,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         </div>
 
         {/* Columna Derecha: Checklist Detallado de Publicación (4 COLS) */}
-        <div className="lg:col-span-4 space-y-4">
+        <div className="xl:col-span-4 space-y-4">
           <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs space-y-4 text-sm">
             <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-[#7a132b]" />

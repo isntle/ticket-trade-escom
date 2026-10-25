@@ -1,3 +1,4 @@
+import { impedimentoVerificacion, periodoIdentidadActual, rechazosPeriodo } from "../dominio/periodosIdentidad";
 import { volverA } from '../dominio/navegacion';
 import React, { useEffect, useState } from "react";
 import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
@@ -44,7 +45,10 @@ export function GestionIdentidadPagina({
   } | null>(null);
   const [decision, setDecision] = useState<Decision | null>(null);
   const [motivo, setMotivo] = useState("");
-  const [vigencia, setVigencia] = useState("");
+  const [vigencia, setVigencia] = useState(periodoIdentidadActual(auth.periodosIdentidad)?.fin || "");
+  const [motivoSolicitud,setMotivoSolicitud] = useState(cuenta?.motivoSolicitudVerificacion || "");
+  const [silencioHasta,setSilencioHasta] = useState("");
+  const [motivoSilencio,setMotivoSilencio] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [relacionadas, setRelacionadas] = useState("");
@@ -67,8 +71,9 @@ export function GestionIdentidadPagina({
   const evento = eventos.find((e) => e.id === eventoId);
   useEffect(() => {
     setArchivos(cuenta?.archivosExpediente || []);
+    setMotivoSolicitud(cuenta?.motivoSolicitudVerificacion || "");
     setRevision(null);
-    const ejemplo = vista === "revision" && admin && interfazSolicitada() === "UI-IP-10"
+    const ejemplo = vista === "revision" && (admin || subdireccion) && interfazSolicitada() === "UI-IP-10"
       ? usuarios.find(u => (u.estadoExpediente && u.estadoExpediente !== "sin_enviar") || u.esVerificado) : undefined;
     setSeleccion(ejemplo ? {id:ejemplo.id,version:ejemplo.versionIdentidad || 0} : null);
     setMensaje("");
@@ -81,7 +86,7 @@ export function GestionIdentidadPagina({
     [documento],
   );
   useEffect(() => {
-    if (!cuenta || (!admin && vista === "revision")) setDocumento(null);
+    if (!cuenta || (!admin && !subdireccion && vista === "revision")) setDocumento(null);
   }, [cuenta?.id, rolActivo, vista]);
   const resultado = (r: { exito: boolean; mensaje: string }) => {
     setMensaje(r.mensaje);
@@ -95,7 +100,7 @@ export function GestionIdentidadPagina({
     archivo: DocumentoIdentidad,
     titular: Usuario,
   ) => {
-    if (!cuenta || (cuenta.id !== titular.id && !admin))
+    if (!cuenta || (cuenta.id !== titular.id && !admin && !subdireccion))
       return setMensaje("No tienes permiso para consultar este documento.");
     try {
       setDocumento({
@@ -184,7 +189,7 @@ export function GestionIdentidadPagina({
       </section>
     );
   if (
-    (vista === "revision" && !admin) ||
+    (vista === "revision" && !admin && !subdireccion) ||
     (vista === "restricciones" && !admin && !subdireccion) ||
     (vista === "staff" && !admin && !organizador)
   )
@@ -203,7 +208,7 @@ export function GestionIdentidadPagina({
     vista === "expediente"
       ? "Mi expediente"
       : vista === "revision"
-        ? "Revisión de expedientes"
+        ? admin ? "Verificaciones y revocaciones" : "Solicitudes de verificación"
         : vista === "staff"
           ? "Personal de acceso de mis eventos"
           : "Restricciones para solicitar eventos";
@@ -240,11 +245,13 @@ export function GestionIdentidadPagina({
             {cuenta.verificacionHasta &&
               " · Válido hasta " + cuenta.verificacionHasta}
           </p>
+          <div className="rounded-xl bg-neutral-50 p-4 text-sm"><strong>{cuenta.nombre}</strong><p>{cuenta.correo} · {cuenta.afiliacion}</p><p>{cuenta.boleta ? 'Boleta: '+cuenta.boleta : cuenta.afiliacion==='externo' ? [cuenta.nombreOrganizacion,cuenta.puestoContacto].filter(Boolean).join(' · ') : 'Número de empleado: '+(cuenta.numeroEmpleado||'Pendiente')}</p><button className="mt-2 font-semibold text-[#7a132b] underline" onClick={()=>navigate('/perfil')}>Revisar datos de mi perfil</button>{periodoIdentidadActual(auth.periodosIdentidad)&&<p className="mt-2">Periodo {periodoIdentidadActual(auth.periodosIdentidad)!.id} · Rechazos: {rechazosPeriodo(cuenta,periodoIdentidadActual(auth.periodosIdentidad)!)} de 3</p>}</div>
+          {cuenta.afiliacion!=='alumno' && cuenta.afiliacion!=='externo' && <form className="rounded-xl bg-neutral-50 p-4" onSubmit={e=>{e.preventDefault();const datos=new FormData(e.currentTarget);resultado(auth.actualizarPerfil(cuenta.id,{numeroEmpleado:String(datos.get('numeroEmpleado')||'').trim()},cuenta.versionIdentidad||0));}}><label className="block text-sm font-semibold">Número de empleado<input name="numeroEmpleado" required defaultValue={cuenta.numeroEmpleado||''} className={campo}/></label><button type="submit" className={boton+" mt-3"}>Guardar número de empleado</button></form>}
           {cuenta.motivoExpediente && (
             <p>Observaciones: {cuenta.motivoExpediente}</p>
           )}
           <p className="text-sm">
-            Aviso de datos: solo el titular y Administración pueden consultar
+            Aviso de datos: solo el titular, Subdirección y Administración pueden consultar
             estos documentos para revisar la habilitación para solicitar
             eventos. Usa únicamente documentos ficticios en este prototipo. No
             se consultan padrones oficiales.
@@ -259,7 +266,7 @@ export function GestionIdentidadPagina({
           ) : cuenta.estadoExpediente === "en_revision" ? (
             <>
               <p>
-                Administración está revisando esta versión. No se puede reenviar
+                Subdirección está revisando esta versión. No se puede reenviar
                 mientras esté en revisión.
               </p>
               {listadoArchivos(cuenta)}
@@ -267,13 +274,15 @@ export function GestionIdentidadPagina({
           ) : (
             <>
               <p className="text-sm">
-                Estudiante: constancia del periodo actual. Personal: comprobante
-                de adscripción y RFC o número de empleado declarado.
+                Estudiante: constancia o comprobante de horario del periodo actual. Personal: comprobante
+                de adscripción y número de empleado declarado.
                 Representante externo: entidad, cargo, documento de existencia y
                 representación vigente. Las evidencias de adscripción y
                 representación deben tener hasta seis meses, salvo otra vigencia
                 expresa.
               </p>
+              <label className="block text-sm font-bold">¿Por qué solicitas la verificación?<textarea required className={campo} value={motivoSolicitud} onChange={e=>{setMotivoSolicitud(e.target.value);setRevision(null);}}/></label>
+              {impedimentoVerificacion(cuenta,auth.periodosIdentidad)&&<p role="status" className="rounded-xl bg-amber-50 p-4 text-sm">{impedimentoVerificacion(cuenta,auth.periodosIdentidad)}</p>}
               <label className="block text-sm font-bold">
                 Adjuntar documentos PDF (hasta cinco; 10 MiB por archivo)
                 <input
@@ -306,13 +315,14 @@ export function GestionIdentidadPagina({
                         <option value="constancia">
                           Constancia de estudios
                         </option>
+                        <option value="horario">Comprobante de horario</option>
                         <option value="adscripcion">
                           Comprobante de adscripción
                         </option>
                         <option value="existencia">
-                          Existencia de la entidad
+                          Acta constitutiva o documento equivalente
                         </option>
-                        <option value="representacion">Representación</option>
+                        <option value="representacion">Poder o nombramiento de representación</option>
                       </select>
                     </label>
                     <label className="text-sm">
@@ -337,7 +347,7 @@ export function GestionIdentidadPagina({
                         }
                       />
                     </label>
-                    {a.tipo === "constancia" && (
+                    {["constancia","horario"].includes(a.tipo) && (
                       <div className="text-sm">
                         <label className="block">
                           Periodo escolar
@@ -390,7 +400,7 @@ export function GestionIdentidadPagina({
                   </h2>
                   {listadoArchivos(cuenta, archivos)}
                   <p>
-                    Administración revisará la versión {revision}. Enviar no
+                    Subdirección revisará la versión {revision}. Enviar no
                     concede aprobación ni roles.
                   </p>
                   <button className={boton} onClick={() => setRevision(null)}>
@@ -401,7 +411,7 @@ export function GestionIdentidadPagina({
                     className={primario}
                     onClick={() =>
                       resultado(
-                        auth.enviarExpediente(cuenta.id, archivos, revision),
+                        auth.enviarExpediente(cuenta.id, archivos, revision,motivoSolicitud),
                       )
                     }
                   >
@@ -414,7 +424,7 @@ export function GestionIdentidadPagina({
                   className={boton}
                   disabled={ocupado}
                   onClick={() => {
-                    const fallo = validarExpedienteIdentidad(cuenta, archivos);
+                    const fallo = impedimentoVerificacion(cuenta,auth.periodosIdentidad) || (!motivoSolicitud.trim()?"Explica por qué solicitas la verificación.":undefined) || validarExpedienteIdentidad(cuenta, archivos);
                     if (fallo) setMensaje(fallo);
                     else {
                       setRevision(cuenta.versionIdentidad || 0);
@@ -455,6 +465,7 @@ export function GestionIdentidadPagina({
           ))}
         </article>
       )}
+      {vista === "revision" && subdireccion && !periodoIdentidadActual(auth.periodosIdentidad) && <p className="rounded-xl bg-amber-50 p-4 text-sm">Configura el periodo académico para poder aprobar verificaciones. <button className="font-bold underline" onClick={()=>navigate('/subdireccion/jefes-academia')}>Abrir periodos de verificación</button></p>}
       {vista === "revision" && (
         <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="space-y-3">
@@ -497,13 +508,14 @@ export function GestionIdentidadPagina({
                 {elegida.correo} · {elegida.afiliacion}
               </p>
               <p>
-                {elegida.boleta || elegida.rfc || elegida.numeroEmpleado}{" "}
+                {elegida.boleta || elegida.numeroEmpleado || elegida.rfc}{" "}
                 {elegida.nombreOrganizacion} {elegida.puestoContacto}
               </p>
               <p>
                 Versión {seleccion?.version} ·{" "}
                 {estado(elegida.estadoExpediente)}
               </p>
+              <p><strong>Motivo de la solicitud:</strong> {elegida.motivoSolicitudVerificacion || "No registrado en el expediente anterior"}</p>
               {listadoArchivos(elegida)}
               <p className="text-sm">
                 Comprueba manualmente nombre, adscripción, representación,
@@ -511,13 +523,13 @@ export function GestionIdentidadPagina({
                 a eventos ajenos.
               </p>
               <div className="flex flex-wrap gap-2">
-                {(elegida.estadoExpediente === "en_revision"
+                {(elegida.estadoExpediente === "en_revision" && subdireccion
                   ? [
                       ["aprobado", "Aprobar expediente"],
                       ["requiere_correccion", "Solicitar corrección"],
                       ["rechazado", "Rechazar"],
                     ]
-                  : elegida.esVerificado
+                  : elegida.esVerificado && admin
                     ? [["revocado", "Revocar verificación"]]
                     : []
                 ).map(([d, texto]) => (
@@ -530,6 +542,7 @@ export function GestionIdentidadPagina({
                   </button>
                 ))}
               </div>
+              {subdireccion && <form className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={e=>{e.preventDefault();resultado(auth.silenciarVerificacion(elegida.id,silencioHasta,motivoSilencio,seleccion!.version));}}><h3 className="font-bold">Pausar nuevos envíos de verificación</h3><p className="text-sm">No bloquea la cuenta, las reservas ni el inicio de sesión. Deja la fecha vacía para levantar una pausa anterior.</p>{elegida.verificacionSilenciadaHasta&&<p className="text-sm">Pausa hasta {elegida.verificacionSilenciadaHasta}: {elegida.motivoSilencioVerificacion}</p>}<label className="block text-sm">Hasta<input type="date" value={silencioHasta} onChange={e=>setSilencioHasta(e.target.value)} className={campo}/></label><label className="block text-sm">Motivo<textarea required value={motivoSilencio} onChange={e=>setMotivoSilencio(e.target.value)} className={campo}/></label><button type="submit" className={boton}>Confirmar pausa o habilitación</button></form>}
               {decision && (
                 <div className="space-y-3 rounded-xl border border-amber-200 p-4">
                   <h3 className="font-bold">Confirmar: {estado(decision)}</h3>
@@ -547,8 +560,9 @@ export function GestionIdentidadPagina({
                       Verificación vigente hasta
                       <input
                         type="date"
+                        readOnly
                         className={campo}
-                        value={vigencia}
+                        value={periodoIdentidadActual(auth.periodosIdentidad)?.fin || vigencia}
                         onChange={(e) => setVigencia(e.target.value)}
                       />
                     </label>
@@ -565,7 +579,7 @@ export function GestionIdentidadPagina({
                           decision,
                           motivo,
                           seleccion!.version,
-                          vigencia,
+                          periodoIdentidadActual(auth.periodosIdentidad)?.fin || vigencia,
                         ),
                       )
                     }
