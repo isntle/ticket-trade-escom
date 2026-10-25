@@ -1,3 +1,4 @@
+import { proyectarCambioRecinto, firmaCambioRecinto, type PeticionCambioRecinto, type PropuestaCambioRecinto, type EstadoCambioRecinto } from "../dominio/cambioRecinto";
 import { useListaLocal } from "./useListaLocal";
 import { accesoDelPase, codigoQrDelEvento } from "../dominio/pasesEvento";
 import { modalidadActividad, aforoActividad, validarItinerarios } from '../dominio/actividades';
@@ -142,6 +143,8 @@ interface ContextoDatosTipo {
 
   crearEventoInstitucionalDirecto: (datosEvento: Partial<Evento>) => Evento;
   cancelarUnidadEvento: (idEvento:string,idFecha:string|undefined,motivo:string,retirar:boolean,versionEsperada:string) => {exito:boolean;error?:string};
+  revisarCambioRecinto: (peticion: Omit<PeticionCambioRecinto, 'idArreglo'>) => {exito:boolean; error?:string; propuesta?:PropuestaCambioRecinto};
+  confirmarCambioRecinto: (propuesta: PropuestaCambioRecinto, aceptarReduccion:boolean) => {exito:boolean; error?:string};
   actualizarEvento: (idEvento: string, parcial: Partial<Evento>, versionEsperada?: string) => { exito: boolean; error?: string };
   publicarEvento: (idEvento: string) => { exito: boolean; error?: string };
   agregarFechaEvento: (
@@ -1238,6 +1241,51 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if(!resultado.exito)throw new Error(resultado.error);
     setListaEventos((previos) => [nuevo, ...previos]);
     return nuevo;
+  };
+
+  const datosCambioRecinto = (idEvento:string):{estado:EstadoCambioRecinto;actor:Usuario} => {
+    const cuentas:Usuario[]=JSON.parse(localStorage.getItem('tt_usuarios_sistema_v2')||'[]');
+    if(!Array.isArray(cuentas))throw new Error('No se pudieron comprobar los permisos actuales.');
+    const actor=cuentas.find(u=>u.id===usuarioActual?.id);
+    if(!actor?.estaActivo)throw new Error('Tu cuenta no está habilitada para modificar eventos.');
+    const eventos=leerListaActual('eventos',listaEventos);
+    const evento=eventos.find(e=>e.id===idEvento);
+    if(!evento)throw new Error('El evento ya no está disponible.');
+    return {actor,estado:{evento,recintos:leerListaActual('recintos',listaRecintos),arreglos:leerListaActual('arreglos',listaArreglos),reservas:leerListaActual('reservaciones',listaReservaciones),boletos:leerListaActual('boletos',listaBoletos),espera:leerListaActual('espera',listaEspera),escaneos:leerListaActual('escaneos',bitacoraEscaneos)}};
+  };
+  const comprobarDestinoRecinto = (estado:EstadoCambioRecinto, actividad:Evento['fechas'][number]) => {
+    const error=validarProgramacion([actividad],estado.recintos,{modalidad:estado.evento.modalidadAsistencia,aforo:estado.evento.aforoMaximo});
+    if(error)throw new Error(error);
+    const disponibilidad=verificarDisponibilidadRecinto(actividad.idRecinto,actividad.fecha,actividad.horaInicio,actividad.horaFin,actividad.id,true);
+    if(!disponibilidad.disponible)throw new Error(disponibilidad.motivo||'El recinto ya no está disponible.');
+  };
+  const revisarCambioRecinto:ContextoDatosTipo['revisarCambioRecinto'] = peticion => {
+    try {
+      const {estado,actor}=datosCambioRecinto(peticion.idEvento);
+      const resultado=proyectarCambioRecinto(estado,{...peticion,idArreglo:'arr-cambio-'+crypto.randomUUID()},actor);
+      comprobarDestinoRecinto(estado,resultado.actividad);
+      return {exito:true,propuesta:resultado.propuesta};
+    } catch(error){return {exito:false,error:error instanceof Error?error.message:'No se pudo revisar el cambio de recinto.'};}
+  };
+  const confirmarCambioRecinto:ContextoDatosTipo['confirmarCambioRecinto'] = (propuesta,aceptarReduccion) => {
+    try {
+      const p=propuesta.peticion;
+      const {estado,actor}=datosCambioRecinto(p.idEvento);
+      if(propuesta.firma!==firmaCambioRecinto(estado,p.idActividad))throw new Error('El evento, sus lugares o compromisos cambiaron desde la revisión. Vuelve a revisar la correspondencia.');
+      const r=proyectarCambioRecinto(estado,p,actor);
+      comprobarDestinoRecinto(estado,r.actividad);
+      if(r.propuesta.reduccion&&!aceptarReduccion)throw new Error('Confirma expresamente la reducción de aforo.');
+      const e=estado.evento;
+      const fecha=new Date().toISOString();
+      const valores={titulo:e.titulo,descripcion:e.descripcion,ponentes:e.ponentes,urlImagen:e.urlImagen};
+      const destinatarios=[...new Set([todosLosUsuarios.find(u=>u.id===e.idOrganizador)?.correo,...estado.reservas.filter(x=>x.idFechaEvento===p.idActividad&&x.estado!=='cancelada').map(x=>x.correoUsuario),...estado.boletos.filter(x=>x.idFechaEvento===p.idActividad&&x.estado!=='cancelado').map(x=>x.correoUsuario),...estado.espera.filter(x=>x.idFechaEvento===p.idActividad&&x.estado==='notificado').map(x=>x.correoUsuario)].filter((v):v is string=>!!v))];
+      const actualizado:Evento={...e,fechas:e.fechas.map(a=>a.id===p.idActividad?r.actividad:a),historialCambios:[...(e.historialCambios||[]),{version:(e.historialCambios?.length||0)+1,fecha,responsable:actor.nombre,motivo:p.motivo.trim(),campos:['Cambio de recinto','Correspondencia de lugares',...(r.propuesta.reduccion?['Reducción de aforo']:[])],valoresAnteriores:valores,valoresNuevos:valores,detalleAnterior:JSON.stringify(e.fechas.find(a=>a.id===p.idActividad)),detalleNuevo:JSON.stringify({actividad:r.actividad,correspondencias:r.propuesta.lugares}),resultadoNotificacion:{estado:'no_configurada',destinatarios,fechaRegistro:fecha}}]};
+      const eventos=leerListaActual('eventos',listaEventos).map(a=>a.id===e.id?actualizado:a);
+      const arreglos=r.arreglo?[...estado.arreglos.map(a=>a.idFechaEvento===p.idActividad&&a.estado==='version_final'?{...a,estado:'bloqueado' as const}:a),r.arreglo]:estado.arreglos;
+      const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_eventos`]:eventos,[`${CLAVE_ALMACEN_DATOS}_arreglos`]:arreglos,[`${CLAVE_ALMACEN_DATOS}_reservaciones`]:r.reservas,[`${CLAVE_ALMACEN_DATOS}_boletos`]:r.boletos,[`${CLAVE_ALMACEN_DATOS}_espera`]:r.espera});
+      if(resultado.exito){setListaEventos(eventos);setListaArreglos(arreglos);setListaReservaciones(r.reservas);setListaBoletos(r.boletos);setListaEspera(r.espera);}
+      return resultado;
+    }catch(error){return {exito:false,error:error instanceof Error?error.message:'No se confirmó el cambio de recinto.'};}
   };
 
   const actualizarEvento = (idEvento: string, parcial: Partial<Evento>, versionEsperada?: string) => {
@@ -2521,6 +2569,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         cancelarSolicitud,
         crearEventoInstitucionalDirecto,
         actualizarEvento,
+        revisarCambioRecinto,
+        confirmarCambioRecinto,
         cancelarUnidadEvento,
         publicarEvento,
         agregarFechaEvento,

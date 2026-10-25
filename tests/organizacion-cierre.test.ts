@@ -403,3 +403,90 @@ test('un fallo al guardar la bitácora no consume el acceso del pase',(t)=>{
   const sinPermiso=c.datos.procesarCheckIn(qr,ajeno.nombre,dia.id,ajeno,evento.id);
   assert.equal(sinPermiso.resultado,'no_autorizado');
  });
+
+function contextoTraslado() {
+  const asientos=lugaresDelRecinto(recinto).map((a,i)=>({...a,categoria:i===1?'vip' as const:'asistente' as const}));
+  const fecha={...dia,modalidadAsistencia:'controlado' as const,asistenciaEstimada:20,idArregloFinal:'arr-traslado'};
+  const e={...evento,modalidadAsistencia:'controlado' as const,fechas:[fecha,{...fecha,id:'otra-actividad',fecha:'2030-02-01',idArregloFinal:undefined}]};
+  const reservas=[0,1].map(i=>({id:'res-traslado-'+i,idEvento:e.id,idFechaEvento:fecha.id,idUsuario:'titular-'+i,nombreUsuario:'Titular '+i,correoUsuario:'titular'+i+'@example.test',idAsiento:asientos[i].id,etiquetaAsiento:asientos[i].etiqueta,estado:'confirmada',fechaCreacion:'2026-10-01T12:00:00Z'}));
+  const c=contexto('usr-silva',[e],reservas);
+  c.local.setItem(c.prefijo+'arreglos',JSON.stringify([{id:'arr-traslado',idFechaEvento:fecha.id,idRecinto:recinto.id,nombre:'Origen',etiquetaVersion:'v1',estado:'version_final',asientos,totalAsientos:37,asientosAsistente:36,asientosVip:1,asientosOrganizador:0,asientosStaff:0,asientosBloqueados:0,asientosSinAsignar:0,fechaCreacion:'2026-10-01T12:00:00Z'}]));
+  const boletos=reservas.map((r,i)=>({id:'bol-traslado-'+i,idReservacion:r.id,idEvento:e.id,idFechaEvento:fecha.id,idUsuario:r.idUsuario,nombreUsuario:r.nombreUsuario,correoUsuario:r.correoUsuario,tituloEvento:e.titulo,fechaEvento:fecha.fecha,horaEvento:'10:00 - 12:00',nombreRecinto:recinto.nombre,etiquetaAsiento:r.etiquetaAsiento,codigoQr:'TT-'+String(i+1).repeat(32),estado:'valido',fechaEmision:'2026-10-01T12:00:00Z'}));
+  c.local.setItem(c.prefijo+'boletos',JSON.stringify(boletos));c.local.setItem(c.prefijo+'espera','[]');
+  const peticion={idEvento:e.id,idActividad:fecha.id,idRecinto:'rec-auditorio',aforo:20,motivo:'Cambio solicitado por logística'};
+  return {...c,e,fecha,reservas,boletos,peticion};
+}
+test('cambiar recinto conserva QR, categorías, reservas, actividad ajena e historial',()=>{
+  const c=contextoTraslado();
+  const revision=c.datos.revisarCambioRecinto(c.peticion);assert.equal(revision.exito,true,revision.error);
+  assert.equal(revision.propuesta!.lugares.length,2);
+  const resultado=c.datos.confirmarCambioRecinto(revision.propuesta!,false);assert.equal(resultado.exito,true,resultado.error);
+  const e=c.leer('eventos')[0];assert.equal(e.fechas[0].idRecinto,'rec-auditorio');assert.deepEqual(e.fechas[1],JSON.parse(JSON.stringify(c.e.fechas[1])));
+  assert.equal(e.fechas[0].fecha,c.fecha.fecha);assert.equal(e.fechas[0].horaInicio,c.fecha.horaInicio);
+  assert.deepEqual(c.leer('boletos').map((b:any)=>[b.id,b.codigoQr,b.idUsuario]),c.boletos.map(b=>[b.id,b.codigoQr,b.idUsuario]));
+  const nuevo=c.leer('arreglos').find((a:any)=>a.id===e.fechas[0].idArregloFinal);
+  assert.equal(nuevo.asientosVip,1);assert.equal(nuevo.idRecinto,'rec-auditorio');
+  for(const r of c.leer('reservaciones')){assert.ok(nuevo.asientos.some((a:any)=>a.id===r.idAsiento&&a.etiqueta===r.etiquetaAsiento));}
+  assert.equal(e.historialCambios.at(-1).resultadoNotificacion.estado,'no_configurada');
+  assert.equal(c.leer('arreglos').find((a:any)=>a.id==='arr-traslado').estado,'bloqueado');
+});
+test('cambio de recinto rechaza correspondencias duplicadas, incompletas y entradas nuevas',()=>{
+  for(const variante of ['duplicada','incompleta','entrada']){
+    const c=contextoTraslado();const p=c.datos.revisarCambioRecinto(c.peticion).propuesta!;
+    if(variante==='duplicada')p.peticion.correspondencias![1].destino=p.peticion.correspondencias![0].destino;
+    if(variante==='incompleta')p.peticion.correspondencias!.pop();
+    if(variante==='entrada')c.local.setItem(c.prefijo+'escaneos',JSON.stringify([{id:'entrada-nueva',idFechaEvento:c.fecha.id,idEvento:c.e.id,resultado:'exito'}]));
+    const antes=JSON.stringify([...c.local.datos]);const r=c.datos.confirmarCambioRecinto(p,false);
+    assert.equal(r.exito,false,variante);assert.equal(JSON.stringify([...c.local.datos]),antes);
+  }
+});
+test('reducir aforo exige confirmación y conserva todas las plazas comprometidas',()=>{
+  const c=contextoTraslado();const p=c.datos.revisarCambioRecinto({...c.peticion,aforo:2}).propuesta!;
+  assert.ok(p);assert.equal(p.reduccion,true);assert.equal(c.datos.confirmarCambioRecinto(p,false).exito,false);
+  assert.equal(c.datos.confirmarCambioRecinto(p,true).exito,true);assert.equal(c.leer('eventos')[0].fechas[0].asistenciaEstimada,2);
+  const d=contextoTraslado();assert.equal(d.datos.revisarCambioRecinto({...d.peticion,aforo:1}).exito,false);
+});
+test('cambio de recinto conserva apartados, ofertas de espera y sus vencimientos',()=>{
+  const c=contextoTraslado();const asientos=lugaresDelRecinto(recinto);
+  const temporal={...c.reservas[0],id:'res-temporal',idUsuario:'espera-usuario',idAsiento:asientos[2].id,etiquetaAsiento:asientos[2].etiqueta,estado:'apartado_temporal',tiempoExpiracionApartado:Date.now()+120000};
+  c.local.setItem(c.prefijo+'reservaciones',JSON.stringify([...c.reservas,temporal]));
+  const oferta={id:'oferta-vigente',idEvento:c.e.id,idFechaEvento:c.fecha.id,idUsuario:temporal.idUsuario,nombreUsuario:'En espera',correoUsuario:'espera@example.test',estado:'notificado',idReservacionOferta:temporal.id,idAsientoOferta:temporal.idAsiento,etiquetaAsientoOferta:temporal.etiquetaAsiento,fechaExpiracionOferta:Date.now()+600000};
+  c.local.setItem(c.prefijo+'espera',JSON.stringify([oferta]));
+  const p=c.datos.revisarCambioRecinto(c.peticion);assert.equal(p.exito,true,p.error);assert.equal(p.propuesta!.compromisos,3);
+  assert.equal(c.datos.confirmarCambioRecinto(p.propuesta!,false).exito,true);
+  const r=c.leer('reservaciones').find((r:any)=>r.id===temporal.id);const o=c.leer('espera')[0];
+  assert.equal(o.idAsientoOferta,r.idAsiento);assert.equal(o.fechaExpiracionOferta,oferta.fechaExpiracionOferta);assert.equal(r.tiempoExpiracionApartado,temporal.tiempoExpiracionApartado);
+});
+test('si falla guardar el cambio de recinto se restauran las cinco colecciones',()=>{
+  const c=contextoTraslado();const p=c.datos.revisarCambioRecinto(c.peticion).propuesta!;const antes=JSON.stringify([...c.local.datos]);
+  const guardar=c.local.setItem.bind(c.local);let fallo=false;c.local.setItem=(k,v)=>{if(k===c.prefijo+'espera'&&!fallo){fallo=true;throw Error('Cuota');}guardar(k,v);};
+  assert.equal(c.datos.confirmarCambioRecinto(p,false).exito,false);assert.equal(JSON.stringify([...c.local.datos]),antes);
+});
+test('destino ocupado, permisos retirados y reservas concurrentes impiden confirmar un traslado',()=>{
+  for(const variante of ['ocupado','permiso','reserva']){
+    const c=contextoTraslado();const p=c.datos.revisarCambioRecinto(c.peticion).propuesta!;
+    if(variante==='ocupado')c.local.setItem(c.prefijo+'bloqueos',JSON.stringify([{id:'bloqueo-nuevo',idRecinto:c.peticion.idRecinto,titulo:'Ocupado',fechaInicio:c.fecha.fecha,fechaFin:c.fecha.fecha,horaInicio:'09:00',horaFin:'13:00',estado:'activo'}]));
+    if(variante==='permiso')c.local.setItem('tt_usuarios_sistema_v2',JSON.stringify(USUARIOS_INICIALES.map(u=>u.id==='usr-silva'?{...u,estaActivo:false}:u)));
+    if(variante==='reserva')c.local.setItem(c.prefijo+'reservaciones',JSON.stringify([...c.reservas,{...c.reservas[0],id:'concurrente',idAsiento:undefined,etiquetaAsiento:undefined}]));
+    const antes=JSON.stringify([...c.local.datos]);const r=c.datos.confirmarCambioRecinto(p,false);assert.equal(r.exito,false,variante);assert.equal(JSON.stringify([...c.local.datos]),antes);
+  }
+});
+test('el mismo QR se valida después del traslado con su nuevo lugar y recinto',()=>{
+  const c=contextoTraslado();const p=c.datos.revisarCambioRecinto(c.peticion).propuesta!;
+  assert.equal(c.datos.confirmarCambioRecinto(p,false).exito,true);
+  const original=Date.now;Date.now=()=>Date.parse(c.fecha.fecha+'T10:05:00-06:00');
+  try{
+    const r=c.datos.procesarCheckIn(c.boletos[0].codigoQr,'Organizador',c.fecha.id,USUARIOS_INICIALES.find(u=>u.id==='usr-silva'),c.e.id);
+    assert.equal(r.exito,true,r.mensaje);assert.equal(r.boleto?.codigoQr,c.boletos[0].codigoQr);assert.equal(r.boleto?.nombreRecinto,RECINTOS_INICIALES.find(r=>r.id===c.peticion.idRecinto)!.nombre);
+    assert.equal(c.leer('boletos').find((b:any)=>b.id===c.boletos[1].id).estado,'valido');
+  }finally{Date.now=original;}
+});
+test('el traslado conserva una acreditación especial y su categoría sin inventar una reservación',()=>{
+  const c=contextoTraslado();const arreglo=c.leer('arreglos')[0];const asiento=arreglo.asientos[3];asiento.categoria='staff';arreglo.asientosStaff=1;c.local.setItem(c.prefijo+'arreglos',JSON.stringify([arreglo]));
+  const especial={...c.boletos[0],id:'bol-especial-traslado',idReservacion:'sin-reserva-especial',idUsuario:'usr-staff',esEspecial:true,tipoEspecial:'staff',etiquetaAsiento:asiento.etiqueta,codigoQr:'TT-'+ 'A'.repeat(32)};
+  c.local.setItem(c.prefijo+'boletos',JSON.stringify([...c.boletos,especial]));
+  const r=c.datos.revisarCambioRecinto(c.peticion);assert.equal(r.exito,true,r.error);assert.equal(r.propuesta!.compromisos,3);
+  assert.equal(c.datos.confirmarCambioRecinto(r.propuesta!,false).exito,true);
+  const b=c.leer('boletos').find((b:any)=>b.id===especial.id);assert.equal(b.codigoQr,especial.codigoQr);assert.equal(b.tipoEspecial,'staff');
+  const nuevo=c.leer('arreglos').find((a:any)=>a.estado==='version_final');assert.equal(nuevo.asientos.find((a:any)=>a.etiqueta===b.etiquetaAsiento).categoria,'staff');
+});

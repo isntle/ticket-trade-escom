@@ -1,3 +1,4 @@
+import { CambioRecintoActividad } from "../componentes/recintos/CambioRecintoActividad";
 import { trasladarPrograma } from "../dominio/cambiosEvento";
 import { EditorItinerarios, VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
 import { validarItinerarios, nombreActividad } from '../dominio/actividades';
@@ -73,19 +74,22 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   const [cancelacion, setCancelacion] = React.useState<{idFecha?:string; retirar:boolean; version:string} | null>(null);
   const [reprogramacion,setReprogramacion] = React.useState<{anterior:FechaEvento;nueva:FechaEvento;confirmar:()=>void} | null>(null);
   const [motivoCancelacion, setMotivoCancelacion] = React.useState('');
+  const [idCambioRecinto,setIdCambioRecinto] = React.useState<string|null>(null);
   const [verConstancia,setVerConstancia] = React.useState(interfazSolicitada() === 'UI.22');
 
   const evento = listaEventos.find((e) => e.id === eventId);
   const checklist = obtenerListaDeVerificacion(eventId);
   const casoDocumentado = new URLSearchParams(window.location.search).get('caso');
+  const interfazDocumentada = interfazSolicitada();
   React.useEffect(() => {
-    if (interfazSolicitada() !== 'UI.21' || !evento || !(evento.idOrganizador === usuarioActual?.id || rolActivo === 'subdireccion')) return;
+    if (interfazDocumentada !== 'UI.21' || !evento || !(evento.idOrganizador === usuarioActual?.id || rolActivo === 'subdireccion')) return;
     const dia = evento.fechas.find(d => !d.cancelada && inicioEnMexico(d.fecha,d.horaInicio)>Date.now());
     if (['CU-OR-22','CU-OR-23','CU-OR-24','CU-OR-25'].includes(casoDocumentado || '') && dia) {
       setCancelacion({idFecha:casoDocumentado === 'CU-OR-23'?undefined:dia.id,retirar:casoDocumentado==='CU-OR-22',version:JSON.stringify(evento)});
     }
+    if (casoDocumentado === 'CU-OR-21' && dia) setIdCambioRecinto(dia.id);
     if (casoDocumentado === 'CU-OR-19') setPropuestaEdicion({titulo:evento.titulo,descripcion:evento.descripcion,ponentes:evento.ponentes,urlImagen:evento.urlImagen,fechas:evento.fechas,versionOriginal:JSON.stringify(evento)});
-  }, [eventId,usuarioActual?.id]);
+  }, [eventId,usuarioActual?.id,casoDocumentado,interfazDocumentada]);
 
   if (!evento) {
     return (
@@ -100,7 +104,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     );
   }
 
-  const puedeGestionar = evento.idOrganizador === usuarioActual?.id || rolActivo === 'subdireccion';
+  const puedeGestionar = !!usuarioActual?.estaActivo && (evento.idOrganizador === usuarioActual.id || (rolActivo === 'subdireccion' && usuarioActual.roles.includes('subdireccion')));
 
   const confirmarEdicionEvento = () => {
     if (!evento || !propuestaEdicion || !usuarioActual) return;
@@ -305,6 +309,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {puedeGestionar && idCambioRecinto && evento.fechas.some(a=>a.id===idCambioRecinto) && <CambioRecintoActividad key={idCambioRecinto} evento={evento} idActividad={idCambioRecinto} alCerrar={()=>setIdCambioRecinto(null)}/>}
       <VentanaModal estaAbierto={Boolean(reprogramacion)} alCerrar={()=>setReprogramacion(null)} titulo="Revisar cambio de actividad">
         {reprogramacion && <div className="space-y-4">
           <h3 className="font-bold">{nombreActividad(reprogramacion.anterior)}</h3>
@@ -658,7 +663,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                       <label className="text-sm font-semibold text-neutral-600">Fecha<input name="fecha" type="date" defaultValue={fecha.fecha} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>
                       <label className="text-sm font-semibold text-neutral-600">Inicio<input name="horaInicio" type="time" defaultValue={fecha.horaInicio} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>
                       <label className="text-sm font-semibold text-neutral-600">Fin<input name="horaFin" type="time" defaultValue={fecha.horaFin} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>
-                      <label className="text-sm font-semibold text-neutral-600">Recinto<select name="idRecinto" defaultValue={fecha.idRecinto} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm">{listaRecintos.filter((r) => r.activo !== false).map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}</select></label>
+                      <div className="text-sm font-semibold text-neutral-600">Recinto actual<input type="hidden" name="idRecinto" value={fecha.idRecinto}/><p className="mt-1 text-sm">{nombreRecinto}</p><button type="button" disabled={inicioEnMexico(fecha.fecha,fecha.horaInicio)<=Date.now() || listaBoletos.some(b=>b.idFechaEvento===fecha.id&&b.estado==='utilizado') || bitacoraEscaneos.some(r=>r.idFechaEvento===fecha.id&&r.resultado==='exito')} onClick={()=>setIdCambioRecinto(fecha.id)} className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-800 disabled:opacity-40">Cambiar recinto</button></div>
                       <label className="text-sm font-semibold text-neutral-600 sm:col-span-2">Motivo del cambio<input name="motivoCambio" required className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>
                       {rolActivo === 'subdireccion' && <label className="text-sm font-semibold text-neutral-600 sm:col-span-2">Justificación de excepción de anticipación (solo cambios urgentes)<input name="motivoExcepcion" className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>}
                       <button type="submit" className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-bold text-white">Revisar cambio</button>
