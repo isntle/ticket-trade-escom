@@ -1,3 +1,4 @@
+import { ARREGLOS_DEMOSTRACION, incorporarProgramados, cargarEventosProgramados } from '../datos/eventosDemostracion';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   Evento,
@@ -273,7 +274,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
   };
   const [listaEventos, setListaEventos] = useState<Evento[]>(() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_eventos`);
-    return g ? JSON.parse(g) : EVENTOS_INICIALES;
+    return cargarEventosProgramados(g ? JSON.parse(g) : EVENTOS_INICIALES);
   });
 
   const [listaSolicitudes, setListaSolicitudes] = useState<SolicitudEvento[]>(() => {
@@ -293,7 +294,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [listaArreglos, setListaArreglos] = useState<ArregloAsientos[]>(() => {
     const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_arreglos`);
-    return g ? JSON.parse(g) : ARREGLOS_INICIALES;
+    return incorporarProgramados<ArregloAsientos>(g ? JSON.parse(g) : ARREGLOS_INICIALES, ARREGLOS_DEMOSTRACION);
   });
 
   const [listaBloqueos, setListaBloqueos] = useState<BloqueoRecinto[]>(() => {
@@ -2306,7 +2307,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const prepararEventoDemostracion:ContextoDatosTipo['prepararEventoDemostracion']=()=>{
     if(!modoDemostracionActivo())return {exito:false,error:'Solo disponible en demostración.'};
-    const vigente=listaEventos.find(e=>e.idOrganizador==='usr-silva'&&e.estado==='publicado'&&e.inscripcionesAbiertas!==false&&(!e.fechaCierreInscripcion||Date.parse(e.fechaCierreInscripcion)>Date.now())&&e.fechas.some(d=>!d.cancelada&&!d.suspendida&&d.esFinalConfirmado&&d.estadoInscripciones!=='cerradas'&&(!d.fechaLimiteInscripciones||Date.parse(d.fechaLimiteInscripciones)>Date.now())&&inicioEnMexico(d.fecha,d.horaInicio)>Date.now()));
+    const vigente=listaEventos.find(e=>e.idOrganizador==='usr-silva'&&e.modalidadAsistencia==='controlado'&&e.estado==='publicado'&&e.inscripcionesAbiertas!==false&&(!e.fechaCierreInscripcion||Date.parse(e.fechaCierreInscripcion)>Date.now())&&e.fechas.some(d=>!d.cancelada&&!d.suspendida&&d.esFinalConfirmado&&d.estadoInscripciones!=='cerradas'&&(!d.fechaLimiteInscripciones||Date.parse(d.fechaLimiteInscripciones)>Date.now())&&inicioEnMexico(d.fecha,d.horaInicio)>Date.now()));
     if(vigente)return {exito:true,evento:vigente};
     const plantilla=EVENTOS_INICIALES.find(e=>e.id==='evt-simposio-ia')!;
     const id='evt-recorrido-'+crypto.randomUUID(),idDia='fec-'+crypto.randomUUID();

@@ -250,6 +250,7 @@ export type CategoriaEvento =
 
 // Entidad Principal de Evento
 export interface Evento {
+  esDemostracion?: boolean;
   limitesAprobados?: { numeroFechas:number; duracionMinutos:number };
   id: string;
   idSolicitud?: string;

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Search,
   Calendar,
@@ -42,6 +42,8 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
   const [modalidadSeleccionada, setModalidadSeleccionada] =
     useState<string>("todos");
   const [periodo, setPeriodo] = useState("proximos");
+  const [cantidadVisible, setCantidadVisible] = useState(6);
+  useEffect(() => setCantidadVisible(6), [periodo, terminoBusqueda, categoriaSeleccionada, modalidadSeleccionada]);
 
   const categorias: ("todos" | CategoriaEvento)[] = [
     "todos",
@@ -93,6 +95,9 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
       }
 
       return true;
+    }).sort((a, b) => {
+      const primeraFecha = (evento: Evento) => evento.fechas.map(dia => `${dia.fecha}T${dia.horaInicio}`).sort()[0] || '';
+      return periodo === 'anteriores' ? primeraFecha(b).localeCompare(primeraFecha(a)) : primeraFecha(a).localeCompare(primeraFecha(b));
     });
   }, [
     listaEventos,
@@ -109,7 +114,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
 
   // Evento destacado (Hero) y resto de la programación cronológica
   const eventoDestacado = eventosFiltrados[0];
-  const eventosSiguientes = eventosFiltrados.slice(1);
+  const eventosSiguientes = eventosFiltrados.slice(1, cantidadVisible);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -367,6 +372,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
                           <div className="h-44 w-full bg-neutral-900 relative overflow-hidden">
                             <img
                               src={evento.urlImagen}
+                              loading="lazy"
                               alt={evento.titulo}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-85"
                             />
@@ -445,6 +451,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
           )}
         </div>
       )}
+      {eventosFiltrados.length > cantidadVisible && <div className="mt-8 text-center"><p className="mb-3 text-sm text-neutral-500">Mostrando {cantidadVisible} de {eventosFiltrados.length} eventos</p><button type="button" onClick={() => setCantidadVisible(cantidad => cantidad + 6)} className="boton-secundario px-5 py-3 text-sm">Ver siguientes eventos</button></div>}
     </div>
   );
 };

@@ -4,8 +4,8 @@ import { CheckCircle, Ticket } from "lucide-react";
 /** Composición de acceso compartida; conserva el banner de IP-Regina sin recortar pantallas bajas. */
 export function MarcoAcceso({ children }: { children: React.ReactNode }) {
   return (
-    <section className="min-h-dvh w-full bg-[#f5f3f0] sm:p-2">
-      <div className="grid min-h-dvh w-full grid-rows-[auto_1fr] overflow-hidden bg-white sm:min-h-[calc(100dvh-1rem)] sm:rounded-2xl lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:grid-rows-1">
+    <section className="min-h-dvh w-full bg-white">
+      <div className="grid min-h-dvh w-full grid-rows-[auto_1fr] overflow-hidden bg-white lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:grid-rows-1">
         <aside className="relative flex flex-col justify-between gap-8 overflow-hidden bg-[#651127] px-5 py-4 text-white sm:px-8 lg:px-10 lg:py-10">
           <div className="pointer-events-none absolute -right-20 top-20 h-64 w-64 rounded-full border border-white/10" />
           <div className="relative flex items-center gap-3">

@@ -69,6 +69,15 @@
     --radio-boton: 0.5rem;
   }
 
+  *, ::before, ::after {
+    border-color: var(--color-borde-suave);
+  }
+
+  html, body, #root {
+    min-height: 100%;
+    width: 100%;
+  }
+
   body {
     font-family: var(--fuente-principal);
     background-color: var(--color-fondo-app);

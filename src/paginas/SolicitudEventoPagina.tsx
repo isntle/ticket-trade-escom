@@ -48,6 +48,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     crearSolicitud,
     guardarBorradorSolicitud,
     actualizarSolicitud,
+    verificarDisponibilidadRecinto,
   } = useDatos();
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
@@ -174,6 +175,13 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       setErrorFormulario(error || errorDistribucion || '');
       mostrarNotificacion("Revisa la programación", error || errorDistribucion || "", "advertencia");
       return false;
+    }
+    if (!borrador) {
+      const ocupado = fechas.find(dia => !verificarDisponibilidadRecinto(dia.idRecinto, dia.fecha, dia.horaInicio, dia.horaFin).disponible);
+      if (ocupado) {
+        setErrorFormulario(`${ocupado.nombreDia || 'Un día'} tiene un conflicto de disponibilidad. Cambia el recinto o el horario antes de enviar.`);
+        return false;
+      }
     }
     if (
       !borrador &&

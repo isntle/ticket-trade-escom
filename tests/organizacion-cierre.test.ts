@@ -159,7 +159,8 @@ test('el ejemplo de corrección caducado no impide abrir un expediente vigente e
   assert.equal(solicitud.fechasSolicitadas[0].distribucionConfirmada,true);
   assert.equal(c.datos.prepararSolicitudDemostracion('requiere_correccion').id,resultado.id);
 });
-test('el evento de demostración queda vigente con su distribución sin cambiar eventos existentes',()=>{
+test('el evento programado se reutiliza con su distribución sin crear ni desplazar eventos',(t)=>{
+  t.mock.method(Date,'now',()=>Date.parse('2026-10-24T18:00:00-06:00'));
   const c=contexto('usr-silva',[]);
   const resultado=c.datos.prepararEventoDemostracion();
   assert.equal(resultado.exito,true,resultado.error);
@@ -167,8 +168,9 @@ test('el evento de demostración queda vigente con su distribución sin cambiar 
   const dia=resultado.evento!.fechas[0];
   assert.equal(dia.esFinalConfirmado,true);
   assert.ok(new Date(dia.fecha+'T09:00:00-06:00').getTime()>Date.now());
-  assert.ok(c.leer('arreglos').some((a:{id:string})=>a.id===dia.idArregloFinal));
-  assert.equal(c.leer('eventos').length,1);
+  assert.ok(c.datos.listaArreglos.some(a=>a.id===dia.idArregloFinal));
+  assert.equal(c.datos.listaEventos.filter(e=>e.esDemostracion).length,18);
+  assert.deepEqual(c.leer('eventos'),[]); // Reutilizar no escribe otro evento ni cambia sus fechas.
 });
 test('la demostración reutiliza el evento vigente y no está disponible sin modo demo',()=>{
   const c=contexto('usr-silva');

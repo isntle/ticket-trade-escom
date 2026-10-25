@@ -153,7 +153,7 @@ export function AutenticacionPagina({
             <button className={boton + " w-full"}>Iniciar sesión</button>
           </form>
           {modoDemostracionActivo() && (
-            <section className="my-6 border-t pt-5">
+            <section className="my-6 rounded-2xl bg-[#f5f3f0] p-4 sm:p-5">
               <h3 className="mb-3 text-sm font-semibold text-neutral-500">
                 Accesos rápidos
               </h3>
@@ -161,17 +161,17 @@ export function AutenticacionPagina({
                 {USUARIOS_INICIALES.map((u) => (
                   <button
                     key={u.id}
-                    className="min-w-0 rounded-xl border p-3 text-left"
+                    className="group min-w-0 rounded-xl border border-transparent bg-white p-3 text-left shadow-sm transition-colors hover:border-[#7a132b]/25 hover:bg-[#7a132b]/5 focus-visible:outline-2 focus-visible:outline-[#7a132b]"
                     onClick={() => {
                       setCorreo(u.correo);
                       setPassword(u.password || "");
                     }}
                   >
-                    <span className="block truncate text-xs font-bold">
+                    <span className="block truncate text-sm font-bold text-neutral-800 group-hover:text-[#7a132b]">
                       {u.nombre}
                     </span>
                     <span className="text-xs text-neutral-500">
-                      {u.afiliacion}
+                      {{ alumno: "Estudiante", profesor: "Docente", administrativo: "Administrativo", pae: "Personal de apoyo", externo: "Externo" }[u.afiliacion]}
                     </span>
                   </button>
                 ))}

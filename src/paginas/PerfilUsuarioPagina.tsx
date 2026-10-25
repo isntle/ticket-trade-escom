@@ -1,11 +1,13 @@
 import React, { useState } from "react";
+import { UserRound, Mail, ShieldCheck, KeyRound, Bell, CheckCircle2, Clock3, ChevronDown, LogOut, CalendarDays, Ticket, Building2, ScanLine, GraduationCap } from "lucide-react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { useDatos } from "../contextos/DatosContexto";
 import { MATRIZ_PERMISOS_ROLES } from "../utilidades/validaciones";
 
-const campo = "mt-2 w-full rounded-xl border border-neutral-300 p-3 text-sm";
+const campo = "mt-2 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm outline-none focus:border-[#7a132b]/50 focus:ring-2 focus:ring-[#7a132b]/10";
 const boton =
-  "rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-semibold";
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-[#7a132b]/15 bg-[#7a132b]/5 px-4 py-2.5 text-sm font-semibold text-[#7a132b] transition-colors hover:bg-[#7a132b]/10 focus-visible:outline-2 focus-visible:outline-[#7a132b]";
+const iconosRol = { asistente: Ticket, organizador: CalendarDays, staff: ScanLine, subdireccion: Building2, admin: ShieldCheck };
 export function PerfilUsuarioPagina({
   navigate,
 }: {
@@ -38,9 +40,9 @@ export function PerfilUsuarioPagina({
       </section>
     );
   return (
-    <section className="mx-auto max-w-4xl space-y-6 px-4 py-8">
+    <section className="perfil-cuidado mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-black">Mi perfil</h1>
+        <div><p className="mb-1 text-sm font-semibold text-[#7a132b]">Tu cuenta en Ticket Trade</p><h1 className="text-3xl font-black tracking-tight">Mi perfil</h1></div>
         <button
           className={boton}
           onClick={() => {
@@ -48,7 +50,7 @@ export function PerfilUsuarioPagina({
             navigate("/login");
           }}
         >
-          Cerrar sesión
+          <LogOut className="h-4 w-4" aria-hidden="true" />Cerrar sesión
         </button>
       </header>
       {mensaje && (
@@ -59,24 +61,17 @@ export function PerfilUsuarioPagina({
           {mensaje}
         </p>
       )}
-      <article className="space-y-4 rounded-3xl border bg-white p-6">
-        <h2 className="text-xl font-bold">{u.nombre}</h2>
-        <p className="break-all">
-          {u.correo}{" "}
-          {u.correoConfirmado ? "· Confirmado" : "· Pendiente de confirmación"}
-        </p>
-        <p className="text-sm">
-          Categoría declarada: {u.afiliacion}.{" "}
-          {u.boleta && "Boleta: " + u.boleta}{" "}
-          {u.numeroEmpleado && "Identificador declarado: " + u.numeroEmpleado}
-        </p>
-        <p className="text-sm">
-          Verificación documental:{" "}
-          {u.esVerificado
-            ? "Aprobada"
-            : (u.estadoExpediente || "Sin solicitar").replaceAll("_", " ")}{" "}
-          {u.verificacionHasta && " · Vigente hasta " + u.verificacionHasta}
-        </p>
+      <article className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-neutral-200/70">
+        <div className="flex flex-wrap items-center gap-5 bg-[#651127] px-6 py-7 text-white sm:px-8">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl font-bold" aria-hidden="true">{u.nombre.replace(/^(M\. en C\.|Dra?\.|Ing\.|Lic\.)\s*/i, '').split(' ').filter(Boolean).slice(0, 2).map(parte => parte[0]).join('')}</div>
+          <div className="min-w-0 flex-1"><h2 className="text-2xl font-bold tracking-tight">{u.nombre}</h2><p className="mt-2 flex items-center gap-2 break-all text-sm text-white/75"><Mail className="h-4 w-4 shrink-0" aria-hidden="true" />{u.correo}</p></div>
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm"><GraduationCap className="h-4 w-4" aria-hidden="true" />{u.afiliacion === 'alumno' ? 'Estudiante' : u.afiliacion === 'profesor' ? 'Docente' : u.afiliacion === 'externo' ? 'Comunidad externa' : 'Comunidad IPN'}</span>
+        </div>
+        <div className="space-y-5 p-6 sm:p-8">
+        <div className="grid gap-4 sm:grid-cols-2"><div className="rounded-2xl bg-neutral-50 p-4"><p className="mb-2 flex items-center gap-2 text-sm font-semibold text-neutral-500"><Mail className="h-4 w-4 text-[#7a132b]" aria-hidden="true" />Correo de la cuenta</p>
+        <p className="flex items-center gap-2 text-sm font-bold text-neutral-800">{u.correoConfirmado ? <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" /> : <Clock3 className="h-4 w-4 text-amber-600" aria-hidden="true" />}{u.correoConfirmado ? 'Correo confirmado' : 'Confirmación pendiente'}</p>
+        <p className="mt-2 text-sm text-neutral-500">{u.boleta ? `Boleta: ${u.boleta}` : u.numeroEmpleado ? `Identificador: ${u.numeroEmpleado}` : 'Sin identificador institucional'}</p></div>
+        <div className="rounded-2xl bg-neutral-50 p-4"><p className="mb-2 flex items-center gap-2 text-sm font-semibold text-neutral-500"><ShieldCheck className="h-4 w-4 text-[#7a132b]" aria-hidden="true" />Verificación de identidad</p><p className="text-sm font-bold text-neutral-800">{u.esVerificado ? 'Identidad verificada' : (u.estadoExpediente || 'Sin solicitar').replaceAll('_', ' ')}</p><p className="mt-2 text-sm text-neutral-500">{u.verificacionHasta ? `Vigente hasta ${u.verificacionHasta}` : u.esVerificado ? 'Tu expediente de identidad está aprobado.' : 'Consulta tu expediente para revisar los requisitos.'}</p></div></div>
         <p className="text-sm text-neutral-600">
           Aviso de datos: tus datos y documentos se usan para gestionar la
           cuenta y sus permisos; no se publican en la cartelera. Usa datos
@@ -220,9 +215,11 @@ export function PerfilUsuarioPagina({
             </div>
           </form>
         )}
+        </div>
       </article>
-      <article className="space-y-4 rounded-3xl border bg-white p-6">
-        <h2 className="text-xl font-bold">Cambiar correo electrónico</h2>
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+      <article className="space-y-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-neutral-200/70 sm:p-7">
+        <h2 className="flex items-center gap-3 text-lg font-bold"><span className="rounded-xl bg-[#7a132b]/5 p-2.5 text-[#7a132b]"><Mail className="h-5 w-5" aria-hidden="true" /></span>Cambiar correo electrónico</h2><p className="text-sm leading-relaxed text-neutral-500">Tu correo actual sigue activo hasta que confirmes la nueva dirección.</p>
         {u.correoPendiente && (
           <p className="break-all text-sm">
             Nuevo correo pendiente: {u.correoPendiente}. El correo actual
@@ -296,8 +293,8 @@ export function PerfilUsuarioPagina({
           </button>
         )}
       </article>
-      <article className="rounded-3xl border bg-white p-6">
-        <h2 data-interfaz="UI-IP-06" tabIndex={-1} className="mb-4 scroll-mt-24 text-xl font-bold">Seguridad</h2>
+      <article className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-neutral-200/70 sm:p-7">
+        <h2 data-interfaz="UI-IP-06" tabIndex={-1} className="mb-4 flex scroll-mt-24 items-center gap-3 text-lg font-bold"><span className="rounded-xl bg-[#7a132b]/5 p-2.5 text-[#7a132b]"><KeyRound className="h-5 w-5" aria-hidden="true" /></span>Seguridad</h2>
         <form
           className="space-y-4"
           onSubmit={(e) => {
@@ -352,24 +349,19 @@ export function PerfilUsuarioPagina({
           <button className={boton}>Guardar contraseña</button>
         </form>
       </article>
-      <article className="space-y-3 rounded-3xl border bg-white p-6">
-        <h2 className="text-xl font-bold">Roles y accesos</h2>
-        <p className="text-sm">
-          Perfil activo: {rolActivo}. Roles asignados: {u.roles.join(", ")}.
-        </p>
-        {MATRIZ_PERMISOS_ROLES.filter((r) => u.roles.includes(r.rol)).map(
-          (r) => (
-            <details key={r.rol}>
-              <summary>{r.nombre}</summary>
-              <p className="text-sm">{r.descripcion}</p>
-              <ul className="list-disc pl-5 text-sm">
-                {r.permisos.map((p) => (
-                  <li key={p}>{p}</li>
-                ))}
-              </ul>
-            </details>
-          ),
-        )}
+      </div>
+      <article className="space-y-5 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-neutral-200/70 sm:p-7">
+        <h2 className="flex items-center gap-3 text-xl font-bold"><ShieldCheck className="h-6 w-6 text-[#7a132b]" aria-hidden="true" />Roles y accesos</h2>
+        <p className="text-sm text-neutral-500">Estos son tus accesos asignados. El perfil activo se muestra resaltado.</p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{MATRIZ_PERMISOS_ROLES.filter(r => u.roles.includes(r.rol)).map(r => {
+          const Icono = iconosRol[r.rol as keyof typeof iconosRol] || UserRound;
+          const activo = rolActivo === r.rol;
+          return <section key={r.rol} className={`rounded-2xl p-5 ${activo ? 'bg-[#7a132b]/5 ring-1 ring-[#7a132b]/20' : 'bg-neutral-50'}`}>
+            <div className="flex items-center justify-between gap-2"><Icono className="h-6 w-6 text-[#7a132b]" aria-hidden="true" />{activo && <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-[#7a132b]">Activo</span>}</div>
+            <h3 className="mt-4 font-bold">{r.nombre}</h3><p className="mt-2 text-sm leading-relaxed text-neutral-500">{r.descripcion}</p>
+            <details className="group mt-4"><summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-[#7a132b]">Ver permisos<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" /></summary><ul className="mt-3 space-y-2">{r.permisos.map(permiso => <li key={permiso} className="flex gap-2 text-xs leading-relaxed text-neutral-600"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#7a132b]" aria-hidden="true" />{permiso}</li>)}</ul></details>
+          </section>;
+        })}</div>
         <div className="flex flex-wrap gap-3">
           {rolActivo === "admin" && (
             <>
@@ -420,21 +412,10 @@ export function PerfilUsuarioPagina({
           </>
         ) : null}
       </article>
-      <article className="space-y-3 rounded-3xl border bg-white p-6">
-        <h2 className="text-xl font-bold">Avisos de mi cuenta</h2>
-        {u.avisosIdentidad?.length ? (
-          [...u.avisosIdentidad].reverse().map((a, i) => (
-            <p key={i} className="border-t pt-3 text-sm">
-              {new Date(a.fecha).toLocaleString("es-MX")} · {a.mensaje}
-            </p>
-          ))
-        ) : (
-          <p className="text-sm">No hay avisos nuevos.</p>
-        )}
-        <p className="text-xs text-neutral-500">
-          Los avisos son locales; el envío real de correo aún no está
-          configurado.
-        </p>
+      <article className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-neutral-200/70 sm:p-7">
+        <div className="mb-5 flex items-center gap-3"><span className="rounded-xl bg-amber-50 p-2.5 text-amber-700"><Bell className="h-5 w-5" aria-hidden="true" /></span><div><h2 className="text-lg font-bold">Avisos de mi cuenta</h2><p className="mt-1 text-sm text-neutral-500">Cambios y notificaciones sobre tu identidad y tus accesos.</p></div></div>
+        {u.avisosIdentidad?.length ? <ol className="space-y-4">{[...u.avisosIdentidad].reverse().map((aviso, i) => <li key={i} className="flex gap-4 rounded-xl bg-neutral-50 p-4"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#7a132b]" aria-hidden="true" /><div><p className="text-sm leading-relaxed text-neutral-700">{aviso.mensaje}</p><time className="mt-2 block text-xs text-neutral-400" dateTime={aviso.fecha}>{new Date(aviso.fecha).toLocaleString('es-MX')}</time></div></li>)}</ol> : <div className="flex items-center gap-4 rounded-xl bg-emerald-50/60 p-5"><CheckCircle2 className="h-7 w-7 shrink-0 text-emerald-600" aria-hidden="true" /><div><p className="font-semibold text-emerald-900">Estás al día</p><p className="mt-1 text-sm text-emerald-800">No tienes avisos nuevos sobre tu cuenta.</p></div></div>}
+        <p className="mt-4 text-xs text-neutral-400">Los avisos se conservan en este navegador. El envío de correo está previsto para una siguiente etapa.</p>
       </article>
     </section>
   );
