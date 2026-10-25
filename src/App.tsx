@@ -1,3 +1,4 @@
+import { esRegreso, alternativaRegreso, destinoInternoSeguro, volverA } from './dominio/navegacion';
 import { CatalogoRecintosPagina } from "./paginas/CatalogoRecintosPagina";
 import React, { useState, useEffect } from "react";
 
@@ -55,6 +56,7 @@ function ContenidoApp() {
     const alCambiarHistorial = () => {
       setRutaActual(window.location.pathname || "/");
       setParametrosBusqueda(window.location.search || "");
+      requestAnimationFrame(()=>window.scrollTo({top:window.history.state?.scrollTT || 0,behavior:"instant"}));
     };
     window.addEventListener("popstate", alCambiarHistorial);
     return () => window.removeEventListener("popstate", alCambiarHistorial);
@@ -62,12 +64,24 @@ function ContenidoApp() {
 
   // Función de navegación centralizada
   const navegarA = (rutaConParametros: string) => {
-    const [ruta, busqueda] = rutaConParametros.split("?");
-    const nuevaBusqueda = busqueda ? `?${busqueda}` : "";
-    window.history.pushState({}, "", rutaConParametros);
-    setRutaActual(ruta);
-    setParametrosBusqueda(nuevaBusqueda);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (esRegreso(rutaConParametros)) {
+      const origen = window.history.state?.origenTT;
+      if (origen && destinoInternoSeguro(origen,'') && origen !== window.location.pathname+window.location.search) { window.history.back(); return; }
+      rutaConParametros = alternativaRegreso(rutaConParametros);
+    }
+    rutaConParametros = destinoInternoSeguro(rutaConParametros);
+    const actual = window.location.pathname + window.location.search;
+    if (actual === rutaConParametros) return;
+    const url = new URL(rutaConParametros, window.location.origin);
+    window.history.replaceState({...window.history.state,scrollTT:window.scrollY},'',actual);
+    const acceso = ['/login','/registro','/confirmar-correo'].includes(window.location.pathname);
+    const origen = acceso ? (window.history.state?.origenTT || '/eventos') : actual;
+    const estado = {origenTT:origen===rutaConParametros?'/eventos':origen, scrollTT:0};
+    if (acceso && !['/login','/registro','/confirmar-correo'].includes(url.pathname)) window.history.replaceState(estado,'',rutaConParametros);
+    else window.history.pushState(estado, '', rutaConParametros);
+    setRutaActual(url.pathname);
+    setParametrosBusqueda(url.search);
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   const { usuarioActual, rolActivo, cambiarRolActivo } = useAutenticacion();
@@ -153,11 +167,11 @@ function ContenidoApp() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <button
                 type="button"
-                onClick={() => navegarA("/eventos")}
+                onClick={() => navegarA(volverA("/eventos"))}
                 className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Volver a Cartelera de Eventos</span>
+                <span>Regresar</span>
               </button>
               {tieneRolAutorizado ? (
                 <button
@@ -246,12 +260,7 @@ function ContenidoApp() {
     ) {
       return (
         <SolicitudEventoPagina
-          key={
-            parametrosUrl.get("editar") ||
-            parametrosUrl.get("tipo") ||
-            parametrosUrl.get("recinto") ||
-            "nueva"
-          }
+          key={[usuarioActual?.id || 'anon',parametrosUrl.get('editar') || 'nueva',parametrosUrl.get('tipo'),parametrosUrl.get('recinto'),parametrosUrl.get('distribucion'),parametrosUrl.get('interfaz')].join(':')}
           navigate={navegarA}
           requestId={parametrosUrl.get("editar") || undefined}
         />
@@ -452,7 +461,7 @@ function ContenidoApp() {
     }
 
     // Ruta por defecto: Cartelera general de eventos
-    return <CarteleraEventosPagina navigate={navegarA} />;
+    return <section className="mx-auto max-w-xl px-5 py-16"><h1 className="text-2xl font-bold">Página no disponible</h1><p className="mt-3 text-neutral-600">Este enlace no corresponde a una pantalla disponible. Puedes regresar y continuar desde donde estabas.</p><button type="button" onClick={()=>navegarA(volverA('/eventos'))} className="boton-primario mt-6 inline-flex items-center gap-2 px-5 py-3"><ArrowLeft size={16}/>Regresar</button></section>;
   };
 
   const esRutaAutenticacion = [

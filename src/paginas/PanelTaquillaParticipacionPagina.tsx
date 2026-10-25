@@ -1,3 +1,5 @@
+import { modalidadActividad, aforoActividad, nombreActividad, accesoMixto } from '../dominio/actividades';
+import { volverA } from '../dominio/navegacion';
 import React, { useMemo, useState } from 'react';
 import {
   ArrowLeft,
@@ -129,10 +131,11 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
     });
 
   const sesionesFiltradas = useMemo(() => {
-    if (!evento || (modalidad !== 'todas' && evento.modalidadAsistencia !== modalidad)) return [];
+    if (!evento) return [];
     const ahora = Date.now();
     return evento.fechas.filter((fecha) => {
       if (idSesion !== 'todas' && fecha.id !== idSesion) return false;
+      if(modalidad!=='todas'&&modalidadActividad(fecha,evento.modalidadAsistencia)!==modalidad)return false;
       const finSesion = new Date(`${fecha.fecha}T${fecha.horaFin}:00`).getTime();
       if (periodo === 'proximas') return finSesion >= ahora;
       if (periodo === 'finalizadas') return finSesion < ahora;
@@ -148,7 +151,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
           (elemento) => elemento.idFechaEvento === fecha.id && elemento.estado === 'version_final'
         ) || listaArreglos.find((elemento) => elemento.idFechaEvento === fecha.id);
       const recinto = listaRecintos.find((elemento) => elemento.id === fecha.idRecinto);
-      const aforo = arreglo?.totalAsientos || recinto?.capacidad || evento.aforoMaximo || 0;
+      const aforo = aforoActividad(fecha,evento.aforoMaximo) ?? arreglo?.totalAsientos ?? recinto?.capacidad ?? 0;
       const boletosEspeciales = listaBoletos.filter(
         (boleto) => boleto.idFechaEvento === fecha.id && boleto.esEspecial
       );
@@ -178,7 +181,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
         (reservacion) =>
           reservacion.estado === 'confirmada' &&
           !reservacion.idAsiento &&
-          evento.modalidadAsistencia !== 'controlado'
+          modalidadActividad(fecha,evento.modalidadAsistencia) !== 'controlado'
       ).length;
       const asistencias = new Set(
         bitacoraEscaneos
@@ -422,7 +425,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
   const nombreSesion = (idFechaEvento: string) => {
     const indice = evento.fechas.findIndex((fecha) => fecha.id === idFechaEvento);
     const fecha = evento.fechas[indice];
-    return fecha ? fecha.nombreDia || `Día ${indice + 1}` : 'Sesión';
+    return fecha ? nombreActividad(fecha,indice) : 'Actividad';
   };
 
   const tarjetas = [
@@ -440,12 +443,10 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
         type="button"
-        onClick={() => navigate(`/organizador/eventos/${evento.id}`)}
+        onClick={() => navigate(volverA(`/organizador/eventos/${evento.id}`))}
         className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
       >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Volver a la configuración del evento</span>
-      </button>
+        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
 
       <header className="bg-white rounded-2xl border border-neutral-200 p-5 sm:p-6 shadow-xs mb-5">
         <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-5">
@@ -457,7 +458,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
               <span className="px-2 py-0.5 rounded-md bg-neutral-100 border border-neutral-200 text-[9px] font-black text-neutral-600 uppercase tracking-wider">
                 Solo lectura
               </span>
-              <InsigniaEstado estado={evento.modalidadAsistencia} />
+              {accesoMixto(evento)?<span className="text-xs font-semibold">Acceso según actividad</span>:<InsigniaEstado estado={evento.modalidadAsistencia} />}
               {evento.estado === 'cancelado' && (
                 <span className="px-2.5 py-1 rounded-md border bg-rose-100 border-rose-300 text-rose-900 text-[10px] font-black tracking-wide">
                   CANCELADO
@@ -512,10 +513,10 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
               onChange={(e) => setIdSesion(e.target.value)}
               className="mt-1 w-full px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs normal-case font-semibold text-neutral-800 focus:outline-none"
             >
-              <option value="todas">Todos los días</option>
+              <option value="todas">Todas las actividades</option>
               {evento.fechas.map((fecha, indice) => (
                 <option key={fecha.id} value={fecha.id}>
-                  {fecha.nombreDia || `Día ${indice + 1}`} · {fecha.fecha}
+                  {nombreActividad(fecha,indice)} · {fecha.fecha}
                 </option>
               ))}
             </select>

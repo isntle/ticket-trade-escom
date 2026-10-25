@@ -1,3 +1,5 @@
+import { modalidadActividad } from '../dominio/actividades';
+import { volverA } from '../dominio/navegacion';
 import React, { useEffect, useRef, useState } from 'react';
 import { BrowserQRCodeReader, IScannerControls } from '@zxing/browser';
 import {
@@ -70,7 +72,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     if (!usuarioActual) return false;
     const esResponsable = (usuarioActual.roles.includes('organizador') && ev.idOrganizador === usuarioActual.id) ||
       (usuarioActual.roles.includes('staff') && Boolean(usuarioActual.eventosAsignadosStaff?.includes(ev.id)));
-    return esResponsable && ev.modalidadAsistencia === 'controlado';
+    return esResponsable && ev.fechas.some(f=>modalidadActividad(f,ev.modalidadAsistencia)==='controlado');
   });
 
   const [eventoActivoId, setEventoActivoId] = useState(() => {
@@ -140,7 +142,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       return fechaSeleccionada.fecha <= finBloqueo && fechaSeleccionada.horaInicio < (elemento.horaFin || '23:59') && fechaSeleccionada.horaFin > (elemento.horaInicio || '00:00');
     });
     if (bloqueo) return { disponible: false, etiqueta: 'Suspendido', detalle: `El día está suspendido por: ${bloqueo.titulo}.` };
-    if (eventoSeleccionado.modalidadAsistencia !== 'controlado') return { disponible: false, etiqueta: 'Sin control de acceso', detalle: 'El evento no tiene aforo controlado.' };
+    if ((!fechaSeleccionada || modalidadActividad(fechaSeleccionada,eventoSeleccionado.modalidadAsistencia) !== 'controlado')) return { disponible: false, etiqueta: 'Sin control de acceso', detalle: 'El evento no tiene aforo controlado.' };
     const inicio = new Date(`${fechaSeleccionada.fecha}T${fechaSeleccionada.horaInicio}:00`).getTime();
     const fin = new Date(`${fechaSeleccionada.fecha}T${fechaSeleccionada.horaFin}:00`).getTime();
     const apertura = inicio - 30 * 60 * 1000;
@@ -253,7 +255,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
   };
 
   if (eventosPermitidos.length === 0) {
-    return <main className="mx-auto max-w-xl px-4 py-20 text-center"><div className="rounded-3xl border border-neutral-200 bg-white p-8"><Lock className="mx-auto h-10 w-10 text-amber-700"/><h1 className="mt-4 text-xl font-black">No hay eventos asignados</h1><p className="mt-2 text-sm text-neutral-600">Para operar el lector, debes ser responsable o Staff asignado de un evento con aforo controlado.</p><button type="button" onClick={() => navigate('/eventos')} className="mt-5 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-bold text-white">Volver a eventos</button></div></main>;
+    return <main className="mx-auto max-w-xl px-4 py-20 text-center"><div className="rounded-3xl border border-neutral-200 bg-white p-8"><Lock className="mx-auto h-10 w-10 text-amber-700"/><h1 className="mt-4 text-xl font-black">No hay eventos asignados</h1><p className="mt-2 text-sm text-neutral-600">Para operar el lector, debes ser responsable o Staff asignado de un evento con aforo controlado.</p><button type="button" onClick={() => navigate(volverA('/eventos'))} className="mt-5 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-bold text-white">Volver a eventos</button></div></main>;
   }
 
   return (
@@ -295,7 +297,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
             >
               {eventoSeleccionado.fechas.map((fecha, indice) => (
                 <option key={fecha.id} value={fecha.id}>
-                  {fecha.nombreDia || `Día ${indice + 1}`}: {fecha.fecha} · {fecha.horaInicio}–{fecha.horaFin}
+                  {fecha.nombreActividad || fecha.nombreDia || `Día ${indice + 1}`}: {fecha.fecha} · {fecha.horaInicio}–{fecha.horaFin}
                 </option>
               ))}
             </select>
@@ -317,7 +319,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
         </div>
       </section> : <>
         <section className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
-          <div className="min-w-0"><span className="text-[10px] font-bold uppercase tracking-widest text-[#7a132b]">Check-in · IU-CI02</span><strong className="block truncate text-sm">{eventoSeleccionado?.titulo}</strong><span className="block text-xs text-neutral-500">{fechaSeleccionada?.nombreDia || fechaSeleccionada?.fecha} · {fechaSeleccionada?.horaInicio}–{fechaSeleccionada?.horaFin}</span></div>
+          <div className="min-w-0"><span className="text-[10px] font-bold uppercase tracking-widest text-[#7a132b]">Check-in · IU-CI02</span><strong className="block truncate text-sm">{eventoSeleccionado?.titulo}</strong><span className="block text-xs text-neutral-500">{fechaSeleccionada?.nombreActividad || fechaSeleccionada?.nombreDia || fechaSeleccionada?.fecha} · {fechaSeleccionada?.horaInicio}–{fechaSeleccionada?.horaFin}</span></div>
           <button type="button" onClick={terminarControl} className="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-bold text-neutral-700 hover:bg-neutral-50">Terminar control</button>
         </section>
 

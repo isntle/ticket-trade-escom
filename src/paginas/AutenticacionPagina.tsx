@@ -1,3 +1,5 @@
+import { destinoInternoSeguro } from '../dominio/navegacion';
+import { volverA } from '../dominio/navegacion';
 import React, { useEffect, useState } from "react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { MarcoAcceso } from "../componentes/layout/MarcoAcceso";
@@ -76,7 +78,7 @@ export function AutenticacionPagina({
           "tt_confirmacion_demo",
           JSON.stringify({ correo, codigo: r.codigoPrueba }),
         );
-      navigate("/confirmar-correo?correo=" + encodeURIComponent(correo));
+      navigate("/confirmar-correo?correo=" + encodeURIComponent(correo) + "&continuar=" + encodeURIComponent(destinoInternoSeguro(new URLSearchParams(window.location.search).get("continuar"))));
     }
   };
   return (
@@ -113,7 +115,7 @@ export function AutenticacionPagina({
               e.preventDefault();
               const r = auth.iniciarSesion(correo, password);
               setMensaje(r.mensaje);
-              if (r.exito) navigate("/eventos");
+              if (r.exito) navigate(destinoInternoSeguro(new URLSearchParams(window.location.search).get("continuar")));
             }}
           >
             <label className="block text-sm font-semibold">
@@ -189,7 +191,7 @@ export function AutenticacionPagina({
             este prototipo. Contacto: soporte_ti@escom.ipn.mx.
           </p>
           <label className="block text-sm font-semibold">
-            Categoría declarada
+            Rol
             <select
               className={campo}
               value={categoria}
@@ -435,12 +437,12 @@ export function AutenticacionPagina({
       )}
       <nav className="mt-7 flex flex-wrap gap-4 border-t pt-5 text-sm">
         {view !== "login" && (
-          <button onClick={() => navigate("/login")}>Volver al acceso</button>
+          <button onClick={() => navigate(volverA("/login"))}>Regresar</button>
         )}
         {view !== "registro" && (
           <button
             className="font-bold text-[#7a132b]"
-            onClick={() => navigate("/registro")}
+            onClick={() => navigate("/registro?continuar="+encodeURIComponent(destinoInternoSeguro(new URLSearchParams(window.location.search).get("continuar"))))}
           >
             Crear cuenta
           </button>

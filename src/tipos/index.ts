@@ -140,6 +140,10 @@ export interface ActividadPrograma {
 
 export interface ElementoFechaSolicitada {
   id: string;
+  nombreActividad?: string;
+  descripcionActividad?: string;
+  modalidadAsistencia?: ModalidadAsistencia;
+  asistenciaEstimada?: number;
   fecha: string; // AAAA-MM-DD
   horaInicio: string; // HH:mm
   horaFin: string; // HH:mm
@@ -154,6 +158,8 @@ export interface ElementoFechaSolicitada {
 
 // Solicitud formal de evento
 export interface SolicitudEvento {
+  categoria?: CategoriaEvento;
+  itinerarios?: ItinerarioDia[];
   version?: number;
   fechaVencimientoRevision?: string;
   tiempoRevisionRestanteMs?: number;
@@ -219,6 +225,10 @@ export interface RegistroCambioInscripciones {
 
 // Fecha individual de un evento (No son sinónimos)
 export interface FechaEvento {
+  nombreActividad?: string;
+  descripcionActividad?: string;
+  modalidadAsistencia?: ModalidadAsistencia;
+  asistenciaEstimada?: number;
   suspendida?: boolean;
   idBloqueoSuspension?: string;
   id: string;
@@ -241,6 +251,8 @@ export interface FechaEvento {
 
 // Categorías temáticas de eventos ESCOM
 export type CategoriaEvento =
+  | "Hackatón"
+  | "Otro"
   | "Conferencia"
   | "Congreso"
   | "Taller"
@@ -250,6 +262,7 @@ export type CategoriaEvento =
 
 // Entidad Principal de Evento
 export interface Evento {
+  itinerarios?: ItinerarioDia[];
   esDemostracion?: boolean;
   limitesAprobados?: { numeroFechas:number; duracionMinutos:number };
   id: string;
@@ -304,6 +317,12 @@ export interface Evento {
       fechaRegistro: string;
     };
   }>;
+}
+
+export interface ItinerarioDia {
+  fecha: string;
+  nombreArchivo: string;
+  urlImagen: string;
 }
 
 // Tipos de recintos físicos en ESCOM

@@ -1,7 +1,9 @@
+import { verificacionIdentidadVigente } from '../../dominio/identidad';
 import { modoDemostracionActivo } from "../../dominio/demostracion";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
+  BadgeCheck,
   LogIn,
   LogOut,
   Menu,
@@ -167,8 +169,9 @@ export const BarraSuperior: React.FC<{
                     <span className="block max-w-44 truncate text-sm font-semibold">
                       {usuarioActual.nombre}
                     </span>
+                    {verificacionIdentidadVigente(usuarioActual)&&<span className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-sky-700" title="Identidad verificada vigente"><BadgeCheck size={15} aria-hidden="true"/>Verificado</span>}
                     <span className="block text-xs text-neutral-500">
-                      {nombres[rolActivo]}
+                      {{alumno:"Estudiante",profesor:"Docente",administrativo:"Administrativo",pae:"Personal de apoyo",externo:"Externo"}[usuarioActual.afiliacion]}
                     </span>
                   </span>
                   <ChevronDown size={15} className="shrink-0" />

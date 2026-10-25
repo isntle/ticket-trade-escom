@@ -1,10 +1,12 @@
-import { fechaHoyMexico } from '../../dominio/solicitudes';
+import { fechaHoyMexico, inicioEnMexico } from '../../dominio/solicitudes';
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Ban, Clock, CheckCircle } from 'lucide-react';
 import { useDatos } from '../../contextos/DatosContexto';
 
 interface PropiedadesCalendarioRecinto {
   idRecinto: string;
+  consultarHorario?: boolean;
+  resaltarUrgencia?: boolean;
   soloFechasFuturas?: boolean;
   fechaSeleccionada?: string;
   alSeleccionarFecha?: (fecha: string) => void;
@@ -14,6 +16,8 @@ interface PropiedadesCalendarioRecinto {
 
 export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
   idRecinto,
+  consultarHorario = true,
+  resaltarUrgencia = false,
   soloFechasFuturas = false,
   fechaSeleccionada,
   alSeleccionarFecha,
@@ -63,6 +67,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
     const cadenaDia = String(dia).padStart(2, '0');
     const cadenaFecha = `${añoActual}-${cadenaMes}-${cadenaDia}`;
 
+    if (!consultarHorario || !idRecinto) return { tipo: 'libre' as const, elementos: [] as string[] };
     const disponibilidad = verificarDisponibilidadRecinto(idRecinto, cadenaFecha, horaInicio, horaFin);
     const ocupaciones = obtenerOcupacionesRecinto(idRecinto, cadenaFecha).filter((ocupacion) => horaInicio < ocupacion.horaFin && horaFin > ocupacion.horaInicio);
     if (!disponibilidad.disponible) return { tipo: disponibilidad.tipoConflicto === 'bloqueo' ? 'bloqueo' as const : 'evento' as const, titulo: disponibilidad.motivo, elementos: ocupaciones.map((item) => item.titulo) };
@@ -83,6 +88,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
     const estaSeleccionado = fechaSeleccionada === fechaActualCadena;
     const esPasado = fechaActualCadena < hoy;
     const esHoy = fechaActualCadena === hoy;
+    const proxima = !esPasado && inicioEnMexico(fechaActualCadena,'00:00') - Date.now() < 168 * 3600000;
     const infoDia = obtenerEstadoDia(dia);
 
     let estiloFondo = 'bg-white hover:bg-neutral-50 border-neutral-200 text-neutral-800';
@@ -96,8 +102,11 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
       estiloFondo = 'bg-rose-50 border-rose-200 text-rose-900';
       insignia = <Ban className="w-3 h-3 text-rose-500" />;
     } else if (infoDia.tipo === 'evento') {
-      estiloFondo = 'bg-amber-50 border-amber-200 text-amber-900';
+      estiloFondo = 'bg-rose-50 border-rose-200 text-rose-900';
       insignia = <Clock className="w-3 h-3 text-amber-600" />;
+    } else if (resaltarUrgencia && proxima && !esHoy) {
+      estiloFondo = 'bg-amber-50 border-amber-300 text-amber-950';
+      insignia = <Clock className="h-3 w-3 text-amber-700" />;
     } else if (esHoy) {
       estiloFondo = 'bg-blue-50 border-blue-400 text-blue-900 font-bold';
     }
@@ -106,12 +115,12 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
       <button
         key={`dia-${dia}`}
         disabled={soloFechasFuturas && esPasado}
-        aria-label={`${fechaActualCadena}${esHoy ? ', hoy' : ''}${esPasado ? ', fecha pasada' : ''}`}
+        aria-label={`${fechaActualCadena}${esHoy ? ', hoy' : ''}${esPasado ? ', fecha pasada' : resaltarUrgencia && proxima ? ', plazo urgente' : ''}`}
         aria-current={esHoy ? 'date' : undefined}
         type="button"
         onClick={() => alSeleccionarFecha && alSeleccionarFecha(fechaActualCadena)}
         className={`h-10 sm:h-12 border rounded-lg p-1 flex flex-col justify-between items-center transition-all cursor-pointer text-xs ${estiloFondo}`}
-        title={`${fechaActualCadena} ${infoDia.tipo !== 'libre' ? `(${infoDia.tipo})` : '(Libre)'}`}
+        title={`${fechaActualCadena} ${!consultarHorario ? '(Seleccionar fecha)' : infoDia.tipo !== 'libre' ? `(${infoDia.tipo})` : '(Libre)'}`}
       >
         <span className="font-mono text-xs">{dia}</span>
         {insignia}
@@ -160,10 +169,11 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
       {/* Cuadrícula de Fechas */}
       <div className="grid grid-cols-7 gap-1">{celdasCalendario}</div>
 
+      {resaltarUrgencia && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-950">Ámbar: fechas próximas que pueden requerir solicitud extraordinaria. El plazo exacto se calcula con la hora de inicio.</p>}
       {/* Leyenda */}
       <div className="mt-4 pt-3 border-t border-neutral-100 flex flex-wrap items-center gap-3 text-[11px] text-neutral-600">
         {soloFechasFuturas && <span className="text-neutral-500">Gris: días pasados · Azul: hoy</span>}
-        <div className="flex items-center gap-1.5">
+        {consultarHorario && <><div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded bg-white border border-neutral-300" />
           <span>Libre / Disponible</span>
         </div>
@@ -174,7 +184,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
         <div className="flex items-center gap-1.5">
           <Ban className="w-3 h-3 text-rose-600" />
           <span>Bloqueo del recinto</span>
-        </div>
+        </div></>}
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded bg-[#7a132b]" />
           <span>Selección actual</span>
@@ -182,7 +192,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
       </div>
 
       {/* Detalle de la fecha seleccionada */}
-      {fechaSeleccionada && infoDiaSeleccionado && (
+      {consultarHorario && fechaSeleccionada && infoDiaSeleccionado && (
         <div className="mt-3 p-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-xs">
           <div className="font-semibold text-neutral-900 flex items-center justify-between">
             <span>Fecha seleccionada: {fechaSeleccionada}</span>

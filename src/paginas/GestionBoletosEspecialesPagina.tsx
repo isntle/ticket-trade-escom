@@ -1,3 +1,4 @@
+import { volverA } from '../dominio/navegacion';
 import React, { useMemo, useState } from 'react';
 import {
   ArrowLeft,
@@ -112,7 +113,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
   }
 
   if (!usuarioActual || !usuarioActual.roles.includes('organizador') || usuarioActual.id !== evento.idOrganizador) {
-    return <div className="mx-auto max-w-3xl px-4 py-16 text-center"><h1 className="text-xl font-black">Acceso restringido</h1><p className="mt-2 text-sm text-neutral-600">Solo el organizador responsable puede administrar los boletos especiales de este evento.</p><button className="mt-5 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-bold text-white" onClick={() => navigate('/organizador')}>Volver a mis eventos</button></div>;
+    return <div className="mx-auto max-w-3xl px-4 py-16 text-center"><h1 className="text-xl font-black">Acceso restringido</h1><p className="mt-2 text-sm text-neutral-600">Solo el organizador responsable puede administrar los boletos especiales de este evento.</p><button className="mt-5 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-bold text-white" onClick={() => navigate(volverA('/organizador'))}>Volver a mis eventos</button></div>;
   }
 
   const fechaSeleccionada = evento.fechas.find((fecha) => fecha.id === idFechaEvento);
@@ -214,12 +215,10 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
         type="button"
-        onClick={() => navigate(`/organizador/eventos/${evento.id}`)}
+        onClick={() => navigate(volverA(`/organizador/eventos/${evento.id}`))}
         className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
       >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Volver a la configuración del evento</span>
-      </button>
+        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
 
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-8">
         <div>

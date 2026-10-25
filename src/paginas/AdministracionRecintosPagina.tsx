@@ -1,3 +1,4 @@
+import { volverA } from '../dominio/navegacion';
 import { ConfiguracionCalendarioRevision } from '../componentes/recintos/CalendarioRevision';
 import React, { useState } from 'react';
 import { ArrowLeft, Building2, CalendarDays, Plus, Save, XCircle } from 'lucide-react';
@@ -57,7 +58,7 @@ export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupac
   if (!usuarioActual?.roles.includes('admin')) return <div className="mx-auto max-w-xl p-8 text-center"><h1 className="text-xl font-bold">Administración de recintos</h1><p className="mt-3 text-sm">El registro y modificación de recintos y actividades internas corresponde al Administrador.</p><button onClick={() => navigate('/recintos')} className="mt-5 rounded-xl border px-4 py-2 text-sm">Consultar catálogo de recintos</button></div>;
 
   return <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-    <button onClick={() => navigate('/admin')} className="mb-5 inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-950"><ArrowLeft size={16}/>Volver a administración</button>
+    <button onClick={() => navigate(volverA('/admin'))} className="mb-5 inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-950"><ArrowLeft size={16}/><span>Regresar</span></button>
     <header className="mb-6"><p className="text-sm font-bold  text-[#7a132b]">Organización y recintos</p><h1 className="text-2xl font-black mt-1">{modo === 'catalogo' ? 'Administrar recintos' : 'Actividades internas'}</h1><p className="text-sm text-neutral-600 mt-2">{modo === 'catalogo' ? 'Consulta, registra y actualiza la información y el estado de los espacios.' : 'Registra actividades institucionales y consulta su impacto en la agenda.'}</p></header>
     {modo === 'catalogo' ? <><ConfiguracionCalendarioRevision/>
       <div className="flex justify-end mb-4"><button onClick={() => abrirEdicion()} className="inline-flex items-center gap-2 rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-bold text-white"><Plus size={16}/>Agregar recinto</button></div>

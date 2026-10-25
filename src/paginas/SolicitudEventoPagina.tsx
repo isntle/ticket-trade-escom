@@ -1,3 +1,6 @@
+import { CATEGORIAS_EVENTO, aforoActividad, modalidadActividad, nombreActividad, validarItinerarios } from '../dominio/actividades';
+import { EditorItinerarios } from '../componentes/eventos/EditorItinerarios';
+import { volverA } from '../dominio/navegacion';
 import { DiaSolicitud } from "../componentes/recintos/DiaSolicitud";
 import { validarDistribuciones } from "../dominio/distribucionSolicitud";
 import { VentanaModal } from "../componentes/ui/VentanaModal";
@@ -31,6 +34,8 @@ import {
   ElementoFechaSolicitada,
   ModalidadAsistencia,
   VisibilidadEvento,
+  CategoriaEvento,
+  ItinerarioDia,
 } from "../tipos";
 
 interface PropiedadesSolicitudEvento {
@@ -52,6 +57,11 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
   } = useDatos();
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
+  const claveCaptura = `tt_solicitud_captura:${usuarioActual?.id || 'sin-sesion'}`;
+  const [captura] = useState<Partial<{titulo:string;descripcion:string;categoria:CategoriaEvento;visibilidad:VisibilidadEvento;fechas:ElementoFechaSolicitada[];itinerarios:ItinerarioDia[];urlImagen:string;nombreBanner:string;correoContacto:string;telefonoContacto:string;justificacion:string;nombreDocumento:string;urlDocumento:string}>>(()=>{
+    if(requestId) return {};
+    try { return JSON.parse(sessionStorage.getItem(claveCaptura)||'{}'); } catch { return {}; }
+  });
   const solicitudEnEdicion = listaSolicitudes.find(
     (solicitud) => solicitud.id === requestId,
   );
@@ -62,62 +72,61 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
 
   // Campos generales y de solicitud unificados
   const [titulo, setTitulo] = useState(
-    () => solicitudEnEdicion?.tituloEvento || "",
+    () => solicitudEnEdicion?.tituloEvento || captura.titulo || "",
   );
   const [descripcion, setDescripcion] = useState(
-    () => solicitudEnEdicion?.descripcionEvento || "",
+    () => solicitudEnEdicion?.descripcionEvento || captura.descripcion || "",
   );
-  const [modalidad, setModalidad] = useState<ModalidadAsistencia>(
+  const [modalidad] = useState<ModalidadAsistencia>(
     () => solicitudEnEdicion?.modalidadAsistencia || "controlado",
   );
   const [visibilidad, setVisibilidad] = useState<VisibilidadEvento>(
-    () => solicitudEnEdicion?.visibilidad || "publico",
+    () => solicitudEnEdicion?.visibilidad || captura.visibilidad || "publico",
   );
-  const [asistenciaEstimada, setAsistenciaEstimada] = useState(
+  const [asistenciaEstimada] = useState(
     () => solicitudEnEdicion?.asistenciaEstimada || 120,
   );
   const [correoContacto, setCorreoContacto] = useState(
-    () => solicitudEnEdicion?.correoContacto || usuarioActual?.correo || "",
+    () => solicitudEnEdicion?.correoContacto || captura.correoContacto || usuarioActual?.correo || "",
   );
   const [telefonoContacto, setTelefonoContacto] = useState(
     () =>
-      solicitudEnEdicion?.telefonoContacto ||
+      solicitudEnEdicion?.telefonoContacto || captura.telefonoContacto ||
       usuarioActual?.telefonoContacto ||
       "",
   );
   const [nombreBanner, setNombreBanner] = useState(
-    () => solicitudEnEdicion?.nombreBanner || "",
+    () => solicitudEnEdicion?.nombreBanner || captura.nombreBanner || "",
   );
   const [urlImagen, setUrlImagen] = useState<string | undefined>(
-    () => solicitudEnEdicion?.urlImagen,
+    () => solicitudEnEdicion?.urlImagen || captura.urlImagen,
   );
   const [errorBanner, setErrorBanner] = useState("");
   const [cargandoBanner, setCargandoBanner] = useState(false);
   const [nombreDocumento, setNombreDocumento] = useState(
-    () => solicitudEnEdicion?.nombreDocumento || "",
+    () => solicitudEnEdicion?.nombreDocumento || captura.nombreDocumento || "",
   );
   const [urlDocumento, setUrlDocumento] = useState<string | undefined>(
-    () => solicitudEnEdicion?.urlDocumento,
+    () => solicitudEnEdicion?.urlDocumento || captura.urlDocumento,
   );
   const [errorDocumento, setErrorDocumento] = useState("");
   const [errorFormulario, setErrorFormulario] = useState("");
   const [resumenEnvioAbierto, setResumenEnvioAbierto] = useState(false);
   const [confirmarSalida, setConfirmarSalida] = useState(false);
-  const [viaExtraordinaria, setViaExtraordinaria] = useState(() =>
-    Boolean(
-      solicitudEnEdicion?.esExcepcional ||
-      new URLSearchParams(window.location.search).get("tipo") ===
-        "extraordinaria",
-    ),
-  );
+  const [categoria, setCategoria] = useState<CategoriaEvento>(() => solicitudEnEdicion?.categoria || captura.categoria || (solicitudEnEdicion ? 'Académico' : 'Conferencia'));
+  const [itinerarios, setItinerarios] = useState<ItinerarioDia[]>(() => solicitudEnEdicion?.itinerarios || captura.itinerarios || []);
+  const [estadoItinerarios, setEstadoItinerarios] = useState<Record<string,{cargando:boolean;error:string}>>({});
 
   // Lista unificada de días y fechas solicitadas con programa/actividad por día
   const [fechas, setFechas] = useState<ElementoFechaSolicitada[]>(
     () =>
-      solicitudEnEdicion?.fechasSolicitadas || [
+      solicitudEnEdicion?.fechasSolicitadas || captura.fechas || [
         {
-          id: `fec-temp-1`,
-          nombreDia: "Día 1",
+          id: `actividad-${crypto.randomUUID()}`,
+          nombreActividad: "",
+          descripcionActividad: "",
+          modalidadAsistencia: "controlado",
+          asistenciaEstimada: 40,
           fecha: fechaHoyMexico(
             new Date(
               Date.now() +
@@ -132,15 +141,20 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
           horaFin: "14:00",
           idRecinto:
             new URLSearchParams(window.location.search).get("recinto") ||
-            "rec-auditorio",
+            (new URLSearchParams(window.location.search).get("distribucion")==="1" ? "rec-auditorio" : ""),
           actividadOPrograma: "",
         },
       ],
   );
 
   const [justificacionExcepcional, setJustificacionExcepcional] = useState(
-    () => solicitudEnEdicion?.justificacionExcepcional || "",
+    () => solicitudEnEdicion?.justificacionExcepcional || captura.justificacion || "",
   );
+  useEffect(()=>{
+    if (requestId || !usuarioActual) return;
+    try { sessionStorage.setItem(claveCaptura,JSON.stringify({titulo,descripcion,categoria,visibilidad,fechas,itinerarios,urlImagen,nombreBanner,correoContacto,telefonoContacto,justificacion:justificacionExcepcional,nombreDocumento,urlDocumento})); }
+    catch { /* La captura permanece en el formulario si el navegador no dispone de espacio. */ }
+  },[titulo,descripcion,categoria,visibilidad,fechas,itinerarios,urlImagen,nombreBanner,correoContacto,telefonoContacto,justificacionExcepcional,nombreDocumento,urlDocumento,claveCaptura,requestId]);
   useEffect(() => {
     if (interfazSolicitada() === "UI.08" && solicitudEnEdicion && solicitudEnEdicion.idSolicitante === usuarioActual?.id) manejarEnvio();
   }, [requestId]);
@@ -157,8 +171,12 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
             anterior.id === fecha.id && anterior.fecha === fecha.fecha,
         )),
   );
+  const viaExtraordinaria = fechasFueraDeAnticipacion.length > 0;
   const requiereJustificacion = viaExtraordinaria;
   const validarFormulario = (borrador: boolean): boolean => {
+    const estadoArchivo = Object.entries(estadoItinerarios).find(([fecha,estado]) => fechas.some(a=>a.fecha===fecha) && (estado.cargando || estado.error))?.[1];
+    const errorItinerario = validarItinerarios(itinerarios,fechas);
+    if (estadoArchivo || errorItinerario) { setErrorFormulario(estadoArchivo?.cargando ? 'Espera a que termine de prepararse el itinerario.' : estadoArchivo?.error || errorItinerario || 'Revisa el itinerario.'); return false; }
     if (cargandoBanner) {
       setErrorFormulario(
         "Espera a que termine de prepararse el cartel antes de guardar.",
@@ -177,7 +195,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       return false;
     }
     if (!borrador) {
-      const ocupado = fechas.find(dia => !verificarDisponibilidadRecinto(dia.idRecinto, dia.fecha, dia.horaInicio, dia.horaFin).disponible);
+      const ocupado = fechas.find(dia => !verificarDisponibilidadRecinto(dia.idRecinto, dia.fecha, dia.horaInicio, dia.horaFin, undefined, true).disponible);
       if (ocupado) {
         setErrorFormulario(`${ocupado.nombreDia || 'Un día'} tiene un conflicto de disponibilidad. Cambia el recinto o el horario antes de enviar.`);
         return false;
@@ -229,14 +247,15 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     setFechas((previas) => [
       ...previas,
       {
-        id: `fec-temp-${Date.now()}`,
-        nombreDia: `Día ${siguienteNumero}`,
-        fecha: fechaHoyMexico(
-          new Date(Date.now() + (8 + fechas.length) * 86400000),
-        ),
+        id: `actividad-${crypto.randomUUID()}`,
+        nombreActividad: "",
+        descripcionActividad: "",
+        modalidadAsistencia: "controlado",
+        asistenciaEstimada: 40,
+        fecha: fechas[fechas.length-1]?.fecha || fechaHoyMexico(new Date(Date.now()+8*86400000)),
         horaInicio: "10:00",
         horaFin: "14:00",
-        idRecinto: fechas[0]?.idRecinto || "rec-auditorio",
+        idRecinto: "",
         actividadOPrograma: "",
       },
     ]);
@@ -246,11 +265,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     if (fechas.length === 1) return;
     setFechas((previas) => {
       const filtradas = previas.filter((f) => f.id !== id);
-      // Renumerar días consecutivamente (Día 1, Día 2, ...)
-      return filtradas.map((item, idx) => ({
-        ...item,
-        nombreDia: `Día ${idx + 1}`,
-      }));
+      return filtradas;
     });
   };
 
@@ -426,12 +441,14 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       urlDocumento,
       nombreBanner: nombreBanner || undefined,
       urlImagen,
+      categoria,
+      itinerarios,
       tituloEvento: titulo,
       descripcionEvento: descripcion,
       fechasSolicitadas: fechas,
-      modalidadAsistencia: modalidad,
+      modalidadAsistencia: modalidadActividad(fechas[0],modalidad),
       visibilidad,
-      asistenciaEstimada,
+      asistenciaEstimada: Math.max(...fechas.map(f=>aforoActividad(f,asistenciaEstimada)||0)),
       esExcepcional: requiereJustificacion,
       justificacionExcepcional: requiereJustificacion
         ? justificacionExcepcional
@@ -472,6 +489,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       "exito",
     );
 
+    sessionStorage.removeItem(claveCaptura);
     navigate(`/organizador/solicitudes/${nuevaSolicitud.id}`);
   };
 
@@ -537,12 +555,14 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       urlDocumento,
       nombreBanner: nombreBanner || undefined,
       urlImagen,
+      categoria,
+      itinerarios,
       tituloEvento: titulo.trim(),
       descripcionEvento: descripcion.trim(),
       fechasSolicitadas: fechas,
-      modalidadAsistencia: modalidad,
+      modalidadAsistencia: modalidadActividad(fechas[0],modalidad),
       visibilidad,
-      asistenciaEstimada,
+      asistenciaEstimada: Math.max(...fechas.map(f=>aforoActividad(f,asistenciaEstimada)||0)),
       esExcepcional: requiereJustificacion,
       justificacionExcepcional: justificacionExcepcional || undefined,
     };
@@ -574,11 +594,21 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       "Puedes consultarlo desde Mis solicitudes.",
       "exito",
     );
+    sessionStorage.removeItem(claveCaptura);
     navigate(`/organizador/solicitudes/${borrador.id}`);
   };
 
+  if (!usuarioActual || !usuarioActual.correoConfirmado || !usuarioActual.esVerificado || restriccionIdentidadVigente(usuarioActual)) {
+    const rutaRetorno = '/solicitar-evento';
+    const correoPendiente = usuarioActual && !usuarioActual.correoConfirmado;
+    const enRevision = usuarioActual?.estadoExpediente === 'en_revision';
+    const restringida = usuarioActual && restriccionIdentidadVigente(usuarioActual);
+    const destino = !usuarioActual ? '/login?continuar='+encodeURIComponent(rutaRetorno) : correoPendiente ? '/confirmar-correo?continuar='+encodeURIComponent(rutaRetorno) : '/identidad/expediente?continuar='+encodeURIComponent(rutaRetorno);
+    return <section className="mx-auto max-w-2xl px-5 py-12"><button className="mb-6 inline-flex items-center gap-2 text-sm text-neutral-500" onClick={()=>navigate(volverA('/eventos'))}><ArrowLeft size={16}/><span>Regresar</span></button><div className="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-9"><h1 className="text-2xl font-bold">Solicitar nuevo evento</h1><p className="mt-4 text-neutral-600">{!usuarioActual?'Inicia sesión para preparar tu solicitud.':correoPendiente?'Primero confirma tu correo con el enlace o código de confirmación. Este paso es distinto de la revisión de tus documentos.':restringida?`Tu cuenta tiene una restricción vigente hasta ${usuarioActual.restriccionSolicitudesHasta}. ${usuarioActual.motivoRestriccion||''}`:enRevision?'Tu expediente de identidad está en revisión. Cuando se apruebe, podrás volver aquí y preparar la solicitud.':'Necesitas verificar tu identidad para solicitar un evento. Consulta los documentos que corresponden a tu perfil y envía tu expediente.'}</p><button onClick={()=>navigate(destino)} className="boton-primario mt-6 px-5 py-3">{!usuarioActual?'Iniciar sesión':correoPendiente?'Confirmar mi correo':enRevision?'Consultar mi verificación':'Ir a mi expediente'}</button><p className="mt-4 text-sm text-neutral-500">Encontrarás este acceso en la cartelera. La revisión documental y la aprobación del evento son trámites separados.</p></div></section>;
+  }
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <div data-interfaz={requestId?"UI.04":"UI.03"} tabIndex={-1} className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       {/* Botón Volver */}
       <button
         type="button"
@@ -586,7 +616,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
         className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
       >
         <ArrowLeft className="w-4 h-4" />
-        <span>Volver al panel</span>
+        <span>Regresar</span>
       </button>
 
       <div className="mb-8">
@@ -597,7 +627,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
           Solicitar evento
         </h1>
         <p className="text-sm sm:text-sm text-neutral-500 mt-1 max-w-3xl">
-          Prepara la información del evento y elige los días, horarios y
+          Prepara la información del evento y elige las fechas, horarios y
           recintos. Guardar un borrador o enviar una solicitud no reserva el
           espacio.
         </p>
@@ -669,7 +699,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
           </div>
 
           {/* Bloque superior: Título y Descripción */}
-          <div className="space-y-4 text-sm">
+          <div data-interfaz="UI.08" tabIndex={-1} className="space-y-4 text-sm">
             <div>
               <label className="block font-semibold text-neutral-800 mb-1">
                 Título del Evento *
@@ -687,7 +717,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
 
             <div>
               <label className="block font-semibold text-neutral-800 mb-1">
-                Descripción y Objetivo Académico *
+                Descripción del evento *
               </label>
               <textarea
                 aria-label="Descripción del evento"
@@ -695,7 +725,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                 required
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
-                placeholder="Detalla los objetivos, la población estudiantil a beneficiar y los temas que se abordarán..."
+                placeholder="Describe en qué consiste el evento y a quién está dirigido..."
                 className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-neutral-900 text-sm sm:text-sm focus:outline-none focus:border-[#7a132b] focus:bg-white transition-all"
               />
             </div>
@@ -761,73 +791,12 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
               </label>
             </div>
 
-            {/* Parámetros integrados de asistencia, visibilidad y aforo */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
-              <div>
-                <label className="block font-semibold text-neutral-800 mb-1">
-                  Modalidad de Asistencia *
-                </label>
-                <select
-                  aria-label="Modalidad de asistencia"
-                  value={modalidad}
-                  onChange={(e) =>
-                    setModalidad(e.target.value as ModalidadAsistencia)
-                  }
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-neutral-800 text-sm focus:outline-none focus:border-[#7a132b]"
-                >
-                  <option value="controlado">
-                    Acceso Controlado (QR con Butaca)
-                  </option>
-                  <option value="libre">
-                    Acceso Libre (Sin boleto numerado)
-                  </option>
-                  <option value="registro">Registro de Asistencia</option>
-                </select>
-                <span className="text-sm text-neutral-400 mt-1 block">
-                  Determina si se reservan butacas o es entrada general.
-                </span>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-neutral-800 mb-1">
-                  Visibilidad Institucional *
-                </label>
-                <select
-                  aria-label="Visibilidad del evento"
-                  value={visibilidad}
-                  onChange={(e) =>
-                    setVisibilidad(e.target.value as VisibilidadEvento)
-                  }
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-neutral-800 text-sm focus:outline-none focus:border-[#7a132b]"
-                >
-                  <option value="publico">Público General</option>
-                  <option value="interno">Solo Comunidad IPN</option>
-                  <option value="privado">Privado (mediante enlace)</option>
-                </select>
-                <span className="text-sm text-neutral-400 mt-1 block">
-                  Alcance en cartelera escolar.
-                </span>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-neutral-800 mb-1">
-                  Aforo solicitado (personas) *
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={500}
-                  aria-label="Aforo solicitado"
-                  value={asistenciaEstimada}
-                  onChange={(e) =>
-                    setAsistenciaEstimada(Number(e.target.value))
-                  }
-                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-neutral-900 text-sm focus:outline-none focus:border-[#7a132b]"
-                />
-                <span className="text-sm text-neutral-400 mt-1 block">
-                  Capacidad proyectada de asistentes.
-                </span>
-              </div>
+            <div className="grid gap-4 pt-1 sm:grid-cols-2">
+              <label className="block font-semibold text-neutral-800">Categoría del evento *<select aria-label="Categoría del evento" className="mt-1 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm" value={categoria} onChange={e=>setCategoria(e.target.value as CategoriaEvento)}>
+                {!CATEGORIAS_EVENTO.some(c=>c===categoria)&&<option value={categoria}>{categoria} (registro anterior)</option>}
+                {CATEGORIAS_EVENTO.map(c=><option key={c} value={c}>{c}</option>)}
+              </select><span className="mt-2 block text-xs font-normal text-neutral-500">Clasifica el evento completo. Tener varias actividades no lo convierte automáticamente en un congreso.</span></label>
+              <label className="block font-semibold text-neutral-800">Visibilidad del evento *<select aria-label="Visibilidad del evento" className="mt-1 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm" value={visibilidad} onChange={e=>setVisibilidad(e.target.value as VisibilidadEvento)}><option value="publico">Público</option><option value="interno">Comunidad IPN</option><option value="privado">Privado, mediante enlace</option></select><span className="mt-2 block text-xs font-normal text-neutral-500">El tipo de acceso y el aforo se definen en cada actividad.</span></label>
             </div>
           </div>
 
@@ -839,11 +808,10 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
               <div>
                 <h3 className="text-sm font-bold text-neutral-900  flex items-center gap-1.5">
                   <Clock className="w-4 h-4 text-[#7a132b]" />
-                  <span>Días, horarios y recintos</span>
+                  <span>Actividades del evento</span>
                 </h3>
                 <p className="text-sm text-neutral-500 mt-0.5">
-                  Especifica cada día de tu evento: fecha exacta, horario de
-                  inicio y fin, recinto oficial y programa planificado.
+                  Añade las actividades con su fecha, recinto, horario y tipo de acceso. Puedes programar varias en el mismo día.
                 </p>
               </div>
 
@@ -853,7 +821,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                 className="px-3.5 py-1.5 bg-[#7a132b]/10 hover:bg-[#7a132b]/20 text-[#7a132b] rounded-xl text-sm font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer self-start sm:self-auto"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Añadir Día {fechas.length + 1}</span>
+                <span>Añadir actividad</span>
               </button>
             </div>
 
@@ -862,6 +830,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                 <DiaSolicitud
                   key={dia.id}
                   dia={dia}
+                  otrasActividades={fechas}
                   indice={indice}
                   modalidad={modalidad}
                   aforo={asistenciaEstimada}
@@ -872,6 +841,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
               ))}
             </div>
 
+            <EditorItinerarios fechas={fechas.map(f=>f.fecha)} itinerarios={itinerarios} alCambiar={setItinerarios} alCambiarEstado={(fecha,estado)=>setEstadoItinerarios(prev=>({...prev,[fecha]:estado}))} />
             {/* Advertencia y Justificación Excepcional por Regla de Anticipación */}
             {(fechasFueraDeAnticipacion.length > 0 || viaExtraordinaria) && (
               <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-3 animate-in fade-in duration-200 mt-4">
@@ -886,30 +856,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                   </div>
                 </div>
 
-                {!viaExtraordinaria && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setViaExtraordinaria(true);
-                      setErrorFormulario("");
-                    }}
-                    className="rounded-xl border border-amber-400 bg-white px-4 py-2 text-sm font-bold text-amber-950"
-                  >
-                    Preparar solicitud extraordinaria
-                  </button>
-                )}
-                {viaExtraordinaria && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setViaExtraordinaria(false);
-                      setErrorFormulario("");
-                    }}
-                    className="rounded-xl border border-amber-400 bg-white px-4 py-2 text-sm font-semibold text-amber-950"
-                  >
-                    Volver a vía ordinaria
-                  </button>
-                )}
+                <p className="text-sm text-amber-950">La vía extraordinaria se determina por las fechas y horas. Para preparar una solicitud ordinaria, cambia las actividades a fechas con al menos 168 horas de anticipación.</p>
                 <div>
                   <label className="block font-bold text-amber-900 text-sm mb-1">
                     Motivo de urgencia *
@@ -987,16 +934,16 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
             <ul className="space-y-2">
               {fechas.map((dia, i) => (
                 <li key={dia.id}>
-                  <strong>{dia.nombreDia || "Día " + (i + 1)}</strong>:{" "}
+                  <strong>{nombreActividad(dia,i)}</strong>:{" "}
                   {dia.fecha} · {dia.horaInicio}–{dia.horaFin} ·{" "}
                   {listaRecintos.find((r) => r.id === dia.idRecinto)?.nombre}
+                  <p className="mt-1 text-neutral-600">{aforoActividad(dia,asistenciaEstimada)} personas · {modalidadActividad(dia,modalidad)==='controlado'?'Con reservación':modalidadActividad(dia,modalidad)==='registro'?'Registro de asistencia':'Entrada libre'}</p>
                   <ProgramaDia programa={dia.programa} />
                 </li>
               ))}
             </ul>
             <p>
-              {asistenciaEstimada} personas ·{" "}
-              {modalidad === "libre" ? "Entrada libre" : "Aforo controlado"}
+              {fechas.length} actividades · {new Set(fechas.map(f=>f.fecha)).size} {new Set(fechas.map(f=>f.fecha)).size===1?'fecha':'fechas'} · {categoria}
             </p>
             {viaExtraordinaria && (
               <p className="rounded-xl bg-amber-50 p-3 text-amber-950">
@@ -1046,7 +993,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                 Continuar editando
               </button>
               <button
-                onClick={() => navigate("/organizador")}
+                onClick={() => { sessionStorage.removeItem(claveCaptura); navigate(volverA("/organizador")); }}
                 className="rounded-xl bg-[#7a132b] px-4 py-2.5 font-bold text-white"
               >
                 Salir sin guardar

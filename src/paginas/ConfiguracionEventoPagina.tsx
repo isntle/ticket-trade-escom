@@ -1,3 +1,8 @@
+import { EditorItinerarios, VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
+import { validarItinerarios, nombreActividad } from '../dominio/actividades';
+import type { ItinerarioDia } from '../tipos';
+import { aforoActividad } from '../dominio/actividades';
+import { volverA } from '../dominio/navegacion';
 import { inicioEnMexico } from '../dominio/solicitudes';
 import React from 'react';
 import { interfazSolicitada } from '../dominio/pantallasDocumentacion';
@@ -32,6 +37,7 @@ import { EstadoVacio } from '../componentes/ui/EstadoVacio';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 
 interface PropuestaEdicionEvento {
+  itinerarios?: ItinerarioDia[];
   titulo: string;
   descripcion: string;
   ponentes: string[];
@@ -59,6 +65,9 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   const [cargandoBanner, setCargandoBanner] = React.useState(false);
   const [cartelModificado, setCartelModificado] = React.useState(false);
   const [programasEditados, setProgramasEditados] = React.useState<Record<string, ActividadPrograma[]>>({});
+  const [itinerariosEditados,setItinerariosEditados] = React.useState<ItinerarioDia[] | undefined>();
+  const [erroresItinerario,setErroresItinerario] = React.useState<Record<string,{cargando:boolean;error:string}>>({});
+  const [actividadesEditadas,setActividadesEditadas] = React.useState<Record<string,{nombreActividad:string;descripcionActividad:string}>>({});
   const [motivoEdicion, setMotivoEdicion] = React.useState('');
   const [cancelacion, setCancelacion] = React.useState<{idFecha?:string; retirar:boolean; version:string} | null>(null);
   const [motivoCancelacion, setMotivoCancelacion] = React.useState('');
@@ -99,11 +108,16 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       return;
     }
     if (!puedeGestionar || evento.fechas.some((dia) => inicioEnMexico(dia.fecha, dia.horaInicio) <= Date.now()) || bitacoraEscaneos.some((registro) => registro.idEvento === evento.id && registro.resultado === 'exito')) { mostrarNotificacion('Edición no disponible', 'El evento ya comenzó o tiene entradas registradas.', 'advertencia'); return; }
+    if(propuestaEdicion.fechas.some(d=>d.nombreActividad!==undefined&&!d.nombreActividad.trim())){mostrarNotificacion('Nombre requerido','Escribe el nombre de cada actividad.','advertencia');return;}
     const errorPrograma = propuestaEdicion.fechas.map(validarPrograma).find(Boolean);
     if (errorPrograma || errorBanner || cargandoBanner) {
       mostrarNotificacion('Revisa los cambios', errorPrograma || errorBanner || 'Espera a que termine la carga del cartel.', 'advertencia');
       return;
     }
+    const itinerarios = propuestaEdicion.itinerarios ?? evento.itinerarios;
+    const errorItinerario = validarItinerarios(itinerarios,propuestaEdicion.fechas);
+    const pendienteItinerario = Object.values(erroresItinerario).find(e=>e.cargando||e.error);
+    if(errorItinerario||pendienteItinerario){mostrarNotificacion('Revisa el itinerario',errorItinerario||pendienteItinerario?.error||'Espera a que termine la preparación.','advertencia');return;}
     const motivo = motivoEdicion.trim();
     if (!motivo) {
       mostrarNotificacion('Indica el motivo', 'Es necesario registrar un motivo para conservar la trazabilidad.', 'advertencia');
@@ -115,7 +129,8 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       anterior.descripcion !== propuestaEdicion.descripcion && 'descripción',
       JSON.stringify(anterior.ponentes) !== JSON.stringify(propuestaEdicion.ponentes) && 'ponentes',
       propuestaEdicion.urlImagen !== anterior.urlImagen && 'banner',
-      JSON.stringify(evento.fechas.map(dia => dia.programa || [])) !== JSON.stringify(propuestaEdicion.fechas.map(dia => dia.programa || [])) && 'programa por día'
+      JSON.stringify(evento.fechas) !== JSON.stringify(propuestaEdicion.fechas) && 'actividades',
+      JSON.stringify(evento.itinerarios||[]) !== JSON.stringify(itinerarios||[]) && 'itinerarios'
     ].filter((campo): campo is string => Boolean(campo));
     if (!campos.length) {
       mostrarNotificacion('Sin cambios', 'No modificaste la información del evento.', 'informacion');
@@ -140,10 +155,10 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       campos,
       valoresAnteriores: anterior,
       valoresNuevos,
-      detalleAnterior: JSON.stringify({ ...anterior, programas: evento.fechas.map(dia => ({ id: dia.id, programa: dia.programa })) }, null, 2),
-      detalleNuevo: JSON.stringify({ ...valoresNuevos, programas: propuestaEdicion.fechas.map(dia => ({ id: dia.id, programa: dia.programa })) }, null, 2),
+      detalleAnterior: JSON.stringify({ ...anterior, itinerarios:evento.itinerarios, actividades:evento.fechas, programas: evento.fechas.map(dia => ({ id: dia.id, programa: dia.programa })) }, null, 2),
+      detalleNuevo: JSON.stringify({ ...valoresNuevos, itinerarios, actividades:propuestaEdicion.fechas, programas: propuestaEdicion.fechas.map(dia => ({ id: dia.id, programa: dia.programa })) }, null, 2),
     }];
-    const resultado = actualizarEvento(evento.id, { ...valoresNuevos, fechas: propuestaEdicion.fechas, historialCambios }, propuestaEdicion.versionOriginal);
+    const resultado = actualizarEvento(evento.id, { ...valoresNuevos, fechas: propuestaEdicion.fechas, itinerarios, historialCambios }, propuestaEdicion.versionOriginal);
     if (!resultado.exito) {
       mostrarNotificacion('No se pudo guardar', resultado.error || 'Tus cambios siguen en el formulario.', 'error');
       return;
@@ -210,7 +225,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     }
     const recinto = listaRecintos.find((item) => item.id === idRecinto);
     const arregloExistente = listaArreglos.find((arreglo) => arreglo.idFechaEvento === idFecha && arreglo.estado === 'version_final');
-    if (!recinto || (evento.aforoMaximo || 0) > recinto.capacidad || (arregloExistente && arregloExistente.totalAsientos > recinto.capacidad)) {
+    if (!recinto || (aforoActividad(fechaActual,evento.aforoMaximo) || 0) > recinto.capacidad || (arregloExistente && arregloExistente.totalAsientos > recinto.capacidad)) {
       mostrarNotificacion('Capacidad incompatible', 'El recinto elegido no tiene capacidad suficiente para el aforo del evento.', 'error'); return;
     }
     const disponibilidad = verificarDisponibilidadRecinto(idRecinto, fecha, horaInicio, horaFin, idFecha);
@@ -291,12 +306,10 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       {/* Botón Volver */}
       <button
         type="button"
-        onClick={() => navigate('/organizador')}
+        onClick={() => navigate(volverA('/organizador'))}
         className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
       >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Volver a Mis Eventos</span>
-      </button>
+        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
 
       {/* Cabecera del Evento */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -341,12 +354,12 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         const fechas = evento.fechas.map(dia => {
           const programa = ordenarPrograma(programasEditados[dia.id] ?? dia.programa);
           const ponentesDia = [...new Set(programa.map(actividad => actividad.ponente).filter((ponente): ponente is string => Boolean(ponente)))];
-          return { ...dia, programa, ponentes: programasEditados[dia.id] !== undefined ? ponentesDia : dia.ponentes };
+          return { ...dia, ...actividadesEditadas[dia.id], programa, ponentes: programasEditados[dia.id] !== undefined ? ponentesDia : dia.ponentes };
         });
         const errorPrograma = fechas.map(validarPrograma).find(Boolean);
         if (errorPrograma || errorBanner || cargandoBanner) { mostrarNotificacion('Revisa los cambios', errorPrograma || errorBanner || 'Espera a que termine la carga del cartel.', 'advertencia'); return; }
         setMotivoEdicion('');
-        setPropuestaEdicion({ titulo, descripcion, ponentes, fechas, urlImagen: cartelModificado ? urlBannerPropuesto : evento.urlImagen, versionOriginal: JSON.stringify(evento) });
+        setPropuestaEdicion({ titulo, descripcion, ponentes, fechas, itinerarios:itinerariosEditados??evento.itinerarios, urlImagen: cartelModificado ? urlBannerPropuesto : evento.urlImagen, versionOriginal: JSON.stringify(evento) });
       }} data-interfaz={casoDocumentado === 'CU-OR-19' ? 'UI.21' : undefined} tabIndex={-1} className="mb-8 grid scroll-mt-24 gap-3 rounded-2xl border border-neutral-200 bg-white p-5 sm:grid-cols-2">
         <div className="sm:col-span-2"><h2 className="font-bold">Editar información del evento aprobado</h2><p className="text-sm text-neutral-500">Revisa título, descripción, cartel y actividades por día. Las fechas, recintos, horarios generales y compromisos vigentes se conservan.</p></div>
         <label className="text-sm font-semibold">Título<input name="titulo" required defaultValue={evento.titulo} className="mt-1 w-full rounded-lg border p-2 text-sm"/></label>
@@ -355,8 +368,10 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         <div className="sm:col-span-2"><EditorCartel urlImagen={cartelModificado ? urlBannerPropuesto : evento.urlImagen} nombre={nombreBanner}
           alCambiar={(url, nombre) => { setUrlBannerPropuesto(url); setCartelModificado(true); setNombreBanner(nombre); setPropuestaEdicion(null); }}
           alCambiarEstado={({ cargando, error }) => { setCargandoBanner(cargando); setErrorBanner(error); }} /></div>
-        {evento.fechas.map((dia, indice) => <div key={dia.id} className="sm:col-span-2"><h3 className="mb-2 text-sm font-bold">{dia.nombreDia || `Día ${indice + 1}`} · {dia.fecha} · {dia.horaInicio}–{dia.horaFin} · {obtenerNombreRecinto(dia.idRecinto)}</h3>
-          <EditorPrograma nombreDia={dia.nombreDia || `Día ${indice + 1}`} programa={programasEditados[dia.id] ?? dia.programa ?? []} alCambiar={programa => { setProgramasEditados(actual => ({ ...actual, [dia.id]: programa })); setPropuestaEdicion(null); }} /></div>)}
+        <div className="sm:col-span-2"><EditorItinerarios fechas={evento.fechas.map(f=>f.fecha)} itinerarios={itinerariosEditados??evento.itinerarios??[]} alCambiar={it=>{setItinerariosEditados(it);setPropuestaEdicion(null);}} alCambiarEstado={(fecha,estado)=>setErroresItinerario(prev=>({...prev,[fecha]:estado}))}/></div>
+        {evento.fechas.map((dia, indice) => <div key={dia.id} className="space-y-3 rounded-xl bg-neutral-50 p-4 sm:col-span-2"><h3 className="text-sm font-bold">{nombreActividad(dia,indice)} · {dia.fecha} · {dia.horaInicio}–{dia.horaFin} · {obtenerNombreRecinto(dia.idRecinto)}</h3>
+          {dia.nombreActividad!==undefined&&<div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">Nombre de la actividad<input required className="mt-1 block w-full rounded-lg border bg-white p-2" value={actividadesEditadas[dia.id]?.nombreActividad??dia.nombreActividad} onChange={e=>{setActividadesEditadas(prev=>({...prev,[dia.id]:{nombreActividad:e.target.value,descripcionActividad:prev[dia.id]?.descripcionActividad??dia.descripcionActividad??''}}));setPropuestaEdicion(null);}}/></label><label className="text-sm">Descripción de la actividad<textarea className="mt-1 block w-full rounded-lg border bg-white p-2" value={actividadesEditadas[dia.id]?.descripcionActividad??dia.descripcionActividad??''} onChange={e=>{setActividadesEditadas(prev=>({...prev,[dia.id]:{nombreActividad:prev[dia.id]?.nombreActividad??dia.nombreActividad??'',descripcionActividad:e.target.value}}));setPropuestaEdicion(null);}}/></label></div>}
+          {(dia.nombreActividad===undefined||dia.programa?.length)&&<EditorPrograma nombreDia={nombreActividad(dia,indice)} programa={programasEditados[dia.id] ?? dia.programa ?? []} alCambiar={programa => { setProgramasEditados(actual => ({ ...actual, [dia.id]: programa })); setPropuestaEdicion(null); }} />}</div>)}
         <button disabled={cargandoBanner} className="w-fit rounded-lg bg-[#7a132b] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Revisar cambios</button>
       </form>}
 
@@ -366,6 +381,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         <label className="mt-4 block text-sm font-semibold">Motivo de la modificación *<textarea aria-label="Motivo de la modificación" value={motivoEdicion} onChange={e => setMotivoEdicion(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border bg-white p-2" /></label>
         {propuestaEdicion.fechas.map((dia, indice) => <div key={dia.id} className="mt-3"><h3 className="text-sm font-bold">Programa propuesto · {dia.nombreDia || `Día ${indice + 1}`}</h3><ProgramaDia programa={dia.programa} />{!dia.programa?.length && <p className="text-sm">Sin actividades registradas.</p>}</div>)}
         {!propuestaEdicion.urlImagen && evento.urlImagen && <p className="mt-3 text-sm">Se quitará el cartel actual.</p>}
+        <VistaItinerarios itinerarios={propuestaEdicion.itinerarios} />
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="font-semibold">Título</dt><dd>{evento.titulo} → {propuestaEdicion.titulo}</dd></div><div><dt className="font-semibold">Ponentes</dt><dd>{evento.ponentes.join(', ')} → {propuestaEdicion.ponentes.join(', ')}</dd></div><div className="sm:col-span-2"><dt className="font-semibold">Descripción</dt><dd>{evento.descripcion} → {propuestaEdicion.descripcion}</dd></div>{propuestaEdicion.urlImagen && <div className="sm:col-span-2"><dt className="font-semibold">Banner</dt><dd className="mt-2 grid grid-cols-2 gap-3">{evento.urlImagen && <img src={evento.urlImagen} alt="Banner actual" className="max-h-36 w-full rounded-lg object-cover"/>}<img src={propuestaEdicion.urlImagen} alt="Banner propuesto" className="max-h-36 w-full rounded-lg object-cover"/></dd></div>}</dl>
         <div className="mt-4 flex gap-2"><button type="button" onClick={confirmarEdicionEvento} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">Confirmar cambios</button><button type="button" onClick={() => { setPropuestaEdicion(null); setNombreBanner(''); setUrlBannerPropuesto(undefined); setCartelModificado(false); setProgramasEditados({}); }} className="rounded-lg border px-4 py-2 text-sm font-bold">Cancelar</button></div>
       </section>}

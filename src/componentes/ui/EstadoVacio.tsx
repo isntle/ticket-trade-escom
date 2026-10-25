@@ -1,3 +1,4 @@
+import { regresarAlOrigen } from '../../dominio/navegacion';
 import React from 'react';
 import { Inbox } from 'lucide-react';
 
@@ -26,10 +27,10 @@ export const EstadoVacio: React.FC<PropiedadesEstadoVacio> = ({
       {textoAccion && alHacerAccion && (
         <button
           type="button"
-          onClick={alHacerAccion}
+          onClick={() => /^(Volver|Regresar)/i.test(textoAccion) ? regresarAlOrigen(alHacerAccion) : alHacerAccion()}
           className="mt-4 px-4 py-2 rounded-lg bg-[#7a132b] hover:bg-[#630f23] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
         >
-          {textoAccion}
+          {/^(Volver|Regresar)/i.test(textoAccion) ? "Regresar" : textoAccion}
         </button>
       )}
     </div>

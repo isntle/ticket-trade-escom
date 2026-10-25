@@ -1,3 +1,4 @@
+import { volverA } from '../dominio/navegacion';
 import React, { useState } from "react";
 import { ArrowLeft, Building2, MapPin, Users } from "lucide-react";
 import { useDatos } from "../contextos/DatosContexto";
@@ -43,12 +44,10 @@ export function CatalogoRecintosPagina({
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <button
-        onClick={() => navigate("/organizador")}
+        onClick={() => navigate(volverA("/organizador"))}
         className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-neutral-600"
       >
-        <ArrowLeft size={16} />
-        Volver a mis eventos y solicitudes
-      </button>
+        <ArrowLeft size={16} /><span>Regresar</span></button>
       <header className="mb-7">
         <h1 className="text-3xl font-extrabold">Recintos disponibles</h1>
         <p className="mt-2 text-sm leading-6 text-neutral-600">

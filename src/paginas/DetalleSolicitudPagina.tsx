@@ -1,3 +1,6 @@
+import { aforoActividad, modalidadActividad, nombreActividad } from '../dominio/actividades';
+import { VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
+import { volverA } from '../dominio/navegacion';
 import React, { useState, useEffect } from "react";
 import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import { ProgramaDia } from "../componentes/eventos/EditorPrograma";
@@ -36,6 +39,8 @@ const archivoSeguro = (url?: string) =>
     ),
   );
 const etiquetas: Record<string, string> = {
+  categoria: "Categoría",
+  itinerarios: "Itinerarios por fecha",
   tituloEvento: "Título",
   descripcionEvento: "Descripción",
   fechasSolicitadas: "Días, horarios y recintos",
@@ -225,7 +230,7 @@ export const DetalleSolicitudPagina: React.FC<{
         return (
           <li key={d.id} className="border-l-2 border-[#7a132b]/25 pl-4">
             <h3 className="font-bold">
-              {d.nombreDia || "Día " + (i + 1)} ·{" "}
+              {nombreActividad(d,i)} ·{" "}
               {d.fecha || "Fecha por completar"}
             </h3>
             <p className="mt-2 flex items-center gap-2 text-sm">
@@ -236,6 +241,8 @@ export const DetalleSolicitudPagina: React.FC<{
               <MapPin size={15} />
               {nombreRecinto(d.idRecinto)}
             </p>
+            {d.descripcionActividad&&<p className="mt-2 text-sm text-neutral-600">{d.descripcionActividad}</p>}
+            <p className="mt-2 text-sm text-neutral-600">{aforoActividad(d,solicitud.asistenciaEstimada)} personas · {modalidadActividad(d,solicitud.modalidadAsistencia)==='controlado'?'Con reservación':modalidadActividad(d,solicitud.modalidadAsistencia)==='registro'?'Registro de asistencia':'Entrada libre'}</p>
             <ProgramaDia programa={d.programa} />
             {!d.programa?.length && d.actividadOPrograma && (
               <p className="mt-2 whitespace-pre-line text-sm leading-6">
@@ -263,14 +270,10 @@ export const DetalleSolicitudPagina: React.FC<{
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <button
-        onClick={() => navigate(regreso)}
+        onClick={() => navigate(volverA(regreso))}
         className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-neutral-600"
       >
-        <ArrowLeft size={17} />
-        {regreso === "/subdireccion"
-          ? "Volver a solicitudes"
-          : "Volver a mis solicitudes"}
-      </button>
+        <ArrowLeft size={17} /><span>Regresar</span></button>
       <header className="mb-7 flex flex-wrap justify-between gap-4">
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap gap-2 items-center">
@@ -317,11 +320,11 @@ export const DetalleSolicitudPagina: React.FC<{
               {[
                 [
                   "Aforo solicitado",
-                  solicitud.asistenciaEstimada + " personas",
+                  solicitud.fechasSolicitadas.some(a=>a.asistenciaEstimada!==undefined) ? 'Definido por actividad' : solicitud.asistenciaEstimada + ' personas',
                 ],
                 [
                   "Modalidad",
-                  solicitud.modalidadAsistencia === "libre"
+                  solicitud.fechasSolicitadas.some(a=>a.modalidadAsistencia!==undefined) ? "Definida por actividad" : solicitud.modalidadAsistencia === "libre"
                     ? "Entrada libre"
                     : solicitud.modalidadAsistencia === "registro"
                       ? "Registro de asistencia"
@@ -364,11 +367,12 @@ export const DetalleSolicitudPagina: React.FC<{
           </section>
           <section className={seccion}><h2 className="text-lg font-bold">Plazos de revisión</h2><p className="mt-3 text-sm">Envío inicial: {formatoFecha(solicitud.fechaEnvioInicial || solicitud.fechaCreacion)}</p>{solicitud.estado==='requiere_correccion'?<><p className="mt-2">Revisión pausada. Tiempo restante: {solicitud.tiempoRevisionRestanteMs===undefined?'Sin plazo calculado':Math.ceil(solicitud.tiempoRevisionRestanteMs/3600000)+' horas'}.</p><p>Corrección hasta: {solicitud.fechaLimiteCorreccion?formatoFecha(solicitud.fechaLimiteCorreccion):'Sin registrar'}.</p></>:<p className="mt-2">Vencimiento de revisión: {solicitud.fechaVencimientoRevision?formatoFecha(solicitud.fechaVencimientoRevision):'Sin plazo calculado para este registro anterior'}.</p>}{!calendarioRevision&&<p className="mt-3 text-amber-800">Administración debe configurar el calendario hábil antes de recibir solicitudes nuevas.</p>}<p className="mt-2 text-sm text-neutral-500">Hora de Ciudad de México. El vencimiento se comprueba al consultar y mientras la aplicación está abierta; el proceso de servidor se integra con la base de datos.</p></section>
           <section className={seccion}>
-            <h2 className="text-lg font-bold">Días, horarios y recintos</h2>
+            <h2 className="text-lg font-bold">Actividades, horarios y recintos</h2>
             <p className="mt-1 text-sm text-neutral-500">
               Horarios de Ciudad de México.
             </p>
             {itinerario(true)}
+            <VistaItinerarios itinerarios={solicitud.itinerarios} />
             {pendientes.length > 0 && (
               <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
                 <h3 className="font-bold">Solicitudes coincidentes</h3>

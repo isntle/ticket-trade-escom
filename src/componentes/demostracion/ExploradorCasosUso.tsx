@@ -269,7 +269,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         interfaz: "UI.03 → UI.07 · Distribución antes del envío",
         descripcion: "Configura lugares para un día y recinto del evento.",
         ruta: "/solicitar-evento?distribucion=1",
-        control: "Configurar distribución del Día 1 → Confirmar distribución del Día 1",
+        control: "Configurar distribución de la actividad → Confirmar distribución",
         respuesta: "Guarda la distribución del día seleccionado.",
       },
       {
@@ -857,6 +857,13 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({
     }
     const interfaz = pantalla?.id;
     if (pantalla) caso = {...caso, ruta: pantalla.ruta};
+    if (caso.id==='CU-OR-05' && (!pantalla || interfaz==='UI.07')) {
+      const resultado=prepararSolicitudDemostracion('borrador');
+      if(!resultado.exito){mostrarNotificacion('No se preparó la solicitud',resultado.error||'','error');return;}
+      setEstaAbierto(false);
+      navegarA(rutaDeInterfaz('/solicitar-evento?editar='+resultado.id+'&distribucion=1','UI.07',caso.id));
+      return;
+    }
     if((['CU-OR-07','CU-OR-08','CU-OR-09'].includes(caso.id) && !pantalla) || ['UI.04','UI.05','UI.08','UI.16'].includes(interfaz || '')){
       const estadoSolicitud=interfaz==='UI.08'||caso.id==='CU-OR-01'?'borrador':caso.id==='CU-OR-08'?'requiere_correccion':'en_revision';
       const resultado=prepararSolicitudDemostracion(estadoSolicitud, ['CU-OR-06.2','CU-OR-10'].includes(caso.id));

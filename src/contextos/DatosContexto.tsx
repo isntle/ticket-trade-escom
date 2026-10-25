@@ -1,3 +1,4 @@
+import { modalidadActividad, aforoActividad, validarItinerarios } from '../dominio/actividades';
 import { ARREGLOS_DEMOSTRACION, incorporarProgramados, cargarEventosProgramados } from '../datos/eventosDemostracion';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
@@ -75,7 +76,8 @@ interface ContextoDatosTipo {
     fecha: string,
     horaInicio: string,
     horaFin: string,
-    idFechaEventoExcluir?: string
+    idFechaEventoExcluir?: string,
+    consultarAgendaGuardada?: boolean
   ) => ResultadoDisponibilidadRecinto;
 
   obtenerOcupacionesRecinto: (idRecinto: string, fecha: string) => OcupacionAgenda[];
@@ -111,6 +113,8 @@ interface ContextoDatosTipo {
       Pick<
         SolicitudEvento,
         | "esExcepcional"
+        | "categoria"
+        | "itinerarios"
         | "tituloEvento"
         | "descripcionEvento"
         | "fechasSolicitadas"
@@ -470,9 +474,23 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     fecha: string,
     horaInicio: string,
     horaFin: string,
-    idFechaEventoExcluir?: string
+    idFechaEventoExcluir?: string,
+    consultarAgendaGuardada = false
   ): ResultadoDisponibilidadRecinto => {
-    const recintoConsultado = listaRecintos.find((recinto) => recinto.id === idRecinto);
+    let eventos=listaEventos, recintos=listaRecintos, bloqueos=listaBloqueos, ocupaciones=listaOcupacionesInternas;
+    if(consultarAgendaGuardada){
+      try{
+        const leer = <T,>(clave:string,base:T[]):T[]=>{
+          const texto=localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_${clave}`);
+          const guardado=texto?JSON.parse(texto):base;
+          if(!Array.isArray(guardado))throw new Error('Agenda inválida');
+          return guardado;
+        };
+        eventos=cargarEventosProgramados(leer('eventos',listaEventos));
+        recintos=leer('recintos',listaRecintos);bloqueos=leer('bloqueos',listaBloqueos);ocupaciones=leer('ocupaciones_internas',listaOcupacionesInternas);
+      }catch{return {disponible:false,motivo:'No se pudo consultar la agenda guardada. Actualiza la página antes de continuar.'};}
+    }
+    const recintoConsultado = recintos.find((recinto) => recinto.id === idRecinto);
     if (!recintoConsultado || recintoConsultado.activo === false) {
       return {
         disponible: false,
@@ -482,7 +500,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         tituloConflicto: 'Recinto no disponible'
       };
     }
-    const bloqueo=listaBloqueos.find(b=>afectaBloqueo(b,{id:'',idEvento:'',idRecinto,fecha,horaInicio,horaFin,esFinalConfirmado:false,ponentes:[]}));
+    const bloqueo=bloqueos.find(b=>afectaBloqueo(b,{id:'',idEvento:'',idRecinto,fecha,horaInicio,horaFin,esFinalConfirmado:false,ponentes:[]}));
     if(bloqueo)return {disponible:false,codigoMensaje:'MSG-VENUE-003',motivo:'Bloqueo institucional: '+bloqueo.titulo,tipoConflicto:'bloqueo',tituloConflicto:bloqueo.titulo};
 
     // 2. Validar contra clases docentes regulares si el recinto es un laboratorio
@@ -491,7 +509,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const esLaboratorio =
       idRecinto.startsWith('rec-lab') ||
-      listaRecintos.find((r) => r.id === idRecinto)?.tipo === 'laboratorio';
+      recintos.find((r) => r.id === idRecinto)?.tipo === 'laboratorio';
 
     if (esLaboratorio) {
       for (const clase of listaClasesRegulares) {
@@ -530,7 +548,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const bufferInicio = restarMinutos(horaInicio, 30);
     const bufferFin = sumarMinutos(horaFin, 30);
 
-    for (const evento of listaEventos) {
+    for (const evento of eventos) {
       if (evento.estado === 'cancelado') continue;
       for (const fec of evento.fechas) {
         if (fec.cancelada || fec.suspendida || (idFechaEventoExcluir && fec.id === idFechaEventoExcluir)) continue;
@@ -553,7 +571,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }
 
-    const ocupacionInterna = listaOcupacionesInternas.find((o) =>
+    const ocupacionInterna = ocupaciones.find((o) =>
       o.estado === 'activa' && o.idRecinto === idRecinto && fecha >= o.fechaInicio && fecha <= o.fechaFin &&
       horaInicio < o.horaFin && horaFin > o.horaInicio
     );
@@ -712,9 +730,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Si es acceso controlado, cada fecha debe tener exactamente una versión final confirmada
     const todasLasFechasTienenVersionFinal =
-      evento.modalidadAsistencia !== 'controlado' ||
       (tieneFechas &&
         evento.fechas.every((f) => {
+          if (modalidadActividad(f,evento.modalidadAsistencia) !== 'controlado') return true;
           if (!f.idArregloFinal) return false;
           const arreglo = listaArreglos.find((a) => a.id === f.idArregloFinal);
           return arreglo && arreglo.estado === 'version_final';
@@ -792,8 +810,11 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         aforo: datos.asistenciaEstimada,
       }) || validarAnticipacionSolicitud(datos);
     if (error) throw new Error(error);
+    const errorItinerario = validarItinerarios(datos.itinerarios, datos.fechasSolicitadas);
+    if (errorItinerario) throw new Error(errorItinerario);
     const errorDistribucion=validarDistribuciones(datos,listaRecintos);
     if(errorDistribucion) throw new Error(errorDistribucion);
+    for(const actividad of datos.fechasSolicitadas){const d=verificarDisponibilidadRecinto(actividad.idRecinto,actividad.fecha,actividad.horaInicio,actividad.horaFin,undefined,true);if(!d.disponible)throw new Error(d.motivo||'El recinto ya no está disponible.');}
     if(!calendarioRevision) throw new Error('Administración debe configurar el calendario hábil de revisión antes del envío.');
     const ahora = new Date().toISOString();
     const nuevaSolicitud: SolicitudEvento = {
@@ -896,6 +917,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         },
       );
       if (error) return { exito: false, error };
+      const errorItinerario = validarItinerarios(solicitud.itinerarios, solicitud.fechasSolicitadas);
+      if (errorItinerario) return { exito: false, error: errorItinerario };
       const errorDistribucion=validarDistribuciones(solicitud,listaRecintos);
       if(errorDistribucion) return {exito:false,error:errorDistribucion};
       for (const fecha of solicitud.fechasSolicitadas) {
@@ -904,6 +927,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
           fecha.fecha,
           fecha.horaInicio,
           fecha.horaFin,
+          undefined,
+          true,
         );
         if (!disponibilidad.disponible)
           return {
@@ -931,10 +956,19 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const solicitudesNuevas = lista.map((item) => item.id === idSolicitud ? solicitudActualizada : item);
     let eventosNuevos = listaEventos;
     let arreglosNuevos = listaArreglos;
+    if(decision==='autorizada'){
+      try{
+        const eventosGuardados=JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_eventos`)||'null');
+        const arreglosGuardados=JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_arreglos`)||'null');
+        if(eventosGuardados&&!Array.isArray(eventosGuardados)||arreglosGuardados&&!Array.isArray(arreglosGuardados))throw new Error('Datos inválidos');
+        eventosNuevos=cargarEventosProgramados(eventosGuardados||listaEventos);
+        arreglosNuevos=incorporarProgramados(arreglosGuardados||listaArreglos,ARREGLOS_DEMOSTRACION);
+      }catch{return {exito:false,error:'No se pudo consultar la versión guardada de los eventos. No se autorizó la solicitud.'};}
+    }
     if (decision === "autorizada") {
       const sol = solicitudActualizada;
       const nuevoIdEvento = `evt-${sol.id.replace("sol-", "")}`;
-      const yaExiste = listaEventos.some(
+      const yaExiste = eventosNuevos.some(
         (e) => e.id === nuevoIdEvento || e.idSolicitud === sol.id,
       );
       if (!yaExiste) {
@@ -948,13 +982,14 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
           titulo: sol.tituloEvento,
           descripcion: sol.descripcionEvento,
           urlImagen: sol.urlImagen,
-          categoria: "Académico",
+          categoria: sol.categoria || "Académico",
+          itinerarios: sol.itinerarios,
           visibilidad: sol.visibilidad,
           modalidadAsistencia: sol.modalidadAsistencia,
           estado: "publicado",
           fechaPublicacion: new Date().toISOString(),
           limitesAprobados:{numeroFechas:fechasConvertidas.length,duracionMinutos:duracionProgramada(fechasConvertidas)},
-          fechas: fechasConvertidas.map((f,i)=>({...f,esFinalConfirmado:true,idArregloFinal:sol.modalidadAsistencia==="controlado"?`arr-${f.id}-aprobado`:undefined})),
+          fechas: fechasConvertidas.map((f,i)=>({...f,esFinalConfirmado:true,idArregloFinal:modalidadActividad(sol.fechasSolicitadas[i],sol.modalidadAsistencia)==="controlado"?`arr-${f.id}-aprobado`:undefined})),
           aforoMaximo: sol.asistenciaEstimada,
           ponentes: [...new Set(fechasConvertidas.flatMap((dia) => dia.ponentes))],
           etiquetas: ["ESCOM", sol.modalidadAsistencia],
@@ -962,9 +997,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
         eventosNuevos = [nuevoEvento, ...eventosNuevos];
 
-        if(sol.modalidadAsistencia==='controlado') {
-          arreglosNuevos=[...arreglosNuevos,...fechasConvertidas.map((f,i)=>arregloDesdeSolicitud(sol.fechasSolicitadas[i],f.id))];
-        }
+        arreglosNuevos=[...arreglosNuevos,...fechasConvertidas.flatMap((f,i)=>modalidadActividad(sol.fechasSolicitadas[i],sol.modalidadAsistencia)==='controlado'?[arregloDesdeSolicitud(sol.fechasSolicitadas[i],f.id)]:[])];
       }
     }
     if (decision !== 'autorizada') return persistirSolicitudes(solicitudesNuevas);
@@ -1127,8 +1160,11 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       },
     );
     if (error) return { exito: false, error };
+    const errorItinerarios=validarItinerarios(cambios.itinerarios || solicitud.itinerarios,cambios.fechasSolicitadas || solicitud.fechasSolicitadas);
+    if(errorItinerarios)return {exito:false,error:errorItinerarios};
     if(motivoVencimiento(solicitud)) return {exito:false,error:motivoVencimiento(solicitud)};
     if (reenviar) {
+      for(const actividad of cambios.fechasSolicitadas||solicitud.fechasSolicitadas){const d=verificarDisponibilidadRecinto(actividad.idRecinto,actividad.fecha,actividad.horaInicio,actividad.horaFin,undefined,true);if(!d.disponible)return {exito:false,error:d.motivo||'El recinto ya no está disponible.'};}
       if(!calendarioRevision) return {exito:false,error:'Administración debe configurar el calendario hábil antes de enviar.'};
       const errorDistribucion=validarDistribuciones({...solicitud,...cambios},listaRecintos);
       if(errorDistribucion) return {exito:false,error:errorDistribucion};
@@ -1205,7 +1241,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if(!usuarioActual?.roles.includes('subdireccion'))throw new Error('Solo Subdirección crea eventos institucionales.');
     const error=validarProgramacion(datosEvento.fechas||[],listaRecintos,{modalidad:datosEvento.modalidadAsistencia,aforo:datosEvento.aforoMaximo});
     if(error)throw new Error(error);
-    for(const d of datosEvento.fechas||[]){const r=verificarDisponibilidadRecinto(d.idRecinto,d.fecha,d.horaInicio,d.horaFin);if(!r.disponible)throw new Error(r.motivo||'Recinto no disponible.');}
+    for(const d of datosEvento.fechas||[]){const r=verificarDisponibilidadRecinto(d.idRecinto,d.fecha,d.horaInicio,d.horaFin,undefined,true);if(!r.disponible)throw new Error(r.motivo||'Recinto no disponible.');}
     const id = `evt-inst-${Date.now().toString(36)}`;
     const nuevo: Evento = {
       id,
@@ -1244,6 +1280,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       return { exito: false, error: 'El evento cambió en otra ventana. Revisa la versión actual antes de guardar.' };
     }
     if(!puedeModificarEvento(usuarioActual,vigente))return {exito:false,error:'Solo el Organizador propietario o Subdirección pueden modificar el evento.'};
+    const errorItinerario=validarItinerarios(parcial.itinerarios || vigente.itinerarios,parcial.fechas || vigente.fechas);
+    if(errorItinerario)return {exito:false,error:errorItinerario};
     const original=EVENTOS_INICIALES.find(e=>e.id===vigente.id)||vigente;
     if(parcial.fechas){
       const error=validarLimitesEvento(vigente,parcial.fechas,original);if(error)return {exito:false,error};
@@ -1252,10 +1290,12 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         if(JSON.stringify(d)===JSON.stringify(nueva))continue;
         if(d.cancelada||inicioEnMexico(d.fecha,d.horaInicio)<=Date.now()||bitacoraEscaneos.some(r=>r.idFechaEvento===d.id&&r.resultado==='exito'))return {exito:false,error:'No se pueden modificar días cancelados, iniciados o con entradas registradas.'};
         if(!nueva) return {exito:false,error:'Retira el día mediante la operación que comprueba sus compromisos.'};
+        if(nueva.nombreActividad!==undefined&&!nueva.nombreActividad.trim())return {exito:false,error:'Cada actividad necesita un nombre.'};
+        if(nueva.modalidadAsistencia!==d.modalidadAsistencia||nueva.asistenciaEstimada!==d.asistenciaEstimada)return {exito:false,error:'Conserva el tipo de acceso y aforo aprobados de la actividad.'};
         const cambioProgramacion=d.fecha!==nueva.fecha||d.horaInicio!==nueva.horaInicio||d.horaFin!==nueva.horaFin||d.idRecinto!==nueva.idRecinto;
         if(cambioProgramacion){
-          const error=validarProgramacion([nueva],listaRecintos,{modalidad:vigente.modalidadAsistencia,aforo:vigente.aforoMaximo});if(error)return {exito:false,error};
-          const disponibilidad=verificarDisponibilidadRecinto(nueva.idRecinto,nueva.fecha,nueva.horaInicio,nueva.horaFin,d.id);if(!disponibilidad.disponible)return {exito:false,error:disponibilidad.motivo};
+          const error=validarProgramacion(parcial.fechas.filter(f=>!f.cancelada&&(f.id===nueva.id||inicioEnMexico(f.fecha,f.horaInicio)>Date.now())),listaRecintos,{modalidad:vigente.modalidadAsistencia,aforo:vigente.aforoMaximo});if(error)return {exito:false,error};
+          const disponibilidad=verificarDisponibilidadRecinto(nueva.idRecinto,nueva.fecha,nueva.horaInicio,nueva.horaFin,d.id,true);if(!disponibilidad.disponible)return {exito:false,error:disponibilidad.motivo};
           if(d.fecha!==nueva.fecha&&inicioEnMexico(nueva.fecha,nueva.horaInicio)-Date.now()<168*3600000&&!(usuarioActual?.roles.includes('subdireccion')&&parcial.historialExcepcionesAnticipacion?.some(h=>h.idFechaEvento===d.id&&h.motivo.trim())))return {exito:false,error:'La excepción de anticipación requiere Subdirección y un motivo registrado.'};
           if(d.idRecinto!==nueva.idRecinto&&(listaReservaciones.some(r=>r.idFechaEvento===d.id&&(r.estado==='confirmada'||r.estado==='apartado_temporal'&&(r.tiempoExpiracionApartado||0)>Date.now()))||listaBoletos.some(b=>b.idFechaEvento===d.id&&b.estado!=='cancelado')||listaEspera.some(e=>e.idFechaEvento===d.id&&e.estado==='notificado')))return {exito:false,error:'Resuelve los boletos, apartados y ofertas vigentes antes de cambiar el recinto.'};
         }
@@ -1402,6 +1442,16 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       return { exito: false, error: 'El día seleccionado ya no se encuentra disponible.' };
     }
     if (fechaTaquilla.cancelada) return { exito: false, error: 'Este día fue cancelado y ya no admite reservaciones.' };
+    if (modalidadActividad(fechaTaquilla,eventoTaquilla.modalidadAsistencia) !== 'controlado') return {exito:false,error:'Esta actividad no utiliza reservación de lugares.'};
+    if (fechaTaquilla.asistenciaEstimada !== undefined) {
+      const comprometidos = new Set([
+        ...listaReservaciones.filter(r=>r.idFechaEvento===idFechaEvento && (r.estado==='confirmada'||r.estado==='apartado_temporal'&&(r.tiempoExpiracionApartado||0)>ahora&&r.idUsuario!==idUsuario)).map(r=>r.idAsiento),
+        ...listaBoletos.filter(b=>b.idFechaEvento===idFechaEvento && ['valido','utilizado'].includes(b.estado)).map(b=>listaReservaciones.find(r=>r.id===b.idReservacion)?.idAsiento || listaArreglos.find(a=>a.idFechaEvento===idFechaEvento&&a.estado==='version_final')?.asientos.find(a=>a.etiqueta===b.etiquetaAsiento)?.id || b.id),
+        ...listaEspera.filter(e=>e.idFechaEvento===idFechaEvento && e.estado==='notificado'&&(e.fechaExpiracionOferta||0)>ahora&&e.idUsuario!==idUsuario).map(e=>e.idAsientoOferta||e.id),
+      ]);
+      if(comprometidos.size >= fechaTaquilla.asistenciaEstimada) return {exito:false,error:'Se alcanzó el aforo aprobado de esta actividad.'};
+    }
+
 
     if (
       obtenerEstadoInscripciones(fechaTaquilla, eventoTaquilla.estado) === 'cerradas' ||
@@ -1757,7 +1807,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       return { exito: false, error: 'Indica el nombre de referencia y el correo de destino.' };
     }
 
-    const aforoDia = evento.aforoMaximo || recinto?.capacidad || 0;
+    const aforoDia = aforoActividad(fecha, evento.aforoMaximo) || recinto?.capacidad || 0;
     const confirmadas = listaReservaciones.filter((reserva) => reserva.idFechaEvento === fecha.id && reserva.estado === 'confirmada').length;
     const especialesActivos = listaBoletos.filter((boleto) => boleto.idFechaEvento === fecha.id && boleto.esEspecial && boleto.estado !== 'cancelado').length;
     if (!aforoDia || confirmadas + especialesActivos + datos.cantidad > aforoDia) {
@@ -2075,7 +2125,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const boletosEspecialesActivos = listaBoletos.filter((boleto) =>
       boleto.idFechaEvento === idFechaEvento && boleto.esEspecial && boleto.estado === 'valido'
     ).length;
-    const aforo = evento.aforoMaximo || listaRecintos.find((recinto) => recinto.id === fecha.idRecinto)?.capacidad || 0;
+    const aforo = aforoActividad(fecha, evento.aforoMaximo) || listaRecintos.find((recinto) => recinto.id === fecha.idRecinto)?.capacidad || 0;
     const lugaresAgotados = arregloFinal
       ? !arregloFinal.asientos.some((asiento) =>
           !asiento.estaBloqueado && !asiento.estaEliminado && asiento.categoria !== 'organizador' && asiento.categoria !== 'staff' &&
@@ -2249,7 +2299,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if (eventoObjetivo.estado === 'cancelado' || fechaObjetivo.suspendida || bloqueo) {
       return rechazar('suspendido', bloqueo ? `Día suspendido: ${bloqueo.titulo}.` : 'El evento está cancelado.');
     }
-    if (eventoObjetivo.modalidadAsistencia !== 'controlado') {
+    if (modalidadActividad(fechaObjetivo, eventoObjetivo.modalidadAsistencia) !== 'controlado') {
       return rechazar('evento_invalido', 'Este evento no utiliza control de acceso mediante boleto.');
     }
     const inicio = new Date(`${fechaObjetivo.fecha}T${fechaObjetivo.horaInicio}:00`).getTime() - 30 * 60 * 1000;

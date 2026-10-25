@@ -1,4 +1,5 @@
 import type { ArregloAsientos, ConfiguracionAsiento, ElementoFechaSolicitada, Recinto, SolicitudEvento } from '../tipos';
+import { aforoActividad, modalidadActividad, nombreActividad } from './actividades';
 import { generarAsientosAuditorio, generarAsientosSala14, generarEstacionesLaboratorio } from '../datos/datosIniciales';
 
 export function lugaresDelRecinto(r: Recinto): ConfiguracionAsiento[] {
@@ -6,13 +7,14 @@ export function lugaresDelRecinto(r: Recinto): ConfiguracionAsiento[] {
   return lugares.slice(0, r.capacidad);
 }
 export function validarDistribuciones(s: Pick<SolicitudEvento, 'modalidadAsistencia' | 'fechasSolicitadas' | 'asistenciaEstimada'>, recintos: Recinto[]): string | undefined {
-  if (s.modalidadAsistencia !== 'controlado') return;
   for (const [i,d] of s.fechasSolicitadas.entries()) {
+    if (modalidadActividad(d, s.modalidadAsistencia) !== 'controlado') continue;
+    const etiqueta = nombreActividad(d, i);
     const r = recintos.find(r => r.id === d.idRecinto);
-    if (!r || !d.distribucionConfirmada || !d.distribucion?.length) return `Día ${i+1}: configura y confirma la distribución antes de enviar la solicitud.`;
+    if (!r || !d.distribucionConfirmada || !d.distribucion?.length) return `${etiqueta}: configura y confirma la distribución antes de enviar la solicitud.`;
     const originales = new Set(lugaresDelRecinto(r).map(a => a.id));
-    if (d.distribucion.length !== originales.size || new Set(d.distribucion.map(a => a.id)).size !== originales.size || d.distribucion.some(a => !originales.has(a.id) || !['asistente','vip','organizador','staff'].includes(a.categoria) || (a.estaEliminado && !r.permiteEliminarAsientos))) return `Día ${i+1}: la distribución no corresponde al recinto seleccionado.`;
-    if (d.distribucion.filter(a => !a.estaEliminado && !a.estaBloqueado).length < s.asistenciaEstimada) return `Día ${i+1}: el aforo solicitado supera los lugares habilitados de la distribución.`;
+    if (d.distribucion.length !== originales.size || new Set(d.distribucion.map(a => a.id)).size !== originales.size || d.distribucion.some(a => !originales.has(a.id) || !['asistente','vip','organizador','staff'].includes(a.categoria) || (a.estaEliminado && !r.permiteEliminarAsientos))) return `${etiqueta}: la distribución no corresponde al recinto seleccionado.`;
+    if (d.distribucion.filter(a => !a.estaEliminado && !a.estaBloqueado).length < (aforoActividad(d, s.asistenciaEstimada) || 0)) return `${etiqueta}: el aforo solicitado supera los lugares habilitados de la distribución.`;
   }
 }
 export function arregloDesdeSolicitud(d: ElementoFechaSolicitada, idFechaEvento: string): ArregloAsientos {

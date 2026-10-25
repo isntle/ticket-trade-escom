@@ -1,3 +1,5 @@
+import { destinoInternoSeguro } from '../dominio/navegacion';
+import { volverA } from '../dominio/navegacion';
 import React, { useState } from "react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { MarcoAcceso } from "../componentes/layout/MarcoAcceso";
@@ -57,9 +59,9 @@ export function ConfirmacionCorreoPagina({
           </p>
           <button
             className={boton + " mt-4"}
-            onClick={() => navigate("/login")}
+            onClick={() => navigate(auth.usuarioActual ? destinoInternoSeguro(parametros.get("continuar")) : "/login?continuar="+encodeURIComponent(destinoInternoSeguro(parametros.get("continuar"))))}
           >
-            Iniciar sesión
+            {auth.usuarioActual ? "Continuar" : "Iniciar sesión"}
           </button>
         </>
       ) : (
@@ -124,7 +126,7 @@ export function ConfirmacionCorreoPagina({
         </>
       )}
       <nav className="mt-6 flex flex-wrap gap-4 border-t pt-5 text-sm">
-        <button onClick={() => navigate("/login")}>Volver al acceso</button>
+        <button onClick={() => navigate(volverA("/login"))}>Regresar</button>
         {auth.usuarioActual && (
           <button onClick={() => navigate("/perfil")}>Mi perfil</button>
         )}

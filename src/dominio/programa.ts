@@ -31,7 +31,11 @@ export function convertirDiasSolicitud(solicitud: SolicitudEvento, idEvento: str
   return solicitud.fechasSolicitadas.map((dia: ElementoFechaSolicitada, indice) => {
     const programa = ordenarPrograma(dia.programa);
     return {
-      id: `fec-${idEvento}-${indice + 1}`,
+      id: `fec-${idEvento}-${dia.id}`,
+      nombreActividad: dia.nombreActividad,
+      descripcionActividad: dia.descripcionActividad,
+      modalidadAsistencia: dia.modalidadAsistencia,
+      asistenciaEstimada: dia.asistenciaEstimada,
       idEvento,
       fecha: dia.fecha,
       horaInicio: dia.horaInicio,

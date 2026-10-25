@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from "react";
+import { CATEGORIAS_EVENTO, modalidadActividad } from '../dominio/actividades';
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Search,
   Calendar,
@@ -36,23 +37,17 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
   const { listaEventos, listaRecintos } = useDatos();
   const { usuarioActual } = useAutenticacion();
 
-  const [terminoBusqueda, setTerminoBusqueda] = useState("");
-  const [categoriaSeleccionada, setCategoriaSeleccionada] =
-    useState<string>("todos");
-  const [modalidadSeleccionada, setModalidadSeleccionada] =
-    useState<string>("todos");
-  const [periodo, setPeriodo] = useState("proximos");
-  const [cantidadVisible, setCantidadVisible] = useState(6);
-  useEffect(() => setCantidadVisible(6), [periodo, terminoBusqueda, categoriaSeleccionada, modalidadSeleccionada]);
+  const [filtrosIniciales] = useState<Partial<{busqueda:string;categoria:string;modalidad:string;periodo:string;cantidad:number}>>(()=>{try{return JSON.parse(sessionStorage.getItem('tt_cartelera_filtros')||'{}');}catch{return {};}});
+  const [terminoBusqueda, setTerminoBusqueda] = useState(filtrosIniciales.busqueda || '');
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState(filtrosIniciales.categoria || 'todos');
+  const [modalidadSeleccionada, setModalidadSeleccionada] = useState(filtrosIniciales.modalidad || 'todos');
+  const [periodo, setPeriodo] = useState(filtrosIniciales.periodo === 'anteriores' ? 'anteriores' : 'proximos');
+  const [cantidadVisible, setCantidadVisible] = useState(Math.max(6,filtrosIniciales.cantidad || 6));
+  const primerFiltro=useRef(true);
+  useEffect(()=>{if(primerFiltro.current){primerFiltro.current=false;return;}setCantidadVisible(6);},[periodo,terminoBusqueda,categoriaSeleccionada,modalidadSeleccionada]);
+  useEffect(()=>{try{sessionStorage.setItem('tt_cartelera_filtros',JSON.stringify({busqueda:terminoBusqueda,categoria:categoriaSeleccionada,modalidad:modalidadSeleccionada,periodo,cantidad:cantidadVisible}));}catch{}},[terminoBusqueda,categoriaSeleccionada,modalidadSeleccionada,periodo,cantidadVisible]);
 
-  const categorias: ("todos" | CategoriaEvento)[] = [
-    "todos",
-    "Congreso",
-    "Conferencia",
-    "Taller",
-    "Académico",
-    "Institucional",
-  ];
+  const categorias: ("todos" | CategoriaEvento)[] = ['todos',...CATEGORIAS_EVENTO,...new Set(listaEventos.map(e=>e.categoria).filter(c=>!CATEGORIAS_EVENTO.some(n=>n===c)))];
 
   // Filtrado de eventos visibles (públicos e internos si es de la comunidad, excluyendo privados sin enlace directo)
   const eventosFiltrados = useMemo(() => {
@@ -89,7 +84,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
       // Filtro por modalidad de asistencia
       if (
         modalidadSeleccionada !== "todos" &&
-        evento.modalidadAsistencia !== modalidadSeleccionada
+        !evento.fechas.some(f=>modalidadActividad(f,evento.modalidadAsistencia) === modalidadSeleccionada)
       ) {
         return false;
       }
@@ -133,7 +128,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
           </p>
         </div>
 
-        {usuarioActual?.roles.includes("organizador") && (
+        {(
           <button
             type="button"
             onClick={() => navigate("/solicitar-evento")}

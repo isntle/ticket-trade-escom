@@ -46,7 +46,7 @@ test("una fecha pasada nunca se trata como urgente; 168 horas exactas es ordinar
     true,
   );
 });
-test("impide guardar o enviar horarios pasados, invertidos o días duplicados", () => {
+test("impide guardar o enviar horarios pasados, invertidos o conflictos entre actividades", () => {
   for (const borrador of [false, true]) {
     assert.match(
       validarProgramacion(
@@ -75,7 +75,7 @@ test("impide guardar o enviar horarios pasados, invertidos o días duplicados", 
     validarProgramacion([dia, { ...dia, id: "d2" }], RECINTOS_INICIALES, {
       ahora,
     }) || "",
-    /solo recinto/,
+    /mismo recinto/,
   );
   assert.equal(
     validarProgramacion([dia], RECINTOS_INICIALES, { ahora }),

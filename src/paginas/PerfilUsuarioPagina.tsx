@@ -1,3 +1,4 @@
+import { volverA } from '../dominio/navegacion';
 import React, { useState } from "react";
 import { UserRound, Mail, ShieldCheck, KeyRound, Bell, CheckCircle2, Clock3, ChevronDown, LogOut, CalendarDays, Ticket, Building2, ScanLine, GraduationCap } from "lucide-react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
@@ -41,6 +42,7 @@ export function PerfilUsuarioPagina({
     );
   return (
     <section className="perfil-cuidado mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
+      <button type="button" className="text-sm font-semibold text-neutral-500 hover:text-neutral-900" onClick={()=>navigate(volverA("/eventos"))}>Regresar</button>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div><p className="mb-1 text-sm font-semibold text-[#7a132b]">Tu cuenta en Ticket Trade</p><h1 className="text-3xl font-black tracking-tight">Mi perfil</h1></div>
         <button

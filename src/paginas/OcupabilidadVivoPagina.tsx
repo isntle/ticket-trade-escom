@@ -1,3 +1,5 @@
+import { aforoActividad } from '../dominio/actividades';
+import { volverA } from '../dominio/navegacion';
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Users, CheckCircle, Clock, MapPin, RefreshCw } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
@@ -81,8 +83,9 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
     .filter((r) => r.idFechaEvento === fechaSeleccionada.id && r.estado === 'confirmada' && r.idAsiento)
     .map((r) => r.idAsiento!);
 
-  const porcentajeOcupacion = arregloFinal.totalAsientos > 0
-    ? Math.round((idsAsientosCheckIn.length / arregloFinal.totalAsientos) * 100)
+  const aforo = aforoActividad(fechaSeleccionada,eventoSeleccionado.aforoMaximo) ?? arregloFinal.totalAsientos;
+  const porcentajeOcupacion = aforo > 0
+    ? Math.round((idsAsientosCheckIn.length / aforo) * 100)
     : 0;
 
   return (
@@ -90,12 +93,10 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
       {/* Botón Volver */}
       <button
         type="button"
-        onClick={() => navigate('/staff')}
+        onClick={() => navigate(volverA('/staff'))}
         className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
       >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Volver al escáner de entrada</span>
-      </button>
+        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
 
       {/* Cabecera del Monitor */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -185,7 +186,7 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
           <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block">
             Capacidad Total
           </span>
-          <div className="text-2xl font-black text-neutral-900 mt-1">{arregloFinal.totalAsientos}</div>
+          <div className="text-2xl font-black text-neutral-900 mt-1">{aforo}</div>
           <span className="text-[11px] text-neutral-400 mt-0.5 block">Butacas activas</span>
         </div>
       </div>

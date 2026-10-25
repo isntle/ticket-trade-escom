@@ -1,3 +1,5 @@
+import { eventoParaActividad } from '../dominio/actividades';
+import { volverA } from '../dominio/navegacion';
 import React, { useState, useEffect } from 'react';
 import { Clock, ArrowLeft, CheckCircle, AlertTriangle, ShieldCheck, Ticket, Users, Lock } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
@@ -35,8 +37,9 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
 
-  const evento = listaEventos.find((e) => e.id === eventId);
-  const fecha = evento?.fechas.find((f) => f.id === dateId);
+  const eventoBase = listaEventos.find((e) => e.id === eventId);
+  const fecha = eventoBase?.fechas.find((f) => f.id === dateId);
+  const evento = eventoBase ? eventoParaActividad(eventoBase,fecha) : undefined;
   const recinto = listaRecintos.find((r) => r.id === fecha?.idRecinto);
   
   // Buscar el arreglo oficial versión final para esta fecha
@@ -161,12 +164,10 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
         <button
           type="button"
-          onClick={() => navigate(`/eventos/${eventId}`)}
+          onClick={() => navigate(volverA(`/eventos/${eventId}`))}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" />
-          Volver a detalles del evento
-        </button>
+          <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
         <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-xs">
           <div className="w-12 h-12 rounded-xl bg-neutral-100 text-neutral-600 flex items-center justify-center mb-4">
             <Lock className="w-6 h-6" />
@@ -432,12 +433,10 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       {/* Botón Volver */}
       <button
         type="button"
-        onClick={() => navigate(`/eventos/${eventId}`)}
+        onClick={() => navigate(volverA(`/eventos/${eventId}`))}
         className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
       >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Volver a detalles del evento</span>
-      </button>
+        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
 
       {/* Cabecera de la Taquilla */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs mb-6">

@@ -1,3 +1,6 @@
+import { modalidadActividad, aforoActividad, nombreActividad, accesoMixto } from '../dominio/actividades';
+import { VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
+import { volverA } from '../dominio/navegacion';
 import React, { useState } from 'react';
 import {
   Calendar,
@@ -134,7 +137,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
             </button>
             <button
               type="button"
-              onClick={() => navigate('/eventos')}
+              onClick={() => navigate(volverA('/eventos'))}
               className="w-full py-2 text-xs text-neutral-500 hover:text-neutral-900 cursor-pointer"
             >
               Regresar a la cartelera
@@ -251,12 +254,10 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
       {/* Botón Volver */}
       <button
         type="button"
-        onClick={() => navigate('/eventos')}
+        onClick={() => navigate(volverA('/eventos'))}
         className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-4 transition-colors cursor-pointer"
       >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Volver a la cartelera</span>
-      </button>
+        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
 
       {/* Banner Principal */}
       <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden shadow-xs mb-8">
@@ -274,7 +275,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
               <span className="px-2.5 py-0.5 rounded bg-white/20 backdrop-blur-xs text-xs font-semibold uppercase tracking-wider">
                 {evento.categoria}
               </span>
-              <InsigniaEstado estado={evento.modalidadAsistencia} />
+              {accesoMixto(evento)?<span className="rounded-lg bg-white/15 px-3 py-1 text-xs font-semibold text-white">Acceso según actividad</span>:<InsigniaEstado estado={evento.modalidadAsistencia} />}
               <InsigniaEstado estado={evento.visibilidad} />
               {(evento.estado as string) === 'cancelado' && (
                 <span className="px-2.5 py-0.5 rounded bg-red-600/90 backdrop-blur-xs text-white text-xs font-bold uppercase tracking-wider border border-red-500/50 shadow-sm flex items-center gap-1.5">
@@ -301,7 +302,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-[#7a132b] shrink-0" />
             <span>
-              <strong>{evento.fechas.length} {evento.fechas.length === 1 ? 'Día programado' : 'Días programados'}:</strong>{' '}
+              <strong>{new Set(evento.fechas.map(f=>f.fecha)).size} {new Set(evento.fechas.map(f=>f.fecha)).size === 1 ? 'Día programado' : 'Días programados'}:</strong>{' '}
               {evento.fechas[0]?.fecha}{evento.fechas.length > 1 ? ` al ${evento.fechas[evento.fechas.length - 1]?.fecha}` : ''}
             </span>
           </div>
@@ -353,11 +354,11 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
 
           {/* Información Institucional */}
           <div className="p-5 rounded-xl border border-neutral-200 bg-neutral-50/50 space-y-4 text-xs">
-            <h3 className="font-bold text-neutral-900 text-sm">Información Politécnica</h3>
+            <h3 className="font-bold text-neutral-900 text-sm">Información</h3>
             <div className="space-y-2.5 text-neutral-600">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-neutral-400 shrink-0" />
-                <span>Capacidad autorizada: {evento.aforoMaximo || 120} asistentes</span>
+                <span>{evento.fechas.some(f=>f.asistenciaEstimada!==undefined)?"Aforo y acceso definidos en cada actividad":`Capacidad autorizada: ${evento.aforoMaximo || 120} asistentes`}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-neutral-400 shrink-0" />
@@ -376,27 +377,28 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
         </div>
       </div>
 
+      <VistaItinerarios itinerarios={evento.itinerarios} />
       {/* Programa y Fechas Detalladas */}
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200 pb-3">
           <div>
             <h2 className="text-xl font-bold text-neutral-900 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-[#7a132b]" />
-              <span>Programa Oficial y Calendario de Días ({evento.fechas.length})</span>
+              <span>Actividades y horarios ({evento.fechas.length})</span>
             </h2>
             <p className="text-xs text-neutral-500 mt-0.5">
-              Consulta los horarios, el programa de actividades por día, ponencias y asegura tu lugar en cada fecha.
+              Consulta la fecha, el recinto y el acceso de cada actividad.
             </p>
           </div>
           <span className="text-xs font-semibold text-[#7a132b] bg-[#7a132b]/10 px-3 py-1 rounded-full self-start sm:self-auto">
-            {evento.fechas.length} {evento.fechas.length === 1 ? 'Día de actividades' : 'Días de actividades'}
+            {evento.fechas.length} actividades
           </span>
         </div>
 
         <div className="grid grid-cols-1 gap-5">
-          {evento.fechas.map((fecha, indice) => {
+          {[...evento.fechas].sort((a,b)=>(a.fecha+a.horaInicio).localeCompare(b.fecha+b.horaInicio)).map((fecha, indice) => {
             const nombreRecinto = obtenerNombreRecinto(fecha.idRecinto);
-            const etiquetaDia = fecha.nombreDia || `Día ${indice + 1}`;
+            const etiquetaDia = nombreActividad(fecha,indice);
             const fechaLimite = fecha.fechaLimiteInscripciones
               ? new Date(fecha.fechaLimiteInscripciones).getTime()
               : new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime() - 60 * 60 * 1000;
@@ -474,7 +476,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                         <span>Inscripciones Cerradas</span>
                       </button>
                     ) : (
-                      evento.modalidadAsistencia === 'controlado' ? (
+                      modalidadActividad(fecha,evento.modalidadAsistencia) === 'controlado' ? (
                         <button
                           type="button"
                           onClick={() => navigate(`/eventos/${evento.id}/reservar?dateId=${fecha.id}`)}
@@ -508,6 +510,8 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                   </div>
                 </div>
 
+                {fecha.descripcionActividad&&<p className="px-5 py-3 text-sm text-neutral-600">{fecha.descripcionActividad}</p>}
+                {fecha.asistenciaEstimada!==undefined&&<p className="px-5 pb-3 text-sm font-semibold">Aforo: {aforoActividad(fecha,evento.aforoMaximo)} personas · {modalidadActividad(fecha,evento.modalidadAsistencia)==='controlado'?'Con reservación':modalidadActividad(fecha,evento.modalidadAsistencia)==='registro'?'Registro de asistencia':'Entrada libre'}</p>}
                 {/* Cronograma */}
                 {fecha.programa && fecha.programa.length > 0 ? (
                   <div className="p-5 sm:p-6 bg-white space-y-3">

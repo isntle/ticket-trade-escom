@@ -66,7 +66,7 @@ test('el catálogo usa las referencias corregidas del Word y el CU-OR-05 comienz
   assert.ok(b.every(c=>!c.interfaz.includes('UI-ORG-')));
 });
 class Almacen {datos=new Map<string,string>();getItem(k:string){return this.datos.get(k)??null;}setItem(k:string,v:string){this.datos.set(k,v);}removeItem(k:string){this.datos.delete(k);}}
-function contexto(id='usr-fernando',eventos=[evento]){
+function contexto(id='usr-fernando',eventos=[evento],reservas?:unknown[]){
   const local=new Almacen(),sesion=new Almacen();
   const cuenta=USUARIOS_INICIALES.find(u=>u.roles.includes('admin'))!;
   const usuario=USUARIOS_INICIALES.find(u=>u.id===id)||cuenta;
@@ -74,6 +74,7 @@ function contexto(id='usr-fernando',eventos=[evento]){
   local.setItem('tt_usuarios_sistema_v2',JSON.stringify(USUARIOS_INICIALES));local.setItem('tt_rol_activo_v2',usuario.rolActivo);
   sesion.setItem('tt_sesion_identidad_v3',JSON.stringify({id:'prueba',usuario:usuario.id,inicio:Date.now(),actividad:Date.now(),version:usuario.versionCredenciales||0}));
   const prefijo='tt_datos_almacen_escom_v7_';
+  if(reservas)local.setItem(prefijo+'reservaciones',JSON.stringify(reservas));
   local.setItem(prefijo+'eventos',JSON.stringify(eventos));local.setItem(prefijo+'bloqueos','[]');local.setItem(prefijo+'ocupaciones_internas','[]');local.setItem(prefijo+'escaneos','[]');
   let datos:ReturnType<typeof useDatos>;
   function Capturar(){datos=useDatos();return null;}
@@ -109,11 +110,11 @@ test('formulario por pasos conserva el acceso directo a programa y distribución
   window.location.search='?distribucion=1';
   const html=renderToString(React.createElement(ProveedorAutenticacion,null,React.createElement(ProveedorDatos,null,
     React.createElement(DiaSolicitud,{dia:{...dia,nombreDia:'Día 1'},indice:0,modalidad:'controlado',aforo:20,puedeEliminar:false,alCambiar:()=>{},alEliminar:()=>{}}))));
-  assert.match(html,/Configurar distribución del/);
-  assert.match(html,/Programa del/);
+  assert.match(html,/Configurar distribución/);
+  assert.match(html,/Nombre de la actividad/);
   assert.match(html,/Ir al paso 1: Fecha/);
-  assert.match(html,/Ir al paso 4: Programa y lugares/);
-  assert.match(html,/Se revisan eventos, clases, actividades internas y bloqueos registrados/);
+  assert.match(html,/Ir al paso 4: Acceso y detalles/);
+  assert.match(html,/Tipo de acceso/);
 });
 test('solicitante sin permiso administrativo no registra bloqueos ni configura calendario',()=>{
   const c=contexto('usr-silva');
@@ -187,4 +188,53 @@ test('la revisión de envío parte de un borrador válido, sin enviarlo automát
   assert.equal(s.estado,'borrador');assert.equal(s.fechaEnvioInicial,undefined);
   assert.equal(s.esExcepcional,true);
   assert.equal(validarDistribuciones(s,RECINTOS_INICIALES),undefined);
+});
+
+test('autorizar actividades paralelas conserva categoría, itinerario y distribuciones independientes',()=>{
+  const c=contexto('usr-subdireccion');
+  const libre={...dia,id:'actividad-abierta',fecha:'2030-02-01',idRecinto:'rec-auditorio',nombreActividad:'Conferencias',modalidadAsistencia:'libre',asistenciaEstimada:80};
+  const controlada={...dia,id:'actividad-competencia',fecha:'2030-02-01',nombreActividad:'Competencia',modalidadAsistencia:'controlado',asistenciaEstimada:20,distribucion:lugaresDelRecinto(recinto),distribucionConfirmada:true};
+  const s={...SOLICITUDES_INICIALES[0],id:'sol-actividades-paralelas',idSolicitante:'usr-silva',categoria:'Hackatón',estado:'en_revision',esExcepcional:false,modalidadAsistencia:'libre',asistenciaEstimada:80,fechasSolicitadas:[libre,controlada],itinerarios:[{fecha:'2030-02-01',nombreArchivo:'programa.png',urlImagen:'data:image/png;base64,YQ=='}]};
+  c.local.setItem(c.prefijo+'solicitudes',JSON.stringify([s]));
+  const r=c.datos.dictaminarSolicitud(s.id,'autorizada',undefined,undefined,s.version||1);
+  assert.equal(r.exito,true,r.error);
+  const creado=c.leer('eventos').find((e:{idSolicitud:string})=>e.idSolicitud===s.id);
+  assert.equal(creado.categoria,'Hackatón');assert.deepEqual(creado.itinerarios,s.itinerarios);
+  assert.equal(creado.fechas.length,2);assert.equal(new Set(creado.fechas.map((f:{fecha:string})=>f.fecha)).size,1);
+  assert.equal(creado.fechas[0].modalidadAsistencia,'libre');assert.equal(creado.fechas[0].idArregloFinal,undefined);
+  assert.equal(creado.fechas[1].modalidadAsistencia,'controlado');assert.equal(creado.fechas[1].asistenciaEstimada,20);
+  assert.ok(c.leer('arreglos').find((a:{id:string})=>a.id===creado.fechas[1].idArregloFinal));
+});
+
+test('un cruce dentro de la solicitud impide autorizar sin guardar un evento parcial',()=>{
+  const c=contexto('usr-subdireccion');
+  const a={...dia,id:'a',fecha:'2030-02-01',nombreActividad:'Primera',modalidadAsistencia:'libre',asistenciaEstimada:20};
+  const s={...SOLICITUDES_INICIALES[0],id:'sol-cruce-interno',estado:'en_revision',esExcepcional:false,modalidadAsistencia:'libre',fechasSolicitadas:[a,{...a,id:'b',nombreActividad:'Segunda'}]};
+  c.local.setItem(c.prefijo+'solicitudes',JSON.stringify([s]));
+  const antes=c.local.getItem(c.prefijo+'eventos');
+  const r=c.datos.dictaminarSolicitud(s.id,'autorizada',undefined,undefined,s.version||1);
+  assert.equal(r.exito,false);assert.match(r.error||'',/mismo recinto/);
+  assert.equal(c.local.getItem(c.prefijo+'eventos'),antes);
+  assert.equal(c.leer('solicitudes')[0].estado,'en_revision');
+});
+
+test('reservar respeta el aforo de la actividad aunque el evento tenga otro acceso y capacidad',()=>{
+  const d={...dia,id:'actividad-aforo',modalidadAsistencia:'controlado' as const,asistenciaEstimada:1};
+  const e={...evento,modalidadAsistencia:'libre' as const,aforoMaximo:100,fechas:[d]};
+  const c=contexto('usr-silva',[e],[{id:'res-existente',idEvento:e.id,idFechaEvento:d.id,idAsiento:'A-1',idUsuario:'otra-persona',estado:'confirmada'}]);
+  const r=c.datos.apartarAsiento(e.id,d.id,'A-2','A-2','usr-silva','Nombre de prueba','prueba@example.test');
+  assert.equal(r.exito,false);assert.match(r.error||'',/aforo aprobado de esta actividad/);
+});
+
+test('la comprobación final detecta una ocupación guardada después de abrir la pantalla',()=>{
+  const c=contexto('usr-subdireccion',[]);
+  assert.equal(c.datos.verificarDisponibilidadRecinto(recinto.id,dia.fecha,'10:00','12:00').disponible,true);
+  c.local.setItem(c.prefijo+'eventos',JSON.stringify([evento]));
+  assert.equal(c.datos.verificarDisponibilidadRecinto(recinto.id,dia.fecha,'10:00','12:00',undefined,true).disponible,false);
+  const s={...SOLICITUDES_INICIALES[0],id:'sol-ocupacion-reciente',estado:'en_revision',esExcepcional:false,modalidadAsistencia:'libre',asistenciaEstimada:20,fechasSolicitadas:[{...dia,nombreActividad:'Nueva propuesta',modalidadAsistencia:'libre',asistenciaEstimada:20}]};
+  c.local.setItem(c.prefijo+'solicitudes',JSON.stringify([s]));
+  const r=c.datos.dictaminarSolicitud(s.id,'autorizada',undefined,undefined,s.version||1);
+  assert.equal(r.exito,false);assert.match(r.error||'',/Conflicto/);
+  assert.equal(c.leer('solicitudes')[0].estado,'en_revision');
+  assert.equal(c.leer('eventos').length,1);
 });

@@ -1,3 +1,4 @@
+import { nombreActividad } from '../dominio/actividades';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Clock, Ticket } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
@@ -66,7 +67,7 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
     return {
       evento,
       fecha,
-      dia: fecha?.nombreDia || (fecha ? `Día ${fecha.fecha}` : 'Día no disponible'),
+      dia: fecha ? nombreActividad(fecha) : 'Actividad no disponible',
       recinto: recinto?.nombre || 'Recinto no disponible'
     };
   };

@@ -1,3 +1,4 @@
+import { volverA } from '../dominio/navegacion';
 import React, { useState } from "react";
 import {
   Users,
@@ -148,12 +149,10 @@ export const AdministracionUsuariosPagina: React.FC<
       <div className="flex items-center justify-between mb-6">
         <button
           type="button"
-          onClick={() => navigate("/eventos")}
+          onClick={() => navigate(volverA("/eventos"))}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Volver a la cartelera</span>
-        </button>
+          <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
 
         <button
           type="button"

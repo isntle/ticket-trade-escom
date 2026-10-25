@@ -5,6 +5,7 @@ import type {
   Usuario,
 } from "../tipos";
 import { validarPrograma } from './programa';
+import { aforoActividad, modalidadActividad, nombreActividad, mismoRecinto } from './actividades';
 
 export const ZONA_HORARIA = "America/Mexico_City";
 export const HORAS_ANTICIPACION = 168;
@@ -57,11 +58,20 @@ export function validarProgramacion(
 ): string | undefined {
   const ahora = opciones.ahora || new Date();
   if (!fechas.length && !opciones.borrador)
-    return "Agrega al menos un día al evento.";
-  const dias = new Set<string>();
+    return "Agrega al menos una actividad al evento.";
+  const identificadores = new Set<string>();
   for (const [indice, fecha] of fechas.entries()) {
-    const etiqueta = fecha.nombreDia || `Día ${indice + 1}`;
-    if (opciones.borrador && !fecha.fecha) continue;
+    const etiqueta = nombreActividad(fecha, indice);
+    if (identificadores.has(fecha.id)) return "Las actividades deben tener identificadores distintos.";
+    identificadores.add(fecha.id);
+    if (fecha.nombreActividad !== undefined && !fecha.nombreActividad.trim() && !opciones.borrador) return `${etiqueta}: escribe el nombre de la actividad.`;
+    if (opciones.borrador && (!fecha.fecha || !fecha.idRecinto || !fecha.horaInicio || !fecha.horaFin)) {
+      if (fecha.fecha && (!Number.isFinite(inicioEnMexico(fecha.fecha,'00:00')) || fecha.fecha < fechaHoyMexico(ahora))) return `${etiqueta}: revisa la fecha del borrador.`;
+      if ([fecha.horaInicio,fecha.horaFin].some(h=>h&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(h))) return `${etiqueta}: revisa el formato de las horas.`;
+      if(fecha.horaInicio&&fecha.horaFin&&fecha.horaFin<=fecha.horaInicio)return `${etiqueta}: la hora de término debe ser posterior a la de inicio.`;
+      if(fecha.fecha&&fecha.horaInicio&&inicioEnMexico(fecha.fecha,fecha.horaInicio)<=ahora.getTime())return `${etiqueta}: la fecha y hora de inicio ya pasaron.`;
+      continue;
+    }
     const inicio = inicioEnMexico(fecha.fecha, fecha.horaInicio);
     const fin = inicioEnMexico(fecha.fecha, fecha.horaFin);
     if (!Number.isFinite(inicio) || !Number.isFinite(fin))
@@ -72,19 +82,26 @@ export function validarProgramacion(
       return `${etiqueta}: la hora de término debe ser posterior a la de inicio.`;
     const errorPrograma = validarPrograma({ ...fecha, nombreDia: etiqueta });
     if (errorPrograma) return errorPrograma;
-    if (dias.has(fecha.fecha))
-      return `${etiqueta}: ya registraste esa fecha. Cada día debe tener un solo recinto y horario general.`;
-    dias.add(fecha.fecha);
+    for (const otra of fechas.slice(0, indice)) {
+      if (otra.fecha !== fecha.fecha || !mismoRecinto(recintos,otra.idRecinto,fecha.idRecinto)) continue;
+      const otroInicio = inicioEnMexico(otra.fecha, otra.horaInicio);
+      const otroFin = inicioEnMexico(otra.fecha, otra.horaFin);
+      if (inicio < otroFin + 30 * 60000 && fin + 30 * 60000 > otroInicio)
+        return `${etiqueta}: coincide con ${nombreActividad(otra)} en el mismo recinto. Conserva 30 minutos entre actividades.`;
+    }
+    const modalidad = modalidadActividad(fecha, (opciones.modalidad || 'controlado') as import('../tipos').ModalidadAsistencia);
+    const aforo = aforoActividad(fecha, opciones.aforo);
+    if (!['controlado', 'libre', 'registro'].includes(modalidad)) return `${etiqueta}: elige un tipo de acceso válido.`;
     const recinto = recintos.find((item) => item.id === fecha.idRecinto);
     if (!recinto || recinto.activo === false)
       return `${etiqueta}: selecciona un recinto activo.`;
-    if (opciones.modalidad === "libre" && recinto.tipo === "laboratorio")
+    if (modalidad === "libre" && recinto.tipo === "laboratorio")
       return `${etiqueta}: los laboratorios requieren aforo controlado.`;
     if (
-      opciones.aforo !== undefined &&
-      (!Number.isInteger(opciones.aforo) ||
-        opciones.aforo < 1 ||
-        opciones.aforo > recinto.capacidad)
+      aforo !== undefined &&
+      (!Number.isInteger(aforo) ||
+        aforo < 1 ||
+        aforo > recinto.capacidad)
     )
       return `${etiqueta}: el aforo debe estar entre 1 y ${recinto.capacidad} personas (${recinto.nombre}).`;
   }
@@ -131,6 +148,8 @@ export function validarAnticipacionSolicitud(
 const camposVersion = [
   "fechaVencimientoRevision",
   "tiempoRevisionRestanteMs",
+  "categoria",
+  "itinerarios",
   "tituloEvento",
   "descripcionEvento",
   "fechasSolicitadas",

@@ -1,3 +1,4 @@
+import { volverA } from '../dominio/navegacion';
 import React, { useEffect, useState } from "react";
 import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import { ArrowLeft, FileCheck2 } from "lucide-react";
@@ -193,7 +194,7 @@ export function GestionIdentidadPagina({
           No tienes permiso para esta operación
         </h1>
         <p>Cambia al perfil autorizado desde el menú de cuenta.</p>
-        <button className={boton} onClick={() => navigate("/perfil")}>
+        <button className={boton} onClick={() => navigate(volverA("/perfil"))}>
           Volver al perfil
         </button>
       </section>
@@ -210,10 +211,9 @@ export function GestionIdentidadPagina({
     <section className="mx-auto max-w-6xl space-y-5 px-4 py-8 sm:px-6">
       <button
         className="flex items-center gap-2 text-sm"
-        onClick={() => navigate("/perfil")}
+        onClick={() => navigate(volverA("/perfil"))}
       >
-        <ArrowLeft size={16} /> Volver a mi perfil
-      </button>
+        <ArrowLeft size={16} /><span>Regresar</span></button>
       <header>
         <FileCheck2 className="mb-3 text-[#7a132b]" />
         <p className="text-xs font-bold uppercase text-[#7a132b]">
@@ -247,8 +247,7 @@ export function GestionIdentidadPagina({
             Aviso de datos: solo el titular y Administración pueden consultar
             estos documentos para revisar la habilitación para solicitar
             eventos. Usa únicamente documentos ficticios en este prototipo. No
-            se consultan padrones oficiales. Responsable de la demostración:
-            soporte_ti@escom.ipn.mx.
+            se consultan padrones oficiales.
           </p>
           {cuenta.correoConfirmado !== true ? (
             <button
@@ -443,6 +442,7 @@ export function GestionIdentidadPagina({
             Archivos conservados en este navegador. El almacenamiento privado
             compartido y la entrega real de correo requieren servidor.
           </p>
+          {new URLSearchParams(window.location.search).get('continuar')==='/solicitar-evento' && <button className={primario} onClick={()=>navigate('/solicitar-evento')}>{cuenta.esVerificado?'Continuar con mi solicitud de evento':'Volver a solicitar evento'}</button>}
           <h2 className="font-bold">Historial del expediente</h2>
           {cuenta.historialExpediente?.map((h, i) => (
             <div key={i} className="rounded-xl border p-3 text-sm">

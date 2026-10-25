@@ -1,3 +1,4 @@
+import { volverA } from '../dominio/navegacion';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { generarAsientosAuditorio, generarAsientosSala14, generarEstacionesLaboratorio } from '../datos/datosIniciales';
 import React, { useState } from 'react';
@@ -235,12 +236,10 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
       <div className="flex items-center justify-between mb-6">
         <button
           type="button"
-          onClick={() => navigate(`/organizador/eventos/${eventId}`)}
+          onClick={() => navigate(volverA(`/organizador/eventos/${eventId}`))}
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Volver a la configuración del evento: {evento.titulo}</span>
-        </button>
+          <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
 
         <div className="text-sm text-neutral-400 font-mono">
           Recinto: <span className="font-semibold text-neutral-700">{recinto.nombre}</span> · Día: <span className="font-semibold text-neutral-700">{fecha.fecha}</span>

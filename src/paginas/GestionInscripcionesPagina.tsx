@@ -1,3 +1,5 @@
+import { nombreActividad } from '../dominio/actividades';
+import { volverA } from '../dominio/navegacion';
 import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -88,7 +90,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
       .flatMap((fecha, indice) =>
         (fecha.historialInscripciones || []).map((registro) => ({
           ...registro,
-          nombreSesion: fecha.nombreDia || `Día ${indice + 1}`
+          nombreSesion: nombreActividad(fecha,indice)
         }))
       )
       .sort(
@@ -216,12 +218,10 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
         type="button"
-        onClick={() => navigate(`/organizador/eventos/${evento.id}`)}
+        onClick={() => navigate(volverA(`/organizador/eventos/${evento.id}`))}
         className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
       >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Volver a la configuración del evento</span>
-      </button>
+        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
 
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-8">
         <div>
@@ -344,7 +344,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
                   <div className="flex items-start gap-3 flex-1 min-w-0">
                     <input
                       type="checkbox"
-                      aria-label={`Seleccionar ${fecha.nombreDia || `Día ${indice + 1}`}`}
+                      aria-label={`Seleccionar ${nombreActividad(fecha,indice)}`}
                       checked={idsSeleccionadas.includes(fecha.id)}
                       onChange={() => alternarSeleccion(fecha.id)}
                       className="w-4 h-4 mt-1 accent-[#7a132b] shrink-0"
@@ -352,7 +352,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-extrabold text-neutral-900">
-                          {fecha.nombreDia || `Día ${indice + 1}`} · {fecha.fecha}
+                          {nombreActividad(fecha,indice)} · {fecha.fecha}
                         </h3>
                         <span
                           className={`px-2.5 py-1 rounded-md border text-[10px] font-black tracking-wide ${
@@ -521,7 +521,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
             {sesionesOperacion.map((fecha) => (
               <div key={fecha.id} className="px-4 py-3 flex items-center justify-between gap-3 text-xs">
                 <div>
-                  <div className="font-bold text-neutral-900">{fecha.nombreDia || fecha.fecha}</div>
+                  <div className="font-bold text-neutral-900">{fecha.nombreActividad || fecha.nombreDia || fecha.fecha}</div>
                   <div className="text-neutral-500 mt-0.5">{fecha.fecha} · {fecha.horaInicio} a {fecha.horaFin}</div>
                 </div>
                 {accionPendiente === 'abiertas' ? (
