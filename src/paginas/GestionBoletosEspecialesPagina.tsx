@@ -1,4 +1,5 @@
 import { volverA } from '../dominio/navegacion';
+import { etiquetaActividad, impedimentoApertura, puedeAdministrarTaquilla } from '../dominio/taquilla';
 import React, { useMemo, useState } from 'react';
 import {
   ArrowLeft,
@@ -57,6 +58,8 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
 }) => {
   const {
     listaEventos,
+    listaRecintos,
+    listaBloqueos,
     listaBoletos,
     emitirBoletosEspeciales,
     invalidarBoletoEspecial
@@ -72,6 +75,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<'todos' | 'valido' | 'utilizado' | 'cancelado'>('todos');
   const [filtroTipo, setFiltroTipo] = useState<'todos' | TipoBoletoEspecial>('todos');
+  const [filtroActividad, setFiltroActividad] = useState('todas');
   const [ultimoLote, setUltimoLote] = useState<BoletoDigital[]>([]);
 
   const [idFechaEvento, setIdFechaEvento] = useState(evento?.fechas[0]?.id || '');
@@ -90,14 +94,15 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
     return boletosEspeciales.filter((boleto) => {
       const coincideEstado = filtroEstado === 'todos' || boleto.estado === filtroEstado;
       const coincideTipo = filtroTipo === 'todos' || boleto.tipoEspecial === filtroTipo;
+      const coincideActividad = filtroActividad === 'todas' || boleto.idFechaEvento === filtroActividad;
       const coincideBusqueda =
         !termino ||
         boleto.nombreUsuario.toLowerCase().includes(termino) ||
         boleto.codigoQr.toLowerCase().includes(termino) ||
         (boleto.etiquetaAsiento || '').toLowerCase().includes(termino);
-      return coincideEstado && coincideTipo && coincideBusqueda;
+      return coincideEstado && coincideTipo && coincideBusqueda && coincideActividad;
     });
-  }, [boletosEspeciales, busqueda, filtroEstado, filtroTipo]);
+  }, [boletosEspeciales, busqueda, filtroEstado, filtroTipo, filtroActividad]);
 
   if (!evento) {
     return (
@@ -112,7 +117,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
     );
   }
 
-  if (!usuarioActual || !usuarioActual.roles.includes('organizador') || usuarioActual.id !== evento.idOrganizador) {
+  if (!usuarioActual || !puedeAdministrarTaquilla(usuarioActual, evento)) {
     return <div className="mx-auto max-w-3xl px-4 py-16 text-center"><h1 className="text-xl font-black">Acceso restringido</h1><p className="mt-2 text-sm text-neutral-600">Solo el organizador responsable puede administrar los boletos especiales de este evento.</p><button className="mt-5 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-bold text-white" onClick={() => navigate(volverA('/organizador'))}>Volver a mis eventos</button></div>;
   }
 
@@ -120,9 +125,18 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
   const totalActivos = boletosEspeciales.filter((boleto) => boleto.estado === 'valido').length;
   const totalUtilizados = boletosEspeciales.filter((boleto) => boleto.estado === 'utilizado').length;
   const totalInvalidados = boletosEspeciales.filter((boleto) => boleto.estado === 'cancelado').length;
+  const actividadesEmision = evento.fechas.filter(a => !impedimentoApertura(evento, a, listaBloqueos) && a.estadoInscripciones !== 'cerradas');
+  const descripcionActividad = (boleto: BoletoDigital) => {
+    const indice = evento.fechas.findIndex(a => a.id === boleto.idFechaEvento);
+    return indice >= 0 ? etiquetaActividad(evento.fechas[indice], listaRecintos, indice) : `${boleto.fechaEvento} · ${boleto.horaEvento} · ${boleto.nombreRecinto}`;
+  };
 
   const abrirModalEmision = () => {
-    setIdFechaEvento(evento.fechas[0]?.id || '');
+    if (!actividadesEmision.length) {
+      mostrarNotificacion('Sin actividades disponibles', 'Revisa el estado y los límites de inscripción de las actividades.', 'informacion');
+      return;
+    }
+    setIdFechaEvento(actividadesEmision[0]?.id || '');
     setTipoEspecial('vip');
     setCantidad(1);
     setNombreBase('Invitado VIP');
@@ -196,7 +210,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
         (boleto, indice) =>
           `${indice + 1}. ${boleto.nombreUsuario}\n` +
           `Tipo: ${ETIQUETAS_TIPO[boleto.tipoEspecial || 'vip']}\n` +
-          `Sesión: ${boleto.fechaEvento} · ${boleto.horaEvento}\n` +
+          `Actividad: ${descripcionActividad(boleto)}\n` +
           `Código QR: ${boleto.codigoQr}\n`
       )
       .join('\n');
@@ -236,7 +250,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
         <button
           type="button"
           onClick={abrirModalEmision}
-          disabled={evento.fechas.length === 0}
+          disabled={actividadesEmision.length === 0}
           className="px-5 py-3 rounded-xl bg-[#7a132b] hover:bg-[#620f23] disabled:bg-neutral-300 disabled:cursor-not-allowed text-white text-xs font-bold inline-flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
         >
           <Plus className="w-4 h-4" />
@@ -302,7 +316,16 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+            <select
+              aria-label="Filtrar boletos por actividad"
+              value={filtroActividad}
+              onChange={campo => setFiltroActividad(campo.target.value)}
+              className="max-w-72 px-3 py-2.5 rounded-xl border border-neutral-300 bg-white text-xs"
+            >
+              <option value="todas">Todas las actividades</option>
+              {evento.fechas.map((actividad, indice) => <option key={actividad.id} value={actividad.id}>{etiquetaActividad(actividad, listaRecintos, indice)}</option>)}
+            </select>
             <label className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
               <input
@@ -357,7 +380,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
                 <tr>
                   <th className="px-5 py-3 font-bold">Titular o referencia</th>
                   <th className="px-5 py-3 font-bold">Tipo</th>
-                  <th className="px-5 py-3 font-bold">Sesión</th>
+                  <th className="px-5 py-3 font-bold">Actividad</th>
                   <th className="px-5 py-3 font-bold">Estado</th>
                   <th className="px-5 py-3 font-bold text-right">Acciones</th>
                 </tr>
@@ -380,9 +403,8 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
                     <td className="px-5 py-4 min-w-48">
                       <div className="flex items-center gap-1.5 font-semibold text-neutral-700">
                         <CalendarDays className="w-3.5 h-3.5 text-[#7a132b]" />
-                        {boleto.fechaEvento}
+                        {descripcionActividad(boleto)}
                       </div>
-                      <div className="text-[10px] text-neutral-400 mt-1">{boleto.horaEvento} hrs</div>
                     </td>
                     <td className="px-5 py-4">
                       <InsigniaEstado estado={boleto.estado} />
@@ -428,19 +450,19 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
       >
         <form onSubmit={manejarEmision} className="space-y-5">
           <div>
-            <label htmlFor="sesion-especial" className="text-xs font-bold text-neutral-800 block mb-1.5">
-              Sesión del evento
+            <label htmlFor="actividad-especial" className="text-xs font-bold text-neutral-800 block mb-1.5">
+              Actividad del evento
             </label>
             <select
-              id="sesion-especial"
+              id="actividad-especial"
               required
               value={idFechaEvento}
               onChange={(eventoCampo) => setIdFechaEvento(eventoCampo.target.value)}
               className="w-full px-3.5 py-3 rounded-xl border border-neutral-300 bg-white text-xs outline-none focus:ring-2 focus:ring-[#7a132b]/15 focus:border-[#7a132b]"
             >
               {evento.fechas.map((fecha, indice) => (
-                <option key={fecha.id} value={fecha.id}>
-                  Día {indice + 1} · {fecha.fecha} · {fecha.horaInicio} a {fecha.horaFin}
+                <option key={fecha.id} value={fecha.id} disabled={!actividadesEmision.some(a => a.id === fecha.id)}>
+                  {etiquetaActividad(fecha, listaRecintos, indice)}
                 </option>
               ))}
             </select>
@@ -454,7 +476,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
               </span>
               <span className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-[#7a132b]" />
-                Sesión oficial del evento
+                {listaRecintos.find(r => r.id === fechaSeleccionada.idRecinto)?.nombre || 'Recinto no disponible'}
               </span>
             </div>
           )}

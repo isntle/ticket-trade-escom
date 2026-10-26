@@ -2,6 +2,7 @@ import { proyectarCambioRecinto, firmaCambioRecinto, type PeticionCambioRecinto,
 import { useListaLocal } from "./useListaLocal";
 import { accesoDelPase, codigoQrDelEvento } from "../dominio/pasesEvento";
 import { modalidadActividad, aforoActividad, validarItinerarios } from '../dominio/actividades';
+import { indicadoresActividad, limiteInscripcionesActividad, estadoInscripcionesActividad, proyectarCambioInscripciones, proyectarCierreAutomatico, puedeAdministrarTaquilla, type CambioInscripciones } from '../dominio/taquilla';
 import { ARREGLOS_DEMOSTRACION, incorporarProgramados, cargarEventosProgramados } from '../datos/eventosDemostracion';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
@@ -213,7 +214,7 @@ interface ContextoDatosTipo {
     idOrganizador: string;
     nombreOrganizador: string;
     versionesEsperadas?: Record<string, number>;
-  }) => { exito: boolean; diasActualizados?: number; error?: string };
+  }) => { exito: boolean; actividadesActualizadas?: number; error?: string };
 
   unirseAListaDeEspera: (
     idEvento: string,
@@ -261,19 +262,9 @@ function leerListaActual<T>(sufijo:string,anterior:T[]):T[]{
 }
 
 
-const obtenerFechaLimiteInscripciones = (fecha: Evento['fechas'][0]): number => {
-  if (fecha.fechaLimiteInscripciones) {
-    return new Date(fecha.fechaLimiteInscripciones).getTime();
-  }
-  return new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime() - 60 * 60 * 1000;
-};
+const obtenerFechaLimiteInscripciones = limiteInscripcionesActividad;
 
-const obtenerEstadoInscripciones = (
-  fecha: Evento['fechas'][0],
-  estadoEvento: Evento['estado']
-): EstadoInscripciones =>
-  fecha.cancelada || fecha.suspendida ? 'cerradas' : fecha.estadoInscripciones ||
-  (estadoEvento === 'publicado' || estadoEvento === 'en_curso' ? 'abiertas' : 'cerradas');
+const obtenerEstadoInscripciones = estadoInscripcionesActividad;
 
 const bloqueoAfectaSesion = afectaBloqueo;
 
@@ -360,70 +351,33 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => clearInterval(intervalo);
   }, []);
 
-  // Cierre automático al alcanzar la fecha límite configurada para cada día.
+  // Cierre automático por actividad con fecha límite en hora institucional.
   useEffect(() => {
-    const cerrarDiasVencidos = () => {
-      const ahora = Date.now();
-      const idsVencidas = listaEventos.flatMap((evento) =>
-        evento.fechas
-          .filter(
-            (fecha) =>
-              obtenerEstadoInscripciones(fecha, evento.estado) === 'abiertas' &&
-              obtenerFechaLimiteInscripciones(fecha) <= ahora
-          )
-          .map((fecha) => fecha.id)
-      );
-
-      if (idsVencidas.length === 0) return;
-      const conjuntoVencidas = new Set(idsVencidas);
-      const fechaCambio = new Date(ahora).toISOString();
-
-      setListaEventos((previos) =>
-        previos.map((evento) => ({
-          ...evento,
-          fechas: evento.fechas.map((fecha) => {
-            if (!conjuntoVencidas.has(fecha.id)) return fecha;
-            return {
-              ...fecha,
-              estadoInscripciones: 'cerradas',
-              versionInscripciones: (fecha.versionInscripciones || 0) + 1,
-              historialInscripciones: [
-                ...(fecha.historialInscripciones || []),
-                {
-                  id: `ins-auto-${fecha.id}-${ahora}`,
-                  estado: 'cerradas',
-                  fechaCambio,
-                  idResponsable: 'sistema',
-                  responsable: 'Sistema Ticket Trade',
-                  causa: 'cierre_automatico'
-                }
-              ]
-            };
-          })
-        }))
-      );
-
-      setListaReservaciones((previas) =>
-        previas.map((reservacion) =>
-          conjuntoVencidas.has(reservacion.idFechaEvento) &&
-          reservacion.estado === 'apartado_temporal'
-            ? { ...reservacion, estado: 'cancelada' }
-            : reservacion
-        )
-      );
-
-      setListaEspera((previas) =>
-        previas.map((entrada) =>
-          conjuntoVencidas.has(entrada.idFechaEvento) &&
-          (entrada.estado === 'esperando' || entrada.estado === 'notificado')
-            ? { ...entrada, estado: 'cancelado' }
-            : entrada
-        )
-      );
+    const cerrarActividadesVencidas = () => {
+      try {
+        const actual = {
+          eventos: leerListaActual('eventos', listaEventos),
+          reservaciones: leerListaActual('reservaciones', listaReservaciones),
+          espera: leerListaActual('espera', listaEspera),
+          bloqueos: leerListaActual('bloqueos', listaBloqueos)
+        };
+        const siguiente = proyectarCierreAutomatico(actual);
+        if (!siguiente.actividadesActualizadas) return;
+        const guardado = guardarLoteLocal(localStorage, {
+          [`${CLAVE_ALMACEN_DATOS}_eventos`]: siguiente.eventos,
+          [`${CLAVE_ALMACEN_DATOS}_reservaciones`]: siguiente.reservaciones,
+          [`${CLAVE_ALMACEN_DATOS}_espera`]: siguiente.espera
+        });
+        if (!guardado.exito) return;
+        setListaEventos(siguiente.eventos);
+        setListaReservaciones(siguiente.reservaciones);
+        setListaEspera(siguiente.espera);
+      } catch {
+        // Se conserva el estado si no se pudo consultar su versión guardada.
+      }
     };
-
-    cerrarDiasVencidos();
-    const intervalo = setInterval(cerrarDiasVencidos, 60000);
+    cerrarActividadesVencidas();
+    const intervalo = setInterval(cerrarActividadesVencidas, 30000);
     return () => clearInterval(intervalo);
   }, [listaEventos]);
 
@@ -1823,10 +1777,10 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const recinto = listaRecintos.find((r) => r.id === fecha?.idRecinto);
 
     if (!evento || !fecha) {
-      return { exito: false, error: 'El evento o el día seleccionado no existe.' };
+      return { exito: false, error: 'El evento o la actividad seleccionada no existe.' };
     }
 
-    if (!datos.idOrganizador || evento.idOrganizador !== datos.idOrganizador) {
+    if (!puedeAdministrarTaquilla(usuarioActual, evento) || usuarioActual?.id !== datos.idOrganizador) {
       return { exito: false, error: 'Solo el organizador responsable puede emitir boletos especiales.' };
     }
 
@@ -1843,7 +1797,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     ) {
       return {
         exito: false,
-        error: 'ERR-MT-02 · Las inscripciones están cerradas para este día.'
+        error: 'ERR-MT-02 · Las inscripciones están cerradas para esta actividad.'
       };
     }
 
@@ -1851,13 +1805,13 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if (bloqueo || fecha.suspendida) {
       return {
         exito: false,
-        error: `ERR-TR-10 · SUSPENDIDO: ${bloqueo?.titulo || 'Día pendiente de reprogramación'}.`
+        error: `ERR-TR-10 · SUSPENDIDO: ${bloqueo?.titulo || 'Actividad pendiente de reprogramación'}.`
       };
     }
 
-    const inicioDia = new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime();
-    if (inicioDia - Date.now() < 60 * 60 * 1000) {
-      return { exito: false, error: 'La emisión debe realizarse al menos una hora antes del inicio del día.' };
+    const inicioDia = inicioEnMexico(fecha.fecha, fecha.horaInicio);
+    if (!Number.isFinite(inicioDia) || inicioDia - Date.now() < 60 * 60 * 1000) {
+      return { exito: false, error: 'La emisión debe realizarse al menos una hora antes del inicio de la actividad.' };
     }
 
     if (!Number.isInteger(datos.cantidad) || datos.cantidad < 1 || datos.cantidad > 20) {
@@ -1868,11 +1822,12 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       return { exito: false, error: 'Indica el nombre de referencia y el correo de destino.' };
     }
 
-    const aforoDia = aforoActividad(fecha, evento.aforoMaximo) || recinto?.capacidad || 0;
-    const confirmadas = listaReservaciones.filter((reserva) => reserva.idFechaEvento === fecha.id && reserva.estado === 'confirmada').length;
-    const especialesActivos = listaBoletos.filter((boleto) => boleto.idFechaEvento === fecha.id && boleto.esEspecial && boleto.estado !== 'cancelado').length;
-    if (!aforoDia || confirmadas + especialesActivos + datos.cantidad > aforoDia) {
-      return { exito: false, error: 'La cantidad solicitada supera los lugares disponibles para este día.' };
+    const indicadores = indicadoresActividad(evento, fecha, {
+      recintos: listaRecintos, arreglos: listaArreglos, reservaciones: listaReservaciones,
+      boletos: listaBoletos, espera: listaEspera, escaneos: bitacoraEscaneos, intenciones: listaIntencionesAsistencia
+    });
+    if (!indicadores.aforo || datos.cantidad > indicadores.disponibles) {
+      return { exito: false, error: 'La cantidad solicitada supera los lugares disponibles para esta actividad.' };
     }
 
     const ahora = Date.now();
@@ -1951,156 +1906,28 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     return { exito: true };
   };
 
-  const cambiarEstadoInscripciones = (datos: {
-    idEvento: string;
-    idsFechaEvento: string[];
-    nuevoEstado: EstadoInscripciones;
-    idOrganizador: string;
-    nombreOrganizador: string;
-    versionesEsperadas?: Record<string, number>;
-  }): { exito: boolean; diasActualizados?: number; error?: string } => {
-    const evento = listaEventos.find((elemento) => elemento.id === datos.idEvento);
-    const idsUnicas = [...new Set(datos.idsFechaEvento)];
-
-    if (!evento) {
-      return { exito: false, error: 'ERR-TR-03 · El evento seleccionado no existe.' };
-    }
-
-    if (evento.idOrganizador !== datos.idOrganizador) {
-      return {
-        exito: false,
-        error: 'ERR-TR-02 · No estás autorizado para administrar las inscripciones de este evento.'
+  const cambiarEstadoInscripciones = (datos: CambioInscripciones): { exito: boolean; actividadesActualizadas?: number; error?: string } => {
+    try {
+      const actual = {
+        eventos: leerListaActual('eventos', listaEventos),
+        reservaciones: leerListaActual('reservaciones', listaReservaciones),
+        espera: leerListaActual('espera', listaEspera),
+        bloqueos: leerListaActual('bloqueos', listaBloqueos)
       };
+      const siguiente = proyectarCambioInscripciones(actual, datos, consultarSolicitanteVigente() || null);
+      const guardado = guardarLoteLocal(localStorage, {
+        [`${CLAVE_ALMACEN_DATOS}_eventos`]: siguiente.eventos,
+        [`${CLAVE_ALMACEN_DATOS}_reservaciones`]: siguiente.reservaciones,
+        [`${CLAVE_ALMACEN_DATOS}_espera`]: siguiente.espera
+      });
+      if (!guardado.exito) return guardado;
+      setListaEventos(siguiente.eventos);
+      setListaReservaciones(siguiente.reservaciones);
+      setListaEspera(siguiente.espera);
+      return { exito: true, actividadesActualizadas: siguiente.actividadesActualizadas };
+    } catch (error) {
+      return { exito: false, error: error instanceof Error ? error.message : 'No fue posible consultar el estado vigente de las inscripciones.' };
     }
-
-    if (idsUnicas.length === 0) {
-      return { exito: false, error: 'Selecciona al menos un día para continuar.' };
-    }
-
-    if (evento.estado === 'cancelado' || evento.estado === 'finalizado') {
-      return {
-        exito: false,
-        error: `ERR-TR-10 · El evento se encuentra ${evento.estado.toUpperCase()}.`
-      };
-    }
-
-    if (datos.nuevoEstado === 'abiertas' && evento.estado !== 'publicado') {
-      return {
-        exito: false,
-        error: 'ERR-TR-10 · El evento debe estar PUBLICADO antes de abrir inscripciones.'
-      };
-    }
-
-    const ahora = Date.now();
-    const diasSeleccionados = idsUnicas.map((idFecha) =>
-      evento.fechas.find((fecha) => fecha.id === idFecha)
-    );
-
-    if (diasSeleccionados.some((fecha) => !fecha)) {
-      return { exito: false, error: 'ERR-TR-03 · Uno de los días ya no existe.' };
-    }
-
-    for (const fecha of diasSeleccionados) {
-      if (!fecha) continue;
-      const estadoActual = obtenerEstadoInscripciones(fecha, evento.estado);
-      const versionActual = fecha.versionInscripciones || 0;
-      const versionEsperada = datos.versionesEsperadas?.[fecha.id];
-
-      if (versionEsperada !== undefined && versionEsperada !== versionActual) {
-        return {
-          exito: false,
-          error: 'ERR-TR-08 · El estado fue modificado mientras realizabas la operación. Recarga y vuelve a intentarlo.'
-        };
-      }
-
-      if (estadoActual === datos.nuevoEstado) {
-        return {
-          exito: false,
-          error: `ERR-TR-10 · Las inscripciones de ${fecha.nombreDia || fecha.fecha} ya están ${estadoActual.toUpperCase()}.`
-        };
-      }
-
-      if (datos.nuevoEstado === 'abiertas') {
-        const bloqueo = listaBloqueos.find((elemento) => bloqueoAfectaSesion(elemento, fecha));
-        if (bloqueo || fecha.suspendida) {
-          return {
-            exito: false,
-            error: `ERR-TR-10 · SUSPENDIDO: ${bloqueo?.titulo || 'Día pendiente de reprogramación'}. No es posible abrir inscripciones.`
-          };
-        }
-
-        const finSesion = new Date(`${fecha.fecha}T${fecha.horaFin}:00`).getTime();
-        if (finSesion <= ahora) {
-          return {
-            exito: false,
-            error: `ERR-TR-10 · El día ${fecha.nombreDia || fecha.fecha} ya FINALIZÓ.`
-          };
-        }
-
-        if (obtenerFechaLimiteInscripciones(fecha) <= ahora) {
-          return {
-            exito: false,
-            error: `ERR-TR-10 · La fecha límite de ${fecha.nombreDia || fecha.fecha} ya fue alcanzada.`
-          };
-        }
-      }
-    }
-
-    const conjuntoIds = new Set(idsUnicas);
-    const fechaCambio = new Date(ahora).toISOString();
-    const causa = datos.nuevoEstado === 'abiertas' ? 'apertura_manual' : 'cierre_manual';
-
-    setListaEventos((previos) =>
-      previos.map((elemento) =>
-        elemento.id !== evento.id
-          ? elemento
-          : {
-              ...elemento,
-              fechas: elemento.fechas.map((fecha) =>
-                !conjuntoIds.has(fecha.id)
-                  ? fecha
-                  : {
-                      ...fecha,
-                      estadoInscripciones: datos.nuevoEstado,
-                      versionInscripciones: (fecha.versionInscripciones || 0) + 1,
-                      historialInscripciones: [
-                        ...(fecha.historialInscripciones || []),
-                        {
-                          id: `ins-${fecha.id}-${ahora}`,
-                          estado: datos.nuevoEstado,
-                          fechaCambio,
-                          idResponsable: datos.idOrganizador,
-                          responsable: datos.nombreOrganizador,
-                          causa
-                        }
-                      ]
-                    }
-              )
-            }
-      )
-    );
-
-    if (datos.nuevoEstado === 'cerradas') {
-      setListaReservaciones((previas) =>
-        previas.map((reservacion) =>
-          conjuntoIds.has(reservacion.idFechaEvento) &&
-          reservacion.estado === 'apartado_temporal'
-            ? { ...reservacion, estado: 'cancelada' }
-            : reservacion
-        )
-      );
-
-      // Se cierra la oferta activa, pero se conserva la posición para una posible reapertura.
-      setListaEspera((previas) =>
-        previas.map((entrada) =>
-          conjuntoIds.has(entrada.idFechaEvento) && entrada.estado === 'notificado'
-            ? { ...entrada, estado: 'esperando' }
-            : entrada
-        )
-      );
-    }
-
-    return { exito: true, diasActualizados: idsUnicas.length };
   };
 
   const registrarIntencionAsistencia = (

@@ -1,0 +1,13 @@
+{
+  "fechaVerificacion": "2026-10-26T05:18:59.828Z",
+  "zonaDispositivo": "Asia/Tokyo",
+  "pruebas": [
+    "Emisión exclusiva en B con QR anteriores intactos",
+    "Cerrar A conserva B abierta y cancela solo el apartado de A",
+    "Aforo propio A=5 y B=3 frente al máximo general 242",
+    "Reservas, espera y participación por actividad",
+    "Filtro de actividad y modalidad propios",
+    "Botones UI-62, UI-63 y UI-64 desde Documentación"
+  ],
+  "erroresDePagina": []
+}
