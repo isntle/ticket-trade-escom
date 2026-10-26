@@ -246,6 +246,23 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
     mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
   };
 
+  // === CÁLCULO DINÁMICO DE RECINTOS Y HORARIOS ===
+  const todosLosRecintos = Array.from(new Set(
+    evento?.fechas.flatMap(f => 
+      f.programa && f.programa.length > 0 
+        ? f.programa.map(p => (p as any).recinto || obtenerNombreRecinto(f.idRecinto)) 
+        : [obtenerNombreRecinto(f.idRecinto)]
+    ) || []
+  ));
+
+  const todosLosHorarios = Array.from(new Set(
+    evento?.fechas.flatMap(f => 
+      f.programa && f.programa.length > 0 
+        ? f.programa.map(p => `${p.hora}${p.horaFin ? ` a ${p.horaFin}` : ''}`) 
+        : [`${f.horaInicio} a ${f.horaFin}`]
+    ) || []
+  ));
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
       {/* Botón Volver */}
@@ -268,14 +285,12 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
               className="w-full h-full object-cover opacity-70"
             />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/40 to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-t from-neutral-900 via-neutral-900/40 to-transparent" />
           <div className="absolute bottom-6 left-6 right-6 text-white">
             <div className="flex flex-wrap gap-2 mb-2">
               <span className="px-2.5 py-0.5 rounded bg-white/20 backdrop-blur-xs text-xs font-semibold uppercase tracking-wider">
                 {evento.categoria}
               </span>
-              <InsigniaEstado estado={evento.modalidadAsistencia} />
-              <InsigniaEstado estado={evento.visibilidad} />
               {(evento.estado as string) === 'cancelado' && (
                 <span className="px-2.5 py-0.5 rounded bg-red-600/90 backdrop-blur-xs text-white text-xs font-bold uppercase tracking-wider border border-red-500/50 shadow-sm flex items-center gap-1.5">
                   <Shield className="w-3.5 h-3.5" />
@@ -301,27 +316,27 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-[#7a132b] shrink-0" />
             <span>
-              <strong>{evento.fechas.length} {evento.fechas.length === 1 ? 'Día programado' : 'Días programados'}:</strong>{' '}
+              <strong>{evento.fechas.length === 1 ? 'Fecha programada' : 'Fechas programadas'}:</strong>{' '}
               {evento.fechas[0]?.fecha}{evento.fechas.length > 1 ? ` al ${evento.fechas[evento.fechas.length - 1]?.fecha}` : ''}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-[#7a132b] shrink-0" />
             <span>
-              <strong>Horario:</strong> {evento.fechas[0]?.horaInicio} a {evento.fechas[0]?.horaFin} hrs
+              <strong>{todosLosHorarios.length > 1 ? 'Horarios:' : 'Horario:'}</strong> {todosLosHorarios.join(' / ')} hrs
             </span>
           </div>
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-[#7a132b] shrink-0" />
             <span>
-              <strong>Recinto:</strong> {obtenerNombreRecinto(evento.fechas[0]?.idRecinto || '')}
+              <strong>{todosLosRecintos.length > 1 ? 'Recintos:' : 'Recinto:'}</strong> {todosLosRecintos.join(' / ')}
             </span>
           </div>
         </div>
 
         {/* Cuerpo Informativo */}
-        <div className="p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
+        <div className="p-6 sm:p-8">
+          <div className="space-y-6">
             <div>
               <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-wider mb-2 flex items-center gap-2">
                 <FileText className="w-4 h-4 text-[#7a132b]" />
@@ -332,45 +347,12 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
               </p>
             </div>
 
-            {evento.ponentes && evento.ponentes.length > 0 && (
-              <div>
-                <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-wider mb-2">
-                  Ponentes e Investigadores Invitados
-                </h2>
-                <div className="flex flex-wrap gap-2">
-                  {evento.ponentes.map((p, i) => (
-                    <span
-                      key={i}
-                      className="px-3 py-1 bg-neutral-100 rounded-lg text-xs font-semibold text-neutral-800 border border-neutral-200"
-                    >
-                      {p}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Información Institucional */}
-          <div className="p-5 rounded-xl border border-neutral-200 bg-neutral-50/50 space-y-4 text-xs">
-            <h3 className="font-bold text-neutral-900 text-sm">Información Politécnica</h3>
-            <div className="space-y-2.5 text-neutral-600">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-neutral-400 shrink-0" />
-                <span>Capacidad autorizada: {evento.aforoMaximo || 120} asistentes</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-neutral-400 shrink-0" />
-                <span>Validez académica con registro de asistencia</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-neutral-400 shrink-0" />
-                <span>Tolerancia de acceso: 15 minutos en puerta</span>
-              </div>
-            </div>
-
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-[11px] leading-snug">
-              ✓ Evento politécnico sin costo ni pasarelas de pago. El acceso se gestiona mediante tu cuenta institucional.
+            {/* Aviso de Acceso Normativo */}
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex gap-3 text-xs text-emerald-800">
+               <Clock className="w-5 h-5 shrink-0 text-emerald-600" />
+               <p>
+                 <strong>Acceso al evento:</strong> El ingreso a los recintos se habilita <strong>desde 30 minutos antes hasta finalizar la actividad</strong>. El acceso se gestiona mediante tu cuenta institucional.
+               </p>
             </div>
           </div>
         </div>
@@ -382,21 +364,17 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
           <div>
             <h2 className="text-xl font-bold text-neutral-900 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-[#7a132b]" />
-              <span>Programa Oficial y Calendario de Días ({evento.fechas.length})</span>
+              <span>Programa Oficial y Calendario</span>
             </h2>
             <p className="text-xs text-neutral-500 mt-0.5">
-              Consulta los horarios, el programa de actividades por día, ponencias y asegura tu lugar en cada fecha.
+              Consulta los horarios, el programa de actividades, ponencias y asegura tu lugar en cada fecha.
             </p>
           </div>
-          <span className="text-xs font-semibold text-[#7a132b] bg-[#7a132b]/10 px-3 py-1 rounded-full self-start sm:self-auto">
-            {evento.fechas.length} {evento.fechas.length === 1 ? 'Día de actividades' : 'Días de actividades'}
-          </span>
         </div>
 
         <div className="grid grid-cols-1 gap-5">
-          {evento.fechas.map((fecha, indice) => {
+          {evento.fechas.map((fecha) => {
             const nombreRecinto = obtenerNombreRecinto(fecha.idRecinto);
-            const etiquetaDia = fecha.nombreDia || `Día ${indice + 1}`;
             const fechaLimite = fecha.fechaLimiteInscripciones
               ? new Date(fecha.fechaLimiteInscripciones).getTime()
               : new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime() - 60 * 60 * 1000;
@@ -407,121 +385,27 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                 : 'cerradas');
             const inscripcionesAbiertas =
               estadoInscripciones === 'abiertas' && fechaLimite > Date.now();
-            const expandido = diasExpandidos[fecha.id] ?? (indice === 0 || !!fecha.programa);
-            
-            const yaRegistrado = usuarioActual
-              ? listaIntencionesAsistencia.some(
-                  (intencion) =>
-                    intencion.idEvento === evento.id &&
-                    intencion.idFechaEvento === fecha.id &&
-                    intencion.idUsuario === usuarioActual.id
-                )
-              : false;
+            const expandido = diasExpandidos[fecha.id] ?? true;
 
             return (
               <div
                 key={fecha.id}
                 className="bg-white rounded-2xl border border-neutral-200 overflow-hidden shadow-xs hover:border-neutral-300 transition-all"
               >
-                {/* Cabecera de la Tarjeta del Día */}
-                <div className="p-5 sm:p-6 bg-gradient-to-r from-neutral-50/80 via-white to-neutral-50/30 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-100">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="px-3 py-1 rounded-lg bg-[#7a132b] text-white font-mono text-xs font-bold shadow-2xs">
-                        {etiquetaDia}
-                      </span>
-                      <span className="font-extrabold text-neutral-900 text-base sm:text-lg">
-                        {fecha.fecha}
-                      </span>
-                      <span
-                        className={`px-2 py-1 rounded-md border text-[10px] font-black tracking-wide ${
-                          inscripcionesAbiertas
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                            : 'bg-neutral-100 border-neutral-300 text-neutral-700'
-                        }`}
-                      >
-                        INSCRIPCIONES {inscripcionesAbiertas ? 'ABIERTAS' : 'CERRADAS'}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-600 pt-0.5">
-                      <span className="flex items-center gap-1.5 font-medium">
-                        <Clock className="w-4 h-4 text-[#7a132b]" />
-                        <strong>Horario:</strong> {fecha.horaInicio} a {fecha.horaFin} hrs
-                      </span>
-                      <span className="flex items-center gap-1.5 font-medium">
-                        <MapPin className="w-4 h-4 text-[#7a132b]" />
-                        <strong>Recinto:</strong> {nombreRecinto}
-                      </span>
-                    </div>
-
-                    {fecha.ponentes && fecha.ponentes.length > 0 && (
-                      <div className="text-xs text-neutral-500 pt-0.5">
-                        Ponente(s) del día: <strong className="text-neutral-800">{fecha.ponentes.join(', ')}</strong>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Acciones de Registro */}
-                  <div className="flex items-center gap-3 shrink-0">
-                    {(evento.estado as string) === 'cancelado' || (evento.estado as string) === 'suspendido' || !inscripcionesAbiertas ? (
-                      <button
-                        type="button"
-                        disabled
-                        className="px-5 py-2.5 bg-neutral-100 border border-neutral-200 text-neutral-400 rounded-xl text-xs font-bold cursor-not-allowed inline-flex items-center gap-2"
-                      >
-                        <Lock className="w-4 h-4" />
-                        <span>Inscripciones Cerradas</span>
-                      </button>
-                    ) : (
-                      evento.modalidadAsistencia === 'controlado' ? (
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/eventos/${evento.id}/reservar?dateId=${fecha.id}`)}
-                          className="px-5 py-2.5 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2"
-                        >
-                          <span>Reservar lugar ({etiquetaDia})</span>
-                        </button>
-                      ) : (
-                        yaRegistrado ? (
-                          <button
-                            type="button"
-                            onClick={() => cancelarRegistroLibre(fecha.id)}
-                            className="px-5 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2 transition-colors"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>Cancelar registro</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={procesandoRegistro}
-                            onClick={() => iniciarRegistroDirecto(fecha)}
-                            className="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2 transition-colors"
-                          >
-                            <UserCheck className="w-4 h-4" />
-                            <span>{procesandoRegistro ? 'Registrando...' : `Registrar asistencia (${etiquetaDia})`}</span>
-                          </button>
-                        )
-                      )
-                    )}
-                  </div>
-                </div>
-
                 {/* Cronograma */}
                 {fecha.programa && fecha.programa.length > 0 ? (
                   <div className="p-5 sm:p-6 bg-white space-y-3">
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider flex items-center gap-2">
                         <BookOpen className="w-4 h-4 text-[#7a132b]" />
-                        <span>Programa y Cronograma de Actividades — {etiquetaDia}</span>
+                        <span>Programa de Actividades</span>
                       </h4>
                       <button
                         type="button"
                         onClick={() => toggleDiaPrograma(fecha.id)}
                         className="text-xs text-neutral-500 hover:text-neutral-900 font-semibold inline-flex items-center gap-1 cursor-pointer"
                       >
-                        <span>{expandido ? 'Ocultar cronograma' : 'Ver cronograma'}</span>
+                        <span>{expandido ? 'Ocultar programa de actividades' : 'Ver programa de actividades'}</span>
                         {expandido ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                       </button>
                     </div>
@@ -531,24 +415,72 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                         {fecha.programa.map((item, idxProg) => (
                           <div
                             key={idxProg}
-                            className="p-3.5 rounded-xl border border-neutral-100 bg-neutral-50/70 hover:bg-neutral-50 transition-colors flex flex-col sm:flex-row sm:items-start gap-3 text-xs"
+                            className="p-4 rounded-xl border border-neutral-200 bg-white hover:border-neutral-300 transition-all flex flex-col md:flex-row md:items-center gap-4 shadow-sm"
                           >
-                            <span className="font-mono font-bold text-[#7a132b] bg-white px-2.5 py-1 rounded-lg border border-neutral-200 shrink-0 self-start">
-                              {item.hora}{item.horaFin ? `–${item.horaFin}` : ''}
-                            </span>
-                            <div className="space-y-1 flex-1">
-                              <h5 className="font-bold text-neutral-900 text-xs sm:text-sm">
-                                {item.titulo}
-                              </h5>
-                              {item.ponente && (
-                                <p className="text-[11px] font-semibold text-neutral-700">
-                                  Ponente: <span className="text-[#7a132b]">{item.ponente}</span>
-                                </p>
-                              )}
+                            {/* Información de la Actividad */}
+                            <div className="space-y-1.5 flex-1">
+                              <div className="flex flex-wrap items-center gap-2 mb-1">
+                                <h5 className="font-bold text-neutral-900 text-sm">
+                                  {item.titulo}
+                                </h5>
+                                <div className="scale-90 origin-left flex flex-wrap items-center gap-1.5">
+                                  <InsigniaEstado estado={(item as any).modalidadAsistencia || evento.modalidadAsistencia} />
+                                  <InsigniaEstado estado={(item as any).visibilidad || evento.visibilidad} />
+                                  <span
+                                    className={`px-2 py-0.5 rounded-md border text-[10px] font-black tracking-wide ${
+                                      inscripcionesAbiertas && (item as any).estado !== 'cancelado'
+                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                        : 'bg-neutral-100 border-neutral-300 text-neutral-700'
+                                    }`}
+                                  >
+                                    {inscripcionesAbiertas && (item as any).estado !== 'cancelado' 
+                                      ? 'LUGARES DISPONIBLES' 
+                                      : 'REGISTRO CERRADO'}
+                                  </span>
+                                </div>
+                              </div>
                               {item.descripcion && (
                                 <p className="text-xs text-neutral-600 leading-relaxed">
                                   {item.descripcion}
                                 </p>
+                              )}
+                              
+                              {/* Detalles: Fecha, Horario y Recinto */}
+                              <div className="flex flex-wrap items-center gap-4 text-[11px] text-neutral-500 font-medium pt-1">
+                                <span className="flex items-center gap-1.5">
+                                  <Calendar className="w-3.5 h-3.5 text-[#7a132b]" />
+                                  {fecha.fecha}
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-[#7a132b]" />
+                                  {item.hora}{item.horaFin ? ` a ${item.horaFin} hrs` : ''}
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                  <MapPin className="w-3.5 h-3.5 text-[#7a132b]" />
+                                  {(item as any).recinto || nombreRecinto}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {/* Botón de Reserva Individual */}
+                            <div className="shrink-0 w-full md:w-auto mt-2 md:mt-0 border-t border-neutral-100 md:border-0 pt-3 md:pt-0">
+                              {((evento.estado as string) === 'cancelado' || (evento.estado as string) === 'suspendido' || !inscripcionesAbiertas || (item as any).estado === 'cancelado') ? (
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="w-full md:w-auto px-5 py-2.5 bg-neutral-100 border border-neutral-200 text-neutral-400 rounded-xl text-xs font-bold cursor-not-allowed inline-flex justify-center items-center gap-2"
+                                >
+                                  <Lock className="w-4 h-4" />
+                                  {(item as any).estado === 'cancelado' ? 'Actividad cancelada' : 'No disponible'}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`/eventos/${evento.id}/reservar?dateId=${fecha.id}&actividadId=${idxProg}`)}
+                                  className="w-full md:w-auto px-5 py-2.5 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex justify-center items-center transition-colors"
+                                >
+                                  Reservar lugar
+                                </button>
                               )}
                             </div>
                           </div>
@@ -559,7 +491,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                 ) : (
                   <div className="px-6 py-4 bg-white flex items-center justify-between text-xs text-neutral-500">
                     <span>
-                      Sesión académica con acceso directo en el horario establecido ({fecha.horaInicio} a {fecha.horaFin} hrs).
+                      Actividad con acceso directo en el horario establecido ({fecha.horaInicio} a {fecha.horaFin} hrs).
                     </span>
                     <span className="font-mono text-[11px] text-neutral-400">{nombreRecinto}</span>
                   </div>

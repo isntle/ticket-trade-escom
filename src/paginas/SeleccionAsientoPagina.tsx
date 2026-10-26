@@ -35,6 +35,9 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
 
+  const searchParams = new URLSearchParams(window.location.search);
+  const actividadId = searchParams.get('actividadId');
+
   const evento = listaEventos.find((e) => e.id === eventId);
   const fecha = evento?.fechas.find((f) => f.id === dateId);
   const recinto = listaRecintos.find((r) => r.id === fecha?.idRecinto);
@@ -447,10 +450,20 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
               {esSinMapa ? 'Taquilla Digital ESCOM — Reservación de Cupo General' : 'Taquilla Digital ESCOM — Selección de Asiento'}
             </span>
             <h1 className="text-xl sm:text-2xl font-extrabold text-neutral-900 mt-0.5">
-              {evento.titulo}
+              {actividadId && fecha?.programa && fecha.programa[Number(actividadId)] 
+                ? fecha.programa[Number(actividadId)].titulo 
+                : evento.titulo}
             </h1>
             <p className="text-xs text-neutral-500 mt-1">
-              Día: <span className="font-semibold text-neutral-800">{fecha.nombreDia || fecha.fecha}</span> ({fecha.horaInicio} a {fecha.horaFin} hrs) · Recinto: <span className="font-semibold text-neutral-800">{recinto?.nombre}</span>
+            Horario: <span className="font-semibold text-neutral-800">
+              {actividadId && fecha?.programa && fecha.programa[Number(actividadId)] 
+                ? `${fecha.programa[Number(actividadId)].hora} a ${fecha.programa[Number(actividadId)].horaFin || ''}` 
+                : `${fecha.horaInicio} a ${fecha.horaFin}`} hrs
+            </span> · Recinto: <span className="font-semibold text-neutral-800">
+              {actividadId && fecha?.programa && fecha.programa[Number(actividadId)] 
+                ? ((fecha.programa[Number(actividadId)] as any).recinto || recinto?.nombre)
+                : recinto?.nombre}
+            </span>
             </p>
           </div>
 
@@ -551,7 +564,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         {/* Mapa Interactivo o Contenedor de Cupo General */}
         <div className="lg:col-span-2">
           {esSinMapa ? (
-            <div className="bg-white rounded-2xl border border-neutral-200 p-8 flex flex-col items-center justify-center h-full min-h-[400px]">
+            <div className="bg-white rounded-2xl border border-neutral-200 p-8 flex flex-col items-center justify-center h-full min-h-100">
                <div className="w-16 h-16 bg-neutral-50 border border-neutral-100 rounded-full flex items-center justify-center mb-4">
                  <Users className="w-8 h-8 text-neutral-400" />
                </div>
@@ -602,11 +615,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
                   </div>
                   <div className="flex justify-between">
                     <span>Correo institucional:</span>
-                    <span className="font-semibold text-neutral-900 truncate max-w-[170px]">{usuarioActual?.correo || 'correo@ipn.mx'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Costo del boleto:</span>
-                    <span className="font-bold text-emerald-600">Gratuito ($0.00 MXN)</span>
+                    <span className="font-semibold text-neutral-900 truncate max-w-42.5">{usuarioActual?.correo || 'correo@ipn.mx'}</span>
                   </div>
                 </div>
 
