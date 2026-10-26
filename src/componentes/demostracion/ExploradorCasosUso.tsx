@@ -654,7 +654,7 @@ export const SUBEQUIPOS: Subequipo[] = [
   {
     id: "checkin",
     nombre: "Check-in",
-    resumen: "Selección del día, validación de boletos e historial de accesos.",
+    resumen: "Selección de la actividad, validación de boletos e historial de accesos.",
     icono: ScanLine,
     color: "text-emerald-800 bg-emerald-50 border-emerald-200",
     casos: [
@@ -662,9 +662,9 @@ export const SUBEQUIPOS: Subequipo[] = [
         id: "CUCI1",
         nombre: "Seleccionar sesión para control de acceso",
         actor: "Staff u Organizador",
-        interfaz: "IU-CI01 · Selección de evento y día",
+        interfaz: "IU-CI01 · Selección de evento y actividad",
         descripcion:
-          "El operador elige un evento autorizado y un día habilitado; el lector solo se abre durante la ventana permitida.",
+          "El operador elige un evento autorizado y una actividad con aforo controlado; el lector solo se abre desde 30 minutos antes del inicio hasta el fin de la actividad.",
         ruta: "/staff",
         estado: "comprobable",
         usuarioDemo: "usr-andrea",
@@ -676,7 +676,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         actor: "Staff u Organizador",
         interfaz: "IU-CI02 · Lector de boletos",
         descripcion:
-          "El operador escanea el QR y el sistema valida evento, día, horario, autorización, vigencia y uso previo antes de registrar una entrada.",
+          "El operador escanea el QR y el sistema valida evento, actividad, horario, autorización, vigencia y uso previo antes de registrar una entrada.",
         ruta: "/staff",
         estado: "comprobable",
         usuarioDemo: "usr-andrea",

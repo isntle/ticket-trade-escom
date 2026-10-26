@@ -16,3 +16,20 @@ export function regresarAlOrigen(alternativa: () => void) {
   if (origen && destinoInternoSeguro(origen,'') && origen !== window.location.pathname + window.location.search) window.history.back();
   else alternativa();
 }
+
+/**
+ * Actualiza parámetros de la URL actual sin crear una entrada nueva en el historial.
+ * Conserva el estado de navegación (origen y desplazamiento) y los demás parámetros.
+ */
+export function reemplazarParametrosUrl(parametros: Record<string, string | undefined>) {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  for (const [clave, valor] of Object.entries(parametros)) {
+    if (valor) url.searchParams.set(clave, valor);
+    else url.searchParams.delete(clave);
+  }
+  const destino = url.pathname + url.search + url.hash;
+  if (destino !== window.location.pathname + window.location.search + window.location.hash) {
+    window.history.replaceState(window.history.state, '', destino);
+  }
+}

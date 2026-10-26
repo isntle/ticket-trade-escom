@@ -405,11 +405,23 @@ function ContenidoApp() {
     // SUBSISTEMA 04: CONTROL DE ACCESO (CHECK-IN) Y OCUPABILIDAD
     // -------------------------------------------------------------
     if (rutaActual === "/staff" || rutaActual === "/staff/checkin") {
-      return <EscaneoStaffPagina navigate={navegarA} />;
+      return (
+        <EscaneoStaffPagina
+          navigate={navegarA}
+          initialEventId={parametrosUrl.get("eventId") || undefined}
+          initialDateId={parametrosUrl.get("dateId") || undefined}
+        />
+      );
     }
 
     if (rutaActual === "/staff/historial") {
-      return <HistorialAccesosPagina navigate={navegarA} />;
+      return (
+        <HistorialAccesosPagina
+          navigate={navegarA}
+          initialEventId={parametrosUrl.get("eventId") || undefined}
+          initialDateId={parametrosUrl.get("dateId") || undefined}
+        />
+      );
     }
 
     if (rutaActual.startsWith("/staff/ocupacion")) {
