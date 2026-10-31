@@ -2,6 +2,7 @@ import { proyectarCambioRecinto, firmaCambioRecinto, type PeticionCambioRecinto,
 import { useListaLocal } from "./useListaLocal";
 import { accesoDelPase, codigoQrDelEvento } from "../dominio/pasesEvento";
 import { modalidadActividad, aforoActividad, validarItinerarios } from '../dominio/actividades';
+import { REGLA_INGRESO_ACTIVIDAD } from '../dominio/presentacionActividad';
 import { ARREGLOS_DEMOSTRACION, incorporarProgramados, cargarEventosProgramados } from '../datos/eventosDemostracion';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
@@ -2359,20 +2360,20 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const fechaObjetivo = eventoObjetivo?.fechas.find((fecha) => fecha.id === idFechaEventoObjetivo);
     if (!eventoObjetivo || !fechaObjetivo) {
-      return rechazar('evento_invalido', 'El evento o el día seleccionado ya no está disponible.');
+      return rechazar('evento_invalido', 'El evento o la actividad seleccionada ya no está disponible.');
     }
     const bloqueo = bloqueos.find((elemento) => bloqueoAfectaSesion(elemento, fechaObjetivo));
     if (eventoObjetivo.estado !== 'publicado' || fechaObjetivo.cancelada || fechaObjetivo.suspendida || bloqueo) {
-      return rechazar('suspendido', bloqueo ? `Día suspendido: ${bloqueo.titulo}.` : 'El evento está cancelado.');
+      return rechazar('suspendido', bloqueo ? `Actividad suspendida: ${bloqueo.titulo}.` : fechaObjetivo.cancelada ? 'La actividad está cancelada.' : fechaObjetivo.suspendida ? 'La actividad está suspendida.' : 'El evento está cancelado.');
     }
     if (modalidadActividad(fechaObjetivo, eventoObjetivo.modalidadAsistencia) !== 'controlado') {
-      return rechazar('evento_invalido', 'Este evento no utiliza control de acceso mediante boleto.');
+      return rechazar('evento_invalido', 'Esta actividad no utiliza control de acceso mediante boleto.');
     }
     const inicio = inicioEnMexico(fechaObjetivo.fecha,fechaObjetivo.horaInicio) - 30 * 60 * 1000;
     const fin = inicioEnMexico(fechaObjetivo.fecha,fechaObjetivo.horaFin);
     if(!Number.isFinite(inicio)||!Number.isFinite(fin)||fin<=inicio+30*60*1000)return rechazar('evento_invalido','La actividad no tiene un horario válido para registrar entradas.');
     if (Date.now() < inicio || Date.now() >= fin) {
-      return rechazar('fuera_de_horario', 'El acceso se habilita 30 minutos antes del inicio y cierra al terminar la actividad.');
+      return rechazar('fuera_de_horario', REGLA_INGRESO_ACTIVIDAD);
     }
 
     // Los identificadores emitidos por Ticket Trade son opacos de 128 bits.

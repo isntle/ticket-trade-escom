@@ -1,6 +1,7 @@
 import { inicioEnMexico } from "../dominio/solicitudes";
-import { modalidadActividad } from '../dominio/actividades';
-import { volverA } from '../dominio/navegacion';
+import { modalidadActividad, nombreActividad } from '../dominio/actividades';
+import { volverA, reemplazarParametrosUrl } from '../dominio/navegacion';
+import { REGLA_INGRESO_ACTIVIDAD, agruparActividadesPorDia, describirActividad, etiquetaOpcionActividad, fechaLegible, horaOficial } from '../dominio/presentacionActividad';
 import React, { useEffect, useRef, useState } from 'react';
 import { BrowserQRCodeReader, IScannerControls } from '@zxing/browser';
 import {
@@ -28,6 +29,9 @@ import { RegistroEscaneo, BoletoDigital } from '../tipos';
 
 interface PropiedadesEscaneoStaff {
   navigate: (ruta: string) => void;
+  /** Evento y actividad recibidos por URL (?eventId=&dateId=) para conservar la selección al regresar. */
+  initialEventId?: string;
+  initialDateId?: string;
 }
 
 const CLAVE_INTENTOS_MANUALES_CHECKIN = 'ticket_trade_checkin_intentos_manuales';
@@ -52,7 +56,7 @@ const guardarIntentoManualInexistente = (idOperador: string, ahora: number) => {
   }
 };
 
-export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate }) => {
+export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate, initialEventId, initialDateId }) => {
   const { listaBoletos, procesarCheckIn, listaEventos, listaRecintos, listaBloqueos } = useDatos();
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
@@ -76,12 +80,16 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     return esResponsable && ev.fechas.some(f=>modalidadActividad(f,ev.modalidadAsistencia)==='controlado');
   });
 
+  // Se respeta la selección recibida por URL solo si el evento sigue permitido para la cuenta.
   const [eventoActivoId, setEventoActivoId] = useState(() => {
+    if (initialEventId && eventosPermitidos.some((ev) => ev.id === initialEventId)) return initialEventId;
     return eventosPermitidos[0]?.id || 'evt-simposio-ia';
   });
 
   const [fechaActivaId, setFechaActivaId] = useState(() => {
-    return eventosPermitidos[0]?.fechas[0]?.id || 'fec-simposio-d1';
+    const evento = eventosPermitidos.find((ev) => ev.id === initialEventId);
+    if (evento && initialDateId && evento.fechas.some((f) => f.id === initialDateId)) return initialDateId;
+    return evento?.fechas[0]?.id || eventosPermitidos[0]?.fechas[0]?.id || 'fec-simposio-d1';
   });
 
   // Resultado de escaneo activo (soft screen)
@@ -97,6 +105,11 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     listaEventos.find((e) => e.id === eventoActivoId) || eventosPermitidos[0] || listaEventos[0];
   const fechaSeleccionada =
     eventoSeleccionado?.fechas.find((f) => f.id === fechaActivaId) || eventoSeleccionado?.fechas[0];
+
+  // La URL refleja evento y actividad para que el regreso desde el historial los conserve.
+  useEffect(() => {
+    if (eventoActivoId && fechaActivaId) reemplazarParametrosUrl({ eventId: eventoActivoId, dateId: fechaActivaId });
+  }, [eventoActivoId, fechaActivaId]);
 
   useEffect(() => {
     const intervalo = window.setInterval(() => setAhoraSistema(Date.now()), 15_000);
@@ -131,10 +144,15 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
   const totalIngresados = boletosEvento.filter((b) => b.estado === 'utilizado').length;
   const porcentajeIngreso = totalEmitidos ? Math.round((totalIngresados / totalEmitidos) * 100) : 0;
   const recintoSeleccionado = listaRecintos.find((recinto) => recinto.id === fechaSeleccionada?.idRecinto);
+  const nombreRecinto = (idRecinto?: string) => listaRecintos.find((recinto) => recinto.id === idRecinto)?.nombre;
+  const indiceActividad = Math.max(0, eventoSeleccionado?.fechas.findIndex((f) => f.id === fechaSeleccionada?.id) ?? 0);
+  const nombreActividadSeleccionada = fechaSeleccionada ? nombreActividad(fechaSeleccionada, indiceActividad) : 'Actividad no disponible';
+  const resumenActividad = fechaSeleccionada ? describirActividad(fechaSeleccionada, recintoSeleccionado?.nombre) : '';
+  const consultaSeleccion = `eventId=${encodeURIComponent(eventoActivoId)}&dateId=${encodeURIComponent(fechaActivaId)}`;
 
-  const estadoDia = (() => {
+  const estadoActividad = (() => {
     if (!eventoSeleccionado || !fechaSeleccionada) return { disponible: false, etiqueta: 'Actividad no disponible', detalle: 'Selecciona un evento y una actividad válida.' };
-    if (fechaSeleccionada.cancelada || ['cancelado','finalizado'].includes(eventoSeleccionado.estado)) return { disponible: false, etiqueta: 'Cancelado', detalle: 'Este evento fue cancelado.' };
+    if (fechaSeleccionada.cancelada || ['cancelado','finalizado'].includes(eventoSeleccionado.estado)) return { disponible: false, etiqueta: 'Cancelado', detalle: fechaSeleccionada.cancelada ? `La actividad «${nombreActividadSeleccionada}» fue cancelada.` : 'Este evento fue cancelado.' };
     const bloqueo = listaBloqueos.find((elemento) => {
       const aplicaRecinto = elemento.idRecinto === fechaSeleccionada.idRecinto || elemento.idRecinto === 'todos' || Boolean(elemento.idsRecintos?.includes(fechaSeleccionada.idRecinto));
       if (!aplicaRecinto || fechaSeleccionada.fecha < elemento.fechaInicio) return false;
@@ -142,15 +160,15 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       const finBloqueo = elemento.fechaFin || elemento.fechaInicio;
       return fechaSeleccionada.fecha <= finBloqueo && fechaSeleccionada.horaInicio < (elemento.horaFin || '23:59') && fechaSeleccionada.horaFin > (elemento.horaInicio || '00:00');
     });
-    if (bloqueo) return { disponible: false, etiqueta: 'Suspendido', detalle: `El día está suspendido por: ${bloqueo.titulo}.` };
+    if (bloqueo) return { disponible: false, etiqueta: 'Suspendido', detalle: `La actividad «${nombreActividadSeleccionada}» está suspendida por: ${bloqueo.titulo}.` };
     if ((!fechaSeleccionada || modalidadActividad(fechaSeleccionada,eventoSeleccionado.modalidadAsistencia) !== 'controlado')) return { disponible: false, etiqueta: 'Sin control de acceso', detalle: 'La actividad no utiliza acceso con boleto.' };
     const inicio = inicioEnMexico(fechaSeleccionada.fecha,fechaSeleccionada.horaInicio);
     const fin = inicioEnMexico(fechaSeleccionada.fecha,fechaSeleccionada.horaFin);
     const apertura = inicio - 30 * 60 * 1000;
-    if (!Number.isFinite(inicio) || !Number.isFinite(fin) || fin <= inicio) return { disponible: false, etiqueta: 'Horario inválido', detalle: 'No se puede validar el horario de este día.' };
-    if (ahoraSistema < apertura) return { disponible: false, etiqueta: 'Aún no disponible', detalle: `El control abre ${new Date(apertura).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}.` };
-    if (ahoraSistema >= fin) return { disponible: false, etiqueta: 'Finalizado', detalle: 'El horario del día ya terminó; no se admiten entradas tardías.' };
-    return { disponible: true, etiqueta: 'Disponible para Check-in', detalle: 'La cámara y la captura manual están habilitadas.' };
+    if (!Number.isFinite(inicio) || !Number.isFinite(fin) || fin <= inicio) return { disponible: false, etiqueta: 'Horario inválido', detalle: 'No se puede validar el horario de esta actividad.' };
+    if (ahoraSistema < apertura) return { disponible: false, etiqueta: 'Aún no disponible', detalle: `El registro de «${nombreActividadSeleccionada}» abre el ${fechaLegible(fechaSeleccionada.fecha)} a las ${horaOficial(apertura)} h, 30 minutos antes de su inicio (${fechaSeleccionada.horaInicio} h).` };
+    if (ahoraSistema >= fin) return { disponible: false, etiqueta: 'Finalizado', detalle: `«${nombreActividadSeleccionada}» terminó a las ${fechaSeleccionada.horaFin} h; ya no se registran entradas para esta actividad.` };
+    return { disponible: true, etiqueta: 'Disponible para Check-in', detalle: `Registro abierto hasta las ${fechaSeleccionada.horaFin} h. La cámara y la captura manual están habilitadas.` };
   })();
 
   const fallosManualesActivos = obtenerIntentosManualesActivos(usuarioActual?.id, ahoraSistema);
@@ -240,8 +258,8 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       mostrarNotificacion('Sin autorización', 'Solo puedes controlar eventos propios o asignados a tu cuenta de Staff.', 'error');
       return;
     }
-    if (!estadoDia.disponible) {
-      mostrarNotificacion('Control no disponible', estadoDia.detalle, 'advertencia');
+    if (!estadoActividad.disponible) {
+      mostrarNotificacion('Control no disponible', estadoActividad.detalle, 'advertencia');
       return;
     }
     setUltimoResultado(null);
@@ -296,10 +314,14 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
               className="flex-1 text-xs font-semibold text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 py-1.5 focus:border-[#7a132b]"
               aria-label="Actividad del evento que se está validando"
             >
-              {eventoSeleccionado.fechas.map((fecha, indice) => (
-                <option key={fecha.id} value={fecha.id}>
-                  {fecha.nombreActividad || fecha.nombreDia || `Día ${indice + 1}`}: {fecha.fecha} · {fecha.horaInicio}–{fecha.horaFin}
-                </option>
+              {agruparActividadesPorDia(eventoSeleccionado.fechas).map((dia) => (
+                <optgroup key={dia.fecha} label={dia.etiqueta}>
+                  {dia.actividades.map(({ actividad, indice }) => (
+                    <option key={actividad.id} value={actividad.id}>
+                      {etiquetaOpcionActividad(actividad, indice, nombreRecinto(actividad.idRecinto))}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
@@ -311,16 +333,22 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
             <span>No estás registrado como staff de este evento.</span>
           </div>
         )}
-        {eventoSeleccionado && fechaSeleccionada && <div className={`mt-4 rounded-xl border p-3 text-sm ${estadoDia.disponible ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
-          <strong className="block">{estadoDia.etiqueta}</strong><span className="mt-0.5 block text-xs">{estadoDia.detalle}</span>
+        {eventoSeleccionado && fechaSeleccionada && <dl className="mt-3 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-xs">
+          <dt className="text-neutral-500">Actividad</dt><dd className="font-bold text-neutral-900">{nombreActividadSeleccionada}</dd>
+          <dt className="text-neutral-500">Fecha</dt><dd className="text-neutral-800">{fechaLegible(fechaSeleccionada.fecha)}</dd>
+          <dt className="text-neutral-500">Horario</dt><dd className="text-neutral-800">{fechaSeleccionada.horaInicio}–{fechaSeleccionada.horaFin} h</dd>
+          <dt className="text-neutral-500">Recinto</dt><dd className="text-neutral-800">{recintoSeleccionado?.nombre || 'Recinto por confirmar'}</dd>
+        </dl>}
+        {eventoSeleccionado && fechaSeleccionada && <div className={`mt-4 rounded-xl border p-3 text-sm ${estadoActividad.disponible ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+          <strong className="block">{estadoActividad.etiqueta}</strong><span className="mt-0.5 block text-xs">{estadoActividad.detalle}</span>
         </div>}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-4">
-          <div className="text-xs text-neutral-500">{recintoSeleccionado?.nombre || 'Recinto no disponible'}</div>
-          <button type="button" onClick={iniciarControl} disabled={!estaAsignadoAEvento || !estadoDia.disponible} className="rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">Iniciar control</button>
+          <div className="text-xs text-neutral-500">{REGLA_INGRESO_ACTIVIDAD}</div>
+          <button type="button" onClick={iniciarControl} disabled={!estaAsignadoAEvento || !estadoActividad.disponible} className="rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">Iniciar control</button>
         </div>
       </section> : <>
         <section className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
-          <div className="min-w-0"><span className="text-[10px] font-bold uppercase tracking-widest text-[#7a132b]">Check-in · IU-CI02</span><strong className="block truncate text-sm">{eventoSeleccionado?.titulo}</strong><span className="block text-xs text-neutral-500">{fechaSeleccionada?.nombreActividad || fechaSeleccionada?.nombreDia || fechaSeleccionada?.fecha} · {fechaSeleccionada?.horaInicio}–{fechaSeleccionada?.horaFin}</span></div>
+          <div className="min-w-0"><span className="text-[10px] font-bold uppercase tracking-widest text-[#7a132b]">Check-in · IU-CI02</span><strong className="block truncate text-sm">{eventoSeleccionado?.titulo}</strong><span className="block truncate text-xs font-semibold text-neutral-800">{nombreActividadSeleccionada}</span><span className="block text-xs text-neutral-500">{resumenActividad}</span></div>
           <button type="button" onClick={terminarControl} className="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-bold text-neutral-700 hover:bg-neutral-50">Terminar control</button>
         </section>
 
@@ -358,6 +386,13 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
               </p>
             </div>
 
+            <div className="rounded-xl bg-white/80 border border-black/10 p-3 text-left text-[11px]">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400">Actividad validada</span>
+              <span className="block font-bold text-neutral-900">{nombreActividadSeleccionada}</span>
+              <span className="block text-neutral-600">{resumenActividad}</span>
+              {ultimoResultado.resultado === 'fuera_de_horario' && <span className="mt-1 block text-neutral-600">{REGLA_INGRESO_ACTIVIDAD}</span>}
+            </div>
+
             {/* Tarjeta del Asistente (legible sin saturación) */}
             {ultimoResultado.boleto ? (
               <div className="bg-white/90 backdrop-blur-xs p-4 rounded-2xl border border-black/10 text-left text-xs space-y-2.5 shadow-xs">
@@ -384,13 +419,13 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
                   </span>
                 </div>
               </div>
-            ) : (
+            ) : ['inexistente', 'codigo_no_reconocido', 'fecha_invalida'].includes(ultimoResultado.resultado) ? (
               <div className="p-4 rounded-xl bg-white/70 border border-black/10 text-xs">
                 <span className="text-rose-900 font-semibold block">
-                  El código no corresponde a un boleto registrado para esta fecha.
+                  El código no corresponde a un boleto registrado para esta actividad.
                 </span>
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Botón Principal para Continuar */}
@@ -423,9 +458,10 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
             <h1 className="text-base font-black text-neutral-900 line-clamp-1">
               {eventoSeleccionado?.titulo}
             </h1>
+            <p className="text-sm font-bold text-neutral-800 line-clamp-1">{nombreActividadSeleccionada}</p>
             <div className="text-xs text-neutral-500 flex items-center justify-center gap-2">
-              <span className="font-mono font-semibold text-neutral-800">
-                {fechaSeleccionada?.fecha}
+              <span className="font-semibold text-neutral-800">
+                {fechaLegible(fechaSeleccionada?.fecha)}
               </span>
                 <span aria-hidden="true" className="text-neutral-300">·</span>
                 <span>{fechaSeleccionada?.horaInicio}–{fechaSeleccionada?.horaFin} h</span>
@@ -466,6 +502,9 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
               <span className="text-xs font-bold text-neutral-800 block">
               Identificador del boleto:
             </span>
+            <p className="text-[11px] text-neutral-600">
+              Se validará para <strong className="text-neutral-900">{nombreActividadSeleccionada}</strong> · {resumenActividad}
+            </p>
 
             <form
               onSubmit={(e) => {
@@ -504,9 +543,9 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       {/* Pie Operativo */}
       {faseControl === 'lector' && <div className="pt-3 text-center">
         {usuarioActual?.roles.some((rol) => ['organizador', 'subdireccion', 'admin'].includes(rol)) ? (
-          <button type="button" onClick={() => navigate('/staff/historial')} className="text-xs font-semibold text-[#7a132b] hover:underline cursor-pointer">Consultar historial de accesos →</button>
+          <button type="button" onClick={() => navigate(`/staff/historial?${consultaSeleccion}`)} className="text-xs font-semibold text-[#7a132b] hover:underline cursor-pointer">Consultar historial de accesos →</button>
         ) : (
-          <button type="button" onClick={() => navigate('/staff/ocupacion')} className="text-xs font-semibold text-[#7a132b] hover:underline cursor-pointer">Ver ocupación de la sala →</button>
+          <button type="button" onClick={() => navigate(`/staff/ocupacion?${consultaSeleccion}`)} className="text-xs font-semibold text-[#7a132b] hover:underline cursor-pointer">Ver ocupación de la sala →</button>
         )}
       </div>}
     </div>
