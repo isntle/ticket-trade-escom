@@ -11,6 +11,7 @@ import { EstadoVacio } from '../componentes/ui/EstadoVacio';
 import { ConfiguracionAsiento, Reservacion } from '../tipos';
 import { obtenerMensaje } from '../dominio/mensajes';
 import { ModalListaEspera } from '../componentes/taquilla/ModalListaEspera';
+import { obtenerConflictoReserva, obtenerMensajeErrorCruce } from '../dominio/crucesReservas';
 
 interface PropiedadesSeleccionAsiento {
   eventId: string;
@@ -39,7 +40,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
 
   const eventoBase = listaEventos.find((e) => e.id === eventId);
   const fecha = eventoBase?.fechas.find((f) => f.id === dateId);
-  const evento = eventoBase ? eventoParaActividad(eventoBase,fecha) : undefined;
+  const evento = eventoBase ? eventoParaActividad(eventoBase, fecha) : undefined;
   const recinto = listaRecintos.find((r) => r.id === fecha?.idRecinto);
   
   // Buscar el arreglo oficial versión final para esta fecha
@@ -213,44 +214,17 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     !idsAsientosApartados.includes(asiento.id)
   ) ?? true;
 
-  // Detección de cruce de horarios (ERR-MT-07)
-  const tieneSuperposicion = () => {
-    if (!usuarioActual || !fecha) return false;
-    
-    const reservacionesActivas = listaReservaciones.filter(
-      (reservacion) =>
-        reservacion.idUsuario === usuarioActual.id &&
-        reservacion.estado === 'confirmada'
-    );
-    
-    const aMinutos = (horaStr: string) => {
-      if (!horaStr) return 0;
-      const [h, m] = horaStr.split(':').map(Number);
-      return (h * 60) + m;
-    };
-
-    const inicioNuevo = aMinutos(fecha.horaInicio);
-    const finNuevo = aMinutos(fecha.horaFin);
-
-    for (const res of reservacionesActivas) {
-      for (const evt of listaEventos) {
-        const fechaExistente = evt.fechas.find((f) => f.id === res.idFechaEvento);
-        if (fechaExistente && fechaExistente.fecha === fecha.fecha) {
-          const inicioExistente = aMinutos(fechaExistente.horaInicio);
-          const finExistente = aMinutos(fechaExistente.horaFin);
-          
-          const hayCruce = (inicioNuevo < finExistente) && (finNuevo > inicioExistente);
-          if (hayCruce) {
-            return {
-              actividad: evt.titulo,
-              inicio: fechaExistente.horaInicio,
-              fin: fechaExistente.horaFin
-            };
-          }
-        }
-      }
-    }
-    return false;
+// Detección de cruce de horarios utilizando el dominio (ERR-MT-07)
+  const obtenerConflicto = () => {
+    if (!usuarioActual || !fecha) return null;
+    const propuestaTemp = {
+      id: reservacionActiva?.id || 'temp',
+      idUsuario: usuarioActual.id,
+      idEvento: eventId,
+      idFechaEvento: dateId,
+      estado: 'apartado_temporal',
+    } as Reservacion;
+    return obtenerConflictoReserva(propuestaTemp, listaReservaciones, listaEventos);
   };
 
   // Manejo de clic en un asiento del mapa
@@ -279,15 +253,11 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     }
 
     // Verificación de empalme de horario (ERR-MT-07)
-    const choque = tieneSuperposicion();
-    if (choque) {
-      const msg = obtenerMensaje('ERR-MT-07', {
-        actividad: choque.actividad,
-        inicio: choque.inicio,
-        fin: choque.fin
-      });
-      setErrorColision(msg.descripcion);
-      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+    const conflicto = obtenerConflicto();
+    if (conflicto) {
+      const mensaje = obtenerMensajeErrorCruce(conflicto);
+      setErrorColision(mensaje);
+      mostrarNotificacion('Conflicto de Horario', mensaje, 'error');
       return;
     }
 
@@ -348,16 +318,12 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     setConfirmando(true);
     setErrorColision(null);
 
-    const choque = tieneSuperposicion();
-    if (choque) {
+    const conflicto = obtenerConflicto();
+    if (conflicto) {
       setConfirmando(false);
-      const msg = obtenerMensaje('ERR-MT-07', {
-        actividad: choque.actividad,
-        inicio: choque.inicio,
-        fin: choque.fin
-      });
-      setErrorColision(msg.descripcion);
-      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+      const mensaje = obtenerMensajeErrorCruce(conflicto);
+      setErrorColision(mensaje);
+      mostrarNotificacion('Conflicto de Horario', mensaje, 'error');
       return;
     }
 
