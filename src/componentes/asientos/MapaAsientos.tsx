@@ -169,7 +169,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
       } else if (estaApartado) {
         estiloBoton =
           'bg-amber-100 border-amber-300 text-amber-800 animate-pulse cursor-not-allowed';
-        textoAyuda = `${lugar.etiqueta} — En apartado temporal (10 min)`;
+        textoAyuda = `${lugar.etiqueta} — En apartado temporal (2 min)`;
       } else if (lugar.categoria === 'vip') {
         estiloBoton =
           'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 hover:border-amber-400 cursor-pointer font-bold';
