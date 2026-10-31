@@ -554,7 +554,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                 </span>
               </div>
               <p className="text-sm text-neutral-500 mt-1 max-w-2xl">
-                Abre o cierra la taquilla por día y consulta el historial de cambios.
+                Abre o cierra la taquilla por actividad y consulta el historial de cambios.
               </p>
             </div>
           </div>
@@ -582,7 +582,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                 </span>
               </div>
               <p className="text-sm text-neutral-500 mt-1 max-w-2xl">
-                Consulta aforo, disponibilidad, reservaciones, lista de espera y participación por día.
+                Consulta aforo, disponibilidad, reservaciones, lista de espera y participación por actividad.
               </p>
             </div>
           </div>

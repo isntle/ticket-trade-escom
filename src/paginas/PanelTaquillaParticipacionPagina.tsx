@@ -1,6 +1,9 @@
-import { modalidadActividad, aforoActividad, nombreActividad, accesoMixto } from '../dominio/actividades';
+import { modalidadActividad, nombreActividad, accesoMixto } from '../dominio/actividades';
 import { volverA } from '../dominio/navegacion';
-import React, { useMemo, useState } from 'react';
+import { afectaBloqueo } from '../dominio/bloqueos';
+import { inicioEnMexico } from '../dominio/solicitudes';
+import { etiquetaActividad, formatearFechaHoraInstitucional, indicadoresActividad, puedeAdministrarTaquilla, registrosDeActividad } from '../dominio/taquilla';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   BarChart3,
@@ -35,6 +38,7 @@ type CategoriaDetalle =
   | 'cancelaciones'
   | 'espera'
   | 'especiales'
+  | 'intenciones'
   | 'participacion';
 type EstadoDetalle = 'todos' | 'activo' | 'cancelado' | 'utilizado' | 'pendiente';
 
@@ -47,6 +51,7 @@ interface MetricaSesion {
   especiales: number;
   intenciones: number;
   asistencias: number;
+  apartados: number;
   disponibles: number;
   ocupacion: number;
   suspendida: boolean;
@@ -67,6 +72,7 @@ const ETIQUETAS_CATEGORIA: Record<CategoriaDetalle, string> = {
   cancelaciones: 'Cancelaciones',
   espera: 'Lista de espera',
   especiales: 'Boletos especiales',
+  intenciones: 'Intenciones de asistencia',
   participacion: 'Participación registrada'
 };
 
@@ -77,11 +83,7 @@ const CLASES_ESTADO: Record<Exclude<EstadoDetalle, 'todos'>, string> = {
   pendiente: 'bg-amber-50 border-amber-200 text-amber-900'
 };
 
-const formatearFechaHora = (valor: string | Date) =>
-  new Intl.DateTimeFormat('es-MX', {
-    dateStyle: 'medium',
-    timeStyle: 'short'
-  }).format(typeof valor === 'string' ? new Date(valor) : valor);
+const formatearFechaHora = formatearFechaHoraInstitucional;
 
 export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla> = ({
   eventId,
@@ -94,6 +96,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
     listaReservaciones,
     listaBoletos,
     listaEspera,
+    listaIntencionesAsistencia,
     bitacoraEscaneos,
     listaBloqueos
   } = useDatos();
@@ -111,99 +114,39 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
   const [estado, setEstado] = useState<EstadoDetalle>('todos');
   const [busqueda, setBusqueda] = useState('');
   const [ultimaActualizacion, setUltimaActualizacion] = useState(() => new Date());
+  const [ahora, setAhora] = useState(Date.now);
+  useEffect(() => {
+    const intervalo = setInterval(() => setAhora(Date.now()), 30000);
+    return () => clearInterval(intervalo);
+  }, []);
+  useEffect(() => { setIdSesion('todas'); }, [eventId]);
+
+  const datosIndicadores = useMemo(() => ({
+    recintos: listaRecintos, arreglos: listaArreglos, reservaciones: listaReservaciones,
+    boletos: listaBoletos, espera: listaEspera, escaneos: bitacoraEscaneos, intenciones: listaIntencionesAsistencia
+  }), [listaRecintos, listaArreglos, listaReservaciones, listaBoletos, listaEspera, bitacoraEscaneos, listaIntencionesAsistencia]);
 
   const bloqueoDeSesion = (fecha: FechaEvento) =>
-    listaBloqueos.find((bloqueo) => {
-      const aplicaRecinto =
-        bloqueo.idRecinto === fecha.idRecinto ||
-        bloqueo.idRecinto === 'todos' ||
-        Boolean(bloqueo.idsRecintos?.includes(fecha.idRecinto));
-      if (!aplicaRecinto || fecha.fecha < bloqueo.fechaInicio) return false;
-      if (bloqueo.esIndefinido) return true;
-      const fechaFin = bloqueo.fechaFin || bloqueo.fechaInicio;
-      const horaInicio = bloqueo.horaInicio || '00:00';
-      const horaFin = bloqueo.horaFin || '23:59';
-      return (
-        fecha.fecha <= fechaFin &&
-        fecha.horaInicio < horaFin &&
-        fecha.horaFin > horaInicio
-      );
-    });
+    listaBloqueos.find((bloqueo) => afectaBloqueo(bloqueo, fecha));
 
   const sesionesFiltradas = useMemo(() => {
     if (!evento) return [];
-    const ahora = Date.now();
     return evento.fechas.filter((fecha) => {
       if (idSesion !== 'todas' && fecha.id !== idSesion) return false;
       if(modalidad!=='todas'&&modalidadActividad(fecha,evento.modalidadAsistencia)!==modalidad)return false;
-      const finSesion = new Date(`${fecha.fecha}T${fecha.horaFin}:00`).getTime();
-      if (periodo === 'proximas') return finSesion >= ahora;
-      if (periodo === 'finalizadas') return finSesion < ahora;
+      const finSesion = inicioEnMexico(fecha.fecha, fecha.horaFin);
+      if (periodo === 'proximas') return finSesion > ahora;
+      if (periodo === 'finalizadas') return finSesion <= ahora;
       return true;
     });
-  }, [evento, idSesion, modalidad, periodo]);
+  }, [evento, idSesion, modalidad, periodo, ahora]);
 
   const metricasSesiones = useMemo<MetricaSesion[]>(() => {
     if (!evento) return [];
     return sesionesFiltradas.map((fecha) => {
-      const arreglo =
-        listaArreglos.find(
-          (elemento) => elemento.idFechaEvento === fecha.id && elemento.estado === 'version_final'
-        ) || listaArreglos.find((elemento) => elemento.idFechaEvento === fecha.id);
-      const recinto = listaRecintos.find((elemento) => elemento.id === fecha.idRecinto);
-      const aforo = aforoActividad(fecha,evento.aforoMaximo) ?? arreglo?.totalAsientos ?? recinto?.capacidad ?? 0;
-      const boletosEspeciales = listaBoletos.filter(
-        (boleto) => boleto.idFechaEvento === fecha.id && boleto.esEspecial
-      );
-      const idsReservacionesEspeciales = new Set(
-        boletosEspeciales.map((boleto) => boleto.idReservacion)
-      );
-      const reservacionesNormales = listaReservaciones.filter(
-        (reservacion) =>
-          reservacion.idFechaEvento === fecha.id &&
-          !idsReservacionesEspeciales.has(reservacion.id)
-      );
-      const reservaciones = reservacionesNormales.filter(
-        (reservacion) => reservacion.estado === 'confirmada'
-      ).length;
-      const cancelaciones = reservacionesNormales.filter(
-        (reservacion) => reservacion.estado === 'cancelada'
-      ).length;
-      const espera = listaEspera.filter(
-        (entrada) =>
-          entrada.idFechaEvento === fecha.id &&
-          (entrada.estado === 'esperando' || entrada.estado === 'notificado')
-      ).length;
-      const especiales = boletosEspeciales.filter(
-        (boleto) => boleto.estado === 'valido' || boleto.estado === 'utilizado'
-      ).length;
-      const intenciones = reservacionesNormales.filter(
-        (reservacion) =>
-          reservacion.estado === 'confirmada' &&
-          !reservacion.idAsiento &&
-          modalidadActividad(fecha,evento.modalidadAsistencia) !== 'controlado'
-      ).length;
-      const asistencias = new Set(
-        bitacoraEscaneos
-          .filter(
-            (registro) =>
-              registro.idFechaEvento === fecha.id && registro.resultado === 'exito'
-          )
-          .map((registro) => registro.idBoleto)
-      ).size;
-      const lugaresOcupados = reservaciones + especiales;
       return {
-        fecha,
-        aforo,
-        reservaciones,
-        cancelaciones,
-        espera,
-        especiales,
-        intenciones,
-        asistencias,
-        disponibles: Math.max(0, aforo - lugaresOcupados),
-        ocupacion: aforo > 0 ? Math.min(100, Math.round((lugaresOcupados / aforo) * 100)) : 0,
-        suspendida: Boolean(bloqueoDeSesion(fecha))
+        ...indicadoresActividad(evento, fecha, datosIndicadores, ahora),
+        suspendida: Boolean(fecha.suspendida || bloqueoDeSesion(fecha))
       };
     });
   }, [
@@ -215,6 +158,8 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
     listaRecintos,
     listaReservaciones,
     listaBloqueos,
+    datosIndicadores,
+    ahora,
     sesionesFiltradas
   ]);
 
@@ -229,7 +174,8 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
           especiales: acumulado.especiales + metrica.especiales,
           intenciones: acumulado.intenciones + metrica.intenciones,
           asistencias: acumulado.asistencias + metrica.asistencias,
-          disponibles: acumulado.disponibles + metrica.disponibles
+          disponibles: acumulado.disponibles + metrica.disponibles,
+          apartados: acumulado.apartados + metrica.apartados
         }),
         {
           aforo: 0,
@@ -239,7 +185,8 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
           especiales: 0,
           intenciones: 0,
           asistencias: 0,
-          disponibles: 0
+          disponibles: 0,
+          apartados: 0
         }
       ),
     [metricasSesiones]
@@ -264,7 +211,9 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
         (reservacion) =>
           reservacion.idEvento === evento.id &&
           idsFechasFiltradas.has(reservacion.idFechaEvento) &&
-          !idsReservacionesEspeciales.has(reservacion.id)
+          !idsReservacionesEspeciales.has(reservacion.id) &&
+          !boletosEspeciales.some(b => b.id === reservacion.idBoleto) &&
+          (reservacion.estado !== 'apartado_temporal' || (reservacion.tiempoExpiracionApartado || 0) > ahora)
       )
       .map((reservacion) => ({
         id: reservacion.id,
@@ -320,13 +269,8 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
         fechaRegistro: boleto.fechaEmision
       }));
 
-    const participacion: RegistroDetalle[] = bitacoraEscaneos
-      .filter(
-        (registro) =>
-          registro.idEvento === evento.id &&
-          idsFechasFiltradas.has(registro.idFechaEvento) &&
-          registro.resultado === 'exito'
-      )
+    const participacion: RegistroDetalle[] = sesionesFiltradas
+      .flatMap(fecha => registrosDeActividad(evento, fecha, datosIndicadores, ahora).participaciones)
       .map((registro) => ({
         id: registro.id,
         categoria: 'participacion',
@@ -337,7 +281,11 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
         fechaRegistro: registro.fechaEscaneo
       }));
 
-    return [...reservaciones, ...espera, ...especiales, ...participacion].sort(
+    const intenciones: RegistroDetalle[] = listaIntencionesAsistencia
+      .filter(r => r.idEvento === evento.id && idsFechasFiltradas.has(r.idFechaEvento))
+      .map(r => ({ id: r.id, categoria: 'intenciones', nombre: r.nombreUsuario, referencia: 'Intención sin reserva de lugar', idFechaEvento: r.idFechaEvento, estado: 'activo', fechaRegistro: r.fechaRegistro }));
+
+    return [...reservaciones, ...espera, ...especiales, ...participacion, ...intenciones].sort(
       (primero, segundo) =>
         new Date(segundo.fechaRegistro).getTime() - new Date(primero.fechaRegistro).getTime()
     );
@@ -347,7 +295,11 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
     idsFechasFiltradas,
     listaBoletos,
     listaEspera,
-    listaReservaciones
+    listaReservaciones,
+    listaIntencionesAsistencia,
+    sesionesFiltradas,
+    datosIndicadores,
+    ahora
   ]);
 
   const registrosFiltrados = useMemo(() => {
@@ -376,7 +328,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
     );
   }
 
-  if (!usuarioActual || usuarioActual.id !== evento.idOrganizador) {
+  if (!puedeAdministrarTaquilla(usuarioActual, evento)) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16">
         <EstadoVacio
@@ -392,7 +344,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
 
   const ocupacionGeneral =
     totales.aforo > 0
-      ? Math.min(100, Math.round(((totales.reservaciones + totales.especiales) / totales.aforo) * 100))
+      ? Math.min(100, Math.round(((totales.reservaciones + totales.especiales + totales.apartados) / totales.aforo) * 100))
       : 0;
   const entradasEmitidas = totales.reservaciones + totales.especiales;
   const participacionGeneral =
@@ -410,7 +362,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
             (boleto) => boleto.idReservacion === reservacion.id && boleto.esEspecial
           )
       )
-      .map((reservacion) => reservacion.idUsuario)
+      .map((reservacion) => reservacion.idUsuario).filter(Boolean)
   );
   const sinActividad =
     totales.reservaciones +
@@ -418,6 +370,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
       totales.espera +
       totales.especiales +
       totales.intenciones +
+      totales.apartados +
       totales.asistencias ===
     0;
   const haySesionesSuspendidas = metricasSesiones.some((metrica) => metrica.suspendida);
@@ -425,17 +378,17 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
   const nombreSesion = (idFechaEvento: string) => {
     const indice = evento.fechas.findIndex((fecha) => fecha.id === idFechaEvento);
     const fecha = evento.fechas[indice];
-    return fecha ? nombreActividad(fecha,indice) : 'Actividad';
+    return fecha ? etiquetaActividad(fecha, listaRecintos, indice) : 'Actividad no disponible';
   };
 
   const tarjetas = [
-    { etiqueta: 'Aforo total', valor: totales.aforo, ayuda: 'Lugares por día', icono: Users, color: 'text-neutral-700 bg-neutral-100' },
-    { etiqueta: 'Disponibles', valor: totales.disponibles, ayuda: 'Lugares aún libres', icono: CheckCircle2, color: 'text-emerald-700 bg-emerald-50' },
+    { etiqueta: 'Aforo total', valor: totales.aforo, ayuda: 'Suma de cupos por actividad', icono: Users, color: 'text-neutral-700 bg-neutral-100' },
+    { etiqueta: 'Disponibles', valor: totales.disponibles, ayuda: 'Descuenta reservas, especiales y apartados vigentes', icono: CheckCircle2, color: 'text-emerald-700 bg-emerald-50' },
     { etiqueta: 'Reservaciones activas', valor: totales.reservaciones, ayuda: 'Confirmadas en taquilla', icono: Ticket, color: 'text-sky-700 bg-sky-50' },
     { etiqueta: 'Cancelaciones', valor: totales.cancelaciones, ayuda: 'Reservaciones canceladas', icono: UserX, color: 'text-rose-700 bg-rose-50' },
     { etiqueta: 'Lista de espera', valor: totales.espera, ayuda: 'En espera o notificados', icono: Clock3, color: 'text-amber-700 bg-amber-50' },
     { etiqueta: 'Boletos especiales', valor: totales.especiales, ayuda: 'Entradas, no personas únicas', icono: WalletCards, color: 'text-violet-700 bg-violet-50' },
-    { etiqueta: 'Intención de asistencia', valor: totales.intenciones, ayuda: 'Registros sin lugar asignado', icono: UserCheck, color: 'text-indigo-700 bg-indigo-50' },
+    { etiqueta: 'Intención de asistencia', valor: totales.intenciones, ayuda: 'No reserva ni descuenta un lugar', icono: UserCheck, color: 'text-indigo-700 bg-indigo-50' },
     { etiqueta: 'Participación registrada', valor: totales.asistencias, ayuda: 'Entradas verificadas en puerta', icono: BarChart3, color: 'text-[#7a132b] bg-[#7a132b]/10' }
   ];
 
@@ -496,7 +449,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
             </select>
             <button
               type="button"
-              onClick={() => setUltimaActualizacion(new Date())}
+              onClick={() => { setUltimaActualizacion(new Date()); setAhora(Date.now()); }}
               className="px-4 py-2.5 bg-[#7a132b] hover:bg-[#620f23] text-white rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -507,16 +460,17 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
 
         <div className="mt-5 pt-4 border-t border-neutral-100 flex flex-col lg:flex-row lg:items-end gap-3">
           <label className="flex-1 text-[10px] font-bold text-neutral-500 uppercase tracking-wider">
-            Sesión
+            Actividad
             <select
               value={idSesion}
+              aria-label="Filtrar por actividad"
               onChange={(e) => setIdSesion(e.target.value)}
               className="mt-1 w-full px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs normal-case font-semibold text-neutral-800 focus:outline-none"
             >
               <option value="todas">Todas las actividades</option>
               {evento.fechas.map((fecha, indice) => (
                 <option key={fecha.id} value={fecha.id}>
-                  {nombreActividad(fecha,indice)} · {fecha.fecha}
+                  {etiquetaActividad(fecha, listaRecintos, indice)}
                 </option>
               ))}
             </select>
@@ -525,18 +479,20 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
             Periodo
             <select
               value={periodo}
+              aria-label="Filtrar por periodo"
               onChange={(e) => setPeriodo(e.target.value as FiltroPeriodo)}
               className="mt-1 w-full px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs normal-case font-semibold text-neutral-800 focus:outline-none"
             >
               <option value="todas">Todo el evento</option>
-              <option value="proximas">Próximos días</option>
-              <option value="finalizadas">Sesiones finalizadas</option>
+              <option value="proximas">Actividades próximas o en curso</option>
+              <option value="finalizadas">Actividades finalizadas</option>
             </select>
           </label>
           <label className="flex-1 text-[10px] font-bold text-neutral-500 uppercase tracking-wider">
             Modalidad
             <select
               value={modalidad}
+              aria-label="Filtrar por modalidad"
               onChange={(e) => setModalidad(e.target.value as FiltroModalidad)}
               className="mt-1 w-full px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs normal-case font-semibold text-neutral-800 focus:outline-none"
             >
@@ -547,7 +503,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
             </select>
           </label>
           <div className="flex-1 rounded-xl bg-neutral-50 border border-neutral-200 px-3 py-2.5 text-[10px] text-neutral-500">
-            <span className="font-bold uppercase tracking-wider block">Última actualización</span>
+            <span className="font-bold uppercase tracking-wider block">Última actualización · hora institucional</span>
             <span className="text-xs font-semibold text-neutral-800 mt-1 block">
               {formatearFechaHora(ultimaActualizacion)}
             </span>
@@ -567,7 +523,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
         <AlertaMensaje
           tipo="advertencia"
           titulo="INF-OR-06 · SUSPENDIDO"
-          mensaje="Uno o más días están suspendidos por un bloqueo institucional. Los datos históricos pueden seguir consultándose."
+          mensaje="Una o más actividades están suspendidas. Los datos históricos pueden seguir consultándose."
           className="mb-5"
         />
       )}
@@ -575,7 +531,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
         <AlertaMensaje
           tipo="informacion"
           titulo="INF-TR-01 · Sin resultados"
-          mensaje="No hay días que coincidan con el periodo y la modalidad seleccionados. Modifica o elimina los filtros."
+          mensaje="No hay actividades que coincidan con el periodo y la modalidad seleccionados. Modifica o elimina los filtros."
           className="mb-5"
         />
       )}
@@ -626,7 +582,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
                 <div className="h-full bg-[#7a132b] rounded-full transition-all" style={{ width: `${ocupacionGeneral}%` }} />
               </div>
               <p className="text-[10px] text-neutral-400 mt-1.5">
-                {entradasEmitidas} entradas activas de {totales.aforo} lugares acumulados
+                {entradasEmitidas} entradas activas y {totales.apartados} apartados u ofertas vigentes de {totales.aforo} lugares acumulados
               </p>
             </div>
             <div>
@@ -656,7 +612,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
             <span className="text-xs text-neutral-300 mb-1">entradas especiales</span>
           </div>
           <p className="text-[10px] text-neutral-400 leading-relaxed mt-3">
-            Los boletos especiales se reportan como entradas y no se suman como personas únicas.
+            Un pase por evento puede habilitar varias actividades. Cada acceso cuenta en su actividad; el titular cuenta una sola vez. Los especiales se reportan como entradas.
           </p>
         </article>
       </section>
@@ -664,18 +620,18 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
       <section className="bg-white border border-neutral-200 rounded-2xl shadow-xs overflow-hidden mb-5">
         <div className="p-5 border-b border-neutral-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-extrabold text-neutral-900">Resumen por día</h2>
-            <p className="text-[11px] text-neutral-500 mt-0.5">Los aforos se suman por día, no como personas únicas.</p>
+            <h2 className="text-sm font-extrabold text-neutral-900">Resumen por actividad</h2>
+            <p className="text-[11px] text-neutral-500 mt-0.5">Cada fila usa el cupo y los registros propios de la actividad. Día solo agrupa la fecha.</p>
           </div>
           <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-            {metricasSesiones.length} día(s)
+            {metricasSesiones.length} actividad(es)
           </span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs min-w-200">
             <thead className="bg-neutral-50 text-[10px] uppercase tracking-wider text-neutral-500">
               <tr>
-                <th className="px-5 py-3 font-bold">Sesión</th>
+                <th className="px-5 py-3 font-bold">Actividad</th>
                 <th className="px-3 py-3 font-bold text-center">Aforo</th>
                 <th className="px-3 py-3 font-bold text-center">Reservadas</th>
                 <th className="px-3 py-3 font-bold text-center">Disponibles</th>
@@ -692,7 +648,8 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
                   <tr key={metrica.fecha.id} className="hover:bg-neutral-50/70">
                     <td className="px-5 py-4">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-bold text-neutral-900">{nombreSesion(metrica.fecha.id)}</span>
+                        <span className="font-bold text-neutral-900">{nombreActividad(metrica.fecha, evento.fechas.indexOf(metrica.fecha))}</span>
+                        {metrica.fecha.cancelada && <span className="text-rose-800 font-bold">CANCELADA</span>}
                         {metrica.suspendida && (
                           <span className="px-2 py-0.5 rounded border bg-amber-100 border-amber-300 text-amber-900 text-[9px] font-black">
                             SUSPENDIDO
@@ -700,7 +657,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
                         )}
                       </div>
                       <div className="text-[10px] text-neutral-400 mt-1">
-                        {metrica.fecha.fecha} · {metrica.fecha.horaInicio} · {recinto?.nombre || 'Recinto'}
+                        Día {metrica.fecha.fecha} · {metrica.fecha.horaInicio}–{metrica.fecha.horaFin} · {recinto?.nombre || 'Recinto'}
                       </div>
                     </td>
                     <td className="px-3 py-4 text-center font-semibold text-neutral-700">{metrica.aforo}</td>
@@ -718,7 +675,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
               {metricasSesiones.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-5 py-8 text-center text-neutral-500">
-                    INF-TR-01 · No hay días que coincidan con los filtros.
+                    INF-TR-01 · No hay actividades que coincidan con los filtros.
                   </td>
                 </tr>
               )}
@@ -732,7 +689,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
             <div>
               <h2 className="text-sm font-extrabold text-neutral-900">Desglose por categoría</h2>
-              <p className="text-[11px] text-neutral-500 mt-0.5">Selecciona una categoría para consultar sus registros.</p>
+              <p className="text-[11px] text-neutral-500 mt-0.5">Las tarjetas muestran cifras vigentes; aquí puedes consultar también el historial de cada categoría por estado.</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <label className="relative">
@@ -789,7 +746,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
               <tr>
                 <th className="px-5 py-3 font-bold">Titular / registro</th>
                 <th className="px-4 py-3 font-bold">Referencia</th>
-                <th className="px-4 py-3 font-bold">Sesión</th>
+                <th className="px-4 py-3 font-bold">Actividad</th>
                 <th className="px-4 py-3 font-bold">Estado</th>
                 <th className="px-5 py-3 font-bold text-right">Fecha de registro</th>
               </tr>

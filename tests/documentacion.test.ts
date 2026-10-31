@@ -102,3 +102,23 @@ test("resolver recursos vigentes conserva la interfaz y el caso solicitados",()=
   assert.match(rutaC,/dateId=fec-hackathon-d1/);
   assert.match(rutaC,/interfaz=UI-40/);
 });
+
+test('las tres interfaces de taquilla conservan botones, controles y destinos propios por actividad', () => {
+  const casos = SUBEQUIPOS.find(e => e.id === 'taquilla')!.casos;
+  for (const [id, interfaz, destino] of [
+    ['CU-MT-07', 'UI-62', '/boletos-especiales'],
+    ['CU-MT-08', 'UI-63', '/inscripciones'],
+    ['CU-MT-09', 'UI-64', '/taquilla-participacion']
+  ]) {
+    const caso = casos.find(c => c.id === id)!;
+    assert.ok(caso.control, id);
+    assert.ok(caso.respuesta, id);
+    const [pantalla] = pantallasDelCaso(caso);
+    assert.equal(pantalla.id, interfaz);
+    const ruta = resolverRutaDocumentacion({ ...caso, ruta: pantalla.ruta }, EVENTOS_INICIALES, new Date('2026-10-18'))!;
+    const url = new URL(ruta, 'https://ticket-trade.test');
+    assert.ok(url.pathname.endsWith(destino), ruta);
+    assert.equal(url.searchParams.get('interfaz'), interfaz);
+    assert.equal(url.searchParams.get('caso'), id);
+  }
+});
