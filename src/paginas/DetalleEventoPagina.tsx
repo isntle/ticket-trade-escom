@@ -1,5 +1,7 @@
-import { REGLA_INGRESO_ACTIVIDAD } from '../dominio/presentacionActividad';
-import { modalidadActividad, aforoActividad, nombreActividad, accesoMixto } from '../dominio/actividades';
+import { REGLA_INGRESO_ACTIVIDAD, fechaLegible } from '../dominio/presentacionActividad';
+import { modalidadActividad, nombreActividad, accesoMixto } from '../dominio/actividades';
+import { capacidadActividad } from '../dominio/taquilla';
+import { impedimentoActividad, impedimentoParticipante, rutaAccesoConRegreso, rutaDetalleEvento, rutaReservaActividad } from '../dominio/participacionActividad';
 import { VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
 import { volverA } from '../dominio/navegacion';
 import React, { useState } from 'react';
@@ -43,6 +45,8 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
   const {
     listaEventos,
     listaRecintos,
+    listaArreglos,
+    listaBloqueos,
     listaIntencionesAsistencia,
     registrarIntencionAsistencia,
     cancelarIntencionAsistencia
@@ -74,6 +78,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
   const debeOcultarse = 
     !evento || 
     ((evento.estado as string) !== 'publicado' && 
+     evento.estado !== 'en_curso' &&
      (evento.estado as string) !== 'cancelado' && 
      (evento.estado as string) !== 'suspendido');
 
@@ -154,47 +159,38 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
     return r ? r.nombre : 'Recinto ESCOM';
   };
 
-  // Inicia el registro de intención de asistencia para el día seleccionado.
-  const iniciarRegistroDirecto = (fecha: FechaEvento) => {
-    const fechaLimite = fecha.fechaLimiteInscripciones
-      ? new Date(fecha.fechaLimiteInscripciones).getTime()
-      : new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime() - 60 * 60 * 1000;
-    const estadoInscripciones =
-      fecha.estadoInscripciones ||
-      (evento.estado === 'publicado' || evento.estado === 'en_curso' ? 'abiertas' : 'cerradas');
+  const claveAcceso = esPrivado && accesoConcedido ? evento.claveAccesoPrivada : undefined;
+  const rutaDetalle = rutaDetalleEvento(evento.id, claveAcceso);
 
-    // Validación de inscripciones cerradas (ERR-MT-02)
-    if (estadoInscripciones === 'cerradas' || fechaLimite <= Date.now()) {
-      const msg = obtenerMensaje('ERR-MT-02');
-      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+  // Inicia el registro de intención para la actividad, nunca para un renglón del programa.
+  const iniciarRegistroDirecto = (fecha: FechaEvento) => {
+    const impedimento = impedimentoActividad(evento, fecha, listaBloqueos);
+    if (impedimento) {
+      mostrarNotificacion('Actividad no disponible', impedimento, 'error');
       return;
     }
 
     // Validación de sesión activa (ERR-TR-01)
-    if (!usuarioActual) {
+    if (!usuarioActual?.estaActivo) {
       const msg = obtenerMensaje('ERR-TR-01');
       mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
-      navigate('/login');
+      navigate(rutaAccesoConRegreso('/login', rutaDetalle));
       return;
     }
 
     // Validación de correo confirmado (ERR-IP-04)
-    if (usuarioActual.correoConfirmado === false) {
+    if (usuarioActual.correoConfirmado !== true) {
       const msg = obtenerMensaje('ERR-IP-04');
       mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
-      navigate('/confirmar-correo');
+      navigate(rutaAccesoConRegreso('/confirmar-correo', rutaDetalle));
       return;
     }
 
     // Validación de público permitido (ERR-MT-01)
-    const publicoPermitido = evento.publicoPermitido;
-    if (publicoPermitido && Array.isArray(publicoPermitido) && publicoPermitido.length > 0) {
-      const esElegible = usuarioActual.roles.some((rol) => publicoPermitido.includes(rol));
-      if (!esElegible) {
-        const msg = obtenerMensaje('ERR-MT-01', { 'público permitido': publicoPermitido.join(', ') });
-        mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
-        return;
-      }
+    const errorPermiso = impedimentoParticipante(evento, usuarioActual);
+    if (errorPermiso) {
+      mostrarNotificacion('Público no permitido', errorPermiso, 'error');
+      return;
     }
 
     // Abre modal de confirmación
@@ -222,7 +218,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
     if (resultado.exito) {
       mostrarNotificacion(
         'Registro completado',
-        'Registraste tu intención de asistir este día. No se generó un boleto.',
+        'Registraste tu intención de asistir a esta actividad. No se generó un boleto.',
         'exito'
       );
     } else {
@@ -245,13 +241,17 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
 
     if (!registro) return;
 
-    cancelarIntencionAsistencia(registro.id);
+    const resultado = cancelarIntencionAsistencia(registro.id);
+    if (!resultado.exito) {
+      mostrarNotificacion('No fue posible cancelar el registro', resultado.error || 'Inténtalo de nuevo.', 'error');
+      return;
+    }
     const msg = obtenerMensaje('OK-MT-02');
     mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+    <div data-interfaz="UI-11" tabIndex={-1} className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
       {/* Botón Volver */}
       <button
         type="button"
@@ -304,7 +304,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
             <Calendar className="w-4 h-4 text-[#7a132b] shrink-0" />
             <span>
               <strong>{new Set(evento.fechas.map(f=>f.fecha)).size} {new Set(evento.fechas.map(f=>f.fecha)).size === 1 ? 'Día programado' : 'Días programados'}:</strong>{' '}
-              {[...new Set(evento.fechas.map(f => f.fecha))].sort().join(' · ')}
+              {[...new Set(evento.fechas.map(f => f.fecha))].sort().map(fechaLegible).join(' · ')}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -359,7 +359,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
             <div className="space-y-2.5 text-neutral-600">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-neutral-400 shrink-0" />
-                <span>{evento.fechas.some(f=>f.asistenciaEstimada!==undefined)?"Aforo y acceso definidos en cada actividad":`Capacidad autorizada: ${evento.aforoMaximo || 120} asistentes`}</span>
+                <span>Aforo y acceso definidos en cada actividad</span>
               </div>
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-neutral-400 shrink-0" />
@@ -400,16 +400,10 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
           {[...evento.fechas].sort((a,b)=>(a.fecha+a.horaInicio).localeCompare(b.fecha+b.horaInicio)).map((fecha, indice) => {
             const nombreRecinto = obtenerNombreRecinto(fecha.idRecinto);
             const etiquetaDia = nombreActividad(fecha,indice);
-            const fechaLimite = fecha.fechaLimiteInscripciones
-              ? new Date(fecha.fechaLimiteInscripciones).getTime()
-              : new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime() - 60 * 60 * 1000;
-            const estadoInscripciones =
-              fecha.estadoInscripciones ||
-              (evento.estado === 'publicado' || evento.estado === 'en_curso'
-                ? 'abiertas'
-                : 'cerradas');
-            const inscripcionesAbiertas =
-              estadoInscripciones === 'abiertas' && fechaLimite > Date.now();
+            const impedimento = impedimentoActividad(evento, fecha, listaBloqueos);
+            const inscripcionesAbiertas = !impedimento;
+            const modalidad = modalidadActividad(fecha, evento.modalidadAsistencia);
+            const aforo = capacidadActividad(evento, fecha, { recintos: listaRecintos, arreglos: listaArreglos });
             const expandido = diasExpandidos[fecha.id] ?? (indice === 0 || !!fecha.programa);
             
             const yaRegistrado = usuarioActual
@@ -424,17 +418,18 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
             return (
               <div
                 key={fecha.id}
+                data-actividad={fecha.id}
                 className="bg-white rounded-2xl border border-neutral-200 overflow-hidden shadow-xs hover:border-neutral-300 transition-all"
               >
                 {/* Cabecera de la Tarjeta del Día */}
                 <div className="p-5 sm:p-6 bg-gradient-to-r from-neutral-50/80 via-white to-neutral-50/30 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-100">
                   <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="px-3 py-1 rounded-lg bg-[#7a132b] text-white font-mono text-xs font-bold shadow-2xs">
                         {etiquetaDia}
                       </span>
                       <span className="font-extrabold text-neutral-900 text-base sm:text-lg">
-                        {fecha.fecha}
+                        {fechaLegible(fecha.fecha)}
                       </span>
                       <span
                         className={`px-2 py-1 rounded-md border text-[10px] font-black tracking-wide ${
@@ -443,7 +438,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                             : 'bg-neutral-100 border-neutral-300 text-neutral-700'
                         }`}
                       >
-                        INSCRIPCIONES {inscripcionesAbiertas ? 'ABIERTAS' : 'CERRADAS'}
+                        {fecha.cancelada ? 'CANCELADA' : fecha.suspendida || impedimento?.includes('SUSPENDIDA') ? 'SUSPENDIDA' : `INSCRIPCIONES ${inscripcionesAbiertas ? 'ABIERTAS' : 'CERRADAS'}`}
                       </span>
                     </div>
 
@@ -460,42 +455,36 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
 
                     {fecha.ponentes && fecha.ponentes.length > 0 && (
                       <div className="text-xs text-neutral-500 pt-0.5">
-                        Ponente(s) del día: <strong className="text-neutral-800">{fecha.ponentes.join(', ')}</strong>
+                        Ponente(s) de la actividad: <strong className="text-neutral-800">{fecha.ponentes.join(', ')}</strong>
                       </div>
                     )}
                   </div>
 
                   {/* Acciones de Registro */}
                   <div className="flex items-center gap-3 shrink-0">
-                    {(evento.estado as string) === 'cancelado' || (evento.estado as string) === 'suspendido' || !inscripcionesAbiertas ? (
+                    {yaRegistrado && modalidad !== 'controlado' ? (
+                      <button type="button" onClick={() => cancelarRegistroLibre(fecha.id)} className="px-5 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" /><span>Cancelar registro</span>
+                      </button>
+                    ) : !inscripcionesAbiertas ? (
                       <button
                         type="button"
                         disabled
                         className="px-5 py-2.5 bg-neutral-100 border border-neutral-200 text-neutral-400 rounded-xl text-xs font-bold cursor-not-allowed inline-flex items-center gap-2"
                       >
                         <Lock className="w-4 h-4" />
-                        <span>Inscripciones Cerradas</span>
+                        <span>{fecha.cancelada ? 'Actividad cancelada' : impedimento?.includes('SUSPENDIDA') ? 'Actividad suspendida' : 'Inscripciones cerradas'}</span>
                       </button>
                     ) : (
-                      modalidadActividad(fecha,evento.modalidadAsistencia) === 'controlado' ? (
+                      modalidad === 'controlado' ? (
                         <button
                           type="button"
-                          onClick={() => navigate(`/eventos/${evento.id}/reservar?dateId=${fecha.id}`)}
+                          onClick={() => navigate(rutaReservaActividad(evento.id, fecha.id, claveAcceso))}
                           className="px-5 py-2.5 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2"
                         >
                           <span>Reservar lugar ({etiquetaDia})</span>
                         </button>
                       ) : (
-                        yaRegistrado ? (
-                          <button
-                            type="button"
-                            onClick={() => cancelarRegistroLibre(fecha.id)}
-                            className="px-5 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2 transition-colors"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>Cancelar registro</span>
-                          </button>
-                        ) : (
                           <button
                             type="button"
                             disabled={procesandoRegistro}
@@ -505,21 +494,20 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                             <UserCheck className="w-4 h-4" />
                             <span>{procesandoRegistro ? 'Registrando...' : `Registrar asistencia (${etiquetaDia})`}</span>
                           </button>
-                        )
                       )
                     )}
                   </div>
                 </div>
 
                 {fecha.descripcionActividad&&<p className="px-5 py-3 text-sm text-neutral-600">{fecha.descripcionActividad}</p>}
-                {fecha.asistenciaEstimada!==undefined&&<p className="px-5 pb-3 text-sm font-semibold">Aforo: {aforoActividad(fecha,evento.aforoMaximo)} personas · {modalidadActividad(fecha,evento.modalidadAsistencia)==='controlado'?'Con reservación':modalidadActividad(fecha,evento.modalidadAsistencia)==='registro'?'Registro de asistencia':'Entrada libre'}</p>}
+                <p className="px-5 py-3 text-sm font-semibold">Aforo: {aforo} personas · {modalidad === 'controlado' ? 'Con reservación' : modalidad === 'registro' ? 'Registro de asistencia' : 'Entrada libre'}</p>
                 {/* Cronograma */}
                 {fecha.programa && fecha.programa.length > 0 ? (
                   <div className="p-5 sm:p-6 bg-white space-y-3">
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider flex items-center gap-2">
                         <BookOpen className="w-4 h-4 text-[#7a132b]" />
-                        <span>Programa y Cronograma de Actividades — {etiquetaDia}</span>
+                        <span>Programa descriptivo — {etiquetaDia}</span>
                       </h4>
                       <button
                         type="button"
@@ -564,7 +552,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                 ) : (
                   <div className="px-6 py-4 bg-white flex items-center justify-between text-xs text-neutral-500">
                     <span>
-                      Actividad con acceso directo en el horario establecido ({fecha.horaInicio} a {fecha.horaFin} hrs).
+                      Sin programa detallado. Consulta el acceso y la acción de esta actividad en su cabecera.
                     </span>
                     <span className="font-mono text-[11px] text-neutral-400">{nombreRecinto}</span>
                   </div>

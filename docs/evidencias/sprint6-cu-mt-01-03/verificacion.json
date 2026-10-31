@@ -1,0 +1,25 @@
+{
+  "fecha": "2026-10-31T05:23:12.114Z",
+  "zonaDelDispositivo": "Asia/Tokyo",
+  "escenarios": [
+    "Dos actividades controladas tienen una acción cada una, incluso sin programa; las dos ponencias de B no crean actividades.",
+    "Reservas confirmadas para A y B con IDs propios el mismo día; ambos accesos conservan el QR del evento. Los límites globales heredados no cierran actividades abiertas.",
+    "Registro libre por actividad sin reserva ni boleto y cancelación propia disponible después de cerrar inscripciones.",
+    "La URL directa rechaza actividades canceladas y suspendidas sin botón de confirmar.",
+    "La selección con mapa usa el arreglo final de la actividad B; un índice heredado de programa no cambia su identidad.",
+    "El enlace de inicio de sesión conserva dateId y la clave privada en continuar.",
+    "Los cuatro botones de Documentación CU-MT-01/02/03 abren la pantalla y modalidad correctas conservando interfaz y caso."
+  ],
+  "erroresNavegador": [],
+  "reservasVerificadas": [
+    {
+      "idFechaEvento": "act-s6-a",
+      "estado": "confirmada"
+    },
+    {
+      "idFechaEvento": "act-s6-b",
+      "estado": "confirmada"
+    }
+  ],
+  "qrCompartidoConservado": true
+}

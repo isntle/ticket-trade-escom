@@ -200,13 +200,13 @@ export const CATALOGO_MENSAJES: Record<string, MensajeSistema> = {
     codigo: 'ERR-MT-02',
     tipo: 'error',
     titulo: 'Inscripciones cerradas',
-    descripcion: 'Las inscripciones para este día están cerradas.'
+    descripcion: 'Las inscripciones para esta actividad están cerradas.'
   },
   'ERR-MT-03': {
     codigo: 'ERR-MT-03',
     tipo: 'error',
     titulo: 'Sin disponibilidad',
-    descripcion: 'No hay lugares disponibles para este día.'
+    descripcion: 'No hay lugares disponibles para esta actividad.'
   },
   'ERR-MT-06': {
     codigo: 'ERR-MT-06',

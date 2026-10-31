@@ -1,5 +1,7 @@
 import type { Evento } from "../tipos";
 import { inicioEnMexico } from "./solicitudes";
+import { modalidadActividad } from './actividades';
+import { impedimentoActividad } from './participacionActividad';
 
 /** Selecciona recursos de prueba existentes; nunca crea eventos para justificar un enlace. */
 export function resolverRutaDocumentacion(
@@ -11,9 +13,17 @@ export function resolverRutaDocumentacion(
   const conConsulta = (ruta:string) => ruta + consulta;
   if (caso.id.startsWith('CU-MT-') && caso.ruta?.includes('/evt-')) {
     const propios = caso.ruta.startsWith('/organizador/');
-    const evento = eventos.find(e => e.estado === 'publicado' && (!propios || e.idOrganizador === 'usr-silva') && e.fechas.some(d => !d.cancelada && !d.suspendida && inicioEnMexico(d.fecha,d.horaInicio)>ahora.getTime()));
+    const actividadAdecuada = (e: Evento, d: Evento['fechas'][number]) => {
+      if (d.cancelada || d.suspendida || inicioEnMexico(d.fecha, d.horaInicio) <= ahora.getTime()) return false;
+      if (caso.id === 'CU-MT-02' || caso.id === 'CU-MT-03') {
+        if (e.visibilidad === 'privado' || impedimentoActividad(e, d, [], ahora.getTime())) return false;
+        return (modalidadActividad(d, e.modalidadAsistencia) === 'controlado') === (caso.id === 'CU-MT-03');
+      }
+      return true;
+    };
+    const evento = eventos.find(e => e.estado === 'publicado' && (!propios || e.idOrganizador === 'usr-silva') && e.fechas.some(d => actividadAdecuada(e, d)));
     if (!evento) return propios ? '/organizador' : '/eventos';
-    const dia = evento.fechas.find(d => !d.cancelada && !d.suspendida && inicioEnMexico(d.fecha,d.horaInicio)>ahora.getTime())!;
+    const dia = evento.fechas.find(d => actividadAdecuada(evento, d))!;
     const url = new URL(caso.ruta,'http://ticket-trade.local');
     url.pathname = url.pathname.replace(/evt-[^/]+/,evento.id);
     if (url.searchParams.has('dateId')) url.searchParams.set('dateId',dia.id);
