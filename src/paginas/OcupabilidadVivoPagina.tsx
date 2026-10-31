@@ -51,7 +51,7 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
     (a) => a.idFechaEvento === fechaSeleccionada?.id && a.estado === 'version_final'
   );
 
-  if (!eventoSeleccionado || !fechaSeleccionada || !arregloFinal) {
+  if (!eventoSeleccionado || !fechaSeleccionada) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16">
         <EstadoVacio
@@ -73,7 +73,7 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
   const idsAsientosCheckIn: string[] = [];
   boletosCheckIn.forEach((b) => {
     if (b.etiquetaAsiento) {
-      const asientoEncontrado = arregloFinal.asientos.find((a) => a.etiqueta === b.etiquetaAsiento);
+      const asientoEncontrado = arregloFinal?.asientos.find((a) => a.etiqueta === b.etiquetaAsiento);
       if (asientoEncontrado) idsAsientosCheckIn.push(asientoEncontrado.id);
     }
   });
@@ -83,9 +83,11 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
     .filter((r) => r.idFechaEvento === fechaSeleccionada.id && r.estado === 'confirmada' && r.idAsiento)
     .map((r) => r.idAsiento!);
 
-  const aforo = aforoActividad(fechaSeleccionada,eventoSeleccionado.aforoMaximo) ?? arregloFinal.totalAsientos;
+  const totalIngresados = new Set(boletosCheckIn.map(b => b.idUsuario || b.idReservacion || b.id)).size;
+  const totalReservados = new Set(listaBoletos.filter(b => b.idFechaEvento === fechaSeleccionada.id && (b.estado === 'valido' || b.estado === 'utilizado')).map(b => b.idUsuario || b.idReservacion || b.id)).size;
+  const aforo = aforoActividad(fechaSeleccionada,eventoSeleccionado.aforoMaximo) ?? arregloFinal?.totalAsientos ?? recinto?.capacidad ?? 0;
   const porcentajeOcupacion = aforo > 0
-    ? Math.round((idsAsientosCheckIn.length / aforo) * 100)
+    ? Math.round((totalIngresados / aforo) * 100)
     : 0;
 
   return (
@@ -160,7 +162,7 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
           <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">
             Asistentes en Sala
           </span>
-          <div className="text-2xl font-black text-emerald-700 mt-1">{idsAsientosCheckIn.length}</div>
+          <div className="text-2xl font-black text-emerald-700 mt-1">{totalIngresados}</div>
           <span className="text-[11px] text-neutral-400 mt-0.5 block">{porcentajeOcupacion}% de aforo</span>
         </div>
 
@@ -168,7 +170,7 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
           <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 block">
             Boletos Reservados
           </span>
-          <div className="text-2xl font-black text-sky-700 mt-1">{idsAsientosReservados.length}</div>
+          <div className="text-2xl font-black text-sky-700 mt-1">{totalReservados}</div>
           <span className="text-[11px] text-neutral-400 mt-0.5 block">Confirmados en taquilla</span>
         </div>
 
@@ -177,7 +179,7 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
             Por Llegar
           </span>
           <div className="text-2xl font-black text-neutral-800 mt-1">
-            {Math.max(0, idsAsientosReservados.length - idsAsientosCheckIn.length)}
+            {Math.max(0, totalReservados - totalIngresados)}
           </div>
           <span className="text-[11px] text-neutral-400 mt-0.5 block">Reservados sin entrada registrada</span>
         </div>
@@ -187,18 +189,18 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
             Capacidad Total
           </span>
           <div className="text-2xl font-black text-neutral-900 mt-1">{aforo}</div>
-          <span className="text-[11px] text-neutral-400 mt-0.5 block">Butacas activas</span>
+          <span className="text-[11px] text-neutral-400 mt-0.5 block">Cupo de la actividad</span>
         </div>
       </div>
 
       {/* Componente del Mapa en Modo Ocupación */}
-      <MapaAsientos
+      {arregloFinal ? <MapaAsientos
         asientos={arregloFinal.asientos}
         modo="ocupacion"
         idsAsientosCheckIn={idsAsientosCheckIn}
         idsAsientosReservados={idsAsientosReservados}
         permiteEliminar={recinto?.permiteEliminarAsientos}
-      />
+      /> : <p className="rounded-xl bg-neutral-50 p-4 text-neutral-700">El conteo incluye accesos sin butaca. No hay una distribución final para mostrar el mapa de esta actividad.</p>}
     </div>
   );
 };

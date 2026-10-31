@@ -1,3 +1,4 @@
+import { servicioOrganizacionLocal } from '../servicios/organizacion';
 import { CATEGORIAS_EVENTO, aforoActividad, modalidadActividad, nombreActividad, validarItinerarios } from '../dominio/actividades';
 import { EditorItinerarios } from '../componentes/eventos/EditorItinerarios';
 import { volverA } from '../dominio/navegacion';
@@ -58,6 +59,9 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
   const claveCaptura = `tt_solicitud_captura:${usuarioActual?.id || 'sin-sesion'}`;
+  const [guardandoSolicitud, setGuardandoSolicitud] = useState(false);
+  const bloqueoGuardado = React.useRef(false);
+  const servicio = servicioOrganizacionLocal({crearSolicitud, guardarBorradorSolicitud, actualizarSolicitud});
   const [captura] = useState<Partial<{titulo:string;descripcion:string;categoria:CategoriaEvento;visibilidad:VisibilidadEvento;fechas:ElementoFechaSolicitada[];itinerarios:ItinerarioDia[];urlImagen:string;nombreBanner:string;correoContacto:string;telefonoContacto:string;justificacion:string;nombreDocumento:string;urlDocumento:string}>>(()=>{
     if(requestId) return {};
     try { return JSON.parse(sessionStorage.getItem(claveCaptura)||'{}'); } catch { return {}; }
@@ -300,8 +304,9 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     }
   };
 
-  const manejarEnvio = (e?: React.FormEvent, confirmado = false) => {
+  const manejarEnvio = async (e?: React.FormEvent, confirmado = false) => {
     e?.preventDefault();
+    if (bloqueoGuardado.current) return;
 
     if (
       solicitudEnEdicion &&
@@ -459,10 +464,11 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       return;
     }
     setResumenEnvioAbierto(false);
+    bloqueoGuardado.current = true; setGuardandoSolicitud(true);
     let nuevaSolicitud;
     try {
       if (solicitudEnEdicion) {
-        const resultado = actualizarSolicitud(
+        const resultado = await servicio.actualizarSolicitud(
           solicitudEnEdicion.id,
           datosSolicitud,
           true,
@@ -473,7 +479,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
           return;
         }
         nuevaSolicitud = solicitudEnEdicion;
-      } else nuevaSolicitud = crearSolicitud(datosSolicitud);
+      } else nuevaSolicitud = await servicio.crearSolicitud(datosSolicitud);
     } catch (error) {
       setErrorFormulario(
         error instanceof Error
@@ -481,7 +487,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
           : "No se pudo enviar la solicitud.",
       );
       return;
-    }
+    } finally {bloqueoGuardado.current=false;setGuardandoSolicitud(false);}
 
     mostrarNotificacion(
       usuarioActual.puedeAutoaprobar && !requiereJustificacion ? "Evento autorizado" : "Solicitud enviada a Subdirección",
@@ -493,7 +499,8 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     navigate(`/organizador/solicitudes/${nuevaSolicitud.id}`);
   };
 
-  const manejarGuardarBorrador = () => {
+  const manejarGuardarBorrador = async () => {
+    if (bloqueoGuardado.current) return;
     if (!usuarioActual) {
       mostrarNotificacion(
         "Inicia sesión",
@@ -566,10 +573,11 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       esExcepcional: requiereJustificacion,
       justificacionExcepcional: justificacionExcepcional || undefined,
     };
+    bloqueoGuardado.current = true; setGuardandoSolicitud(true);
     let borrador;
     try {
       if (solicitudEnEdicion) {
-        const resultado = actualizarSolicitud(
+        const resultado = await servicio.actualizarSolicitud(
           solicitudEnEdicion.id,
           datosBorrador,
           false,
@@ -580,7 +588,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
           return;
         }
         borrador = solicitudEnEdicion;
-      } else borrador = guardarBorradorSolicitud(datosBorrador);
+      } else borrador = await servicio.guardarBorradorSolicitud(datosBorrador);
     } catch (error) {
       setErrorFormulario(
         error instanceof Error
@@ -588,7 +596,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
           : "No se pudo guardar el borrador.",
       );
       return;
-    }
+    } finally {bloqueoGuardado.current=false;setGuardandoSolicitud(false);}
     mostrarNotificacion(
       "Borrador guardado",
       "Puedes consultarlo desde Mis solicitudes.",
@@ -633,7 +641,9 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
         </p>
       </div>
 
-      <form onSubmit={manejarEnvio} className="space-y-8">
+      <form onSubmit={manejarEnvio} aria-busy={guardandoSolicitud}>
+        {guardandoSolicitud && <p role="status" className="mb-4 rounded-xl bg-blue-50 p-3 text-blue-900">Guardando tu solicitud. Espera la confirmación antes de salir.</p>}
+        <fieldset disabled={guardandoSolicitud} className="space-y-8 min-w-0">
         {errorFormulario && (
           <div
             role="alert"
@@ -909,7 +919,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
             </span>
           </button>
         </div>
-      </form>
+      </fieldset></form>
       {resumenEnvioAbierto && (
         <VentanaModal
           estaAbierto

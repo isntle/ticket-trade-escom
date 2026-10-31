@@ -1,3 +1,4 @@
+import { reservaIncompatible } from '../dominio/crucesReservas';
 import { proyectarCambioRecinto, firmaCambioRecinto, type PeticionCambioRecinto, type PropuestaCambioRecinto, type EstadoCambioRecinto } from "../dominio/cambioRecinto";
 import { useListaLocal } from "./useListaLocal";
 import { accesoDelPase, codigoQrDelEvento } from "../dominio/pasesEvento";
@@ -439,7 +440,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
               codigoMensaje: 'MSG-VENUE-002',
               tipoConflicto: 'clase',
               tituloConflicto: `Clase Programada: ${clase.materia}`,
-              motivo: `Existe una clase programada de ${clase.horaInicio} a ${clase.horaFin} en este laboratorio (${clase.materia}, Grupo ${clase.grupo}, ${clase.profesor}). Las clases regulares no se desplazan automáticamente; requieren autorización extraordinaria de Subdirección.`,
+              motivo: `Existe una clase programada de ${clase.horaInicio} a ${clase.horaFin} en este laboratorio (${clase.materia}, Grupo ${clase.grupo}, ${clase.profesor}). Las clases regulares no se desplazan desde esta solicitud. Elige otra fecha, horario o recinto; la urgencia no elimina este conflicto.`,
               detallesConflicto: {
                 horarioConflicto: `${clase.horaInicio} - ${clase.horaFin}`,
                 nombreActividad: clase.materia,
@@ -1594,6 +1595,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       };
     }
 
+    if (reservaIncompatible(res, reservas, eventos)) return {exito:false,error:'ERR-MT-07 · Ya tienes una reserva confirmada que coincide con el horario de esta actividad.'};
+
     const idBoleto = `bol-${crypto.randomUUID()}`;
     const codigoQr = codigoQrDelEvento(boletos,res.idEvento,res.idUsuario) || `TT-${generarIdentificadorQr()}`;
 
@@ -2078,11 +2081,18 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     idUsuario: string,
     decision: 'aceptar' | 'rechazar' | 'vencer'
   ) => {
-    const entrada = listaEspera.find((elemento) => elemento.id === idEntrada && elemento.idUsuario === idUsuario);
+    let esperaActual:EntradaListaEspera[], reservasActuales:Reservacion[], eventosActuales:Evento[];
+    try {
+      esperaActual=leerListaActual('espera',listaEspera);
+      reservasActuales=leerListaActual('reservaciones',listaReservaciones);
+      eventosActuales=leerListaActual('eventos',listaEventos);
+    } catch {return {exito:false,error:'No se pudo consultar la oferta guardada. Actualiza antes de continuar.'};}
+    if(idUsuario!==usuarioActual?.id)return {exito:false,error:'La oferta no pertenece a tu cuenta.'};
+    const entrada = esperaActual.find((elemento) => elemento.id === idEntrada && elemento.idUsuario === idUsuario);
     if (!entrada || entrada.estado !== 'notificado' || !entrada.idReservacionOferta) {
       return { exito: false, error: 'La oferta ya no está activa.' };
     }
-    const reservaOferta = listaReservaciones.find((reserva) => reserva.id === entrada.idReservacionOferta);
+    const reservaOferta = reservasActuales.find((reserva) => reserva.id === entrada.idReservacionOferta);
     if (!reservaOferta || reservaOferta.estado !== 'apartado_temporal') {
       return { exito: false, error: 'El lugar ofrecido ya no está disponible.' };
     }
@@ -2092,26 +2102,16 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       if (expirada) {
         return responderOfertaListaDeEspera(idEntrada, idUsuario, 'vencer');
       }
-      const evento = listaEventos.find((item) => item.id === entrada.idEvento);
+      const evento = eventosActuales.find((item) => item.id === entrada.idEvento);
       const fecha = evento?.fechas.find((item) => item.id === entrada.idFechaEvento);
       if (!evento || !fecha || obtenerEstadoInscripciones(fecha, evento.estado) !== 'abiertas' || obtenerFechaLimiteInscripciones(fecha) <= Date.now()) {
         return { exito: false, error: 'ERR-MT-02 · Las inscripciones de este día ya están cerradas.' };
       }
-      const yaReservo = listaReservaciones.some((reserva) =>
+      const yaReservo = reservasActuales.some((reserva) =>
         reserva.id !== reservaOferta.id && reserva.idUsuario === idUsuario && reserva.idFechaEvento === entrada.idFechaEvento &&
         (reserva.estado === 'confirmada' || (reserva.estado === 'apartado_temporal' && (reserva.tiempoExpiracionApartado || 0) > Date.now()))
       );
-      const empalme = listaReservaciones.some((reserva) => {
-        if (reserva.id === reservaOferta.id || reserva.idUsuario !== idUsuario || reserva.estado !== 'confirmada' || reserva.idFechaEvento === fecha.id) return false;
-        const eventoExistente = listaEventos.find((item) => item.id === reserva.idEvento);
-        const fechaExistente = eventoExistente?.fechas.find((item) => item.id === reserva.idFechaEvento);
-        if (!fechaExistente || fechaExistente.fecha !== fecha.fecha) return false;
-        const minutos = (hora: string) => {
-          const [h, m] = hora.split(':').map(Number);
-          return h * 60 + m;
-        };
-        return minutos(fecha.horaInicio) < minutos(fechaExistente.horaFin) && minutos(fecha.horaFin) > minutos(fechaExistente.horaInicio);
-      });
+      const empalme = reservaIncompatible(reservaOferta, reservasActuales, eventosActuales);
       if (yaReservo || empalme) {
         return { exito: false, error: yaReservo ? 'ERR-MT-10 · Ya existe una reservación activa para este día.' : 'ERR-MT-07 · La reservación se empalma con otra actividad.' };
       }

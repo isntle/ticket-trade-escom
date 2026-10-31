@@ -490,3 +490,15 @@ test('el traslado conserva una acreditación especial y su categoría sin invent
   const b=c.leer('boletos').find((b:any)=>b.id===especial.id);assert.equal(b.codigoQr,especial.codigoQr);assert.equal(b.tipoEspecial,'staff');
   const nuevo=c.leer('arreglos').find((a:any)=>a.estado==='version_final');assert.equal(nuevo.asientos.find((a:any)=>a.etiqueta===b.etiquetaAsiento).categoria,'staff');
 });
+
+test('confirmación revalida reservas recientes contra otra actividad sin emitir boleto',(t)=>{
+  t.mock.method(Date,'now',()=>Date.parse('2030-01-24T12:00:00-06:00'));
+  const segunda={...dia,id:'fec-cruce',horaInicio:'11:00',horaFin:'13:00'};
+  const c=contexto('usr-carlos',[{...evento,fechas:[dia,segunda]}]);
+  const apartado={id:'apartado-cruce',idUsuario:'usr-carlos',idEvento:evento.id,idFechaEvento:dia.id,estado:'apartado_temporal',tiempoExpiracionApartado:Date.now()+120000};
+  c.local.setItem(c.prefijo+'reservaciones',JSON.stringify([apartado,{...apartado,id:'confirmada-reciente',idFechaEvento:segunda.id,estado:'confirmada'}]));
+  const boletosAntes=c.local.getItem(c.prefijo+'boletos');
+  const resultado=c.datos.confirmarReservacion(apartado.id);
+  assert.equal(resultado.exito,false);assert.match(resultado.error!,/ERR-MT-07/);
+  assert.equal(c.local.getItem(c.prefijo+'boletos'),boletosAntes);
+});
