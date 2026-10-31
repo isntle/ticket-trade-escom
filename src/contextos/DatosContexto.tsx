@@ -4,7 +4,8 @@ import { useListaLocal } from "./useListaLocal";
 import { accesoDelPase, codigoQrDelEvento } from "../dominio/pasesEvento";
 import { modalidadActividad, aforoActividad, validarItinerarios } from '../dominio/actividades';
 import { REGLA_INGRESO_ACTIVIDAD } from '../dominio/presentacionActividad';
-import { indicadoresActividad, limiteInscripcionesActividad, estadoInscripcionesActividad, proyectarCambioInscripciones, proyectarCierreAutomatico, puedeAdministrarTaquilla, type CambioInscripciones } from '../dominio/taquilla';
+import { capacidadActividad, indicadoresActividad, limiteInscripcionesActividad, estadoInscripcionesActividad, proyectarCambioInscripciones, proyectarCierreAutomatico, puedeAdministrarTaquilla, type CambioInscripciones } from '../dominio/taquilla';
+import { impedimentoActividad, impedimentoParticipante } from '../dominio/participacionActividad';
 import { ARREGLOS_DEMOSTRACION, incorporarProgramados, cargarEventosProgramados } from '../datos/eventosDemostracion';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
@@ -190,7 +191,7 @@ interface ContextoDatosTipo {
     nombreUsuario: string,
     correoUsuario: string
   ) => { exito: boolean; registro?: RegistroIntencionAsistencia; error?: string };
-  cancelarIntencionAsistencia: (idRegistro: string) => void;
+  cancelarIntencionAsistencia: (idRegistro: string) => { exito: boolean; error?: string };
 
   emitirBoletosEspeciales: (datos: {
     idEvento: string;
@@ -1452,17 +1453,20 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!eventoTaquilla || !fechaTaquilla) {
       return { exito: false, error: 'El día seleccionado ya no se encuentra disponible.' };
     }
-    if(eventoTaquilla.estado!=='publicado'||fechaTaquilla.suspendida||bloqueosActuales.some(b=>bloqueoAfectaSesion(b,fechaTaquilla)))return {exito:false,error:'La actividad no está disponible para reservar.'};
+    const errorActividad = impedimentoActividad(eventoTaquilla, fechaTaquilla, bloqueosActuales, ahora);
+    const errorParticipante = impedimentoParticipante(eventoTaquilla, consultarSolicitanteVigente() || null);
+    if (errorActividad || errorParticipante) return { exito: false, error: errorActividad || errorParticipante };
     if(reservasActuales.some(r=>r.idFechaEvento===idFechaEvento&&r.idUsuario===idUsuario&&r.estado==='confirmada'))return {exito:false,error:'Ya tienes una reservación confirmada para esta actividad.'};
     if (fechaTaquilla.cancelada) return { exito: false, error: 'Este día fue cancelado y ya no admite reservaciones.' };
     if (modalidadActividad(fechaTaquilla,eventoTaquilla.modalidadAsistencia) !== 'controlado') return {exito:false,error:'Esta actividad no utiliza reservación de lugares.'};
-    if (fechaTaquilla.asistenciaEstimada !== undefined) {
+    {
       const comprometidos = new Set([
         ...reservasActuales.filter(r=>r.idFechaEvento===idFechaEvento && (r.estado==='confirmada'||r.estado==='apartado_temporal'&&(r.tiempoExpiracionApartado||0)>ahora&&r.idUsuario!==idUsuario)).map(r=>r.idAsiento),
         ...boletosActuales.filter(b=>b.idFechaEvento===idFechaEvento && ['valido','utilizado'].includes(b.estado)).map(b=>reservasActuales.find(r=>r.id===b.idReservacion)?.idAsiento || arreglosActuales.find(a=>a.idFechaEvento===idFechaEvento&&a.estado==='version_final')?.asientos.find(a=>a.etiqueta===b.etiquetaAsiento)?.id || b.id),
         ...esperaActual.filter(e=>e.idFechaEvento===idFechaEvento && e.estado==='notificado'&&(e.fechaExpiracionOferta||0)>ahora&&e.idUsuario!==idUsuario).map(e=>e.idAsientoOferta||e.id),
       ]);
-      if(comprometidos.size >= fechaTaquilla.asistenciaEstimada) return {exito:false,error:'Se alcanzó el aforo aprobado de esta actividad.'};
+      const capacidad = capacidadActividad(eventoTaquilla, fechaTaquilla, { recintos: listaRecintos, arreglos: arreglosActuales });
+      if(comprometidos.size >= capacidad) return {exito:false,error:'Se alcanzó el aforo aprobado de esta actividad.'};
     }
 
 
@@ -1581,7 +1585,10 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!evento || !fecha) {
       return { exito: false, error: 'El día asociado con el apartado ya no existe.' };
     }
-    if (evento.estado==='cancelado'||fecha.suspendida||bloqueos.some(b=>bloqueoAfectaSesion(b,fecha)))return {exito:false,error:'La actividad está suspendida o cancelada.'};
+    const errorActividad = impedimentoActividad(evento, fecha, bloqueos);
+    const errorParticipante = impedimentoParticipante(evento, consultarSolicitanteVigente() || null);
+    if (errorActividad || errorParticipante) return { exito: false, error: errorActividad || errorParticipante };
+    if (modalidadActividad(fecha, evento.modalidadAsistencia) !== 'controlado') return { exito: false, error: 'Esta actividad no utiliza reservación de lugares.' };
     if (reservas.some(r=>r.id!==res.id&&r.idFechaEvento===res.idFechaEvento&&r.estado==='confirmada'&&(r.idUsuario===res.idUsuario||!!res.idAsiento&&r.idAsiento===res.idAsiento)))return {exito:false,error:'La actividad o el asiento ya tienen una reservación confirmada.'};
     if (fecha.cancelada) return { exito: false, error: 'Este día fue cancelado y no se puede confirmar el boleto.' };
 
@@ -1941,10 +1948,20 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     nombreUsuario: string,
     correoUsuario: string
   ): { exito: boolean; registro?: RegistroIntencionAsistencia; error?: string } => {
-    const eventoIntencion=listaEventos.find(e=>e.id===idEvento);
-    const diaIntencion=eventoIntencion?.fechas.find(d=>d.id===idFechaEvento);
-    if(!eventoIntencion||!diaIntencion||diaIntencion.suspendida||diaIntencion.cancelada||eventoIntencion.estado!=='publicado')return {exito:false,error:'El día no admite registros de asistencia.'};
-    const yaExiste = listaIntencionesAsistencia.some(
+    let eventos: Evento[], intenciones: RegistroIntencionAsistencia[], bloqueos: BloqueoRecinto[];
+    try {
+      eventos = leerListaActual('eventos', listaEventos);
+      intenciones = leerListaActual('intenciones_asistencia', listaIntencionesAsistencia);
+      bloqueos = leerListaActual('bloqueos', listaBloqueos);
+    } catch { return { exito: false, error: 'No fue posible consultar los registros vigentes.' }; }
+    const eventoIntencion = eventos.find(e => e.id === idEvento);
+    const actividad = eventoIntencion?.fechas.find(d => d.id === idFechaEvento);
+    if (!eventoIntencion || !actividad) return { exito: false, error: 'La actividad ya no existe.' };
+    if (usuarioActual?.id !== idUsuario) return { exito: false, error: 'Solo puedes registrar asistencia para tu propia cuenta.' };
+    const error = impedimentoActividad(eventoIntencion, actividad, bloqueos) || impedimentoParticipante(eventoIntencion, consultarSolicitanteVigente() || null);
+    if (error) return { exito: false, error };
+    if (modalidadActividad(actividad, eventoIntencion.modalidadAsistencia) === 'controlado') return { exito: false, error: 'Esta actividad requiere reservar un lugar.' };
+    const yaExiste = intenciones.some(
       (registro) =>
         registro.idEvento === idEvento &&
         registro.idFechaEvento === idFechaEvento &&
@@ -1954,12 +1971,12 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if (yaExiste) {
       return {
         exito: false,
-        error: 'Ya tienes una intención de asistencia registrada para este día.'
+        error: 'Ya tienes una intención de asistencia registrada para esta actividad.'
       };
     }
 
     const registro: RegistroIntencionAsistencia = {
-      id: `int-${Date.now().toString(36)}`,
+      id: `int-${crypto.randomUUID()}`,
       idEvento,
       idFechaEvento,
       idUsuario,
@@ -1968,12 +1985,25 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       fechaRegistro: new Date().toISOString()
     };
 
-    setListaIntencionesAsistencia((previas) => [registro, ...previas]);
+    const nuevas = [registro, ...intenciones];
+    const guardado = guardarLoteLocal(localStorage, { [`${CLAVE_ALMACEN_DATOS}_intenciones_asistencia`]: nuevas });
+    if (!guardado.exito) return guardado;
+    setListaIntencionesAsistencia(nuevas);
     return { exito: true, registro };
   };
 
   const cancelarIntencionAsistencia = (idRegistro: string) => {
-    setListaIntencionesAsistencia((previas) => previas.filter((registro) => registro.id !== idRegistro));
+    let intenciones: RegistroIntencionAsistencia[];
+    try { intenciones = leerListaActual('intenciones_asistencia', listaIntencionesAsistencia); }
+    catch { return { exito: false, error: 'No fue posible consultar el registro vigente.' }; }
+    const registro = intenciones.find(r => r.id === idRegistro);
+    if (!registro || registro.idUsuario !== usuarioActual?.id || !consultarSolicitanteVigente())
+      return { exito: false, error: 'Solo puedes cancelar registros de tu propia cuenta activa.' };
+    const nuevas = intenciones.filter(r => r.id !== idRegistro);
+    const guardado = guardarLoteLocal(localStorage, { [`${CLAVE_ALMACEN_DATOS}_intenciones_asistencia`]: nuevas });
+    if (!guardado.exito) return guardado;
+    setListaIntencionesAsistencia(nuevas);
+    return { exito: true };
   };
 
   const unirseAListaDeEspera = (

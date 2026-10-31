@@ -1,4 +1,7 @@
-import { eventoParaActividad } from '../dominio/actividades';
+import { eventoParaActividad, nombreActividad, modalidadActividad } from '../dominio/actividades';
+import { REGLA_INGRESO_ACTIVIDAD, describirActividad } from '../dominio/presentacionActividad';
+import { capacidadActividad } from '../dominio/taquilla';
+import { impedimentoActividad, impedimentoParticipante, rutaAccesoConRegreso, rutaDetalleEvento, rutaReservaActividad } from '../dominio/participacionActividad';
 import { volverA } from '../dominio/navegacion';
 import React, { useState, useEffect } from 'react';
 import { Clock, ArrowLeft, CheckCircle, AlertTriangle, ShieldCheck, Ticket, Users, Lock } from 'lucide-react';
@@ -16,12 +19,14 @@ import { obtenerConflictoReserva, obtenerMensajeErrorCruce } from '../dominio/cr
 interface PropiedadesSeleccionAsiento {
   eventId: string;
   dateId: string;
+  accessKey?: string;
   navigate: (ruta: string) => void;
 }
 
 export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   eventId,
   dateId,
+  accessKey,
   navigate
 }) => {
   const {
@@ -29,6 +34,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     listaRecintos,
     listaArreglos,
     listaReservaciones,
+    listaBloqueos,
     apartarAsiento,
     liberarApartadoAsiento,
     confirmarReservacion,
@@ -42,11 +48,13 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   const fecha = eventoBase?.fechas.find((f) => f.id === dateId);
   const evento = eventoBase ? eventoParaActividad(eventoBase, fecha) : undefined;
   const recinto = listaRecintos.find((r) => r.id === fecha?.idRecinto);
+  const rutaDetalle = rutaDetalleEvento(eventId, accessKey);
+  const rutaReserva = rutaReservaActividad(eventId, dateId, accessKey);
   
   // Buscar el arreglo oficial versión final para esta fecha
   const arregloFinal = listaArreglos.find(
-    (a) => a.idFechaEvento === dateId && a.estado === 'version_final'
-  ) || listaArreglos.find((a) => a.idFechaEvento === dateId);
+    (a) => a.idFechaEvento === dateId && a.idRecinto === fecha?.idRecinto && a.estado === 'version_final' && a.id === fecha?.idArregloFinal
+  ) || listaArreglos.find((a) => a.idFechaEvento === dateId && a.idRecinto === fecha?.idRecinto && a.estado === 'version_final');
 
   // Estados del apartado
   const [asientoSeleccionado, setAsientoSeleccionado] = useState<ConfiguracionAsiento | null>(null);
@@ -85,87 +93,46 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     return () => clearInterval(intervalo);
   }, [reservacionActiva, liberarApartadoAsiento, mostrarNotificacion]);
 
-  // === VALIDACIÓN DE ELEGIBILIDAD Y PERMISOS ===
-  if (usuarioActual && usuarioActual.correoConfirmado !== true) {
-    const msg = obtenerMensaje('ERR-IP-04');
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-16">
-        <EstadoVacio
-          titulo={msg.titulo}
-          descripcion={msg.descripcion}
-          textoAccion="Confirmar correo"
-          alHacerAccion={() => navigate('/confirmar-correo')}
-        />
-      </div>
-    );
-  }
-
-  const publicoPermitido = evento?.publicoPermitido;
-  if (usuarioActual && publicoPermitido && Array.isArray(publicoPermitido) && publicoPermitido.length > 0) {
-    const esElegible = usuarioActual.roles.some(rol => publicoPermitido.includes(rol));
-    if (!esElegible) {
-      const msg = obtenerMensaje('ERR-MT-01', { 'público permitido': publicoPermitido.join(', ') });
-      return (
-        <div className="max-w-4xl mx-auto px-4 py-16">
-          <EstadoVacio
-            titulo={msg.titulo}
-            descripcion={msg.descripcion}
-            textoAccion="Volver a la cartelera"
-            alHacerAccion={() => navigate('/eventos')}
-          />
-        </div>
-      );
-    }
-  }
-
-  // === VALIDACIÓN DE CIERRE DE INSCRIPCIONES ===
-  const inscripcionesAbiertas = evento?.inscripcionesAbiertas !== false;
-  const limiteInscripcion = evento?.fechaCierreInscripcion;
-  const inscripcionVencida = limiteInscripcion ? new Date(limiteInscripcion) < new Date() : false;
-
-  if (!inscripcionesAbiertas || inscripcionVencida) {
-    const msg = obtenerMensaje('ERR-MT-02');
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-16">
-        <EstadoVacio
-          titulo={msg.titulo}
-          descripcion={msg.descripcion}
-          textoAccion="Volver a la cartelera"
-          alHacerAccion={() => navigate('/eventos')}
-        />
-      </div>
-    );
-  }
-
   if (!evento || !fecha) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-16">
         <EstadoVacio
-          titulo="Información no disponible"
-          descripcion="No se pudo cargar la información del evento o la fecha solicitada."
+          titulo="Actividad no disponible"
+          descripcion="No se encontró la actividad solicitada dentro de este evento. Selecciónala desde su ficha."
           textoAccion="Volver al detalle del evento"
-          alHacerAccion={() => navigate(`/eventos/${eventId}`)}
+          alHacerAccion={() => navigate(volverA(rutaDetalle))}
         />
       </div>
     );
   }
 
+  const accesoPrivado = evento.visibilidad !== 'privado' ||
+    Boolean(evento.claveAccesoPrivada && accessKey === evento.claveAccesoPrivada) ||
+    usuarioActual?.id === evento.idOrganizador || usuarioActual?.roles.includes('subdireccion');
+  if (!accesoPrivado) {
+    return <div className="max-w-4xl mx-auto px-4 py-16"><EstadoVacio titulo="Evento privado restringido" descripcion="Verifica la clave de acceso desde la ficha del evento para continuar." textoAccion="Verificar acceso" alHacerAccion={() => navigate(rutaDetalle)} /></div>;
+  }
+
+  const errorPermiso = impedimentoParticipante(evento, usuarioActual);
+  if (errorPermiso) {
+    const acceso = !usuarioActual?.estaActivo ? '/login' : usuarioActual.correoConfirmado !== true ? '/confirmar-correo' : undefined;
+    return <div className="max-w-4xl mx-auto px-4 py-16"><EstadoVacio titulo={acceso === '/login' ? 'Inicia sesión para reservar' : acceso ? 'Confirma tu correo' : 'Público no permitido'} descripcion={errorPermiso} textoAccion={acceso === '/login' ? 'Iniciar sesión' : acceso ? 'Confirmar correo' : 'Regresar al evento'} alHacerAccion={() => navigate(acceso ? rutaAccesoConRegreso(acceso, rutaReserva) : volverA(rutaDetalle))} /></div>;
+  }
+
+  if (modalidadActividad(fecha, evento.modalidadAsistencia) !== 'controlado') {
+    return <div className="max-w-4xl mx-auto px-4 py-16"><EstadoVacio titulo="Esta actividad no requiere reservación" descripcion="Registra o cancela tu intención de asistencia desde la ficha del evento. No se genera boleto." textoAccion="Ver actividad" alHacerAccion={() => navigate(rutaDetalle)} /></div>;
+  }
+
   const esSinMapa = !arregloFinal;
-
-  const fechaLimiteInscripciones = fecha.fechaLimiteInscripciones
-    ? new Date(fecha.fechaLimiteInscripciones).getTime()
-    : new Date(`${fecha.fecha}T${fecha.horaInicio}:00`).getTime() - 60 * 60 * 1000;
-  const estadoInscripciones =
-    fecha.estadoInscripciones ||
-    (evento.estado === 'publicado' || evento.estado === 'en_curso' ? 'abiertas' : 'cerradas');
-
-  if (estadoInscripciones === 'cerradas' || fechaLimiteInscripciones <= Date.now()) {
+  const capacidad = capacidadActividad(eventoBase!, fecha, { recintos: listaRecintos, arreglos: listaArreglos });
+  const impedimento = impedimentoActividad(evento, fecha, listaBloqueos);
+  if (impedimento) {
     const msg = obtenerMensaje('ERR-MT-02');
     return (
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
         <button
           type="button"
-          onClick={() => navigate(volverA(`/eventos/${eventId}`))}
+          onClick={() => navigate(volverA(rutaDetalle))}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
@@ -173,14 +140,14 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
           <div className="w-12 h-12 rounded-xl bg-neutral-100 text-neutral-600 flex items-center justify-center mb-4">
             <Lock className="w-6 h-6" />
           </div>
-          <h1 className="text-xl font-black text-neutral-900">{msg.titulo}</h1>
+          <h1 className="text-xl font-black text-neutral-900">Actividad no disponible</h1>
           <p className="text-sm text-neutral-500 mt-1 mb-5">
-             El día {fecha.fecha}, de {fecha.horaInicio} a {fecha.horaFin} hrs, ya no admite nuevas reservaciones.
+             {nombreActividad(fecha)} · {describirActividad(fecha, recinto?.nombre)}
           </p>
           <AlertaMensaje
             tipo="advertencia"
             titulo={`${msg.codigo} · ${msg.titulo}`}
-            mensaje={msg.descripcion}
+            mensaje={impedimento}
           />
         </div>
       </div>
@@ -232,7 +199,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     if (!usuarioActual) {
       const msg = obtenerMensaje('ERR-TR-01');
       mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
-      navigate('/login');
+      navigate(rutaAccesoConRegreso('/login', rutaReserva));
       return;
     }
 
@@ -299,7 +266,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     setConfirmando(false);
 
     if (resultado.exito) {
-      const msg = obtenerMensaje('OK-MT-01', { día: fecha.nombreDia || `Día ${fecha.fecha}` });
+      const msg = obtenerMensaje('OK-MT-01', { día: nombreActividad(fecha) });
       mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
       navigate('/mis-reservaciones');
     } else {
@@ -327,14 +294,13 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       return;
     }
 
-    const capacidad = evento.aforoMaximo ?? recinto?.capacidad;
     const lugaresOcupados = listaReservaciones.filter(
       (reservacion) =>
-        reservacion.idFechaEvento === dateId &&
+        reservacion.idEvento === eventId && reservacion.idFechaEvento === dateId &&
         reservacion.estado === 'confirmada'
     ).length;
 
-    if (capacidad !== undefined && lugaresOcupados >= capacidad) {
+    if (lugaresOcupados >= capacidad) {
       setConfirmando(false);
       const msgAgotado = obtenerMensaje('ERR-MT-03');
       setErrorColision(msgAgotado.descripcion);
@@ -372,7 +338,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       setConfirmando(false);
       
       if (confirmacion.exito) {
-        const msg = obtenerMensaje('OK-MT-01', { día: fecha.nombreDia || `Día ${fecha.fecha}` });
+        const msg = obtenerMensaje('OK-MT-01', { día: nombreActividad(fecha) });
         mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
         navigate('/mis-reservaciones');
       } else {
@@ -395,11 +361,11 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   const msgCupoAgotado = obtenerMensaje('ERR-MT-03');
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <div data-interfaz="UI-40" tabIndex={-1} className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       {/* Botón Volver */}
       <button
         type="button"
-        onClick={() => navigate(volverA(`/eventos/${eventId}`))}
+        onClick={() => navigate(volverA(rutaDetalle))}
         className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
       >
         <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
@@ -415,8 +381,9 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
               {evento.titulo}
             </h1>
             <p className="text-xs text-neutral-500 mt-1">
-              Actividad: <span className="font-semibold text-neutral-800">{fecha.nombreDia || fecha.fecha}</span> ({fecha.horaInicio} a {fecha.horaFin} hrs) · Recinto: <span className="font-semibold text-neutral-800">{recinto?.nombre}</span>
+              Actividad: <span className="font-semibold text-neutral-800">{nombreActividad(fecha)}</span> · {describirActividad(fecha, recinto?.nombre)}
             </p>
+            <p className="text-xs text-neutral-500 mt-2">Aforo de esta actividad: {capacidad} personas. {REGLA_INGRESO_ACTIVIDAD}</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -449,12 +416,12 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
           {errorColision === msgCupoAgotado.descripcion && usuarioActual && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
               <span className="text-xs text-amber-900 font-medium">
-                El cupo de este día se ha agotado. ¿Deseas ingresar a la lista de espera por si se libera un lugar?
+                El cupo de esta actividad se ha agotado. ¿Deseas ingresar a la lista de espera por si se libera un lugar?
               </span>
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => navigate(`/eventos/${eventId}`)}
+                  onClick={() => navigate(rutaDetalle)}
                   className="px-3.5 py-2 bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 rounded-xl text-xs font-semibold cursor-pointer"
                 >
                   Abandonar proceso
@@ -486,7 +453,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         estaAbierto={modalEsperaAbierto}
         variante="confirmar_ingreso"
         evento={evento.titulo}
-        dia={fecha.nombreDia || `Día ${fecha.fecha}`}
+        dia={nombreActividad(fecha)}
         horario={`${fecha.horaInicio} a ${fecha.horaFin} hrs`}
         alCerrar={() => setModalEsperaAbierto(false)}
         alConfirmar={() => {
@@ -522,7 +489,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
                </div>
                <h3 className="text-lg font-bold text-neutral-900">Modalidad de Cupo General</h3>
                <p className="text-sm text-neutral-500 text-center max-w-md mt-2">
-                 Este evento tiene aforo controlado pero no requiere selección de butaca en un mapa. Al confirmar, el sistema garantizará un lugar disponible para ti en el recinto.
+                 Esta actividad tiene aforo controlado y no requiere selección de butaca en un mapa. Al confirmar, el sistema comprobará la disponibilidad del recinto para esta actividad.
                </p>
             </div>
           ) : (

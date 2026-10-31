@@ -547,7 +547,9 @@ export const SUBEQUIPOS: Subequipo[] = [
         actor: "Asistente o visitante",
         interfaz: "UI-10 y UI-11 · Cartelera y ficha técnica",
         descripcion:
-          "El asistente explora la cartelera, filtra eventos y consulta el detalle con fechas, horarios, recintos y programa.",
+          "El visitante consulta la cartelera y la ficha con actividades identificadas por nombre, fecha, horario y recinto; el programa describe su contenido.",
+        control: "Filtrar cartelera / Ver detalle / Ver cronograma",
+        respuesta: "Conserva el resumen multirrecinto, los itinerarios y ponentes; cada actividad tiene una sola acción aunque no incluya programa.",
         ruta: "/eventos",
         estado: "comprobable",
         usuarioDemo: "usr-carlos",
@@ -559,7 +561,9 @@ export const SUBEQUIPOS: Subequipo[] = [
         actor: "Asistente",
         interfaz: "UI-11 · Ficha técnica del evento",
         descripcion:
-          "El asistente expresa su intención de asistir un día antes de reservar un lugar, cuando el evento lo permite.",
+          "El asistente registra o cancela su intención de asistir a una actividad libre o con registro. No genera boleto ni consume cupo.",
+        control: "Registrar asistencia / Confirmar registro / Cancelar registro",
+        respuesta: "Guarda la intención en la actividad elegida y permite cancelarla aun con inscripciones cerradas. Respeta cuenta activa, correo, público y estado de la actividad.",
         ruta: "/eventos/evt-simposio-ia",
         estado: "comprobable",
         usuarioDemo: "usr-carlos",
@@ -567,11 +571,13 @@ export const SUBEQUIPOS: Subequipo[] = [
       },
       {
         id: "CU-MT-03",
-        nombre: "Reservar lugar en un día",
+        nombre: "Reservar lugar en actividad",
         actor: "Asistente",
         interfaz: "UI-40 · Taquilla y selección de lugar",
         descripcion:
-          "El asistente selecciona un lugar, obtiene un apartado temporal y confirma la reservación del día.",
+          "El asistente reserva una actividad controlada por su identificador, con su recinto, horario y aforo. El programa no crea reservas independientes.",
+        control: "Reservar lugar / Seleccionar asiento o cupo general / Confirmar mi reservación / Regresar",
+        respuesta: "Confirma la actividad seleccionada, conserva el QR por evento y vuelve al contexto elegido después de iniciar sesión o confirmar correo.",
         ruta: "/eventos/evt-simposio-ia/reservar?dateId=fec-simposio-d1",
         estado: "comprobable",
         usuarioDemo: "usr-carlos",

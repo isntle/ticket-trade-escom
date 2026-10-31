@@ -76,9 +76,11 @@ function ContenidoApp() {
     const url = new URL(rutaConParametros, window.location.origin);
     window.history.replaceState({...window.history.state,scrollTT:window.scrollY},'',actual);
     const acceso = ['/login','/registro','/confirmar-correo'].includes(window.location.pathname);
-    const origen = acceso ? (window.history.state?.origenTT || '/eventos') : actual;
-    const estado = {origenTT:origen===rutaConParametros?'/eventos':origen, scrollTT:0};
-    if (acceso && !['/login','/registro','/confirmar-correo'].includes(url.pathname)) window.history.replaceState(estado,'',rutaConParametros);
+    // Autenticarse para continuar la misma operación no debe duplicarla en el historial.
+    const accesoParaContinuar = !acceso && ['/login','/confirmar-correo'].includes(url.pathname) && url.searchParams.get('continuar') === actual;
+    const origen = acceso || accesoParaContinuar ? window.history.state?.origenTT : actual;
+    const estado = {origenTT:origen===rutaConParametros?undefined:origen, scrollTT:0};
+    if (accesoParaContinuar || acceso && !['/login','/registro','/confirmar-correo'].includes(url.pathname)) window.history.replaceState(estado,'',rutaConParametros);
     else window.history.pushState(estado, '', rutaConParametros);
     setRutaActual(url.pathname);
     setParametrosBusqueda(url.search);
@@ -219,6 +221,7 @@ function ContenidoApp() {
         <SeleccionAsientoPagina
           eventId={idEvento}
           dateId={idFecha}
+          accessKey={parametrosUrl.get("key") || undefined}
           navigate={navegarA}
         />
       );
