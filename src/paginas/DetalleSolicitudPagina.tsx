@@ -274,6 +274,10 @@ export const DetalleSolicitudPagina: React.FC<{
         className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-neutral-600"
       >
         <ArrowLeft size={17} /><span>Regresar</span></button>
+      {solicitud.fechasSolicitadas.map((f, indice) => {
+        const disponibilidad = verificarDisponibilidadRecinto(f.idRecinto, f.fecha, f.horaInicio, f.horaFin);
+        return disponibilidad.tipoConflicto === 'clase' ? <div key={indice} role="note" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950"><strong>Coincidencia con horario de clase · {f.fecha}</strong><p>{disponibilidad.motivo}</p><p>El horario es informativo. La decisión de Subdirección queda registrada en el historial; no se elimina ni modifica la clase.</p></div> : null;
+      })}
       <header className="mb-7 flex flex-wrap justify-between gap-4">
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap gap-2 items-center">

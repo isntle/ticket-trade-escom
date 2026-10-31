@@ -427,6 +427,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       idRecinto.startsWith('rec-lab') ||
       recintos.find((r) => r.id === idRecinto)?.tipo === 'laboratorio';
 
+    let avisoClase: ResultadoDisponibilidadRecinto | undefined;
     if (esLaboratorio) {
       for (const clase of listaClasesRegulares) {
         const coincideRecinto =
@@ -436,12 +437,12 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
         if (coincideRecinto && clase.diaSemana === diaSemana) {
           if (horaInicio < clase.horaFin && horaFin > clase.horaInicio) {
-            return {
-              disponible: false,
+            avisoClase = {
+              disponible: true,
               codigoMensaje: 'MSG-VENUE-002',
               tipoConflicto: 'clase',
               tituloConflicto: `Clase Programada: ${clase.materia}`,
-              motivo: `Existe una clase programada de ${clase.horaInicio} a ${clase.horaFin} en este laboratorio (${clase.materia}, Grupo ${clase.grupo}, ${clase.profesor}). Las clases regulares no se desplazan desde esta solicitud. Elige otra fecha, horario o recinto; la urgencia no elimina este conflicto.`,
+              motivo: `Existe una clase programada de ${clase.horaInicio} a ${clase.horaFin} en este laboratorio (${clase.materia}, Grupo ${clase.grupo}, ${clase.profesor}). Horario informativo: puedes enviar la solicitud. Subdirección revisará esta coincidencia y decidirá su autorización.`,
               detallesConflicto: {
                 horarioConflicto: `${clase.horaInicio} - ${clase.horaFin}`,
                 nombreActividad: clase.materia,
@@ -501,7 +502,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       };
     }
 
-    return { disponible: true };
+    return avisoClase || { disponible: true };
   };
 
   // Obtener todas las ocupaciones de un recinto en una fecha (para línea de tiempo)
@@ -748,7 +749,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       fechaVencimientoRevision: vencimientoRevision(ahora,calendarioRevision),
       version: 1,
     };
-    if(usuarioActual.puedeAutoaprobar && !nuevaSolicitud.esExcepcional){
+    if(usuarioActual.puedeAutoaprobar && !nuevaSolicitud.esExcepcional && !nuevaSolicitud.fechasSolicitadas.some(f=>verificarDisponibilidadRecinto(f.idRecinto,f.fecha,f.horaInicio,f.horaFin,undefined,true).tipoConflicto==='clase')){
       const resultado=resolverSolicitud(nuevaSolicitud.id,'autorizada','Autorización automática por jefatura de academia.',1,false,nuevaSolicitud);
       if(!resultado.exito)throw new Error(resultado.error);
       return {...nuevaSolicitud,estado:'autorizada'};
@@ -1125,7 +1126,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       usuarioActual.nombre,
       reenviar ? "Envío a revisión" : "Edición de solicitud",
     );
-    if(reenviar && usuarioActual.puedeAutoaprobar && !nueva.esExcepcional)return resolverSolicitud(id,'autorizada','Autorización automática por jefatura de academia.',versionSolicitud(nueva),false,nueva);
+    if(reenviar && usuarioActual.puedeAutoaprobar && !nueva.esExcepcional && !nueva.fechasSolicitadas.some(f=>verificarDisponibilidadRecinto(f.idRecinto,f.fecha,f.horaInicio,f.horaFin,undefined,true).tipoConflicto==='clase'))return resolverSolicitud(id,'autorizada','Autorización automática por jefatura de academia.',versionSolicitud(nueva),false,nueva);
     return persistirSolicitudes(
       lista.map((item) => (item.id === id ? nueva : item)),
     );
