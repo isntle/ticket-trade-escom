@@ -1,3 +1,4 @@
+import { REGLA_INGRESO_ACTIVIDAD } from '../dominio/presentacionActividad';
 import { modalidadActividad, aforoActividad, nombreActividad, accesoMixto } from '../dominio/actividades';
 import { VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
 import { volverA } from '../dominio/navegacion';
@@ -303,19 +304,19 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
             <Calendar className="w-4 h-4 text-[#7a132b] shrink-0" />
             <span>
               <strong>{new Set(evento.fechas.map(f=>f.fecha)).size} {new Set(evento.fechas.map(f=>f.fecha)).size === 1 ? 'Día programado' : 'Días programados'}:</strong>{' '}
-              {evento.fechas[0]?.fecha}{evento.fechas.length > 1 ? ` al ${evento.fechas[evento.fechas.length - 1]?.fecha}` : ''}
+              {[...new Set(evento.fechas.map(f => f.fecha))].sort().join(' · ')}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-[#7a132b] shrink-0" />
             <span>
-              <strong>Horario:</strong> {evento.fechas[0]?.horaInicio} a {evento.fechas[0]?.horaFin} hrs
+              <strong>Horario:</strong> {new Set(evento.fechas.map(f => `${f.horaInicio}–${f.horaFin}`)).size > 1 ? 'Varios horarios; consulta cada actividad' : `${evento.fechas[0]?.horaInicio}–${evento.fechas[0]?.horaFin} h`}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-[#7a132b] shrink-0" />
             <span>
-              <strong>Recinto:</strong> {obtenerNombreRecinto(evento.fechas[0]?.idRecinto || '')}
+              <strong>Recinto:</strong> {[...new Set(evento.fechas.map(f => obtenerNombreRecinto(f.idRecinto)))].join(' · ')}
             </span>
           </div>
         </div>
@@ -366,7 +367,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-neutral-400 shrink-0" />
-                <span>Tolerancia de acceso: 15 minutos en puerta</span>
+                <span>{REGLA_INGRESO_ACTIVIDAD}</span>
               </div>
             </div>
 
@@ -563,7 +564,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                 ) : (
                   <div className="px-6 py-4 bg-white flex items-center justify-between text-xs text-neutral-500">
                     <span>
-                      Sesión académica con acceso directo en el horario establecido ({fecha.horaInicio} a {fecha.horaFin} hrs).
+                      Actividad con acceso directo en el horario establecido ({fecha.horaInicio} a {fecha.horaFin} hrs).
                     </span>
                     <span className="font-mono text-[11px] text-neutral-400">{nombreRecinto}</span>
                   </div>

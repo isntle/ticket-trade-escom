@@ -449,7 +449,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
               {evento.titulo}
             </h1>
             <p className="text-xs text-neutral-500 mt-1">
-              Día: <span className="font-semibold text-neutral-800">{fecha.nombreDia || fecha.fecha}</span> ({fecha.horaInicio} a {fecha.horaFin} hrs) · Recinto: <span className="font-semibold text-neutral-800">{recinto?.nombre}</span>
+              Actividad: <span className="font-semibold text-neutral-800">{fecha.nombreDia || fecha.fecha}</span> ({fecha.horaInicio} a {fecha.horaFin} hrs) · Recinto: <span className="font-semibold text-neutral-800">{recinto?.nombre}</span>
             </p>
           </div>
 
@@ -605,7 +605,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
                   </div>
                   <div className="flex justify-between">
                     <span>Costo del boleto:</span>
-                    <span className="font-bold text-emerald-600">Gratuito ($0.00 MXN)</span>
+                    <span className="font-bold text-emerald-600">Sin costo</span>
                   </div>
                 </div>
 
