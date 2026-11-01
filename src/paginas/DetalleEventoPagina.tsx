@@ -276,7 +276,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
               <span className="px-2.5 py-0.5 rounded bg-white/20 backdrop-blur-xs text-xs font-semibold uppercase tracking-wider">
                 {evento.categoria}
               </span>
-              {accesoMixto(evento)?<span className="rounded-lg bg-white/15 px-3 py-1 text-xs font-semibold text-white">Acceso según actividad</span>:<InsigniaEstado estado={evento.modalidadAsistencia} />}
+              {accesoMixto(evento)?<span className="rounded-lg bg-white/15 px-3 py-1 text-xs font-semibold text-white">Acceso según actividad</span>:<span className="rounded bg-white px-1 py-0.5"><InsigniaEstado estado={evento.modalidadAsistencia} /></span>}
               <InsigniaEstado estado={evento.visibilidad} />
               {(evento.estado as string) === 'cancelado' && (
                 <span className="px-2.5 py-0.5 rounded bg-red-600/90 backdrop-blur-xs text-white text-xs font-bold uppercase tracking-wider border border-red-500/50 shadow-sm flex items-center gap-1.5">
