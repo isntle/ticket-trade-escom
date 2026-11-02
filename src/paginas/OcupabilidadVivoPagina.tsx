@@ -1,4 +1,5 @@
-import { aforoActividad } from '../dominio/actividades';
+import { aforoActividad, nombreActividad } from '../dominio/actividades';
+import { agruparActividadesPorDia, describirActividad, etiquetaOpcionActividad } from '../dominio/presentacionActividad';
 import { volverA } from '../dominio/navegacion';
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Users, CheckCircle, Clock, MapPin, RefreshCw } from 'lucide-react';
@@ -6,7 +7,7 @@ import { useDatos } from '../contextos/DatosContexto';
 import { MapaAsientos } from '../componentes/asientos/MapaAsientos';
 import { EstadoVacio } from '../componentes/ui/EstadoVacio';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
-import { obtenerContextoOcupacion } from '../dominio/ocupacion';
+import { obtenerContextoOcupacion, reglaMonitorActividad, resumirOcupacion } from '../dominio/ocupacion';
 
 interface PropiedadesOcupabilidadVivo {
   navigate: (ruta: string) => void;
@@ -55,8 +56,8 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
     return (
       <div className="max-w-4xl mx-auto px-4 py-16">
         <EstadoVacio
-          titulo={!eventoSeleccionado ? 'Evento no disponible para tu cuenta' : !fechaSeleccionada ? 'Día no disponible' : 'Sin distribución final confirmada'}
-          descripcion={!eventoSeleccionado ? 'Consulta únicamente tus eventos o los asignados a tu cuenta de personal de acceso.' : !fechaSeleccionada ? 'El día solicitado no pertenece al evento seleccionado.' : 'La ocupación requiere una distribución final de lugares para ese día.'}
+          titulo={!eventoSeleccionado ? 'Evento no disponible para tu cuenta' : 'Actividad no disponible'}
+          descripcion={!eventoSeleccionado ? 'Consulta únicamente tus eventos o los asignados a tu cuenta de personal de acceso.' : 'La actividad solicitada no pertenece al evento seleccionado.'}
           textoAccion="Volver al escáner"
           alHacerAccion={() => navigate('/staff')}
         />
@@ -64,27 +65,17 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
     );
   }
 
-  // Boletos de esta fecha que ya hicieron check-in
-  const boletosCheckIn = listaBoletos.filter(
-    (b) => b.idFechaEvento === fechaSeleccionada.id && b.estado === 'utilizado'
-  );
-
-  // Mapear IDs de asientos con check-in
-  const idsAsientosCheckIn: string[] = [];
-  boletosCheckIn.forEach((b) => {
-    if (b.etiquetaAsiento) {
-      const asientoEncontrado = arregloFinal?.asientos.find((a) => a.etiqueta === b.etiquetaAsiento);
-      if (asientoEncontrado) idsAsientosCheckIn.push(asientoEncontrado.id);
-    }
+  // El conteo de personas con entrada es independiente del coloreado del mapa:
+  // una entrada válida sin butaca cuenta en el total y no se dibuja en el mapa.
+  const { totalIngresados, ingresadosSinButaca, totalConAcceso: totalReservados, idsAsientosCheckIn, idsAsientosReservados } = resumirOcupacion({
+    idActividad: fechaSeleccionada.id,
+    boletos: listaBoletos,
+    reservaciones: listaReservaciones,
+    asientos: arregloFinal?.asientos,
   });
-
-  // Asientos reservados para esta fecha
-  const idsAsientosReservados = listaReservaciones
-    .filter((r) => r.idFechaEvento === fechaSeleccionada.id && r.estado === 'confirmada' && r.idAsiento)
-    .map((r) => r.idAsiento!);
-
-  const totalIngresados = new Set(boletosCheckIn.map(b => b.idUsuario || b.idReservacion || b.id)).size;
-  const totalReservados = new Set(listaBoletos.filter(b => b.idFechaEvento === fechaSeleccionada.id && (b.estado === 'valido' || b.estado === 'utilizado')).map(b => b.idUsuario || b.idReservacion || b.id)).size;
+  const regla = reglaMonitorActividad(eventoSeleccionado, fechaSeleccionada, Boolean(arregloFinal));
+  const indiceActividad = Math.max(0, eventoSeleccionado.fechas.findIndex((f) => f.id === fechaSeleccionada.id));
+  const nombreRecinto = (idRecinto?: string) => listaRecintos.find((r) => r.id === idRecinto)?.nombre;
   const aforo = aforoActividad(fechaSeleccionada,eventoSeleccionado.aforoMaximo) ?? arregloFinal?.totalAsientos ?? recinto?.capacidad ?? 0;
   const porcentajeOcupacion = aforo > 0
     ? Math.round((totalIngresados / aforo) * 100)
@@ -110,7 +101,7 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
             Ocupación de lugares
           </h1>
           <p className="text-xs text-neutral-500 mt-1">
-            Recinto: <span className="font-semibold text-neutral-800">{recinto?.nombre}</span> · Día: <span className="font-semibold text-neutral-800">{fechaSeleccionada.fecha}</span>
+            Actividad: <span className="font-semibold text-neutral-800">{nombreActividad(fechaSeleccionada, indiceActividad)}</span> · {describirActividad(fechaSeleccionada, recinto?.nombre)}
           </p>
         </div>
 
@@ -137,7 +128,7 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
 
           {eventoSeleccionado.fechas.length > 1 && (
             <select
-              aria-label="Día para consultar ocupación"
+              aria-label="Actividad para consultar ocupación"
               value={idFechaSeleccionada}
               onChange={(e) => {
                 if (!eventoSeleccionado.fechas.some(dia => dia.id === e.target.value)) return;
@@ -146,32 +137,37 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
               }}
               className="px-3 py-2 bg-neutral-50 border border-neutral-300 rounded-xl text-xs text-neutral-800 focus:outline-none"
             >
-              {eventoSeleccionado.fechas.map((f, i) => (
-                <option key={f.id} value={f.id}>
-                  Día {i + 1}: {f.fecha}
-                </option>
+              {agruparActividadesPorDia(eventoSeleccionado.fechas).map((dia) => (
+                <optgroup key={dia.fecha} label={dia.etiqueta}>
+                  {dia.actividades.map(({ actividad, indice }) => (
+                    <option key={actividad.id} value={actividad.id}>
+                      {etiquetaOpcionActividad(actividad, indice, nombreRecinto(actividad.idRecinto))}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           )}
         </div>
       </div>
 
+      {regla.tipo === 'sin_control' ? <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{regla.mensaje}</p> : <>
       {/* Tarjetas de Métricas de Acceso en Vivo */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         <div className="bg-white p-4 rounded-2xl border border-neutral-200 text-center shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">
-            Asistentes en Sala
+            Entradas registradas
           </span>
           <div className="text-2xl font-black text-emerald-700 mt-1">{totalIngresados}</div>
-          <span className="text-[11px] text-neutral-400 mt-0.5 block">{porcentajeOcupacion}% de aforo</span>
+          <span className="text-[11px] text-neutral-400 mt-0.5 block">{porcentajeOcupacion}% de aforo{ingresadosSinButaca > 0 ? ` · ${ingresadosSinButaca} sin butaca` : ''}</span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-neutral-200 text-center shadow-xs">
           <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 block">
-            Boletos Reservados
+            Accesos reservados
           </span>
           <div className="text-2xl font-black text-sky-700 mt-1">{totalReservados}</div>
-          <span className="text-[11px] text-neutral-400 mt-0.5 block">Confirmados en taquilla</span>
+          <span className="text-[11px] text-neutral-400 mt-0.5 block">Personas con acceso a esta actividad</span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-neutral-200 text-center shadow-xs">
@@ -194,13 +190,15 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
       </div>
 
       {/* Componente del Mapa en Modo Ocupación */}
-      {arregloFinal ? <MapaAsientos
+      <p className="mb-3 text-xs text-neutral-600">{regla.mensaje}</p>
+      {regla.tipo === 'mapa' && arregloFinal && <MapaAsientos
         asientos={arregloFinal.asientos}
         modo="ocupacion"
         idsAsientosCheckIn={idsAsientosCheckIn}
         idsAsientosReservados={idsAsientosReservados}
         permiteEliminar={recinto?.permiteEliminarAsientos}
-      /> : <p className="rounded-xl bg-neutral-50 p-4 text-neutral-700">El conteo incluye accesos sin butaca. No hay una distribución final para mostrar el mapa de esta actividad.</p>}
+      />}
+      </>}
     </div>
   );
 };
