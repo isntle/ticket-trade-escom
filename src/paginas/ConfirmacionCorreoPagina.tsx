@@ -40,8 +40,7 @@ export function ConfirmacionCorreoPagina({
     <MarcoAcceso>
       <h2 className="text-3xl font-black">Confirmar correo electrónico</h2>
       <p className="my-4 text-sm leading-6">
-        Confirma tu correo con el enlace recibido. Esto no equivale a
-        verificación documental ni concede facultades para organizar eventos.
+        Confirma tu correo con el enlace recibido. ¡Confirmar tu correo te permite asistir a eventos!
       </p>
       <p className="mb-5 rounded-xl bg-amber-50 p-4 text-sm">
         El envío real todavía no está conectado. En demostración puedes probar

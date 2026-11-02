@@ -7,6 +7,7 @@ import { modoDemostracionActivo } from "../dominio/demostracion";
 import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import { USUARIOS_INICIALES } from "../datos/datosIniciales";
 import type { TipoAfiliacion } from "../tipos";
+import { LogIn, Ticket } from "lucide-react";
 
 const campo =
   "mt-2 w-full rounded-xl border border-neutral-300 bg-[#fafaf9] px-3.5 py-3 text-sm outline-none focus:border-[#7a132b] focus:ring-4 focus:ring-[#7a132b]/10";
@@ -25,7 +26,7 @@ export function AutenticacionPagina({
   const [password, setPassword] = useState("");
   const [mostrar, setMostrar] = useState(false);
   const [nombre, setNombre] = useState("");
-  const [categoria, setCategoria] = useState("externo");
+  const [categoria, setCategoria] = useState("");
   const [identificador, setIdentificador] = useState("");
   const [entidad, setEntidad] = useState("");
   const [cargo, setCargo] = useState("");
@@ -56,15 +57,38 @@ export function AutenticacionPagina({
     e.preventDefault();
     if (password !== confirmacion)
       return setMensaje("Las contraseñas no coinciden.");
+
+    const correoLimpio = correo.trim().toLowerCase();
+    const esComunidadIPN = categoria === "alumno" || categoria === "trabajador";
+    const tieneDominioPoli =
+      correoLimpio.endsWith("@ipn.mx") || correoLimpio.endsWith("@alumno.ipn.mx");
+
+    if (esComunidadIPN && !tieneDominioPoli) {
+      return setMensaje("El correo debe pertenecer al dominio institucional (@ipn.mx o @alumno.ipn.mx).");
+    }
+
+    if (categoria === "alumno" && identificador.length !== 10) {
+      return setMensaje("La boleta debe contener exactamente 10 números.");
+    }
+
+    if (categoria === "trabajador" && identificador.trim().length < 10) {
+      return setMensaje("Ingresa un RFC válido (mínimo 10 caracteres con homoclave).");
+    }
+
     const r = auth.registrarUsuario({
-      nombre,
-      correo,
+      nombre: nombre.trim() || correo.split("@")[0] || "Usuario",
+      correo: correoLimpio,
       password,
-      afiliacion,
-      boleta: afiliacion === "alumno" ? identificador : undefined,
-      numeroEmpleado: !["alumno", "externo"].includes(afiliacion)
-        ? identificador
-        : undefined,
+      afiliacion:
+        categoria === "alumno"
+          ? "alumno"
+          : categoria === "trabajador"
+            ? "profesor"
+            : "externo",
+      boleta: categoria === "alumno" ? identificador.trim() : undefined,
+      rfc: categoria === "trabajador" ? identificador.trim().toUpperCase() : undefined,
+      numeroEmpleado:
+        categoria === "trabajador" ? identificador.trim().toUpperCase() : undefined,
       nombreOrganizacion: entidad,
       puestoContacto: cargo,
       telefonoContacto: telefono,
@@ -83,6 +107,48 @@ export function AutenticacionPagina({
   };
   return (
     <MarcoAcceso>
+      {/* Botones de navegación en la parte superior derecha con estilos institucionales */}
+      <div className="mb-8 flex items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => navigate("/eventos")}
+          className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-3.5 py-2 text-xs font-semibold text-neutral-700 shadow-sm transition hover:border-neutral-400 hover:bg-neutral-50 hover:text-neutral-900 cursor-pointer"
+        >
+          <Ticket className="h-4 w-4 text-[#7a132b]" />
+          <span>Ver cartelera</span>
+        </button>
+
+        {view !== "login" && (
+          <button
+            type="button"
+            onClick={() => navigate(volverA("/login"))}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#7a132b] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#620f23] cursor-pointer"
+          >
+            <LogIn className="h-4 w-4" />
+            <span>Iniciar sesión</span>
+          </button>
+        )}
+
+        {view !== "registro" && (
+          <button
+            type="button"
+            onClick={() =>
+              navigate(
+                "/registro?continuar=" +
+                  encodeURIComponent(
+                    destinoInternoSeguro(
+                      new URLSearchParams(window.location.search).get("continuar")
+                    )
+                  )
+              )
+            }
+            className="inline-flex items-center gap-2 rounded-xl bg-[#7a132b] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#620f23] cursor-pointer"
+          >
+            <span>Crear cuenta</span>
+          </button>
+        )}
+      </div>
+
       <header className="mb-7">
         <h2 className="text-3xl font-black tracking-tight">
           {view === "login"
@@ -95,7 +161,7 @@ export function AutenticacionPagina({
           {view === "login"
             ? "Usa tus credenciales para continuar a Ticket Trade."
             : view === "registro"
-              ? "Crea tu cuenta; confirmar el correo y verificar documentos son procesos separados."
+              ? "Crea tu cuenta te permite asistir a eventos"
               : "Restablece tu contraseña con un enlace de un solo uso."}
         </p>
       </header>
@@ -185,72 +251,94 @@ export function AutenticacionPagina({
       {view === "registro" && (
         <form className="space-y-4" onSubmit={registrar}>
           <p className="text-sm text-neutral-600">
-            Aviso de datos: se usan para tu cuenta y sus operaciones. No
-            adjuntes documentos de identidad aquí. El expediente se presenta por
-            separado y solo lo revisa Administración. Usa datos ficticios en
-            este prototipo. Contacto: soporte_ti@escom.ipn.mx.
+            Aviso de datos: se usan para tu cuenta y sus operaciones
           </p>
-          <label className="block text-sm font-semibold">
-            Rol
-            <select
-              className={campo}
-              value={categoria}
-              onChange={(e) => {
-                setCategoria(e.target.value);
-                setIdentificador("");
-              }}
-            >
-              <option value="externo">Externo asistente</option>
-              <option value="alumno">Estudiante</option>
-              <option value="profesor">Docente</option>
-              <option value="administrativo">Administrativo</option>
-              <option value="pae">Personal de apoyo</option>
-              <option value="representante">Representante externo</option>
-            </select>
-          </label>
-          <label className="block text-sm font-semibold">
-            Nombre completo
-            <input
-              required
-              className={campo}
-              autoComplete="name"
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-            />
-          </label>
-          <label className="block text-sm font-semibold">
-            Correo electrónico
-            <input
-              required
-              type="email"
-              className={campo}
-              autoComplete="email"
-              value={correo}
-              onChange={(e) => setCorreo(e.target.value)}
-            />
-          </label>
-          {afiliacion !== "externo" && (
-            <>
-              <p className="text-sm text-neutral-500">
-                {afiliacion === "alumno"
-                  ? "Usa @alumno.ipn.mx. Boleta: diez dígitos o PE/PP y ocho dígitos."
-                  : "Usa @ipn.mx. Número de empleado como dato declarado; no se consulta un padrón oficial."}
-              </p>
-              <label className="block text-sm font-semibold">
-                {afiliacion === "alumno"
-                  ? "Boleta"
-                  : "Número de empleado"}
-                <input
-                  required
-                  className={campo}
-                  value={identificador}
-                  onChange={(e) =>
-                    setIdentificador(e.target.value.toUpperCase())
-                  }
-                />
-              </label>
-            </>
-          )}
+
+<label className="block text-sm font-medium text-neutral-600">
+  Rol
+  <select
+    className={`${campo} ${!categoria ? "text-neutral-400 font-normal" : "text-neutral-900"}`}
+    value={categoria}
+    onChange={(e) => {
+      setCategoria(e.target.value);
+      setIdentificador("");
+    }}
+  >
+    <option value="" disabled hidden className="text-neutral-400">
+      Selecciona tu rol o tipo de usuario...
+    </option>
+    <option value="externo" className="text-neutral-900 font-normal">Externo</option>
+    <option value="alumno" className="text-neutral-900 font-normal">Alumno IPN</option>
+    <option value="trabajador" className="text-neutral-900 font-normal">Trabajador IPN</option>
+  </select>
+</label>
+
+{categoria === "alumno" && (
+  <label className="block text-sm font-semibold">
+    Boleta
+    <input
+      required
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]{10}"
+      maxLength={10}
+      placeholder="10 números (ej. 2024630001)"
+      className={`${campo} placeholder:text-neutral-400 placeholder:font-normal`}
+      value={identificador}
+      onChange={(e) =>
+        setIdentificador(e.target.value.replace(/\D/g, "").slice(0, 10))
+      }
+    />
+    <p className="mt-1 text-xs text-neutral-500 font-normal">
+      Ingresa los 10 dígitos numéricos de tu boleta.
+    </p>
+  </label>
+)}
+
+{categoria === "trabajador" && (
+  <label className="block text-sm font-semibold">
+    RFC
+    <input
+      required
+      type="text"
+      maxLength={13}
+      placeholder="RFC con homoclave (ej. ABCD123456XYZ)"
+      className={`${campo} placeholder:text-neutral-400 placeholder:font-normal uppercase`}
+      value={identificador}
+      onChange={(e) =>
+        setIdentificador(e.target.value.toUpperCase().slice(0, 13))
+      }
+    />
+    <p className="mt-1 text-xs text-neutral-500 font-normal">
+      Ingresa tu RFC a 13 posiciones con homoclave.
+    </p>
+  </label>
+)}
+
+<label className="block text-sm font-semibold">
+  Correo electrónico
+  <input
+    placeholder={
+      categoria === "alumno"
+        ? "@alumno.ipn.mx"
+        : categoria === "trabajador"
+          ? "@ipn.mx"
+          : "ejemplo@correo.com"
+    }
+    required
+    type="email"
+    className={`${campo} placeholder:text-neutral-400 placeholder:font-normal`}
+    autoComplete="email"
+    value={correo}
+    onChange={(e) => setCorreo(e.target.value)}
+  />
+  {(categoria === "alumno" || categoria === "trabajador") && (
+    <p className="mt-1.5 text-xs text-neutral-500 font-normal">
+      ingrese su correo institucional
+    </p>
+  )}
+</label>
+          
           {categoria === "representante" && (
             <>
               <label className="block text-sm font-semibold">
@@ -435,22 +523,7 @@ export function AutenticacionPagina({
           )}
         </section>
       )}
-      <nav className="mt-7 flex flex-wrap gap-4 border-t pt-5 text-sm">
-        {view !== "login" && (
-          <button onClick={() => navigate(volverA("/login"))}>Regresar</button>
-        )}
-        {view !== "registro" && (
-          <button
-            className="font-bold text-[#7a132b]"
-            onClick={() => navigate("/registro?continuar="+encodeURIComponent(destinoInternoSeguro(new URLSearchParams(window.location.search).get("continuar"))))}
-          >
-            Crear cuenta
-          </button>
-        )}
-        <button onClick={() => navigate("/eventos")}>
-          Consultar cartelera
-        </button>
-      </nav>
+      
     </MarcoAcceso>
   );
 }

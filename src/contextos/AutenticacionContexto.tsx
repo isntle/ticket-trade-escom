@@ -266,11 +266,18 @@ function usarIdentidad() {
     datos: DatosRegistroUsuario,
   ): ResultadoOperacionAuth => {
     const correo = datos.correo.trim().toLowerCase();
-    if (
-      !datos.nombre.trim() ||
-      !validarDominioIdentidad(correo, datos.afiliacion)
-    )
-      return mal("Revisa nombre, correo y dominio admitido para tu categoría.");
+    const nombreFinal = datos.nombre?.trim() || correo.split("@")[0] || "Usuario";
+    if (datos.afiliacion !== "externo") {
+      const tieneDominioPoli =
+        correo.endsWith("@ipn.mx") || correo.endsWith("@alumno.ipn.mx");
+      if (!tieneDominioPoli) {
+        return mal("El correo debe pertenecer al dominio institucional (@ipn.mx o @alumno.ipn.mx).");
+      }
+    } else {
+      if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(correo)) {
+        return mal("Ingresa un correo electrónico válido.");
+      }
+    }
     if (
       cuentasRef.current.some(
         (u) => u.correo === correo || u.correoPendiente === correo,
@@ -306,9 +313,11 @@ function usarIdentidad() {
     const u: Usuario = {
       ...datos,
       id: "usr-" + crypto.randomUUID(),
-      nombre: datos.nombre.trim(),
+      nombre: nombreFinal,
       correo,
       boleta: datos.boleta?.trim().toUpperCase(),
+      rfc: datos.rfc?.trim().toUpperCase(),
+      numeroEmpleado: (datos.numeroEmpleado || datos.rfc)?.trim().toUpperCase(),
       roles: ["asistente"],
       rolActivo: "asistente",
       estaActivo: true,
