@@ -72,6 +72,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
     const ocupaciones = obtenerOcupacionesRecinto(idRecinto, cadenaFecha).filter((ocupacion) => horaInicio < ocupacion.horaFin && horaFin > ocupacion.horaInicio);
     if (!disponibilidad.disponible) return { tipo: disponibilidad.tipoConflicto === 'bloqueo' ? 'bloqueo' as const : 'evento' as const, titulo: disponibilidad.motivo, elementos: ocupaciones.map((item) => item.titulo) };
 
+    if (disponibilidad.tipoConflicto === 'clase') return {tipo: 'clase' as const, titulo: disponibilidad.motivo, elementos: ocupaciones.filter(o=>o.tipo==='clase').map(o=>o.titulo)};
     return { tipo: 'libre' as const, elementos: [] };
   };
 
@@ -104,6 +105,9 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
     } else if (infoDia.tipo === 'evento') {
       estiloFondo = 'bg-rose-50 border-rose-200 text-rose-900';
       insignia = <Clock className="w-3 h-3 text-amber-600" />;
+    } else if (infoDia.tipo === 'clase') {
+      estiloFondo = 'bg-amber-50 border-amber-300 text-amber-950';
+      insignia = <Clock className="h-3 w-3" />;
     } else if (resaltarUrgencia && proxima && !esHoy) {
       estiloFondo = 'bg-amber-50 border-amber-300 text-amber-950';
       insignia = <Clock className="h-3 w-3 text-amber-700" />;
@@ -115,7 +119,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
       <button
         key={`dia-${dia}`}
         disabled={soloFechasFuturas && esPasado}
-        aria-label={`${fechaActualCadena}${esHoy ? ', hoy' : ''}${esPasado ? ', fecha pasada' : resaltarUrgencia && proxima ? ', plazo urgente' : ''}`}
+        aria-label={`${fechaActualCadena}${infoDia.tipo==='clase'?', clase programada, solicitud sujeta a revisión de Subdirección':infoDia.tipo==='evento'?', conflicto con evento':infoDia.tipo==='bloqueo'?', recinto bloqueado':''}${esHoy ? ', hoy' : ''}${esPasado ? ', fecha pasada' : resaltarUrgencia && proxima ? ', plazo urgente' : ''}`}
         aria-current={esHoy ? 'date' : undefined}
         type="button"
         onClick={() => alSeleccionarFecha && alSeleccionarFecha(fechaActualCadena)}
@@ -175,12 +179,13 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
         {soloFechasFuturas && <span className="text-neutral-500">Gris: días pasados · Azul: hoy</span>}
         {consultarHorario && <><div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded bg-white border border-neutral-300" />
-          <span>Libre / Disponible</span>
+          <span>Sin coincidencias registradas</span>
         </div>
         <div className="flex items-center gap-1.5">
           <Clock className="w-3 h-3 text-amber-600" />
-          <span>Ocupado en este horario</span>
+          <span>Conflicto con otra reserva</span>
         </div>
+        <div className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-amber-600"/><span>Clase informativa: decide Subdirección</span></div>
         <div className="flex items-center gap-1.5">
           <Ban className="w-3 h-3 text-rose-600" />
           <span>Bloqueo del recinto</span>
@@ -200,14 +205,15 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
               className={`capitalize px-2 py-0.5 rounded text-[10px] font-bold ${
                 infoDiaSeleccionado.tipo === 'libre'
                   ? 'bg-emerald-100 text-emerald-800'
-                  : infoDiaSeleccionado.tipo === 'evento'
+                  : (infoDiaSeleccionado.tipo === 'evento' || infoDiaSeleccionado.tipo === 'clase')
                   ? 'bg-amber-100 text-amber-800'
                   : 'bg-rose-100 text-rose-800'
               }`}
             >
-              {infoDiaSeleccionado.tipo}
+              {infoDiaSeleccionado.tipo==='clase'?'Clase programada':infoDiaSeleccionado.tipo}
             </span>
           </div>
+          {infoDiaSeleccionado.tipo === 'clase' && <p role="status" className="mt-2 text-amber-950">{infoDiaSeleccionado.titulo} La coincidencia no reserva ni cancela la clase.</p>}
           {infoDiaSeleccionado.elementos.length > 0 ? (
             <ul className="mt-1 space-y-0.5 text-neutral-600">
               {infoDiaSeleccionado.elementos.map((elem, i) => (

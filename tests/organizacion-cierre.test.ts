@@ -502,3 +502,13 @@ test('confirmación revalida reservas recientes contra otra actividad sin emitir
   assert.equal(resultado.exito,false);assert.match(resultado.error!,/ERR-MT-07/);
   assert.equal(c.local.getItem(c.prefijo+'boletos'),boletosAntes);
 });
+
+test('calendario informa clases sin anunciar horario libre y mantiene la fecha seleccionable',()=>{
+ contexto('usr-silva');
+ const html=renderToString(React.createElement(ProveedorAutenticacion,null,React.createElement(ProveedorDatos,null,
+  React.createElement(CalendarioRecinto,{idRecinto:'rec-lab-1',fechaSeleccionada:'2030-01-07',horaInicio:'09:00',horaFin:'09:30'}))));
+ assert.match(html,/Clase programada/);
+ assert.match(html,/Subdirección/);
+ assert.match(html,/Redes y Telecomunicaciones/);
+ assert.doesNotMatch(html,/Sin conflictos registrados para el horario consultado/);
+});
