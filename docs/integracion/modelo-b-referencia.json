@@ -1,0 +1,994 @@
+{
+  "Recinto": {
+    "g": "Recintos",
+    "d": "Espacio físico precargado; Administrador solo modifica.",
+    "c": [
+      {
+        "n": "id",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "descripcion",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "tipo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "numero_salon",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "aforo_maximo",
+        "t": "integer",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_croquis",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "Archivo"
+      }
+    ],
+    "pk": [
+      "id"
+    ],
+    "uq": [],
+    "rule": ""
+  },
+  "LugarRecinto": {
+    "g": "Recintos",
+    "d": "Butaca o estación física con posición fija.",
+    "c": [
+      {
+        "n": "id",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_recinto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Recinto"
+      },
+      {
+        "n": "codigo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "fila",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "posicion_x",
+        "t": "numeric",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "posicion_y",
+        "t": "numeric",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "tipo_lugar",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id"
+    ],
+    "uq": [
+      [
+        "id_recinto",
+        "codigo"
+      ]
+    ],
+    "rule": ""
+  },
+  "EstacionComputo": {
+    "g": "Recintos",
+    "d": "Estado individual del equipo; una avería no impide reservar la estación.",
+    "c": [
+      {
+        "n": "id_lugar",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "LugarRecinto"
+      },
+      {
+        "n": "id_estado_funcionamiento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoFuncionamiento"
+      }
+    ],
+    "pk": [
+      "id_lugar"
+    ],
+    "uq": [],
+    "rule": ""
+  },
+  "ActividadInterna": {
+    "g": "Recintos",
+    "d": "Bloque semanal informativo; se puede borrar, sin estado.",
+    "c": [
+      {
+        "n": "id",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_recinto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Recinto"
+      },
+      {
+        "n": "inicio_vigencia",
+        "t": "date",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "fin_vigencia",
+        "t": "date",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "hora_inicio",
+        "t": "time",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "hora_fin",
+        "t": "time",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id"
+    ],
+    "uq": [],
+    "rule": "Repetición semanal informativa; omitir inhábiles. Sin estado ni historial de eliminación."
+  },
+  "DiaActividadInterna": {
+    "g": "Recintos",
+    "d": "Días de repetición semanal.",
+    "c": [
+      {
+        "n": "id_actividad_interna",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "ActividadInterna"
+      },
+      {
+        "n": "dia_semana",
+        "t": "integer",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_actividad_interna",
+      "dia_semana"
+    ],
+    "uq": [],
+    "rule": ""
+  },
+  "DiaInhabil": {
+    "g": "Recintos",
+    "d": "Excepciones al calendario de revisión y de actividades internas.",
+    "c": [
+      {
+        "n": "fecha",
+        "t": "date",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "motivo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "fecha"
+    ],
+    "uq": [],
+    "rule": ""
+  },
+  "BloqueoRecinto": {
+    "g": "Recintos",
+    "d": "Mantenimiento, bloqueo institucional o fuera de servicio.",
+    "c": [
+      {
+        "n": "id",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_recinto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Recinto"
+      },
+      {
+        "n": "tipo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "inicio",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "fin_previsto",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "motivo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_responsable",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Cuenta"
+      },
+      {
+        "n": "finalizado_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id"
+    ],
+    "uq": [],
+    "rule": "Fuera de servicio requiere reactivación manual; fin previsto no es fin real. Prorrogar tres días si vence sin actuación."
+  },
+  "Evento": {
+    "g": "Eventos",
+    "d": "Datos únicos del evento en preparación o publicado.",
+    "c": [
+      {
+        "n": "id",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_organizador",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Cuenta"
+      },
+      {
+        "n": "titulo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "descripcion",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "correo_contacto",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "telefono_contacto",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_categoria",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "CategoriaEvento"
+      },
+      {
+        "n": "visibilidad",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_cartel",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "Archivo"
+      },
+      {
+        "n": "token_enlace_privado",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_estado_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoEvento"
+      },
+      {
+        "n": "publicado_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "total_senales_interes",
+        "t": "integer",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id"
+    ],
+    "uq": [],
+    "rule": "Título, descripción, contactos, categoría, visibilidad, cartel y al menos una actividad: obligatorios al enviar o publicar. NULL en borrador no autoriza un envío incompleto. Token solo para evento privado. Interés global si existe actividad libre habilitada."
+  },
+  "Actividad": {
+    "g": "Eventos",
+    "d": "Unidad de programación, cupo, reserva y entrada.",
+    "c": [
+      {
+        "n": "id",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Evento"
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "descripcion",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "fecha",
+        "t": "date",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "hora_inicio",
+        "t": "time",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "hora_fin",
+        "t": "time",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_recinto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Recinto"
+      },
+      {
+        "n": "tipo_acceso",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "aforo_solicitado",
+        "t": "integer",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_estado_actividad",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoActividad"
+      }
+    ],
+    "pk": [
+      "id"
+    ],
+    "uq": [],
+    "rule": "Cada actividad ocurre en un día, un recinto y un intervalo; termina a más tardar a las 21:00. En laboratorios no se admite entrada libre."
+  },
+  "ItinerarioDia": {
+    "g": "Eventos",
+    "d": "Una imagen opcional por día del evento.",
+    "c": [
+      {
+        "n": "id_evento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "Evento"
+      },
+      {
+        "n": "fecha",
+        "t": "date",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_archivo",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Archivo"
+      }
+    ],
+    "pk": [
+      "id_evento",
+      "fecha"
+    ],
+    "uq": [],
+    "rule": ""
+  },
+  "LugarActividad": {
+    "g": "Eventos",
+    "d": "Clasificación de una butaca o estación para una actividad concreta.",
+    "c": [
+      {
+        "n": "id",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_actividad",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Actividad"
+      },
+      {
+        "n": "id_lugar_recinto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "LugarRecinto"
+      },
+      {
+        "n": "categoria",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id"
+    ],
+    "uq": [
+      [
+        "id_actividad",
+        "id_lugar_recinto"
+      ]
+    ],
+    "rule": ""
+  },
+  "SolicitudEvento": {
+    "g": "Trámites",
+    "d": "Trámite inicial o modificación conjunta; ordinario o extraordinario.",
+    "c": [
+      {
+        "n": "id",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Evento"
+      },
+      {
+        "n": "tipo_tramite",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "tipo_anticipacion",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "motivo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_estado_solicitud_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoSolicitudEvento"
+      },
+      {
+        "n": "envio_inicial",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "inicio_revision",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "limite_revision",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "limite_correccion",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "version_edicion",
+        "t": "integer",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id"
+    ],
+    "uq": [],
+    "rule": "Máximo una inicial por evento y una modificación pendiente. Publicación directa de Subdirección sin solicitud inicial. Las propuestas de cambio no ocupan el destino."
+  },
+  "CambioActividadSolicitado": {
+    "g": "Trámites",
+    "d": "Nuevos valores solicitados para una actividad ya publicada; la programación vigente queda en Actividad.",
+    "c": [
+      {
+        "n": "id",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_solicitud",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "SolicitudEvento"
+      },
+      {
+        "n": "id_actividad",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Actividad"
+      },
+      {
+        "n": "fecha_propuesta",
+        "t": "date",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "inicio_propuesto",
+        "t": "time",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "fin_propuesto",
+        "t": "time",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_recinto_propuesto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "Recinto"
+      }
+    ],
+    "pk": [
+      "id"
+    ],
+    "uq": [
+      [
+        "id_solicitud",
+        "id_actividad"
+      ]
+    ],
+    "rule": "Al menos un valor cambiado. Solo actividades del evento solicitado. Pausar nuevas reservas si se solicita cambiar recinto. Aplicar toda la solicitud conjuntamente."
+  },
+  "AfectacionActividad": {
+    "g": "Eventos",
+    "d": "Causa de suspensión asociada al bloqueo que la originó.",
+    "c": [
+      {
+        "n": "id_bloqueo",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "BloqueoRecinto"
+      },
+      {
+        "n": "id_actividad",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "Actividad"
+      },
+      {
+        "n": "resuelta_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_bloqueo",
+      "id_actividad"
+    ],
+    "uq": [],
+    "rule": "Mantenimiento no desplaza actividades. Los bloqueos institucionales y fuera de servicio pueden suspender actividades futuras sin Check-in; resolver la causa no reactiva automáticamente la actividad."
+  },
+  "Archivo": {
+    "g": "Archivos y avisos",
+    "d": "Metadatos del archivo alojado fuera de las tablas.",
+    "c": [
+      {
+        "n": "id",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "clave_almacenamiento",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "tipo_mime",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "tamano_bytes",
+        "t": "integer",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id"
+    ],
+    "uq": [],
+    "rule": ""
+  },
+  "EstadoEvento": {
+    "g": "Eventos",
+    "d": "Catálogo de estados de Evento.",
+    "c": [
+      {
+        "n": "id_estado_evento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_evento"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Borrador, Publicado, Cancelado."
+  },
+  "EstadoSolicitudEvento": {
+    "g": "Trámites",
+    "d": "Catálogo de estados de SolicitudEvento.",
+    "c": [
+      {
+        "n": "id_estado_solicitud_evento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_solicitud_evento"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Borrador, En revisión, Requiere corrección, Aprobada, Rechazada, Cancelada."
+  },
+  "EstadoActividad": {
+    "g": "Eventos",
+    "d": "Catálogo de estados de Actividad.",
+    "c": [
+      {
+        "n": "id_estado_actividad",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_actividad"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Programada, Suspendida, Cancelada."
+  }
+}
