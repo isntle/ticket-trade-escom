@@ -1,3 +1,4 @@
+import { validarDominioIdentidad } from "../dominio/identidad";
 import { destinoInternoSeguro } from "../dominio/navegacion";
 import { volverA } from "../dominio/navegacion";
 import React, { useEffect, useState } from "react";
@@ -41,6 +42,10 @@ export function AutenticacionPagina({
 
   // Registro segmentado
   const [categoria, setCategoria] = useState<RolFormulario>("alumno");
+  const [rolEmpleado, setRolEmpleado] = useState<"profesor" | "administrativo" | "pae">("profesor");
+  const [tipoExterno, setTipoExterno] = useState<"asistente" | "representante">("asistente");
+  const [entidad, setEntidad] = useState("");
+  const [cargo, setCargo] = useState("");
   const [nombre, setNombre] = useState("");
   const [apellidoPaterno, setApellidoPaterno] = useState("");
   const [apellidoMaterno, setApellidoMaterno] = useState("");
@@ -76,14 +81,14 @@ export function AutenticacionPagina({
   }, [view]);
 
   const afiliacion: TipoAfiliacion =
-    categoria === "trabajador" ? "administrativo" : categoria;
+    categoria === "trabajador" ? rolEmpleado : categoria;
 
   const registrar = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!nombre.trim() || !apellidoPaterno.trim() || !apellidoMaterno.trim()) {
+    if (!nombre.trim() || !apellidoPaterno.trim()) {
       return setMensaje(
-        "Ingresa nombre, apellido paterno y apellido materno.",
+        "Ingresa tu nombre y primer apellido.",
       );
     }
 
@@ -98,27 +103,20 @@ export function AutenticacionPagina({
     }
 
     const c = correo.trim().toLowerCase();
-    if (categoria === "alumno" || categoria === "trabajador") {
-      if (!c.endsWith("@ipn.mx") && !c.endsWith("@alumno.ipn.mx")) {
-        return setMensaje(
-          "El correo debe tener el formato institucional @ipn.mx",
-        );
-      }
+    if (!validarDominioIdentidad(c, afiliacion)) {
+      return setMensaje(categoria === "externo" ? "Ingresa un correo electrónico válido." : categoria === "alumno" ? "Usa tu correo @alumno.ipn.mx. No modificaremos la dirección que captures." : "Usa tu correo @ipn.mx.");
     }
-
-    const nombreCompleto = `${nombre.trim()} ${apellidoPaterno.trim()} ${apellidoMaterno.trim()}`;
-    const correoParaRegistro =
-      categoria === "alumno" &&
-      c.endsWith("@ipn.mx") &&
-      !c.endsWith("@alumno.ipn.mx")
-        ? c.replace(/@ipn\.mx$/, "@alumno.ipn.mx")
-        : c;
+    const nombreCompleto = [nombre, apellidoPaterno, apellidoMaterno].map(p=>p.trim()).filter(Boolean).join(" ");
+    const correoParaRegistro = c;
 
     const r = auth.registrarUsuario({
       nombre: nombreCompleto,
       correo: correoParaRegistro,
       password,
       afiliacion,
+      tipoExterno: categoria === "externo" ? tipoExterno : undefined,
+      nombreOrganizacion: categoria === "externo" && tipoExterno === "representante" ? entidad.trim() : undefined,
+      puestoContacto: categoria === "externo" && tipoExterno === "representante" ? cargo.trim() : undefined,
       boleta:
         categoria === "alumno"
           ? identificador.trim().toUpperCase()
@@ -186,7 +184,7 @@ export function AutenticacionPagina({
         ) : (
           <button
             type="button"
-            onClick={() => navigate(volverA("/login"))}
+            onClick={() => navigate("/login?continuar=" + encodeURIComponent(destinoInternoSeguro(new URLSearchParams(window.location.search).get("continuar"))))}
             className="inline-flex items-center gap-1.5 rounded-xl bg-[#7a132b] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#630f23] focus:outline-none focus:ring-2 focus:ring-[#7a132b]/20 sm:text-sm"
           >
             <LogIn className="h-4 w-4" />
@@ -289,7 +287,7 @@ export function AutenticacionPagina({
               <button
                 type="button"
                 className="font-medium text-[#7a132b] underline hover:text-[#630f23]"
-                onClick={() => navigate("/recuperar-password")}
+                onClick={() => navigate("/recuperar-password?continuar=" + encodeURIComponent(destinoInternoSeguro(new URLSearchParams(window.location.search).get("continuar"))))}
               >
                 ¿Olvidaste tu contraseña?
               </button>
@@ -351,6 +349,9 @@ export function AutenticacionPagina({
             </select>
           </label>
 
+          {categoria === "trabajador" && <label className="block text-sm font-semibold text-neutral-800">Tipo de trabajador<select className={campo} value={rolEmpleado} onChange={e=>setRolEmpleado(e.target.value as typeof rolEmpleado)}><option value="profesor">Docente</option><option value="administrativo">Administrativo</option><option value="pae">Personal de apoyo</option></select></label>}
+          {categoria === "externo" && <><label className="block text-sm font-semibold text-neutral-800">Tipo de participación<select className={campo} value={tipoExterno} onChange={e=>setTipoExterno(e.target.value as typeof tipoExterno)}><option value="asistente">Asistente externo</option><option value="representante">Representante de una entidad</option></select></label>{tipoExterno === "representante" && <><label className="block text-sm font-semibold text-neutral-800">Entidad que representas<input required className={campo} value={entidad} onChange={e=>setEntidad(e.target.value)}/></label><label className="block text-sm font-semibold text-neutral-800">Cargo o relación de representación<input required className={campo} value={cargo} onChange={e=>setCargo(e.target.value)}/></label></>}</>}
+
           {/* Nombre partido en nombre, apellido paterno y apellido materno */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <label className="block text-sm font-semibold text-neutral-800">
@@ -378,12 +379,11 @@ export function AutenticacionPagina({
               />
             </label>
             <label className="block text-sm font-semibold text-neutral-800">
-              Apellido materno
+              Apellido materno (opcional)
               <input
-                required
                 type="text"
                 className={campo}
-                autoComplete="additional-name"
+                autoComplete="off"
                 placeholder="Ej. García"
                 value={apellidoMaterno}
                 onChange={(e) => setApellidoMaterno(e.target.value)}
@@ -405,7 +405,7 @@ export function AutenticacionPagina({
                 placeholder={
                   categoria === "externo"
                     ? "tu-correo@ejemplo.com"
-                    : "usuario@ipn.mx"
+                    : categoria === "alumno" ? "usuario@alumno.ipn.mx" : "usuario@ipn.mx"
                 }
                 value={correo}
                 onChange={(e) => setCorreo(e.target.value)}
@@ -414,7 +414,7 @@ export function AutenticacionPagina({
             {categoria !== "externo" && (
               <p className="mt-1 text-xs text-neutral-500">
                 Usa tu correo con formato institucional{" "}
-                <span className="font-semibold text-neutral-700">@ipn.mx</span>
+                <span className="font-semibold text-neutral-700">{categoria === "alumno" ? "@alumno.ipn.mx" : "@ipn.mx"}</span>
               </p>
             )}
           </div>
@@ -553,8 +553,7 @@ export function AutenticacionPagina({
                   
                 </p>
                 <p>
-                  <strong>Transferencias:</strong> No se efectúan transferencias
-                  de datos personales a terceros ni a ninguna organización.
+                  <strong>Transferencias:</strong> La información sobre los servicios de almacenamiento y envío deberá corresponder al aviso institucional aprobado antes de su puesta en producción.
                 </p>
               </div>
             )}
@@ -641,7 +640,7 @@ export function AutenticacionPagina({
                     setPassword("");
                     setConfirmacion("");
                     setCodigoDemo("");
-                    navigate("/login");
+                    navigate("/login?continuar=" + encodeURIComponent(destinoInternoSeguro(new URLSearchParams(window.location.search).get("continuar"))));
                   }
                 }}
               >
