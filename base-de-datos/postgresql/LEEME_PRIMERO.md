@@ -1,6 +1,6 @@
 # Ticket Trade · PostgreSQL para Regina y Luis
 
-Modelo de referencia: `fuentes/modelo.json` y `fuentes/modelo.dbml`. El HTML original se conserva en el paquete de trabajo.
+Modelo visual: `fuentes/TicketTrade_Modelo_ER_Ultima-Version.html`. La misma estructura está en `fuentes/modelo.json` y `fuentes/modelo.dbml`.
 Frontend contrastado: commit `dc7619713d81ea40f8498767c331ba56e43f4ccc` de main.
 
 ## Qué contiene
