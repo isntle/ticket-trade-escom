@@ -1,0 +1,147 @@
+{
+  "CategoriaEvento": [
+    "Congreso",
+    "Conferencia",
+    "Taller",
+    "Hackatón",
+    "Otro"
+  ],
+  "EstadoActividad": [
+    "Programada",
+    "Suspendida",
+    "Cancelada"
+  ],
+  "EstadoApartado": [
+    "Vigente",
+    "Convertido en reservación",
+    "Vencido",
+    "Liberado"
+  ],
+  "EstadoCompromisoCupo": [
+    "Activo",
+    "Liberado"
+  ],
+  "EstadoCuenta": [
+    "Pendiente de activación",
+    "Activa",
+    "Desactivada"
+  ],
+  "EstadoEnvioCorreo": [
+    "Pendiente",
+    "En envío",
+    "Enviado",
+    "Fallido"
+  ],
+  "EstadoFuncionamiento": [
+    "Funcional",
+    "Fuera de servicio"
+  ],
+  "EstadoEvento": [
+    "Borrador",
+    "Publicado",
+    "Cancelado"
+  ],
+  "EstadoInvitacionStaff": [
+    "Pendiente",
+    "Aceptada",
+    "Rechazada",
+    "Cancelada",
+    "Vencida"
+  ],
+  "EstadoReservacion": [
+    "Confirmada",
+    "Cancelada"
+  ],
+  "EstadoSolicitudEvento": [
+    "Borrador",
+    "En revisión",
+    "Requiere corrección",
+    "Aprobada",
+    "Rechazada",
+    "Cancelada"
+  ],
+  "EstadoSolicitudVerificacion": [
+    "Pendiente de revisión",
+    "Aprobada",
+    "Rechazada",
+    "Cancelada",
+    "Cerrada por fin de periodo"
+  ],
+  "TipoRecinto": [
+    "Auditorio",
+    "Sala 14",
+    "Laboratorio"
+  ],
+  "RolRegistro": [
+    "Estudiante",
+    "Externo",
+    "Empleado del IPN"
+  ],
+  "TipoDocumentoVerificacion": [
+    "Constancia de estudios",
+    "Comprobante de adscripción",
+    "Acreditación de existencia de la entidad",
+    "Acreditación de representación"
+  ],
+  "TipoAcceso": [
+    "Entrada libre",
+    "Registro sin asiento asignado",
+    "Reservación con lugar asignado"
+  ],
+  "TipoAnticipacion": [
+    "Ordinaria",
+    "Extraordinaria"
+  ],
+  "TipoTramite": [
+    "Solicitud inicial",
+    "Modificación de evento aprobado"
+  ],
+  "VisibilidadEvento": [
+    "Público",
+    "Privado"
+  ],
+  "CategoriaLugarActividad": [
+    "Asistente",
+    "VIP",
+    "Staff",
+    "Bloqueado"
+  ],
+  "TipoLugar": [
+    "Butaca",
+    "Estación de trabajo"
+  ],
+  "DecisionSolicitud": [
+    "Aprobada",
+    "Devuelta",
+    "Rechazada"
+  ],
+  "TipoMime": [
+    "application/pdf",
+    "image/svg+xml",
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+  ],
+  "TipoCuenta": [
+    "Común",
+    "Administrador",
+    "Subdirección"
+  ],
+  "PropositoTokenCuenta": [
+    "Confirmación de correo",
+    "Recuperación de contraseña",
+    "Activación de cuenta especial"
+  ],
+  "TipoBloqueoRecinto": [
+    "Institucional",
+    "Mantenimiento",
+    "Fuera de servicio"
+  ],
+  "CausaCancelacionReservacion": [
+    "Cancelación voluntaria",
+    "Cancelación de la actividad",
+    "Cancelación del evento",
+    "Cambio a entrada libre",
+    "Desactivación de la cuenta del asistente"
+  ]
+}

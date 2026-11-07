@@ -1,0 +1,174 @@
+[
+  {
+    "codigo": "TT001",
+    "regla": "Solo puede existir una cuenta Administrador"
+  },
+  {
+    "codigo": "TT002",
+    "regla": "Una cuenta común requiere su perfil; las especiales no lo tienen"
+  },
+  {
+    "codigo": "TT003",
+    "regla": "El subtipo debe coincidir con el rol declarado"
+  },
+  {
+    "codigo": "TT004",
+    "regla": "Cuenta activa requiere contraseña; no se guarda una contraseña en claro desde el frontend"
+  },
+  {
+    "codigo": "TT005",
+    "regla": "Máximo tres envíos de verificación por cuenta y periodo"
+  },
+  {
+    "codigo": "TT006",
+    "regla": "Solo una verificación pendiente por persona"
+  },
+  {
+    "codigo": "TT007",
+    "regla": "Fechas y resolución de la verificación deben ser coherentes"
+  },
+  {
+    "codigo": "TT008",
+    "regla": "Documentación y datos complementarios obligatorios al enviar a verificación"
+  },
+  {
+    "codigo": "TT009",
+    "regla": "Los comprobantes de verificación son PDF y máximo dos por envío"
+  },
+  {
+    "codigo": "TT010",
+    "regla": "Una verificación debe provenir de una solicitud aprobada"
+  },
+  {
+    "codigo": "TT011",
+    "regla": "Una persona no puede tener dos verificaciones no retiradas en el mismo periodo"
+  },
+  {
+    "codigo": "TT012",
+    "regla": "Jefaturas otorgadas por Subdirección y respaldadas por verificación no retirada"
+  },
+  {
+    "codigo": "TT013",
+    "regla": "Máximo seis fotografías de imagen por recinto y 150000 bytes por foto"
+  },
+  {
+    "codigo": "TT014",
+    "regla": "Las estaciones tienen ficha de equipo; las butacas no"
+  },
+  {
+    "codigo": "TT015",
+    "regla": "Cada horario informativo tiene al menos un día semanal"
+  },
+  {
+    "codigo": "TT016",
+    "regla": "Todo evento conserva al menos una actividad, también en borrador"
+  },
+  {
+    "codigo": "TT017",
+    "regla": "Evento enviado o publicado debe tener información y cartel completos"
+  },
+  {
+    "codigo": "TT018",
+    "regla": "Solo eventos privados usan token de enlace privado"
+  },
+  {
+    "codigo": "TT019",
+    "regla": "El aforo de una actividad no rebasa el recinto; en laboratorio no hay acceso libre"
+  },
+  {
+    "codigo": "TT020",
+    "regla": "Separar 30 minutos entre actividades del mismo recinto; los borradores ajenos no reservan"
+  },
+  {
+    "codigo": "TT021",
+    "regla": "Un itinerario corresponde a un día con actividades del mismo evento"
+  },
+  {
+    "codigo": "TT022",
+    "regla": "Un lugar de actividad pertenece al recinto elegido"
+  },
+  {
+    "codigo": "TT023",
+    "regla": "Máximo una solicitud inicial por evento y una modificación abierta"
+  },
+  {
+    "codigo": "TT024",
+    "regla": "Solicitud enviada requiere anticipación, fechas y justificación extraordinaria"
+  },
+  {
+    "codigo": "TT025",
+    "regla": "Una devolución requiere mensaje y una resolución no revisa una versión futura"
+  },
+  {
+    "codigo": "TT026",
+    "regla": "Cambios únicamente para actividades del evento y trámites de modificación"
+  },
+  {
+    "codigo": "TT027",
+    "regla": "Reasignar solo compromisos de la actividad y al recinto propuesto"
+  },
+  {
+    "codigo": "TT028",
+    "regla": "Compromisos activos dentro del aforo y sin cupos en actividades libres o canceladas"
+  },
+  {
+    "codigo": "TT029",
+    "regla": "Asignación y compromiso deben coincidir en actividad y modalidad"
+  },
+  {
+    "codigo": "TT030",
+    "regla": "Un lugar no puede respaldar dos compromisos activos"
+  },
+  {
+    "codigo": "TT031",
+    "regla": "Nunca usar un lugar Bloqueado ni una estación fuera de servicio para un cupo activo"
+  },
+  {
+    "codigo": "TT032",
+    "regla": "Todo boleto de evento conserva al menos una reservación histórica"
+  },
+  {
+    "codigo": "TT033",
+    "regla": "La reserva pertenece al evento del pase; estados de cancelación coherentes"
+  },
+  {
+    "codigo": "TT034",
+    "regla": "Una reservación confirmada por persona y actividad"
+  },
+  {
+    "codigo": "TT035",
+    "regla": "Una persona no confirma reservas con horarios traslapados"
+  },
+  {
+    "codigo": "TT036",
+    "regla": "Un compromiso no respalda simultáneamente reserva, especial o apartado vigente"
+  },
+  {
+    "codigo": "TT037",
+    "regla": "Boleto especial activo solo en lugar VIP o Staff y con cupo activo"
+  },
+  {
+    "codigo": "TT038",
+    "regla": "QR y código manual no se repiten entre pases ordinarios y especiales"
+  },
+  {
+    "codigo": "TT039",
+    "regla": "Solo Staff con invitación aceptada queda asignado al evento"
+  },
+  {
+    "codigo": "TT040",
+    "regla": "La entrada ordinaria requiere reserva confirmada y actividad habilitada"
+  },
+  {
+    "codigo": "TT041",
+    "regla": "La entrada especial no puede anteceder a la emisión ni suceder a una invalidación"
+  },
+  {
+    "codigo": "TT042",
+    "regla": "No confirmar apartados vencidos de dos minutos"
+  },
+  {
+    "codigo": "TT043",
+    "regla": "Cartel JPEG/PNG de máximo 5242880 bytes"
+  }
+]

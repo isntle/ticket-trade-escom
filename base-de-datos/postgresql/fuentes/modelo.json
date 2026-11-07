@@ -1,0 +1,3133 @@
+{
+  "Cuenta": {
+    "g": "Identidad",
+    "d": "Datos de acceso de cuentas comunes y especiales.",
+    "c": [
+      {
+        "n": "id_cuenta",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombres",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "primer_apellido",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "segundo_apellido",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "correo",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "contrasena_hash",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "correo_confirmado_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_tipo_cuenta",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "TipoCuenta"
+      },
+      {
+        "n": "id_estado_cuenta",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoCuenta"
+      }
+    ],
+    "pk": [
+      "id_cuenta"
+    ],
+    "uq": [],
+    "rule": "Correo único entre cuentas comunes y especiales; un Administrador. Administrador y Subdirección son cuentas distintas sin rol de registro. Contraseña pendiente solo antes de completar la invitación.",
+    "numero": 1
+  },
+  "PerfilUsuario": {
+    "g": "Identidad",
+    "d": "Rol de registro de una cuenta común.",
+    "c": [
+      {
+        "n": "id_cuenta",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "Cuenta"
+      },
+      {
+        "n": "id_rol_registro",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "RolRegistro"
+      }
+    ],
+    "pk": [
+      "id_cuenta"
+    ],
+    "uq": [],
+    "rule": "Una cuenta común tiene exactamente un perfil. Estudiante y Empleado son subtipos exclusivos según rol; Externo no tiene fila adicional.",
+    "numero": 2
+  },
+  "Estudiante": {
+    "g": "Identidad",
+    "d": "Datos propios del estudiante.",
+    "c": [
+      {
+        "n": "id_cuenta",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "PerfilUsuario"
+      },
+      {
+        "n": "boleta",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_cuenta"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 3
+  },
+  "EmpleadoIPN": {
+    "g": "Identidad",
+    "d": "Datos propios del empleado.",
+    "c": [
+      {
+        "n": "id_cuenta",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "PerfilUsuario"
+      },
+      {
+        "n": "rfc",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_cuenta"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 4
+  },
+  "TokenCuenta": {
+    "g": "Identidad",
+    "d": "Confirmación de buzón, recuperación o invitación de cuenta especial.",
+    "c": [
+      {
+        "n": "id_token_cuenta",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_cuenta",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Cuenta"
+      },
+      {
+        "n": "id_proposito_token_cuenta",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "PropositoTokenCuenta"
+      },
+      {
+        "n": "token_hash",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "correo_destino",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "vence_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "utilizado_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_token_cuenta"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 5
+  },
+  "PeriodoEscolar": {
+    "g": "Verificación",
+    "d": "Intervalo que gobierna vigencia y límite de intentos.",
+    "c": [
+      {
+        "n": "id_periodo_escolar",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "clave",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "inicio",
+        "t": "date",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "fin",
+        "t": "date",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_periodo_escolar"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 6
+  },
+  "SolicitudVerificacion": {
+    "g": "Verificación",
+    "d": "Registro mínimo de cada envío y su resolución.",
+    "c": [
+      {
+        "n": "id_solicitud_verificacion",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_cuenta",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "PerfilUsuario"
+      },
+      {
+        "n": "id_periodo_escolar",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "PeriodoEscolar"
+      },
+      {
+        "n": "motivo_solicitud",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "enviada_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_estado_solicitud_verificacion",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoSolicitudVerificacion"
+      },
+      {
+        "n": "resuelta_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_cuenta_resolutora",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "Cuenta"
+      },
+      {
+        "n": "motivo_resolucion",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_solicitud_verificacion"
+    ],
+    "uq": [],
+    "rule": "Máximo tres envíos por cuenta y periodo y uno pendiente por cuenta. Conservar resultado y motivo; eliminar PDF rechazado al resolver y aprobado al vencer o retirarse la verificación. Al envío: un documento para estudiante o empleado y dos para externo. En el historial puede no quedar ninguno tras la eliminación documental. Los datos complementarios de empleado o externo son obligatorios únicamente para el rol correspondiente. En cada envío el solicitante debe explicar por qué solicita la verificación; este motivo es independiente del motivo de resolución.",
+    "numero": 7
+  },
+  "DatosVerificacionEmpleado": {
+    "g": "Verificación",
+    "d": "Declaración de número de empleado para el trámite.",
+    "c": [
+      {
+        "n": "id_solicitud_verificacion",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "SolicitudVerificacion"
+      },
+      {
+        "n": "numero_empleado",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_solicitud_verificacion"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 8
+  },
+  "DatosVerificacionExterno": {
+    "g": "Verificación",
+    "d": "Representación declarada sin catálogo empresarial.",
+    "c": [
+      {
+        "n": "id_solicitud_verificacion",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "SolicitudVerificacion"
+      },
+      {
+        "n": "nombre_entidad",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "cargo_o_relacion",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_solicitud_verificacion"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 9
+  },
+  "DocumentoVerificacion": {
+    "g": "Verificación",
+    "d": "PDF privado aportado para un requisito.",
+    "c": [
+      {
+        "n": "id_documento_verificacion",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_solicitud_verificacion",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "SolicitudVerificacion"
+      },
+      {
+        "n": "id_tipo_documento_verificacion",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "TipoDocumentoVerificacion"
+      },
+      {
+        "n": "id_archivo",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Archivo"
+      }
+    ],
+    "pk": [
+      "id_documento_verificacion"
+    ],
+    "uq": [
+      [
+        "id_solicitud_verificacion",
+        "id_tipo_documento_verificacion"
+      ]
+    ],
+    "rule": "",
+    "numero": 10
+  },
+  "Verificacion": {
+    "g": "Verificación",
+    "d": "Autorización derivada de una aprobación; su vigencia termina con el periodo o el retiro.",
+    "c": [
+      {
+        "n": "id_verificacion",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_solicitud_verificacion_aprobada",
+        "t": "bigint",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": "SolicitudVerificacion"
+      },
+      {
+        "n": "retirada_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_cuenta_retiro",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "Cuenta"
+      },
+      {
+        "n": "motivo_retiro",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_verificacion"
+    ],
+    "uq": [],
+    "rule": "Solo nace de una solicitud aprobada. Vigente hasta fin del periodo o retiro. Perderla retira la jefatura y cancela solicitudes pendientes sin cancelar eventos aprobados.",
+    "numero": 11
+  },
+  "Academia": {
+    "g": "Verificación",
+    "d": "Catálogo institucional.",
+    "c": [
+      {
+        "n": "id_academia",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_academia"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 12
+  },
+  "JefaturaAcademia": {
+    "g": "Verificación",
+    "d": "Nombramiento vigente que habilita la autoaprobación ordinaria.",
+    "c": [
+      {
+        "n": "id_academia",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "Academia"
+      },
+      {
+        "n": "id_cuenta_empleada",
+        "t": "bigint",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": "EmpleadoIPN"
+      },
+      {
+        "n": "id_cuenta_otorgante",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Cuenta"
+      }
+    ],
+    "pk": [
+      "id_academia"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 13
+  },
+  "Recinto": {
+    "g": "Recintos",
+    "d": "Espacio físico precargado; Administrador solo modifica.",
+    "c": [
+      {
+        "n": "id_recinto",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "descripcion",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_tipo_recinto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "TipoRecinto"
+      },
+      {
+        "n": "numero_salon",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "aforo_maximo",
+        "t": "integer",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_archivo_croquis",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "Archivo"
+      }
+    ],
+    "pk": [
+      "id_recinto"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 14
+  },
+  "FotografiaRecinto": {
+    "g": "Recintos",
+    "d": "Fotografías del recinto, sin orden de visualización.",
+    "c": [
+      {
+        "n": "id_recinto",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "Recinto"
+      },
+      {
+        "n": "id_archivo",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "Archivo"
+      }
+    ],
+    "pk": [
+      "id_recinto",
+      "id_archivo"
+    ],
+    "uq": [],
+    "rule": "Hasta seis fotografías por recinto, de hasta 150 000 bytes cada una; sin atributo de orden.",
+    "numero": 15
+  },
+  "TipoAccesorio": {
+    "g": "Recintos",
+    "d": "Tipo de accesorio general.",
+    "c": [
+      {
+        "n": "id_tipo_accesorio",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_tipo_accesorio"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 16
+  },
+  "ExistenciaAccesorio": {
+    "g": "Recintos",
+    "d": "Cantidad por tipo y estado de funcionamiento.",
+    "c": [
+      {
+        "n": "id_recinto",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "Recinto"
+      },
+      {
+        "n": "id_tipo_accesorio",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "TipoAccesorio"
+      },
+      {
+        "n": "id_estado_funcionamiento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "EstadoFuncionamiento"
+      },
+      {
+        "n": "cantidad",
+        "t": "integer",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_recinto",
+      "id_tipo_accesorio",
+      "id_estado_funcionamiento"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 17
+  },
+  "LugarRecinto": {
+    "g": "Recintos",
+    "d": "Butaca o estación física con posición fija.",
+    "c": [
+      {
+        "n": "id_lugar_recinto",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_recinto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Recinto"
+      },
+      {
+        "n": "codigo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "fila",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "posicion_x",
+        "t": "numeric",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "posicion_y",
+        "t": "numeric",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_tipo_lugar",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "TipoLugar"
+      }
+    ],
+    "pk": [
+      "id_lugar_recinto"
+    ],
+    "uq": [
+      [
+        "id_recinto",
+        "codigo"
+      ]
+    ],
+    "rule": " Una estación de trabajo tiene exactamente una ficha EstacionComputo; una butaca no tiene ficha.",
+    "numero": 18
+  },
+  "EstacionComputo": {
+    "g": "Recintos",
+    "d": "Estado individual del equipo; una avería no impide reservar la estación.",
+    "c": [
+      {
+        "n": "id_lugar_recinto",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "LugarRecinto"
+      },
+      {
+        "n": "id_estado_funcionamiento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoFuncionamiento"
+      }
+    ],
+    "pk": [
+      "id_lugar_recinto"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 19
+  },
+  "ActividadInterna": {
+    "g": "Recintos",
+    "d": "Bloque semanal informativo; se puede borrar, sin estado.",
+    "c": [
+      {
+        "n": "id_actividad_interna",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_recinto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Recinto"
+      },
+      {
+        "n": "inicio_vigencia",
+        "t": "date",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "fin_vigencia",
+        "t": "date",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "hora_inicio",
+        "t": "time",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "hora_fin",
+        "t": "time",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_actividad_interna"
+    ],
+    "uq": [],
+    "rule": "Repetición semanal informativa; omitir inhábiles. Sin estado ni historial de eliminación. Cada horario tiene de uno a siete días distintos de la semana.",
+    "numero": 20
+  },
+  "DiaActividadInterna": {
+    "g": "Recintos",
+    "d": "Días de repetición semanal.",
+    "c": [
+      {
+        "n": "id_actividad_interna",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "ActividadInterna"
+      },
+      {
+        "n": "dia_semana",
+        "t": "integer",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_actividad_interna",
+      "dia_semana"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 21
+  },
+  "DiaInhabil": {
+    "g": "Recintos",
+    "d": "Excepciones al calendario de revisión y de actividades internas.",
+    "c": [
+      {
+        "n": "fecha",
+        "t": "date",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "motivo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "fecha"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 22
+  },
+  "BloqueoRecinto": {
+    "g": "Recintos",
+    "d": "Mantenimiento, bloqueo institucional o fuera de servicio.",
+    "c": [
+      {
+        "n": "id_bloqueo_recinto",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_recinto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Recinto"
+      },
+      {
+        "n": "id_tipo_bloqueo_recinto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "TipoBloqueoRecinto"
+      },
+      {
+        "n": "inicio",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "fin_previsto",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "motivo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_cuenta_responsable",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Cuenta"
+      },
+      {
+        "n": "finalizado_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_bloqueo_recinto"
+    ],
+    "uq": [],
+    "rule": "Fuera de servicio requiere reactivación manual; fin previsto no es fin real. Prorrogar tres días si vence sin actuación. Institucional: Subdirección. Mantenimiento y fuera de servicio: Administrador. Mantenimiento no desplaza actividades aprobadas. Institucional y fuera de servicio pueden suspender futuras actividades afectadas, nunca una iniciada o con Check-in.",
+    "numero": 23
+  },
+  "Evento": {
+    "g": "Eventos",
+    "d": "Datos únicos del evento en preparación o publicado.",
+    "c": [
+      {
+        "n": "id_evento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_cuenta_organizadora",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Cuenta"
+      },
+      {
+        "n": "titulo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "descripcion",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "correo_contacto",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "telefono_contacto",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_categoria_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "CategoriaEvento"
+      },
+      {
+        "n": "id_visibilidad_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "VisibilidadEvento"
+      },
+      {
+        "n": "id_archivo_cartel",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "Archivo"
+      },
+      {
+        "n": "token_enlace_privado",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_estado_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoEvento"
+      },
+      {
+        "n": "publicado_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "total_senales_interes",
+        "t": "integer",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_evento"
+    ],
+    "uq": [],
+    "rule": "Título, descripción, contactos, categoría, visibilidad, cartel y al menos una actividad: obligatorios al enviar o publicar. NULL en borrador no autoriza un envío incompleto. Token solo para evento privado. Interés global si existe actividad libre habilitada. Todo evento persistido, incluso en borrador, tiene al menos una actividad; guardar el primer borrador junto con su primera actividad e impedir eliminar la última.",
+    "numero": 24
+  },
+  "Actividad": {
+    "g": "Eventos",
+    "d": "Unidad de programación, cupo, reserva y entrada.",
+    "c": [
+      {
+        "n": "id_actividad",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Evento"
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "descripcion",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "fecha",
+        "t": "date",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "hora_inicio",
+        "t": "time",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "hora_fin",
+        "t": "time",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_recinto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Recinto"
+      },
+      {
+        "n": "id_tipo_acceso",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "TipoAcceso"
+      },
+      {
+        "n": "aforo_solicitado",
+        "t": "integer",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_estado_actividad",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoActividad"
+      }
+    ],
+    "pk": [
+      "id_actividad"
+    ],
+    "uq": [],
+    "rule": "Cada actividad ocurre en un día, un recinto y un intervalo; termina a más tardar a las 21:00. En laboratorios no se admite entrada libre.",
+    "numero": 25
+  },
+  "ItinerarioDia": {
+    "g": "Eventos",
+    "d": "Una imagen opcional por día del evento.",
+    "c": [
+      {
+        "n": "id_evento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "Evento"
+      },
+      {
+        "n": "fecha",
+        "t": "date",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_archivo",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Archivo"
+      }
+    ],
+    "pk": [
+      "id_evento",
+      "fecha"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 26
+  },
+  "LugarActividad": {
+    "g": "Eventos",
+    "d": "Clasificación de una butaca o estación para una actividad concreta.",
+    "c": [
+      {
+        "n": "id_lugar_actividad",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_actividad",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Actividad"
+      },
+      {
+        "n": "id_lugar_recinto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "LugarRecinto"
+      },
+      {
+        "n": "id_categoria_lugar_actividad",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "CategoriaLugarActividad"
+      }
+    ],
+    "pk": [
+      "id_lugar_actividad"
+    ],
+    "uq": [
+      [
+        "id_actividad",
+        "id_lugar_recinto"
+      ]
+    ],
+    "rule": "",
+    "numero": 27
+  },
+  "AfectacionActividad": {
+    "g": "Eventos",
+    "d": "Causa de suspensión asociada al bloqueo que la originó.",
+    "c": [
+      {
+        "n": "id_bloqueo_recinto",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "BloqueoRecinto"
+      },
+      {
+        "n": "id_actividad",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "Actividad"
+      },
+      {
+        "n": "resuelta_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_bloqueo_recinto",
+      "id_actividad"
+    ],
+    "uq": [],
+    "rule": "Mantenimiento no desplaza actividades. Los bloqueos institucionales y fuera de servicio pueden suspender actividades futuras sin Check-in; resolver la causa no reactiva automáticamente la actividad.",
+    "numero": 28
+  },
+  "SolicitudEvento": {
+    "g": "Trámites",
+    "d": "Trámite inicial o modificación conjunta; ordinario o extraordinario.",
+    "c": [
+      {
+        "n": "id_solicitud_evento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Evento"
+      },
+      {
+        "n": "id_tipo_tramite",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "TipoTramite"
+      },
+      {
+        "n": "id_tipo_anticipacion",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "TipoAnticipacion"
+      },
+      {
+        "n": "motivo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_estado_solicitud_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoSolicitudEvento"
+      },
+      {
+        "n": "envio_inicial",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "inicio_revision",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "version_edicion",
+        "t": "integer",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_solicitud_evento"
+    ],
+    "uq": [],
+    "rule": "Máximo una inicial por evento y una modificación pendiente. Publicación directa de Subdirección sin solicitud inicial. Las propuestas de cambio no ocupan el destino. En Requiere corrección, el límite se calcula sumando 24 horas naturales a resuelta_en de la última devolución del ciclo actual. Sin devolución vigente no existe ese plazo. En revisión, el plazo vence al terminar el segundo día hábil posterior a inicio_revision, sin contar el día de envío, sábados, domingos ni fechas de DiaInhabil. Un reenvío para corregir inicia un nuevo ciclo; editar durante la revisión no lo reinicia. Una modificación de programación enviada incluye uno o más cambios; una solicitud inicial no los utiliza.",
+    "numero": 29
+  },
+  "ResolucionSolicitud": {
+    "g": "Trámites",
+    "d": "Decisión sobre la solicitud y mensaje de Subdirección o cierre automático.",
+    "c": [
+      {
+        "n": "id_resolucion_solicitud",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_solicitud_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "SolicitudEvento"
+      },
+      {
+        "n": "version_revisada",
+        "t": "integer",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_decision_solicitud",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "DecisionSolicitud"
+      },
+      {
+        "n": "mensaje",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "resuelta_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_cuenta_resolutora",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "Cuenta"
+      }
+    ],
+    "pk": [
+      "id_resolucion_solicitud"
+    ],
+    "uq": [],
+    "rule": " La decisión de devolución y su fecha son la fuente del plazo de corrección. Cuando hay aprobación, devolución o rechazo, la decisión es obligatoria. Si se registra un cierre por cancelación sin dictamen, la decisión es nula y el mensaje indica la causa. El rechazo automático por vencimiento usa Rechazada con su motivo.",
+    "numero": 30
+  },
+  "CambioActividadSolicitado": {
+    "g": "Trámites",
+    "d": "Nuevos valores solicitados para una actividad ya publicada; la programación vigente queda en Actividad.",
+    "c": [
+      {
+        "n": "id_cambio_actividad_solicitado",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_solicitud_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "SolicitudEvento"
+      },
+      {
+        "n": "id_actividad",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Actividad"
+      },
+      {
+        "n": "fecha_propuesta",
+        "t": "date",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "inicio_propuesto",
+        "t": "time",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "fin_propuesto",
+        "t": "time",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_recinto_propuesto",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "Recinto"
+      }
+    ],
+    "pk": [
+      "id_cambio_actividad_solicitado"
+    ],
+    "uq": [
+      [
+        "id_solicitud_evento",
+        "id_actividad"
+      ]
+    ],
+    "rule": "Al menos un valor cambiado. Solo actividades del evento solicitado. Pausar nuevas reservas si se solicita cambiar recinto. Aplicar toda la solicitud conjuntamente.",
+    "numero": 31
+  },
+  "ReasignacionSolicitada": {
+    "g": "Trámites",
+    "d": "Destino de un compromiso existente si se aprueba el cambio de recinto.",
+    "c": [
+      {
+        "n": "id_cambio_actividad_solicitado",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "CambioActividadSolicitado"
+      },
+      {
+        "n": "id_compromiso_cupo",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "CompromisoCupo"
+      },
+      {
+        "n": "id_lugar_recinto_destino",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "LugarRecinto"
+      }
+    ],
+    "pk": [
+      "id_cambio_actividad_solicitado",
+      "id_compromiso_cupo"
+    ],
+    "uq": [
+      [
+        "id_cambio_actividad_solicitado",
+        "id_lugar_recinto_destino"
+      ]
+    ],
+    "rule": "El compromiso pertenece a la actividad cambiada y el asiento físico al recinto propuesto; conservar categoría y cubrir todos los compromisos aplicables al aprobar.",
+    "numero": 32
+  },
+  "CompromisoCupo": {
+    "g": "Aforo y boletos",
+    "d": "Una unidad de aforo de una actividad. Si hay asiento, se identifica mediante AsignacionAsiento.",
+    "c": [
+      {
+        "n": "id_compromiso_cupo",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_actividad",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Actividad"
+      },
+      {
+        "n": "id_estado_compromiso_cupo",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoCompromisoCupo"
+      }
+    ],
+    "pk": [
+      "id_compromiso_cupo"
+    ],
+    "uq": [],
+    "rule": "Para lugar asignado, el lugar debe corresponder a la misma actividad; activo como máximo una vez por lugar. La suma de compromisos activos no rebasa el aforo. Un compromiso puede pasar de apartado a reserva, pero nunca respaldar simultáneamente dos accesos.",
+    "numero": 33
+  },
+  "Apartado": {
+    "g": "Aforo y boletos",
+    "d": "Protección de dos minutos en modalidad con asiento.",
+    "c": [
+      {
+        "n": "id_compromiso_cupo",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "CompromisoCupo"
+      },
+      {
+        "n": "id_cuenta",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "PerfilUsuario"
+      },
+      {
+        "n": "creado_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_estado_apartado",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoApartado"
+      }
+    ],
+    "pk": [
+      "id_compromiso_cupo"
+    ],
+    "uq": [],
+    "rule": "El límite se calcula como creado_en + 2 minutos. Desde ese instante no se puede confirmar el apartado, aunque todavía no se haya actualizado su estado.",
+    "numero": 34
+  },
+  "BoletoEvento": {
+    "g": "Aforo y boletos",
+    "d": "QR ordinario reutilizable por usuario y evento.",
+    "c": [
+      {
+        "n": "id_boleto_evento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_cuenta",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "PerfilUsuario"
+      },
+      {
+        "n": "id_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Evento"
+      },
+      {
+        "n": "codigo_qr",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "codigo_manual",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_boleto_evento"
+    ],
+    "uq": [
+      [
+        "id_cuenta",
+        "id_evento"
+      ]
+    ],
+    "rule": " Se emite junto con la primera reservación y se reutiliza. Siempre conserva al menos una reservación histórica; puede tener cero confirmadas.",
+    "numero": 35
+  },
+  "Reservacion": {
+    "g": "Aforo y boletos",
+    "d": "Acceso ordinario de un boleto a una actividad a través de su compromiso.",
+    "c": [
+      {
+        "n": "id_reservacion",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_boleto_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "BoletoEvento"
+      },
+      {
+        "n": "id_compromiso_cupo",
+        "t": "bigint",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": "CompromisoCupo"
+      },
+      {
+        "n": "confirmada_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_estado_reservacion",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoReservacion"
+      },
+      {
+        "n": "cancelada_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_causa_cancelacion_reservacion",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "CausaCancelacionReservacion"
+      }
+    ],
+    "pk": [
+      "id_reservacion"
+    ],
+    "uq": [],
+    "rule": "El evento del boleto coincide con el de la actividad. Una reserva activa por cuenta y actividad; impedir traslapes al confirmar. Confirmada: causa y cancelada_en deben ser nulas. Cancelada: ambas son obligatorias. La suspensión por sí sola conserva la reservación.",
+    "numero": 36
+  },
+  "BoletoEspecial": {
+    "g": "Aforo y boletos",
+    "d": "Boleto al portador para un lugar VIP o Staff de una actividad.",
+    "c": [
+      {
+        "n": "id_boleto_especial",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_compromiso_cupo",
+        "t": "bigint",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": "CompromisoCupo"
+      },
+      {
+        "n": "codigo_qr",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "codigo_manual",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "emitido_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "invalidado_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "motivo_invalidacion",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_boleto_especial"
+    ],
+    "uq": [],
+    "rule": "Solo asiento VIP o Staff; una entrada por código. No requiere cuenta del portador.",
+    "numero": 37
+  },
+  "AvisoDisponibilidad": {
+    "g": "Aforo y boletos",
+    "d": "Petición pendiente de un aviso; sin prioridad, turno ni apartado.",
+    "c": [
+      {
+        "n": "id_cuenta",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "PerfilUsuario"
+      },
+      {
+        "n": "id_actividad",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "Actividad"
+      },
+      {
+        "n": "solicitado_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_cuenta",
+      "id_actividad"
+    ],
+    "uq": [],
+    "rule": "Un aviso interno y un correo por petición cuando haya cupo; no reserva lugar.",
+    "numero": 38
+  },
+  "InvitacionStaff": {
+    "g": "Acceso",
+    "d": "Invitación por evento con estado, sin fecha de respuesta.",
+    "c": [
+      {
+        "n": "id_invitacion_staff",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_evento",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Evento"
+      },
+      {
+        "n": "id_cuenta_invitada",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "PerfilUsuario"
+      },
+      {
+        "n": "id_estado_invitacion_staff",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoInvitacionStaff"
+      },
+      {
+        "n": "enviada_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_invitacion_staff"
+    ],
+    "uq": [],
+    "rule": "Todas las invitaciones pendientes del evento vencen al inicio de su primera actividad vigente. Consultar ese inicio en la programación; no duplicarlo por invitación. Una invitación cerrada no vuelve a abrirse por reprogramación. Al cancelar el evento se cierran las invitaciones pendientes.",
+    "numero": 39
+  },
+  "StaffEvento": {
+    "g": "Acceso",
+    "d": "Permiso vigente de Check-in para todo el evento.",
+    "c": [
+      {
+        "n": "id_evento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "Evento"
+      },
+      {
+        "n": "id_cuenta",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "PerfilUsuario"
+      }
+    ],
+    "pk": [
+      "id_evento",
+      "id_cuenta"
+    ],
+    "uq": [],
+    "rule": "Solo tras invitación aceptada. Retirar permiso no cambia la aceptación ni elimina entradas previas.",
+    "numero": 40
+  },
+  "EntradaOrdinaria": {
+    "g": "Acceso",
+    "d": "Un Check-in exitoso por reservación.",
+    "c": [
+      {
+        "n": "id_entrada_ordinaria",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_reservacion",
+        "t": "bigint",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": "Reservacion"
+      },
+      {
+        "n": "id_cuenta_operadora",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Cuenta"
+      },
+      {
+        "n": "registrada_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_entrada_ordinaria"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 41
+  },
+  "EntradaEspecial": {
+    "g": "Acceso",
+    "d": "Un Check-in exitoso por boleto especial.",
+    "c": [
+      {
+        "n": "id_entrada_especial",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_boleto_especial",
+        "t": "bigint",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": "BoletoEspecial"
+      },
+      {
+        "n": "id_cuenta_operadora",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Cuenta"
+      },
+      {
+        "n": "registrada_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_entrada_especial"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 42
+  },
+  "Archivo": {
+    "g": "Archivos y avisos",
+    "d": "Metadatos del archivo alojado fuera de las tablas.",
+    "c": [
+      {
+        "n": "id_archivo",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "clave_almacenamiento",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_tipo_mime",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "TipoMime"
+      },
+      {
+        "n": "tamano_bytes",
+        "t": "integer",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_archivo"
+    ],
+    "uq": [],
+    "rule": "El catálogo identifica el formato; la carga debe comprobar el contenido, tamaño y formatos autorizados para el uso concreto.",
+    "numero": 43
+  },
+  "Notificacion": {
+    "g": "Archivos y avisos",
+    "d": "Aviso de la bandeja interna.",
+    "c": [
+      {
+        "n": "id_notificacion",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_cuenta_destinataria",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "Cuenta"
+      },
+      {
+        "n": "tipo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "titulo",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "mensaje",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "creada_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "leida_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "referencia_destino",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_notificacion"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 44
+  },
+  "EnvioCorreo": {
+    "g": "Archivos y avisos",
+    "d": "Envío al buzón y datos para reintento.",
+    "c": [
+      {
+        "n": "id_envio_correo",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "destinatario",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "asunto",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "contenido",
+        "t": "text",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "id_estado_envio_correo",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "EstadoEnvioCorreo"
+      },
+      {
+        "n": "intentos",
+        "t": "integer",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "proximo_intento_en",
+        "t": "timestamptz",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": ""
+      },
+      {
+        "n": "id_notificacion",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": true,
+        "f": "Notificacion"
+      }
+    ],
+    "pk": [
+      "id_envio_correo"
+    ],
+    "uq": [],
+    "rule": "",
+    "numero": 45
+  },
+  "CategoriaEvento": {
+    "g": "Eventos",
+    "d": "Catálogo de categorías que clasifican eventos.",
+    "c": [
+      {
+        "n": "id_categoria_evento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_categoria_evento"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Congreso, Conferencia, Taller, Hackatón y Otro. Elegir Otro no requiere texto adicional. Una categoría puede no tener eventos.",
+    "numero": 46
+  },
+  "AsignacionAsiento": {
+    "g": "Aforo y boletos",
+    "d": "Asiento asignado a una unidad de aforo.",
+    "c": [
+      {
+        "n": "id_compromiso_cupo",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": "CompromisoCupo"
+      },
+      {
+        "n": "id_lugar_actividad",
+        "t": "bigint",
+        "k": false,
+        "u": false,
+        "o": false,
+        "f": "LugarActividad"
+      }
+    ],
+    "pk": [
+      "id_compromiso_cupo"
+    ],
+    "uq": [],
+    "rule": "Cero o una fila por compromiso; obligatoria para un compromiso activo con asiento e inexistente para acceso sin asiento. El lugar y el compromiso deben pertenecer a la misma actividad. Un lugar puede reutilizarse tras la liberación, pero no tener dos compromisos activos simultáneos. Estas reglas cruzan tablas y se deberán garantizar al implementar el DDL.",
+    "numero": 47
+  },
+  "EstadoActividad": {
+    "g": "Eventos",
+    "d": "Catálogo de estados de Actividad.",
+    "c": [
+      {
+        "n": "id_estado_actividad",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_actividad"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Programada, Suspendida, Cancelada. Programada: se mantiene en agenda. Suspendida: pendiente de resolución, conserva reservaciones y bloquea nuevos registros y entradas. Cancelada: cierre definitivo de la actividad.",
+    "numero": 48
+  },
+  "EstadoApartado": {
+    "g": "Aforo y boletos",
+    "d": "Catálogo de estados de Apartado.",
+    "c": [
+      {
+        "n": "id_estado_apartado",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_apartado"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Vigente, Convertido en reservación, Vencido, Liberado.",
+    "numero": 49
+  },
+  "EstadoCompromisoCupo": {
+    "g": "Aforo y boletos",
+    "d": "Catálogo de estados de CompromisoCupo.",
+    "c": [
+      {
+        "n": "id_estado_compromiso_cupo",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_compromiso_cupo"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Activo, Liberado.",
+    "numero": 50
+  },
+  "EstadoCuenta": {
+    "g": "Identidad",
+    "d": "Catálogo de estados de Cuenta.",
+    "c": [
+      {
+        "n": "id_estado_cuenta",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_cuenta"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Pendiente de activación, Activa, Desactivada.",
+    "numero": 51
+  },
+  "EstadoEnvioCorreo": {
+    "g": "Archivos y avisos",
+    "d": "Catálogo de estados de EnvioCorreo.",
+    "c": [
+      {
+        "n": "id_estado_envio_correo",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_envio_correo"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Pendiente, En envío, Enviado, Fallido.",
+    "numero": 52
+  },
+  "EstadoFuncionamiento": {
+    "g": "Recintos",
+    "d": "Catálogo de estados de funcionamiento de equipos y accesorios.",
+    "c": [
+      {
+        "n": "id_estado_funcionamiento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_funcionamiento"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Funcional, Fuera de servicio.",
+    "numero": 53
+  },
+  "EstadoEvento": {
+    "g": "Eventos",
+    "d": "Catálogo de estados de Evento.",
+    "c": [
+      {
+        "n": "id_estado_evento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_evento"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Borrador, Publicado, Cancelado.",
+    "numero": 54
+  },
+  "EstadoInvitacionStaff": {
+    "g": "Acceso",
+    "d": "Catálogo de estados de InvitacionStaff.",
+    "c": [
+      {
+        "n": "id_estado_invitacion_staff",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_invitacion_staff"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Pendiente, Aceptada, Rechazada, Cancelada, Vencida.",
+    "numero": 55
+  },
+  "EstadoReservacion": {
+    "g": "Aforo y boletos",
+    "d": "Catálogo de estados de Reservacion.",
+    "c": [
+      {
+        "n": "id_estado_reservacion",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_reservacion"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Confirmada, Cancelada.",
+    "numero": 56
+  },
+  "EstadoSolicitudEvento": {
+    "g": "Trámites",
+    "d": "Catálogo de estados de SolicitudEvento.",
+    "c": [
+      {
+        "n": "id_estado_solicitud_evento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_solicitud_evento"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Borrador, En revisión, Requiere corrección, Aprobada, Rechazada, Cancelada.",
+    "numero": 57
+  },
+  "EstadoSolicitudVerificacion": {
+    "g": "Verificación",
+    "d": "Catálogo de estados de SolicitudVerificacion.",
+    "c": [
+      {
+        "n": "id_estado_solicitud_verificacion",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_estado_solicitud_verificacion"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales del diseño: Pendiente de revisión, Aprobada, Rechazada, Cancelada, Cerrada por fin de periodo.",
+    "numero": 58
+  },
+  "TipoRecinto": {
+    "g": "Recintos",
+    "d": "Clasificación del espacio físico. Cada laboratorio concreto conserva su propio registro en Recinto.",
+    "c": [
+      {
+        "n": "id_tipo_recinto",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_tipo_recinto"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Auditorio, Sala 14 y Laboratorio.",
+    "numero": 59
+  },
+  "RolRegistro": {
+    "g": "Identidad",
+    "d": "Clasificación de registro de la cuenta común; no otorga por sí misma permisos de Staff.",
+    "c": [
+      {
+        "n": "id_rol_registro",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_rol_registro"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Estudiante, Externo y Empleado del IPN.",
+    "numero": 60
+  },
+  "TipoDocumentoVerificacion": {
+    "g": "Verificación",
+    "d": "Requisito documental que satisface el PDF. Los dos requisitos de externos admiten los documentos equivalentes acordados.",
+    "c": [
+      {
+        "n": "id_tipo_documento_verificacion",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_tipo_documento_verificacion"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Constancia de estudios, Comprobante de adscripción, Acreditación de existencia de la entidad y Acreditación de representación.",
+    "numero": 61
+  },
+  "TipoAcceso": {
+    "g": "Eventos",
+    "d": "Modalidad de asistencia que determina si la actividad requiere registro, asiento y Check-in.",
+    "c": [
+      {
+        "n": "id_tipo_acceso",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_tipo_acceso"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Entrada libre; Registro sin asiento asignado; Reservación con lugar asignado.",
+    "numero": 62
+  },
+  "TipoAnticipacion": {
+    "g": "Trámites",
+    "d": "Clasificación por anticipación. Una sola clasificación para el conjunto de la solicitud.",
+    "c": [
+      {
+        "n": "id_tipo_anticipacion",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_tipo_anticipacion"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Ordinaria; Extraordinaria.",
+    "numero": 63
+  },
+  "TipoTramite": {
+    "g": "Trámites",
+    "d": "Finalidad del trámite, independiente de la clasificación por anticipación.",
+    "c": [
+      {
+        "n": "id_tipo_tramite",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_tipo_tramite"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Solicitud inicial; Modificación de evento aprobado.",
+    "numero": 64
+  },
+  "VisibilidadEvento": {
+    "g": "Eventos",
+    "d": "Indica si el evento se muestra en cartelera o se consulta mediante enlace privado.",
+    "c": [
+      {
+        "n": "id_visibilidad_evento",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_visibilidad_evento"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Público; Privado.",
+    "numero": 65
+  },
+  "CategoriaLugarActividad": {
+    "g": "Eventos",
+    "d": "Uso del lugar para esta actividad; Bloqueado impide asignarlo. No es un rol de cuenta.",
+    "c": [
+      {
+        "n": "id_categoria_lugar_actividad",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_categoria_lugar_actividad"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Asistente; VIP; Staff; Bloqueado.",
+    "numero": 66
+  },
+  "TipoLugar": {
+    "g": "Recintos",
+    "d": "Clase física del lugar en el mapa fijo, independiente de su categoría en una actividad.",
+    "c": [
+      {
+        "n": "id_tipo_lugar",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_tipo_lugar"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Butaca; Estación de trabajo.",
+    "numero": 67
+  },
+  "DecisionSolicitud": {
+    "g": "Trámites",
+    "d": "Resultado de la revisión; distinto del estado actual del trámite.",
+    "c": [
+      {
+        "n": "id_decision_solicitud",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_decision_solicitud"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Aprobada; Devuelta; Rechazada.",
+    "numero": 68
+  },
+  "TipoMime": {
+    "g": "Archivos y avisos",
+    "d": "Identificador del formato del contenido. Los formatos de imagen JPEG y PNG son ejemplos propuestos; los tipos autorizados dependen del uso.",
+    "c": [
+      {
+        "n": "id_tipo_mime",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_tipo_mime"
+    ],
+    "uq": [],
+    "rule": "Ejemplos de valores: application/pdf; image/svg+xml; image/jpeg; image/png.",
+    "numero": 69
+  },
+  "TipoCuenta": {
+    "g": "Identidad",
+    "d": "Clase de cuenta; solo las comunes tienen un perfil con rol de registro.",
+    "c": [
+      {
+        "n": "id_tipo_cuenta",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_tipo_cuenta"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Común; Administrador; Subdirección.",
+    "numero": 70
+  },
+  "PropositoTokenCuenta": {
+    "g": "Identidad",
+    "d": "Acción que autoriza un token de cuenta.",
+    "c": [
+      {
+        "n": "id_proposito_token_cuenta",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_proposito_token_cuenta"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Confirmación de correo; Recuperación de contraseña; Activación de cuenta especial.",
+    "numero": 71
+  },
+  "TipoBloqueoRecinto": {
+    "g": "Recintos",
+    "d": "Clasificación que determina quién puede aplicar el bloqueo y si puede suspender actividades.",
+    "c": [
+      {
+        "n": "id_tipo_bloqueo_recinto",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_tipo_bloqueo_recinto"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Institucional; Mantenimiento; Fuera de servicio.",
+    "numero": 72
+  },
+  "CausaCancelacionReservacion": {
+    "g": "Aforo y boletos",
+    "d": "Causa por la que se canceló una reservación ordinaria.",
+    "c": [
+      {
+        "n": "id_causa_cancelacion_reservacion",
+        "t": "bigint",
+        "k": true,
+        "u": false,
+        "o": false,
+        "f": ""
+      },
+      {
+        "n": "nombre",
+        "t": "text",
+        "k": false,
+        "u": true,
+        "o": false,
+        "f": ""
+      }
+    ],
+    "pk": [
+      "id_causa_cancelacion_reservacion"
+    ],
+    "uq": [],
+    "rule": "Valores iniciales: Cancelación voluntaria; Cancelación de la actividad; Cancelación del evento; Cambio a entrada libre; Desactivación de la cuenta del asistente.",
+    "numero": 73
+  }
+}

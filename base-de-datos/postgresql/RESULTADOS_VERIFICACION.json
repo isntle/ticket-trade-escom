@@ -1,0 +1,16 @@
+{
+  "motor": "PostgreSQL 18.1",
+  "tablas": 73,
+  "columnas": 277,
+  "llaves_primarias": 73,
+  "llaves_foraneas": 96,
+  "catalogos": 27,
+  "vistas": 6,
+  "coincidencia_tipos_y_nulabilidad_html": true,
+  "base_limpia_despues_de_pruebas": true,
+  "reinstalacion_rechazada_sin_sobrescribir": true,
+  "pruebas_negativas_aprobadas": 38,
+  "concurrencia_ultimo_cupo": "1 confirmada y 1 rechazada, capacidad conservada",
+  "restauracion_pg_dump": "aprobada con validacion de integridad",
+  "frontend_conectado": false
+}

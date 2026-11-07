@@ -1,0 +1,7 @@
+{
+  "html": "TicketTrade_Modelo_ER_Ultima-Version.html",
+  "sha256": "c120bd7d6a1d1d9d9731d39327fce47aa37732fe0a300bd8d2da542da7060dc1",
+  "tablas": 73,
+  "relaciones": 96,
+  "frontend_commit": "dc7619713d81ea40f8498767c331ba56e43f4ccc"
+}

@@ -1,0 +1,782 @@
+Project TicketTrade {
+ database_type: 'PostgreSQL'
+}
+
+// T01 · Cuenta
+Table Cuenta {
+  id_cuenta bigint [pk, not null]
+  nombres text [not null]
+  primer_apellido text [not null]
+  segundo_apellido text [not null]
+  correo text [not null, unique]
+  contrasena_hash text
+  correo_confirmado_en timestamptz
+  id_tipo_cuenta bigint [not null]
+  id_estado_cuenta bigint [not null]
+  Note: 'Datos de acceso de cuentas comunes y especiales. Correo único entre cuentas comunes y especiales; un Administrador. Administrador y Subdirección son cuentas distintas sin rol de registro. Contraseña pendiente solo antes de completar la invitación.'
+}
+
+// T02 · PerfilUsuario
+Table PerfilUsuario {
+  id_cuenta bigint [pk, not null]
+  id_rol_registro bigint [not null]
+  Note: 'Rol de registro de una cuenta común. Una cuenta común tiene exactamente un perfil. Estudiante y Empleado son subtipos exclusivos según rol; Externo no tiene fila adicional.'
+}
+
+// T03 · Estudiante
+Table Estudiante {
+  id_cuenta bigint [pk, not null]
+  boleta text [not null, unique]
+  Note: 'Datos propios del estudiante.'
+}
+
+// T04 · EmpleadoIPN
+Table EmpleadoIPN {
+  id_cuenta bigint [pk, not null]
+  rfc text [not null, unique]
+  Note: 'Datos propios del empleado.'
+}
+
+// T05 · TokenCuenta
+Table TokenCuenta {
+  id_token_cuenta bigint [pk, not null]
+  id_cuenta bigint [not null]
+  id_proposito_token_cuenta bigint [not null]
+  token_hash text [not null, unique]
+  correo_destino text [not null]
+  vence_en timestamptz [not null]
+  utilizado_en timestamptz
+  Note: 'Confirmación de buzón, recuperación o invitación de cuenta especial.'
+}
+
+// T06 · PeriodoEscolar
+Table PeriodoEscolar {
+  id_periodo_escolar bigint [pk, not null]
+  clave text [not null, unique]
+  inicio date [not null]
+  fin date [not null]
+  Note: 'Intervalo que gobierna vigencia y límite de intentos.'
+}
+
+// T07 · SolicitudVerificacion
+Table SolicitudVerificacion {
+  id_solicitud_verificacion bigint [pk, not null]
+  id_cuenta bigint [not null]
+  id_periodo_escolar bigint [not null]
+  motivo_solicitud text [not null]
+  enviada_en timestamptz [not null]
+  id_estado_solicitud_verificacion bigint [not null]
+  resuelta_en timestamptz
+  id_cuenta_resolutora bigint
+  motivo_resolucion text
+  Note: 'Registro mínimo de cada envío y su resolución. Máximo tres envíos por cuenta y periodo y uno pendiente por cuenta. Conservar resultado y motivo; eliminar PDF rechazado al resolver y aprobado al vencer o retirarse la verificación. Al envío: un documento para estudiante o empleado y dos para externo. En el historial puede no quedar ninguno tras la eliminación documental. Los datos complementarios de empleado o externo son obligatorios únicamente para el rol correspondiente. En cada envío el solicitante debe explicar por qué solicita la verificación; este motivo es independiente del motivo de resolución.'
+}
+
+// T08 · DatosVerificacionEmpleado
+Table DatosVerificacionEmpleado {
+  id_solicitud_verificacion bigint [pk, not null]
+  numero_empleado text [not null]
+  Note: 'Declaración de número de empleado para el trámite.'
+}
+
+// T09 · DatosVerificacionExterno
+Table DatosVerificacionExterno {
+  id_solicitud_verificacion bigint [pk, not null]
+  nombre_entidad text [not null]
+  cargo_o_relacion text [not null]
+  Note: 'Representación declarada sin catálogo empresarial.'
+}
+
+// T10 · DocumentoVerificacion
+Table DocumentoVerificacion {
+  id_documento_verificacion bigint [pk, not null]
+  id_solicitud_verificacion bigint [not null]
+  id_tipo_documento_verificacion bigint [not null]
+  id_archivo bigint [not null]
+  indexes {
+    (id_solicitud_verificacion, id_tipo_documento_verificacion) [unique]
+  }
+  Note: 'PDF privado aportado para un requisito.'
+}
+
+// T11 · Verificacion
+Table Verificacion {
+  id_verificacion bigint [pk, not null]
+  id_solicitud_verificacion_aprobada bigint [not null, unique]
+  retirada_en timestamptz
+  id_cuenta_retiro bigint
+  motivo_retiro text
+  Note: 'Autorización derivada de una aprobación; su vigencia termina con el periodo o el retiro. Solo nace de una solicitud aprobada. Vigente hasta fin del periodo o retiro. Perderla retira la jefatura y cancela solicitudes pendientes sin cancelar eventos aprobados.'
+}
+
+// T12 · Academia
+Table Academia {
+  id_academia bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Catálogo institucional.'
+}
+
+// T13 · JefaturaAcademia
+Table JefaturaAcademia {
+  id_academia bigint [pk, not null]
+  id_cuenta_empleada bigint [not null, unique]
+  id_cuenta_otorgante bigint [not null]
+  Note: 'Nombramiento vigente que habilita la autoaprobación ordinaria.'
+}
+
+// T14 · Recinto
+Table Recinto {
+  id_recinto bigint [pk, not null]
+  nombre text [not null]
+  descripcion text [not null]
+  id_tipo_recinto bigint [not null]
+  numero_salon text
+  aforo_maximo integer [not null]
+  id_archivo_croquis bigint
+  Note: 'Espacio físico precargado; Administrador solo modifica.'
+}
+
+// T15 · FotografiaRecinto
+Table FotografiaRecinto {
+  id_recinto bigint [not null]
+  id_archivo bigint [not null]
+  indexes {
+    (id_recinto, id_archivo) [pk]
+  }
+  Note: 'Fotografías del recinto, sin orden de visualización. Hasta seis fotografías por recinto, de hasta 150 000 bytes cada una; sin atributo de orden.'
+}
+
+// T16 · TipoAccesorio
+Table TipoAccesorio {
+  id_tipo_accesorio bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Tipo de accesorio general.'
+}
+
+// T17 · ExistenciaAccesorio
+Table ExistenciaAccesorio {
+  id_recinto bigint [not null]
+  id_tipo_accesorio bigint [not null]
+  id_estado_funcionamiento bigint [not null]
+  cantidad integer [not null]
+  indexes {
+    (id_recinto, id_tipo_accesorio, id_estado_funcionamiento) [pk]
+  }
+  Note: 'Cantidad por tipo y estado de funcionamiento.'
+}
+
+// T18 · LugarRecinto
+Table LugarRecinto {
+  id_lugar_recinto bigint [pk, not null]
+  id_recinto bigint [not null]
+  codigo text [not null]
+  fila text
+  posicion_x numeric [not null]
+  posicion_y numeric [not null]
+  id_tipo_lugar bigint [not null]
+  indexes {
+    (id_recinto, codigo) [unique]
+  }
+  Note: 'Butaca o estación física con posición fija.  Una estación de trabajo tiene exactamente una ficha EstacionComputo; una butaca no tiene ficha.'
+}
+
+// T19 · EstacionComputo
+Table EstacionComputo {
+  id_lugar_recinto bigint [pk, not null]
+  id_estado_funcionamiento bigint [not null]
+  Note: 'Estado individual del equipo; una avería no impide reservar la estación.'
+}
+
+// T20 · ActividadInterna
+Table ActividadInterna {
+  id_actividad_interna bigint [pk, not null]
+  id_recinto bigint [not null]
+  inicio_vigencia date [not null]
+  fin_vigencia date [not null]
+  hora_inicio time [not null]
+  hora_fin time [not null]
+  Note: 'Bloque semanal informativo; se puede borrar, sin estado. Repetición semanal informativa; omitir inhábiles. Sin estado ni historial de eliminación. Cada horario tiene de uno a siete días distintos de la semana.'
+}
+
+// T21 · DiaActividadInterna
+Table DiaActividadInterna {
+  id_actividad_interna bigint [not null]
+  dia_semana integer [not null]
+  indexes {
+    (id_actividad_interna, dia_semana) [pk]
+  }
+  Note: 'Días de repetición semanal.'
+}
+
+// T22 · DiaInhabil
+Table DiaInhabil {
+  fecha date [pk, not null]
+  motivo text [not null]
+  Note: 'Excepciones al calendario de revisión y de actividades internas.'
+}
+
+// T23 · BloqueoRecinto
+Table BloqueoRecinto {
+  id_bloqueo_recinto bigint [pk, not null]
+  id_recinto bigint [not null]
+  id_tipo_bloqueo_recinto bigint [not null]
+  inicio timestamptz [not null]
+  fin_previsto timestamptz
+  motivo text [not null]
+  id_cuenta_responsable bigint [not null]
+  finalizado_en timestamptz
+  Note: 'Mantenimiento, bloqueo institucional o fuera de servicio. Fuera de servicio requiere reactivación manual; fin previsto no es fin real. Prorrogar tres días si vence sin actuación. Institucional: Subdirección. Mantenimiento y fuera de servicio: Administrador. Mantenimiento no desplaza actividades aprobadas. Institucional y fuera de servicio pueden suspender futuras actividades afectadas, nunca una iniciada o con Check-in.'
+}
+
+// T24 · Evento
+Table Evento {
+  id_evento bigint [pk, not null]
+  id_cuenta_organizadora bigint [not null]
+  titulo text
+  descripcion text
+  correo_contacto text
+  telefono_contacto text
+  id_categoria_evento bigint
+  id_visibilidad_evento bigint
+  id_archivo_cartel bigint
+  token_enlace_privado text [unique]
+  id_estado_evento bigint [not null]
+  publicado_en timestamptz
+  total_senales_interes integer [not null]
+  Note: 'Datos únicos del evento en preparación o publicado. Título, descripción, contactos, categoría, visibilidad, cartel y al menos una actividad: obligatorios al enviar o publicar. NULL en borrador no autoriza un envío incompleto. Token solo para evento privado. Interés global si existe actividad libre habilitada. Todo evento persistido, incluso en borrador, tiene al menos una actividad; guardar el primer borrador junto con su primera actividad e impedir eliminar la última.'
+}
+
+// T25 · Actividad
+Table Actividad {
+  id_actividad bigint [pk, not null]
+  id_evento bigint [not null]
+  nombre text [not null]
+  descripcion text [not null]
+  fecha date [not null]
+  hora_inicio time [not null]
+  hora_fin time [not null]
+  id_recinto bigint [not null]
+  id_tipo_acceso bigint [not null]
+  aforo_solicitado integer [not null]
+  id_estado_actividad bigint [not null]
+  Note: 'Unidad de programación, cupo, reserva y entrada. Cada actividad ocurre en un día, un recinto y un intervalo; termina a más tardar a las 21:00. En laboratorios no se admite entrada libre.'
+}
+
+// T26 · ItinerarioDia
+Table ItinerarioDia {
+  id_evento bigint [not null]
+  fecha date [not null]
+  id_archivo bigint [not null]
+  indexes {
+    (id_evento, fecha) [pk]
+  }
+  Note: 'Una imagen opcional por día del evento.'
+}
+
+// T27 · LugarActividad
+Table LugarActividad {
+  id_lugar_actividad bigint [pk, not null]
+  id_actividad bigint [not null]
+  id_lugar_recinto bigint [not null]
+  id_categoria_lugar_actividad bigint [not null]
+  indexes {
+    (id_actividad, id_lugar_recinto) [unique]
+  }
+  Note: 'Clasificación de una butaca o estación para una actividad concreta.'
+}
+
+// T28 · AfectacionActividad
+Table AfectacionActividad {
+  id_bloqueo_recinto bigint [not null]
+  id_actividad bigint [not null]
+  resuelta_en timestamptz
+  indexes {
+    (id_bloqueo_recinto, id_actividad) [pk]
+  }
+  Note: 'Causa de suspensión asociada al bloqueo que la originó. Mantenimiento no desplaza actividades. Los bloqueos institucionales y fuera de servicio pueden suspender actividades futuras sin Check-in; resolver la causa no reactiva automáticamente la actividad.'
+}
+
+// T29 · SolicitudEvento
+Table SolicitudEvento {
+  id_solicitud_evento bigint [pk, not null]
+  id_evento bigint [not null]
+  id_tipo_tramite bigint [not null]
+  id_tipo_anticipacion bigint
+  motivo text
+  id_estado_solicitud_evento bigint [not null]
+  envio_inicial timestamptz
+  inicio_revision timestamptz
+  version_edicion integer [not null]
+  Note: 'Trámite inicial o modificación conjunta; ordinario o extraordinario. Máximo una inicial por evento y una modificación pendiente. Publicación directa de Subdirección sin solicitud inicial. Las propuestas de cambio no ocupan el destino. En Requiere corrección, el límite se calcula sumando 24 horas naturales a resuelta_en de la última devolución del ciclo actual. Sin devolución vigente no existe ese plazo. En revisión, el plazo vence al terminar el segundo día hábil posterior a inicio_revision, sin contar el día de envío, sábados, domingos ni fechas de DiaInhabil. Un reenvío para corregir inicia un nuevo ciclo; editar durante la revisión no lo reinicia. Una modificación de programación enviada incluye uno o más cambios; una solicitud inicial no los utiliza.'
+}
+
+// T30 · ResolucionSolicitud
+Table ResolucionSolicitud {
+  id_resolucion_solicitud bigint [pk, not null]
+  id_solicitud_evento bigint [not null]
+  version_revisada integer [not null]
+  id_decision_solicitud bigint
+  mensaje text
+  resuelta_en timestamptz [not null]
+  id_cuenta_resolutora bigint
+  Note: 'Decisión sobre la solicitud y mensaje de Subdirección o cierre automático.  La decisión de devolución y su fecha son la fuente del plazo de corrección. Cuando hay aprobación, devolución o rechazo, la decisión es obligatoria. Si se registra un cierre por cancelación sin dictamen, la decisión es nula y el mensaje indica la causa. El rechazo automático por vencimiento usa Rechazada con su motivo.'
+}
+
+// T31 · CambioActividadSolicitado
+Table CambioActividadSolicitado {
+  id_cambio_actividad_solicitado bigint [pk, not null]
+  id_solicitud_evento bigint [not null]
+  id_actividad bigint [not null]
+  fecha_propuesta date
+  inicio_propuesto time
+  fin_propuesto time
+  id_recinto_propuesto bigint
+  indexes {
+    (id_solicitud_evento, id_actividad) [unique]
+  }
+  Note: 'Nuevos valores solicitados para una actividad ya publicada; la programación vigente queda en Actividad. Al menos un valor cambiado. Solo actividades del evento solicitado. Pausar nuevas reservas si se solicita cambiar recinto. Aplicar toda la solicitud conjuntamente.'
+}
+
+// T32 · ReasignacionSolicitada
+Table ReasignacionSolicitada {
+  id_cambio_actividad_solicitado bigint [not null]
+  id_compromiso_cupo bigint [not null]
+  id_lugar_recinto_destino bigint [not null]
+  indexes {
+    (id_cambio_actividad_solicitado, id_compromiso_cupo) [pk]
+    (id_cambio_actividad_solicitado, id_lugar_recinto_destino) [unique]
+  }
+  Note: 'Destino de un compromiso existente si se aprueba el cambio de recinto. El compromiso pertenece a la actividad cambiada y el asiento físico al recinto propuesto; conservar categoría y cubrir todos los compromisos aplicables al aprobar.'
+}
+
+// T33 · CompromisoCupo
+Table CompromisoCupo {
+  id_compromiso_cupo bigint [pk, not null]
+  id_actividad bigint [not null]
+  id_estado_compromiso_cupo bigint [not null]
+  Note: 'Una unidad de aforo de una actividad. Si hay asiento, se identifica mediante AsignacionAsiento. Para lugar asignado, el lugar debe corresponder a la misma actividad; activo como máximo una vez por lugar. La suma de compromisos activos no rebasa el aforo. Un compromiso puede pasar de apartado a reserva, pero nunca respaldar simultáneamente dos accesos.'
+}
+
+// T34 · Apartado
+Table Apartado {
+  id_compromiso_cupo bigint [pk, not null]
+  id_cuenta bigint [not null]
+  creado_en timestamptz [not null]
+  id_estado_apartado bigint [not null]
+  Note: 'Protección de dos minutos en modalidad con asiento. El límite se calcula como creado_en + 2 minutos. Desde ese instante no se puede confirmar el apartado, aunque todavía no se haya actualizado su estado.'
+}
+
+// T35 · BoletoEvento
+Table BoletoEvento {
+  id_boleto_evento bigint [pk, not null]
+  id_cuenta bigint [not null]
+  id_evento bigint [not null]
+  codigo_qr text [not null, unique]
+  codigo_manual text [not null, unique]
+  indexes {
+    (id_cuenta, id_evento) [unique]
+  }
+  Note: 'QR ordinario reutilizable por usuario y evento.  Se emite junto con la primera reservación y se reutiliza. Siempre conserva al menos una reservación histórica; puede tener cero confirmadas.'
+}
+
+// T36 · Reservacion
+Table Reservacion {
+  id_reservacion bigint [pk, not null]
+  id_boleto_evento bigint [not null]
+  id_compromiso_cupo bigint [not null, unique]
+  confirmada_en timestamptz [not null]
+  id_estado_reservacion bigint [not null]
+  cancelada_en timestamptz
+  id_causa_cancelacion_reservacion bigint
+  Note: 'Acceso ordinario de un boleto a una actividad a través de su compromiso. El evento del boleto coincide con el de la actividad. Una reserva activa por cuenta y actividad; impedir traslapes al confirmar. Confirmada: causa y cancelada_en deben ser nulas. Cancelada: ambas son obligatorias. La suspensión por sí sola conserva la reservación.'
+}
+
+// T37 · BoletoEspecial
+Table BoletoEspecial {
+  id_boleto_especial bigint [pk, not null]
+  id_compromiso_cupo bigint [not null, unique]
+  codigo_qr text [not null, unique]
+  codigo_manual text [not null, unique]
+  emitido_en timestamptz [not null]
+  invalidado_en timestamptz
+  motivo_invalidacion text
+  Note: 'Boleto al portador para un lugar VIP o Staff de una actividad. Solo asiento VIP o Staff; una entrada por código. No requiere cuenta del portador.'
+}
+
+// T38 · AvisoDisponibilidad
+Table AvisoDisponibilidad {
+  id_cuenta bigint [not null]
+  id_actividad bigint [not null]
+  solicitado_en timestamptz [not null]
+  indexes {
+    (id_cuenta, id_actividad) [pk]
+  }
+  Note: 'Petición pendiente de un aviso; sin prioridad, turno ni apartado. Un aviso interno y un correo por petición cuando haya cupo; no reserva lugar.'
+}
+
+// T39 · InvitacionStaff
+Table InvitacionStaff {
+  id_invitacion_staff bigint [pk, not null]
+  id_evento bigint [not null]
+  id_cuenta_invitada bigint [not null]
+  id_estado_invitacion_staff bigint [not null]
+  enviada_en timestamptz [not null]
+  Note: 'Invitación por evento con estado, sin fecha de respuesta. Todas las invitaciones pendientes del evento vencen al inicio de su primera actividad vigente. Consultar ese inicio en la programación; no duplicarlo por invitación. Una invitación cerrada no vuelve a abrirse por reprogramación. Al cancelar el evento se cierran las invitaciones pendientes.'
+}
+
+// T40 · StaffEvento
+Table StaffEvento {
+  id_evento bigint [not null]
+  id_cuenta bigint [not null]
+  indexes {
+    (id_evento, id_cuenta) [pk]
+  }
+  Note: 'Permiso vigente de Check-in para todo el evento. Solo tras invitación aceptada. Retirar permiso no cambia la aceptación ni elimina entradas previas.'
+}
+
+// T41 · EntradaOrdinaria
+Table EntradaOrdinaria {
+  id_entrada_ordinaria bigint [pk, not null]
+  id_reservacion bigint [not null, unique]
+  id_cuenta_operadora bigint [not null]
+  registrada_en timestamptz [not null]
+  Note: 'Un Check-in exitoso por reservación.'
+}
+
+// T42 · EntradaEspecial
+Table EntradaEspecial {
+  id_entrada_especial bigint [pk, not null]
+  id_boleto_especial bigint [not null, unique]
+  id_cuenta_operadora bigint [not null]
+  registrada_en timestamptz [not null]
+  Note: 'Un Check-in exitoso por boleto especial.'
+}
+
+// T43 · Archivo
+Table Archivo {
+  id_archivo bigint [pk, not null]
+  clave_almacenamiento text [not null, unique]
+  nombre text [not null]
+  id_tipo_mime bigint [not null]
+  tamano_bytes integer [not null]
+  Note: 'Metadatos del archivo alojado fuera de las tablas. El catálogo identifica el formato; la carga debe comprobar el contenido, tamaño y formatos autorizados para el uso concreto.'
+}
+
+// T44 · Notificacion
+Table Notificacion {
+  id_notificacion bigint [pk, not null]
+  id_cuenta_destinataria bigint [not null]
+  tipo text [not null]
+  titulo text [not null]
+  mensaje text [not null]
+  creada_en timestamptz [not null]
+  leida_en timestamptz
+  referencia_destino text
+  Note: 'Aviso de la bandeja interna.'
+}
+
+// T45 · EnvioCorreo
+Table EnvioCorreo {
+  id_envio_correo bigint [pk, not null]
+  destinatario text [not null]
+  asunto text [not null]
+  contenido text [not null]
+  id_estado_envio_correo bigint [not null]
+  intentos integer [not null]
+  proximo_intento_en timestamptz
+  id_notificacion bigint
+  Note: 'Envío al buzón y datos para reintento.'
+}
+
+// T46 · CategoriaEvento
+Table CategoriaEvento {
+  id_categoria_evento bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Catálogo de categorías que clasifican eventos. Valores iniciales: Congreso, Conferencia, Taller, Hackatón y Otro. Elegir Otro no requiere texto adicional. Una categoría puede no tener eventos.'
+}
+
+// T47 · AsignacionAsiento
+Table AsignacionAsiento {
+  id_compromiso_cupo bigint [pk, not null]
+  id_lugar_actividad bigint [not null]
+  Note: 'Asiento asignado a una unidad de aforo. Cero o una fila por compromiso; obligatoria para un compromiso activo con asiento e inexistente para acceso sin asiento. El lugar y el compromiso deben pertenecer a la misma actividad. Un lugar puede reutilizarse tras la liberación, pero no tener dos compromisos activos simultáneos. Estas reglas cruzan tablas y se deberán garantizar al implementar el DDL.'
+}
+
+// T48 · EstadoActividad
+Table EstadoActividad {
+  id_estado_actividad bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Catálogo de estados de Actividad. Valores iniciales del diseño: Programada, Suspendida, Cancelada. Programada: se mantiene en agenda. Suspendida: pendiente de resolución, conserva reservaciones y bloquea nuevos registros y entradas. Cancelada: cierre definitivo de la actividad.'
+}
+
+// T49 · EstadoApartado
+Table EstadoApartado {
+  id_estado_apartado bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Catálogo de estados de Apartado. Valores iniciales del diseño: Vigente, Convertido en reservación, Vencido, Liberado.'
+}
+
+// T50 · EstadoCompromisoCupo
+Table EstadoCompromisoCupo {
+  id_estado_compromiso_cupo bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Catálogo de estados de CompromisoCupo. Valores iniciales del diseño: Activo, Liberado.'
+}
+
+// T51 · EstadoCuenta
+Table EstadoCuenta {
+  id_estado_cuenta bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Catálogo de estados de Cuenta. Valores iniciales del diseño: Pendiente de activación, Activa, Desactivada.'
+}
+
+// T52 · EstadoEnvioCorreo
+Table EstadoEnvioCorreo {
+  id_estado_envio_correo bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Catálogo de estados de EnvioCorreo. Valores iniciales del diseño: Pendiente, En envío, Enviado, Fallido.'
+}
+
+// T53 · EstadoFuncionamiento
+Table EstadoFuncionamiento {
+  id_estado_funcionamiento bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Catálogo de estados de funcionamiento de equipos y accesorios. Valores iniciales del diseño: Funcional, Fuera de servicio.'
+}
+
+// T54 · EstadoEvento
+Table EstadoEvento {
+  id_estado_evento bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Catálogo de estados de Evento. Valores iniciales del diseño: Borrador, Publicado, Cancelado.'
+}
+
+// T55 · EstadoInvitacionStaff
+Table EstadoInvitacionStaff {
+  id_estado_invitacion_staff bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Catálogo de estados de InvitacionStaff. Valores iniciales del diseño: Pendiente, Aceptada, Rechazada, Cancelada, Vencida.'
+}
+
+// T56 · EstadoReservacion
+Table EstadoReservacion {
+  id_estado_reservacion bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Catálogo de estados de Reservacion. Valores iniciales del diseño: Confirmada, Cancelada.'
+}
+
+// T57 · EstadoSolicitudEvento
+Table EstadoSolicitudEvento {
+  id_estado_solicitud_evento bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Catálogo de estados de SolicitudEvento. Valores iniciales del diseño: Borrador, En revisión, Requiere corrección, Aprobada, Rechazada, Cancelada.'
+}
+
+// T58 · EstadoSolicitudVerificacion
+Table EstadoSolicitudVerificacion {
+  id_estado_solicitud_verificacion bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Catálogo de estados de SolicitudVerificacion. Valores iniciales del diseño: Pendiente de revisión, Aprobada, Rechazada, Cancelada, Cerrada por fin de periodo.'
+}
+
+// T59 · TipoRecinto
+Table TipoRecinto {
+  id_tipo_recinto bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Clasificación del espacio físico. Cada laboratorio concreto conserva su propio registro en Recinto. Valores iniciales: Auditorio, Sala 14 y Laboratorio.'
+}
+
+// T60 · RolRegistro
+Table RolRegistro {
+  id_rol_registro bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Clasificación de registro de la cuenta común; no otorga por sí misma permisos de Staff. Valores iniciales: Estudiante, Externo y Empleado del IPN.'
+}
+
+// T61 · TipoDocumentoVerificacion
+Table TipoDocumentoVerificacion {
+  id_tipo_documento_verificacion bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Requisito documental que satisface el PDF. Los dos requisitos de externos admiten los documentos equivalentes acordados. Valores iniciales: Constancia de estudios, Comprobante de adscripción, Acreditación de existencia de la entidad y Acreditación de representación.'
+}
+
+// T62 · TipoAcceso
+Table TipoAcceso {
+  id_tipo_acceso bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Modalidad de asistencia que determina si la actividad requiere registro, asiento y Check-in. Valores iniciales: Entrada libre; Registro sin asiento asignado; Reservación con lugar asignado.'
+}
+
+// T63 · TipoAnticipacion
+Table TipoAnticipacion {
+  id_tipo_anticipacion bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Clasificación por anticipación. Una sola clasificación para el conjunto de la solicitud. Valores iniciales: Ordinaria; Extraordinaria.'
+}
+
+// T64 · TipoTramite
+Table TipoTramite {
+  id_tipo_tramite bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Finalidad del trámite, independiente de la clasificación por anticipación. Valores iniciales: Solicitud inicial; Modificación de evento aprobado.'
+}
+
+// T65 · VisibilidadEvento
+Table VisibilidadEvento {
+  id_visibilidad_evento bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Indica si el evento se muestra en cartelera o se consulta mediante enlace privado. Valores iniciales: Público; Privado.'
+}
+
+// T66 · CategoriaLugarActividad
+Table CategoriaLugarActividad {
+  id_categoria_lugar_actividad bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Uso del lugar para esta actividad; Bloqueado impide asignarlo. No es un rol de cuenta. Valores iniciales: Asistente; VIP; Staff; Bloqueado.'
+}
+
+// T67 · TipoLugar
+Table TipoLugar {
+  id_tipo_lugar bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Clase física del lugar en el mapa fijo, independiente de su categoría en una actividad. Valores iniciales: Butaca; Estación de trabajo.'
+}
+
+// T68 · DecisionSolicitud
+Table DecisionSolicitud {
+  id_decision_solicitud bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Resultado de la revisión; distinto del estado actual del trámite. Valores iniciales: Aprobada; Devuelta; Rechazada.'
+}
+
+// T69 · TipoMime
+Table TipoMime {
+  id_tipo_mime bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Identificador del formato del contenido. Los formatos de imagen JPEG y PNG son ejemplos propuestos; los tipos autorizados dependen del uso. Ejemplos de valores: application/pdf; image/svg+xml; image/jpeg; image/png.'
+}
+
+// T70 · TipoCuenta
+Table TipoCuenta {
+  id_tipo_cuenta bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Clase de cuenta; solo las comunes tienen un perfil con rol de registro. Valores iniciales: Común; Administrador; Subdirección.'
+}
+
+// T71 · PropositoTokenCuenta
+Table PropositoTokenCuenta {
+  id_proposito_token_cuenta bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Acción que autoriza un token de cuenta. Valores iniciales: Confirmación de correo; Recuperación de contraseña; Activación de cuenta especial.'
+}
+
+// T72 · TipoBloqueoRecinto
+Table TipoBloqueoRecinto {
+  id_tipo_bloqueo_recinto bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Clasificación que determina quién puede aplicar el bloqueo y si puede suspender actividades. Valores iniciales: Institucional; Mantenimiento; Fuera de servicio.'
+}
+
+// T73 · CausaCancelacionReservacion
+Table CausaCancelacionReservacion {
+  id_causa_cancelacion_reservacion bigint [pk, not null]
+  nombre text [not null, unique]
+  Note: 'Causa por la que se canceló una reservación ordinaria. Valores iniciales: Cancelación voluntaria; Cancelación de la actividad; Cancelación del evento; Cambio a entrada libre; Desactivación de la cuenta del asistente.'
+}
+
+Ref: Cuenta.id_tipo_cuenta > TipoCuenta.id_tipo_cuenta
+Ref: Cuenta.id_estado_cuenta > EstadoCuenta.id_estado_cuenta
+Ref: Cuenta.id_cuenta - PerfilUsuario.id_cuenta
+Ref: PerfilUsuario.id_rol_registro > RolRegistro.id_rol_registro
+Ref: PerfilUsuario.id_cuenta - Estudiante.id_cuenta
+Ref: PerfilUsuario.id_cuenta - EmpleadoIPN.id_cuenta
+Ref: TokenCuenta.id_cuenta > Cuenta.id_cuenta
+Ref: TokenCuenta.id_proposito_token_cuenta > PropositoTokenCuenta.id_proposito_token_cuenta
+Ref: SolicitudVerificacion.id_cuenta > PerfilUsuario.id_cuenta
+Ref: SolicitudVerificacion.id_periodo_escolar > PeriodoEscolar.id_periodo_escolar
+Ref: SolicitudVerificacion.id_estado_solicitud_verificacion > EstadoSolicitudVerificacion.id_estado_solicitud_verificacion
+Ref: SolicitudVerificacion.id_cuenta_resolutora > Cuenta.id_cuenta
+Ref: SolicitudVerificacion.id_solicitud_verificacion - DatosVerificacionEmpleado.id_solicitud_verificacion
+Ref: SolicitudVerificacion.id_solicitud_verificacion - DatosVerificacionExterno.id_solicitud_verificacion
+Ref: DocumentoVerificacion.id_solicitud_verificacion > SolicitudVerificacion.id_solicitud_verificacion
+Ref: DocumentoVerificacion.id_tipo_documento_verificacion > TipoDocumentoVerificacion.id_tipo_documento_verificacion
+Ref: DocumentoVerificacion.id_archivo > Archivo.id_archivo
+Ref: SolicitudVerificacion.id_solicitud_verificacion - Verificacion.id_solicitud_verificacion_aprobada
+Ref: Verificacion.id_cuenta_retiro > Cuenta.id_cuenta
+Ref: Academia.id_academia - JefaturaAcademia.id_academia
+Ref: EmpleadoIPN.id_cuenta - JefaturaAcademia.id_cuenta_empleada
+Ref: JefaturaAcademia.id_cuenta_otorgante > Cuenta.id_cuenta
+Ref: Recinto.id_tipo_recinto > TipoRecinto.id_tipo_recinto
+Ref: Recinto.id_archivo_croquis > Archivo.id_archivo
+Ref: FotografiaRecinto.id_recinto > Recinto.id_recinto
+Ref: FotografiaRecinto.id_archivo > Archivo.id_archivo
+Ref: ExistenciaAccesorio.id_recinto > Recinto.id_recinto
+Ref: ExistenciaAccesorio.id_tipo_accesorio > TipoAccesorio.id_tipo_accesorio
+Ref: ExistenciaAccesorio.id_estado_funcionamiento > EstadoFuncionamiento.id_estado_funcionamiento
+Ref: LugarRecinto.id_recinto > Recinto.id_recinto
+Ref: LugarRecinto.id_tipo_lugar > TipoLugar.id_tipo_lugar
+Ref: LugarRecinto.id_lugar_recinto - EstacionComputo.id_lugar_recinto
+Ref: EstacionComputo.id_estado_funcionamiento > EstadoFuncionamiento.id_estado_funcionamiento
+Ref: ActividadInterna.id_recinto > Recinto.id_recinto
+Ref: DiaActividadInterna.id_actividad_interna > ActividadInterna.id_actividad_interna
+Ref: BloqueoRecinto.id_recinto > Recinto.id_recinto
+Ref: BloqueoRecinto.id_tipo_bloqueo_recinto > TipoBloqueoRecinto.id_tipo_bloqueo_recinto
+Ref: BloqueoRecinto.id_cuenta_responsable > Cuenta.id_cuenta
+Ref: Evento.id_cuenta_organizadora > Cuenta.id_cuenta
+Ref: Evento.id_categoria_evento > CategoriaEvento.id_categoria_evento
+Ref: Evento.id_visibilidad_evento > VisibilidadEvento.id_visibilidad_evento
+Ref: Evento.id_archivo_cartel > Archivo.id_archivo
+Ref: Evento.id_estado_evento > EstadoEvento.id_estado_evento
+Ref: Actividad.id_evento > Evento.id_evento
+Ref: Actividad.id_recinto > Recinto.id_recinto
+Ref: Actividad.id_tipo_acceso > TipoAcceso.id_tipo_acceso
+Ref: Actividad.id_estado_actividad > EstadoActividad.id_estado_actividad
+Ref: ItinerarioDia.id_evento > Evento.id_evento
+Ref: ItinerarioDia.id_archivo > Archivo.id_archivo
+Ref: LugarActividad.id_actividad > Actividad.id_actividad
+Ref: LugarActividad.id_lugar_recinto > LugarRecinto.id_lugar_recinto
+Ref: LugarActividad.id_categoria_lugar_actividad > CategoriaLugarActividad.id_categoria_lugar_actividad
+Ref: AfectacionActividad.id_bloqueo_recinto > BloqueoRecinto.id_bloqueo_recinto
+Ref: AfectacionActividad.id_actividad > Actividad.id_actividad
+Ref: SolicitudEvento.id_evento > Evento.id_evento
+Ref: SolicitudEvento.id_tipo_tramite > TipoTramite.id_tipo_tramite
+Ref: SolicitudEvento.id_tipo_anticipacion > TipoAnticipacion.id_tipo_anticipacion
+Ref: SolicitudEvento.id_estado_solicitud_evento > EstadoSolicitudEvento.id_estado_solicitud_evento
+Ref: ResolucionSolicitud.id_solicitud_evento > SolicitudEvento.id_solicitud_evento
+Ref: ResolucionSolicitud.id_decision_solicitud > DecisionSolicitud.id_decision_solicitud
+Ref: ResolucionSolicitud.id_cuenta_resolutora > Cuenta.id_cuenta
+Ref: CambioActividadSolicitado.id_solicitud_evento > SolicitudEvento.id_solicitud_evento
+Ref: CambioActividadSolicitado.id_actividad > Actividad.id_actividad
+Ref: CambioActividadSolicitado.id_recinto_propuesto > Recinto.id_recinto
+Ref: ReasignacionSolicitada.id_cambio_actividad_solicitado > CambioActividadSolicitado.id_cambio_actividad_solicitado
+Ref: ReasignacionSolicitada.id_compromiso_cupo > CompromisoCupo.id_compromiso_cupo
+Ref: ReasignacionSolicitada.id_lugar_recinto_destino > LugarRecinto.id_lugar_recinto
+Ref: CompromisoCupo.id_actividad > Actividad.id_actividad
+Ref: CompromisoCupo.id_estado_compromiso_cupo > EstadoCompromisoCupo.id_estado_compromiso_cupo
+Ref: CompromisoCupo.id_compromiso_cupo - Apartado.id_compromiso_cupo
+Ref: Apartado.id_cuenta > PerfilUsuario.id_cuenta
+Ref: Apartado.id_estado_apartado > EstadoApartado.id_estado_apartado
+Ref: BoletoEvento.id_cuenta > PerfilUsuario.id_cuenta
+Ref: BoletoEvento.id_evento > Evento.id_evento
+Ref: Reservacion.id_boleto_evento > BoletoEvento.id_boleto_evento
+Ref: CompromisoCupo.id_compromiso_cupo - Reservacion.id_compromiso_cupo
+Ref: Reservacion.id_estado_reservacion > EstadoReservacion.id_estado_reservacion
+Ref: Reservacion.id_causa_cancelacion_reservacion > CausaCancelacionReservacion.id_causa_cancelacion_reservacion
+Ref: CompromisoCupo.id_compromiso_cupo - BoletoEspecial.id_compromiso_cupo
+Ref: AvisoDisponibilidad.id_cuenta > PerfilUsuario.id_cuenta
+Ref: AvisoDisponibilidad.id_actividad > Actividad.id_actividad
+Ref: InvitacionStaff.id_evento > Evento.id_evento
+Ref: InvitacionStaff.id_cuenta_invitada > PerfilUsuario.id_cuenta
+Ref: InvitacionStaff.id_estado_invitacion_staff > EstadoInvitacionStaff.id_estado_invitacion_staff
+Ref: StaffEvento.id_evento > Evento.id_evento
+Ref: StaffEvento.id_cuenta > PerfilUsuario.id_cuenta
+Ref: Reservacion.id_reservacion - EntradaOrdinaria.id_reservacion
+Ref: EntradaOrdinaria.id_cuenta_operadora > Cuenta.id_cuenta
+Ref: BoletoEspecial.id_boleto_especial - EntradaEspecial.id_boleto_especial
+Ref: EntradaEspecial.id_cuenta_operadora > Cuenta.id_cuenta
+Ref: Archivo.id_tipo_mime > TipoMime.id_tipo_mime
+Ref: Notificacion.id_cuenta_destinataria > Cuenta.id_cuenta
+Ref: EnvioCorreo.id_estado_envio_correo > EstadoEnvioCorreo.id_estado_envio_correo
+Ref: EnvioCorreo.id_notificacion > Notificacion.id_notificacion
+Ref: CompromisoCupo.id_compromiso_cupo - AsignacionAsiento.id_compromiso_cupo
+Ref: AsignacionAsiento.id_lugar_actividad > LugarActividad.id_lugar_actividad
