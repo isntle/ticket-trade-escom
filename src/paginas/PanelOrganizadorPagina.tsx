@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Plus,
   Calendar,
@@ -9,6 +9,8 @@ import {
   Layers,
   MapPin,
   Eye,
+  Search,
+  X,
 } from "lucide-react";
 import { useDatos } from "../contextos/DatosContexto";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
@@ -32,14 +34,72 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
     "eventos" | "solicitudes" | "arreglos"
   >(soloSolicitudes ? "solicitudes" : "eventos");
 
-  // Filtrar eventos y solicitudes donde el usuario es el organizador
+  // Estados de filtrado por búsqueda y estado
+  const [busqueda, setBusqueda] = useState<string>("");
+  const [estadoFiltro, setEstadoFiltro] = useState<string>("TODOS");
+
+  // Filtrar eventos y solicitudes donde el usuario es el propietario / organizador
   const misEventos = usuarioActual
     ? listaEventos.filter((e) => e.idOrganizador === usuarioActual.id)
     : [];
   const misSolicitudes = usuarioActual
     ? listaSolicitudes.filter((s) => s.idSolicitante === usuarioActual.id)
     : [];
-  const misArreglos = listaArreglos.filter(a => misEventos.some(e => e.fechas.some(f => f.id === a.idFechaEvento)));
+  const misArreglos = listaArreglos.filter((a) =>
+    misEventos.some((e) => e.fechas.some((f) => f.id === a.idFechaEvento))
+  );
+
+  // Obtener estados únicos aplicables para cada pestaña de forma dinámica
+  const estadosEventos = useMemo(() => {
+    const setEstados = new Set(misEventos.map((e) => e.estado).filter(Boolean));
+    return ["TODOS", ...Array.from(setEstados)];
+  }, [misEventos]);
+
+  const estadosSolicitudes = useMemo(() => {
+    const setEstados = new Set(misSolicitudes.map((s) => s.estado).filter(Boolean));
+    return ["TODOS", ...Array.from(setEstados)];
+  }, [misSolicitudes]);
+
+  const estadosActuales =
+    pestañaActiva === "eventos" ? estadosEventos : estadosSolicitudes;
+
+  // Filtrado reactivo de Eventos (búsqueda por título + estado)
+  const eventosFiltrados = useMemo(() => {
+    return misEventos.filter((evento) => {
+      const coincideTitulo = evento.titulo
+        ?.toLowerCase()
+        .includes(busqueda.toLowerCase().trim());
+      const coincideEstado =
+        estadoFiltro === "TODOS" || evento.estado === estadoFiltro;
+      return coincideTitulo && coincideEstado;
+    });
+  }, [misEventos, busqueda, estadoFiltro]);
+
+  // Filtrado reactivo de Solicitudes (búsqueda por título + estado)
+  const solicitudesFiltradas = useMemo(() => {
+    return misSolicitudes.filter((sol) => {
+      const coincideTitulo = sol.tituloEvento
+        ?.toLowerCase()
+        .includes(busqueda.toLowerCase().trim());
+      const coincideEstado =
+        estadoFiltro === "TODOS" || sol.estado === estadoFiltro;
+      return coincideTitulo && coincideEstado;
+    });
+  }, [misSolicitudes, busqueda, estadoFiltro]);
+
+  // Cambio de pestaña reseteando o adaptando los filtros
+  const handleCambioPestaña = (
+    nuevaPestaña: "eventos" | "solicitudes" | "arreglos"
+  ) => {
+    setPestañaActiva(nuevaPestaña);
+    setBusqueda("");
+    setEstadoFiltro("TODOS");
+  };
+
+  const handleLimpiarFiltros = () => {
+    setBusqueda("");
+    setEstadoFiltro("TODOS");
+  };
 
   const obtenerNombreRecinto = (idRecinto: string) => {
     const r = listaRecintos.find((rec) => rec.id === idRecinto);
@@ -51,13 +111,13 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
       {/* Cabecera */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <span className="text-sm font-bold text-[#7a132b] ">
+          <span className="text-sm font-bold text-[#7a132b]">
             Gestión Académica de Espacios
           </span>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 mt-0.5">
             {soloSolicitudes ? "Mis solicitudes" : "Mis eventos y solicitudes"}
           </h1>
-          <p className="text-sm sm:text-sm text-neutral-500 mt-1">
+          <p className="text-sm text-neutral-500 mt-1">
             Tramita propuestas ante Subdirección, edita la distribución de
             butacas en auditorios, salas y laboratorios, y publica tus eventos.
           </p>
@@ -74,12 +134,12 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
       </div>
 
       {/* Pestañas */}
-      <div className="flex items-center gap-4 border-b border-neutral-200 mb-6">
+      <div className="flex items-center gap-4 border-b border-neutral-200 mb-6 overflow-x-auto">
         {!soloSolicitudes && (
           <button
             type="button"
-            onClick={() => setPestañaActiva("eventos")}
-            className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer ${
+            onClick={() => handleCambioPestaña("eventos")}
+            className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
               pestañaActiva === "eventos"
                 ? "border-[#7a132b] text-[#7a132b]"
                 : "border-transparent text-neutral-500 hover:text-neutral-900"
@@ -91,8 +151,8 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
         {!soloSolicitudes && (
           <button
             type="button"
-            onClick={() => setPestañaActiva("arreglos")}
-            className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            onClick={() => handleCambioPestaña("arreglos")}
+            className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               pestañaActiva === "arreglos"
                 ? "border-[#7a132b] text-[#7a132b]"
                 : "border-transparent text-neutral-500 hover:text-neutral-900"
@@ -106,8 +166,8 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
         )}
         <button
           type="button"
-          onClick={() => setPestañaActiva("solicitudes")}
-          className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer ${
+          onClick={() => handleCambioPestaña("solicitudes")}
+          className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
             pestañaActiva === "solicitudes"
               ? "border-[#7a132b] text-[#7a132b]"
               : "border-transparent text-neutral-500 hover:text-neutral-900"
@@ -116,6 +176,67 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
           Solicitudes en Trámite ({misSolicitudes.length})
         </button>
       </div>
+
+      {/* Barra de Búsqueda y Filtros por Estado (Visible en Eventos y Solicitudes) */}
+      {!soloSolicitudes &&
+        (pestañaActiva === "eventos" || pestañaActiva === "solicitudes") && (
+          <div className="bg-white rounded-xl border border-neutral-200 p-4 mb-6 shadow-xs flex flex-col sm:flex-row gap-3 items-center justify-between">
+            <div className="relative w-full sm:w-1/2">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-neutral-400">
+                <Search className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder={
+                  pestañaActiva === "eventos"
+                    ? "Buscar eventos por título..."
+                    : "Buscar solicitudes por título..."
+                }
+                className="w-full pl-9 pr-8 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:border-[#7a132b] transition-colors"
+              />
+              {busqueda && (
+                <button
+                  type="button"
+                  onClick={() => setBusqueda("")}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end flex-wrap">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <span className="text-xs font-semibold text-neutral-500 whitespace-nowrap">
+                  Estado:
+                </span>
+                <select
+                  value={estadoFiltro}
+                  onChange={(e) => setEstadoFiltro(e.target.value)}
+                  className="px-3 py-2 border border-neutral-300 rounded-lg text-sm bg-white focus:outline-none focus:border-[#7a132b] transition-colors w-full sm:w-auto"
+                >
+                  {estadosActuales.map((est) => (
+                    <option key={est} value={est}>
+                      {est === "TODOS" ? "Todos los estados" : est}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {(busqueda || estadoFiltro !== "TODOS") && (
+                <button
+                  type="button"
+                  onClick={handleLimpiarFiltros}
+                  className="px-3 py-2 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-700 hover:bg-neutral-50 transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
       {/* Contenido Pestaña Eventos */}
       {!soloSolicitudes && pestañaActiva === "eventos" && (
@@ -128,9 +249,25 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
               textoAccion="Solicitar nuevo evento"
               alHacerAccion={() => navigate("/solicitar-evento")}
             />
+          ) : eventosFiltrados.length === 0 ? (
+            <div className="bg-white rounded-xl border border-neutral-200 p-8 text-center space-y-3 shadow-xs">
+              <p className="text-neutral-700 font-semibold text-base">
+                No se encontraron eventos que coincidan con tu búsqueda o filtro.
+              </p>
+              <p className="text-sm text-neutral-500">
+                Intenta ajustar los términos o restablece los filtros aplicados.
+              </p>
+              <button
+                type="button"
+                onClick={handleLimpiarFiltros}
+                className="px-4 py-2 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-lg text-sm font-semibold transition-colors cursor-pointer inline-flex items-center gap-2"
+              >
+                Limpiar filtros
+              </button>
+            </div>
           ) : (
             <div className="space-y-4">
-              {misEventos.map((evento) => {
+              {eventosFiltrados.map((evento) => {
                 const fechaPrincipal = evento.fechas[0];
                 return (
                   <div
@@ -138,7 +275,7 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
                     className="bg-white rounded-xl border border-neutral-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
                   >
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-neutral-900 text-sm">
                           {evento.titulo}
                         </span>
@@ -157,13 +294,13 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
                       {fechaPrincipal && (
                         <button
                           type="button"
                           onClick={() =>
                             navigate(
-                              `/organizador/eventos/${evento.id}/fechas/${fechaPrincipal.id}/arreglos`,
+                              `/organizador/eventos/${evento.id}/fechas/${fechaPrincipal.id}/arreglos`
                             )
                           }
                           className="px-3.5 py-2 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-800 hover:border-[#7a132b] hover:bg-neutral-50 flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -210,14 +347,10 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {misArreglos.map((arreglo) => {
               const recinto = listaRecintos.find(
-                (r) => r.id === arreglo.idRecinto,
+                (r) => r.id === arreglo.idRecinto
               );
-              // Buscar evento asociado a esta fecha
               const evento = listaEventos.find((e) =>
-                e.fechas.some((f) => f.id === arreglo.idFechaEvento),
-              );
-              const fecha = evento?.fechas.find(
-                (f) => f.id === arreglo.idFechaEvento,
+                e.fechas.some((f) => f.id === arreglo.idFechaEvento)
               );
 
               return (
@@ -281,7 +414,7 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
                       onClick={() => {
                         const idEvt = evento ? evento.id : "evt-simposio-ia";
                         navigate(
-                          `/organizador/eventos/${idEvt}/fechas/${arreglo.idFechaEvento}/arreglos`,
+                          `/organizador/eventos/${idEvt}/fechas/${arreglo.idFechaEvento}/arreglos`
                         );
                       }}
                       className="w-full py-2 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
@@ -306,46 +439,64 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
               titulo="No tienes solicitudes tramitadas"
               descripcion="Las solicitudes enviadas a Subdirección aparecerán aquí con su estado de dictamen."
             />
+          ) : !soloSolicitudes && solicitudesFiltradas.length === 0 ? (
+            <div className="bg-white rounded-xl border border-neutral-200 p-8 text-center space-y-3 shadow-xs">
+              <p className="text-neutral-700 font-semibold text-base">
+                No se encontraron solicitudes que coincidan con tu búsqueda o filtro.
+              </p>
+              <p className="text-sm text-neutral-500">
+                Intenta ajustar los términos o restablece los filtros aplicados.
+              </p>
+              <button
+                type="button"
+                onClick={handleLimpiarFiltros}
+                className="px-4 py-2 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-lg text-sm font-semibold transition-colors cursor-pointer inline-flex items-center gap-2"
+              >
+                Limpiar filtros
+              </button>
+            </div>
           ) : (
             <div className="space-y-4">
-              {misSolicitudes.map((sol) => (
-                <div
-                  key={sol.id}
-                  className="bg-white rounded-xl border border-neutral-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-neutral-900 text-sm">
-                        {sol.tituloEvento}
-                      </span>
-                      <InsigniaEstado estado={sol.estado} />
-                      {sol.esExcepcional && (
-                        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-sm font-bold">
-                          Excepcional
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-neutral-500 line-clamp-1">
-                      {sol.descripcionEvento}
-                    </p>
-                    <div className="text-sm text-neutral-400">
-                      Fecha de radicación:{" "}
-                      {new Date(sol.fechaCreacion).toLocaleDateString("es-MX")}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate(`/organizador/solicitudes/${sol.id}`)
-                    }
-                    className="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-1 cursor-pointer"
+              {(soloSolicitudes ? misSolicitudes : solicitudesFiltradas).map(
+                (sol) => (
+                  <div
+                    key={sol.id}
+                    className="bg-white rounded-xl border border-neutral-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
                   >
-                    <span>Ver dictamen</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-neutral-900 text-sm">
+                          {sol.tituloEvento}
+                        </span>
+                        <InsigniaEstado estado={sol.estado} />
+                        {sol.esExcepcional && (
+                          <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-sm font-bold">
+                            Excepcional
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-neutral-500 line-clamp-1">
+                        {sol.descripcionEvento}
+                      </p>
+                      <div className="text-sm text-neutral-400">
+                        Fecha de radicación:{" "}
+                        {new Date(sol.fechaCreacion).toLocaleDateString("es-MX")}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(`/organizador/solicitudes/${sol.id}`)
+                      }
+                      className="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-1 cursor-pointer shrink-0"
+                    >
+                      <span>Ver dictamen</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )
+              )}
             </div>
           )}
         </div>
