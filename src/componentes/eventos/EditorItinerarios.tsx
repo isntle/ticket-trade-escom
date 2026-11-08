@@ -45,7 +45,85 @@ export function EditorItinerarios({ fechas, itinerarios, alCambiar, alCambiarEst
   </section>;
 }
 
-export function VistaItinerarios({ itinerarios }: {itinerarios?: ItinerarioDia[]}) {
+// Subcomponente nuevo: Maneja el estado de carga y error individual de cada itinerario
+function ItemVistaItinerario({ itinerario }: { itinerario: ItinerarioDia }) {
+  const [estado, setEstado] = useState<'cargando' | 'listo' | 'error'>('cargando');
+  const [intentos, setIntentos] = useState(0);
+
+  // Reiniciar el estado a 'cargando' si la URL cambia dinámicamente
+  React.useEffect(() => {
+    setEstado('cargando');
+  }, [itinerario.urlImagen]);
+
+  return (
+    <details className="rounded-xl bg-neutral-50 p-4">
+      {/* Se mantiene la funcionalidad nativa de apertura/cierre, fecha y orden */}
+      <summary className="cursor-pointer font-semibold">Ver itinerario del {itinerario.fecha}</summary>
+      
+      <div className="mt-4 flex flex-col gap-3">
+        
+        {/* ESTADO: Cargando */}
+        {estado === 'cargando' && (
+          <div className="flex w-full items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 bg-neutral-100 py-12">
+            <p className="text-sm font-medium text-neutral-500 animate-pulse">Cargando itinerario...</p>
+          </div>
+        )}
+
+        {/* ESTADO: Error visual (No borra el archivo ni afecta BD) */}
+        {estado === 'error' && (
+          <div className="flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-red-300 bg-red-50 py-8 text-center px-4">
+            <p className="text-sm font-medium text-red-600">No se pudo cargar la imagen del itinerario.</p>
+            <button 
+              type="button"
+              onClick={() => {
+                setEstado('cargando');
+                setIntentos((i) => i + 1);
+              }}
+              className="mt-3 rounded-lg bg-red-100 px-4 py-2 text-sm font-semibold text-red-800 transition-colors hover:bg-red-200"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
+
+        {/* IMAGEN: Maneja los eventos onLoad y onError de HTML nativo */}
+        <img
+          key={`${itinerario.urlImagen}-${intentos}`}
+          src={itinerario.urlImagen}
+          alt={`Itinerario del ${itinerario.fecha}`}
+          onLoad={() => setEstado('listo')}
+          onError={() => setEstado('error')}
+          className={`max-h-[42rem] w-full rounded-lg object-contain ${
+            estado === 'listo' ? 'block' : 'hidden'
+          }`}
+        />
+
+        {/* ENLACE DE DESCARGA: Solo se muestra si el estado es 'listo' */}
+        {estado === 'listo' && (
+          <a
+            href={itinerario.urlImagen}
+            download={itinerario.nombreArchivo}
+            className="inline-block text-sm font-semibold text-[#7a132b] underline"
+          >
+            Descargar imagen del itinerario
+          </a>
+        )}
+      </div>
+    </details>
+  );
+}
+
+// Componente principal actualizado que delega el renderizado al subcomponente
+export function VistaItinerarios({ itinerarios }: { itinerarios?: ItinerarioDia[] }) {
   if (!itinerarios?.length) return null;
-  return <section className="space-y-4"><h3 className="font-bold">Itinerarios del evento</h3>{[...itinerarios].sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(i=><details key={i.fecha} className="rounded-xl bg-neutral-50 p-4"><summary className="cursor-pointer font-semibold">Ver itinerario del {i.fecha}</summary><img src={i.urlImagen} alt={`Itinerario del ${i.fecha}`} className="mt-4 max-h-[42rem] w-full rounded-lg object-contain"/><a href={i.urlImagen} download={i.nombreArchivo} className="mt-3 inline-block text-sm font-semibold text-[#7a132b] underline">Descargar imagen del itinerario</a></details>)}</section>;
+  return (
+    <section className="space-y-4">
+      <h3 className="font-bold">Itinerarios del evento</h3>
+      {[...itinerarios]
+        .sort((a, b) => a.fecha.localeCompare(b.fecha))
+        .map((i) => (
+          <ItemVistaItinerario key={i.fecha} itinerario={i} />
+        ))}
+    </section>
+  );
 }
