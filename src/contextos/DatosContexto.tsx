@@ -1,4 +1,6 @@
+import {apiActiva} from '../servicios/modoDatos';
 import { reservaIncompatible } from '../dominio/crucesReservas';
+import { transporteApi } from '../servicios/http';
 import { proyectarCambioRecinto, firmaCambioRecinto, type PeticionCambioRecinto, type PropuestaCambioRecinto, type EstadoCambioRecinto } from "../dominio/cambioRecinto";
 import { useListaLocal } from "./useListaLocal";
 import { accesoDelPase, codigoQrDelEvento } from "../dominio/pasesEvento";
@@ -352,6 +354,33 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       }catch{/* No se modifican apartados si no se pudo consultar su versión guardada. */}
     }, 15000);
     return () => clearInterval(intervalo);
+  }, []);
+
+  // Carga inicial de recintos y eventos desde la API remota (PostgreSQL) con respaldo local
+  useEffect(() => {
+    if (!apiActiva) return;
+    setListaEventos([]); setListaRecintos([]);
+    let cancelado = false;
+    const cargarDatosRemotos = async () => {
+      try {
+        const cliente = transporteApi('/api');
+        const [recintosRemotos, eventosRemotos] = await Promise.all([
+          cliente<Recinto[]>('/recintos'),
+          cliente<Evento[]>('/eventos'),
+        ]);
+        if (cancelado) return;
+        if (recintosRemotos) {
+          setListaRecintos(recintosRemotos);
+        }
+        if (eventosRemotos) {
+          setListaEventos(eventosRemotos);
+        }
+      } catch {
+        // No se sustituye un fallo de API por un éxito local.
+      }
+    };
+    cargarDatosRemotos();
+    return () => { cancelado = true; };
   }, []);
 
   // Cierre automático por actividad con fecha límite en hora institucional.

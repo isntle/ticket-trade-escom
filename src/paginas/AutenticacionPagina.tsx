@@ -1,3 +1,4 @@
+import {apiActiva} from '../servicios/modoDatos';
 import { validarDominioIdentidad } from "../dominio/identidad";
 import { destinoInternoSeguro } from "../dominio/navegacion";
 import { volverA } from "../dominio/navegacion";
@@ -223,8 +224,36 @@ export function AutenticacionPagina({
         <>
           <form
             className="space-y-5"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
+              if (apiActiva) {
+              try {
+                const res = await fetch('/api/auth/login', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ correo, password }),
+                  credentials: 'same-origin',
+                });
+                const cuerpo = await res.json();
+                if (res.ok && cuerpo?.datos?.usuario) {
+                  auth.iniciarSesionConUsuario(cuerpo.datos.usuario);
+                  navigate(
+                    destinoInternoSeguro(
+                      new URLSearchParams(window.location.search).get("continuar")
+                    )
+                  );
+                  return;
+                } else if (!res.ok && cuerpo?.error?.mensaje) {
+                  setMensaje(cuerpo.error.mensaje);
+                  return;
+                }
+              } catch {
+                setMensaje('No se pudo comunicar con el servidor. Intenta de nuevo.');
+                return;
+              }
+              setMensaje('No se pudo iniciar sesión con el servidor.');
+              return;
+              }
               const r = auth.iniciarSesion(correo, password);
               setMensaje(r.mensaje);
               if (r.exito) {
