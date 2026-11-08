@@ -223,8 +223,31 @@ export function AutenticacionPagina({
         <>
           <form
             className="space-y-5"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
+              try {
+                const res = await fetch('/api/auth/login', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ correo, password }),
+                  credentials: 'same-origin',
+                });
+                const cuerpo = await res.json();
+                if (res.ok && cuerpo?.datos?.usuario) {
+                  auth.iniciarSesionConUsuario(cuerpo.datos.usuario);
+                  navigate(
+                    destinoInternoSeguro(
+                      new URLSearchParams(window.location.search).get("continuar")
+                    )
+                  );
+                  return;
+                } else if (!res.ok && cuerpo?.error?.mensaje) {
+                  setMensaje(cuerpo.error.mensaje);
+                  return;
+                }
+              } catch {
+                // Respaldo local si la API remota está inactiva
+              }
               const r = auth.iniciarSesion(correo, password);
               setMensaje(r.mensaje);
               if (r.exito) {

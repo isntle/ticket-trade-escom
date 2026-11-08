@@ -173,10 +173,35 @@ function usarIdentidad() {
     ponerAhora(t);
     return bien("Sesión iniciada.");
   };
+  const iniciarSesionConUsuario = (u: Usuario) => {
+    cuentasRef.current = [u, ...cuentasRef.current.filter((c) => c.id !== u.id)];
+    ponerUsuarios(cuentasRef.current);
+    return entrar(u);
+  };
   const cerrarSesion = () => {
     cambiarSesion(null);
     ponerRol("asistente");
+    if (typeof fetch !== 'undefined') {
+      fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+    }
   };
+  useEffect(() => {
+    const verificarSesionRemota = async () => {
+      try {
+        if (typeof fetch === 'undefined') return;
+        const res = await fetch('/api/auth/yo', { credentials: 'same-origin' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.datos?.usuario) {
+            iniciarSesionConUsuario(data.datos.usuario);
+          }
+        }
+      } catch {
+        // API remota no disponible en pruebas o servidor apagado
+      }
+    };
+    verificarSesionRemota();
+  }, []);
   useEffect(() => {
     const sincronizar = (e: StorageEvent) => {
       if (e.key === CLAVE_PERIODOS_IDENTIDAD) { ponerPeriodosIdentidad(leerPeriodosIdentidad()); ponerAhora(Date.now()); }
@@ -1002,6 +1027,7 @@ function usarIdentidad() {
     configurarPeriodosIdentidad,
     periodosIdentidad,
     silenciarVerificacion,
+    iniciarSesionConUsuario,
   };
 }
 const ContextoAutenticacion = createContext<
