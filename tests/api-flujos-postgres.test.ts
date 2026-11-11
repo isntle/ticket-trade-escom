@@ -488,12 +488,15 @@ test(
       ),
       201,
     );
-    // Solo en esta base desechable: situar la actividad en la ventana de ingreso actual.
+    // Reloj de aplicación controlado: la prueba también debe funcionar por la
+    // noche, cuando el horario permitido por el modelo ya terminó.
     await pool.query(
       `UPDATE ticket_trade."Actividad" SET fecha=CURRENT_DATE,
-    hora_inicio=greatest(time '00:00',LOCALTIME-interval '10 minutes'),hora_fin=least(time '23:59:59',LOCALTIME+interval '30 minutes') WHERE id_actividad=$1`,
+    hora_inicio=time '12:00',hora_fin=time '13:00' WHERE id_actividad=$1`,
       [actividad],
     );
+    const instanteIngreso = (await pool.query(`SELECT (CURRENT_DATE+time '12:15') AT TIME ZONE 'America/Mexico_City' instante`)).rows[0].instante;
+    const relojIngreso = t.mock.method(Date, 'now', () => new Date(instanteIngreso).getTime());
     await ok(
       await pedir(
         "/api/taquilla/checkin",
@@ -521,6 +524,7 @@ test(
       ).rows[0].n,
       1,
     );
+    relojIngreso.mock.restore();
     const recuperacion = await ok(
       await pedir("/api/auth/recuperacion", { correo: cuerpo.correo }),
     );

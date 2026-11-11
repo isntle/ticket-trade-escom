@@ -62,6 +62,7 @@ export const ModalComparadorArreglos: React.FC<PropiedadesModalComparadorArreglo
             <div className="scale-90 origin-top">
               <MapaAsientos
                 asientos={arregloA.asientos}
+                tipoRecinto={recinto.tipo}
                 modo="solo_lectura"
                 permiteEliminar={recinto.permiteEliminarAsientos}
               />
@@ -102,6 +103,7 @@ export const ModalComparadorArreglos: React.FC<PropiedadesModalComparadorArreglo
             <div className="scale-90 origin-top">
               <MapaAsientos
                 asientos={arregloB.asientos}
+                tipoRecinto={recinto.tipo}
                 modo="solo_lectura"
                 permiteEliminar={recinto.permiteEliminarAsientos}
               />

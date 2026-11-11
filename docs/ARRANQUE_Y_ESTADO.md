@@ -74,10 +74,14 @@ npm run db:verify:demo
 npm run test:postgres
 ```
 
-Resultado: tipado y compilación correctos; 166 pruebas generales aprobadas. Las tres pruebas de integración se omiten en `npm test` y se ejecutan con PostgreSQL en `test:postgres`, cuya suite completa contiene cuatro pruebas aprobadas. Compara las 73 tablas, columnas, tipos, nulabilidad y 96 relaciones con el HTML del ER, y ejecuta las restricciones del propio motor.
+Resultado: tipado y compilación correctos; 168 pruebas generales aprobadas. Las tres pruebas de integración se omiten en `npm test` y se ejecutan con PostgreSQL en `test:postgres`, cuya suite completa contiene cuatro pruebas aprobadas. Compara las 73 tablas, columnas, tipos, nulabilidad y 96 relaciones con el HTML del ER, y ejecuta las restricciones del propio motor.
 
 Las pruebas HTTP usan bases desechables: comprueban persistencia, aislamiento, tokens vencidos/reutilizados, permisos de PDF, corrección y publicación de solicitudes, competencia por un asiento, vencimiento de apartados, registro sin asiento, cancelación y QR repetido. No borran las bases de presentación.
 
 Durante la integración se corrigieron un ciclo de contextos que dejaba la vista vacía, la reemisión de tokens antiguos y adaptaciones de identificadores/fechas entre la interfaz y PostgreSQL. El resultado final de las pruebas es el indicado arriba. La compilación conserva una advertencia sobre el tamaño del JavaScript; no es un fallo de compilación ni una garantía de que estén implementados los casos pendientes.
 
 Se revisó `backend_Regina` hasta `a54528f`: se recuperaron los flujos útiles de registro y confirmación, sin incorporar una contraseña universal ni una clave fija de sesión. Se conservaron los eventos e imágenes de Antigravity dentro de las pantallas originales.
+
+## Ajustes de la presentación
+
+La base demo ahora tiene 23 eventos; 14 no requieren butaca y 12 son completamente de entrada libre. Se conservan los eventos anteriores y sus imágenes. El auditorio mantiene sus 242 lugares con 11 filas A-K y bloques de 62/118/62. Los laboratorios usan su propia vista. Las pruebas HTTP y el renderizado de mapas se verifican por separado de la selección nativa de archivos en Chrome.

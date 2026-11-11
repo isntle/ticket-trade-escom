@@ -32,9 +32,16 @@ export async function validarDocumentoIdentidad(archivo: File) {
   if (/\/(JavaScript|JS|Launch|EmbeddedFiles)\b/.test(texto))
     throw new Error("El PDF contiene acciones o adjuntos no admitidos.");
 }
-export async function guardarDocumentoIdentidad(id: string, archivo: File) {
+export async function prepararPdfIdentidad(archivo: File): Promise<Blob> {
   await validarDocumentoIdentidad(archivo);
-  if (apiActiva) return (await subirArchivo(archivo, archivo.name)).id;
+  return new Blob([archivo], { type: 'application/pdf' });
+}
+export async function guardarDocumentoIdentidad(id: string, archivo: File) {
+  const pdf = await prepararPdfIdentidad(archivo);
+  if (apiActiva) {
+    // Windows puede entregar File.type vacío aunque los bytes sí sean PDF.
+    return (await subirArchivo(pdf, archivo.name)).id;
+  }
   const db = await abrirAlmacen();
   try {
     await new Promise<void>((resolve, reject) => {

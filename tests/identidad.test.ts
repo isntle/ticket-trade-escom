@@ -27,7 +27,7 @@ import {
   verificacionIdentidadVigente,
 } from "../src/dominio/identidad";
 import { SUBEQUIPOS } from "../src/componentes/demostracion/ExploradorCasosUso";
-import { validarDocumentoIdentidad } from "../src/utilidades/documentosIdentidad";
+import { validarDocumentoIdentidad, prepararPdfIdentidad } from "../src/utilidades/documentosIdentidad";
 import { readFile } from "node:fs/promises";
 import { ProveedorDatos, useDatos } from "../src/contextos/DatosContexto";
 import { SOLICITUDES_INICIALES } from "../src/datos/datosIniciales";
@@ -472,6 +472,11 @@ test("la carga comprueba el PDF real y rechaza extensión falsa, cifrado, accion
   await validarDocumentoIdentidad(
     new File([bytes], "prueba.pdf", { type: "application/pdf" }),
   );
+  for (const type of ['', 'application/octet-stream', 'application/pdf']) {
+    const pdf = await prepararPdfIdentidad(new File([bytes], 'prueba.pdf', {type}));
+    assert.equal(pdf.type, 'application/pdf');
+    assert.deepEqual(Buffer.from(await pdf.arrayBuffer()), bytes);
+  }
   await assert.rejects(
     validarDocumentoIdentidad(new File(["no es PDF"], "prueba.pdf")),
   );

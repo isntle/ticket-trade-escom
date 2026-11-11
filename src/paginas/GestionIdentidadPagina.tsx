@@ -1,5 +1,6 @@
 import { impedimentoVerificacion, periodoIdentidadActual, rechazosPeriodo } from "../dominio/periodosIdentidad";
 import { volverA } from '../dominio/navegacion';
+import { apiActiva } from '../servicios/modoDatos';
 import React, { useEffect, useState } from "react";
 import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import { ArrowLeft, FileCheck2 } from "lucide-react";
@@ -34,6 +35,7 @@ export function GestionIdentidadPagina({
 }) {
   const auth = useAutenticacion();
   const { usuarioActual: cuenta, todosLosUsuarios: usuarios, rolActivo } = auth;
+  const limiteDocumentos = apiActiva ? (cuenta?.afiliacion === 'externo' ? 2 : 1) : 5;
   const { listaEventos } = useDatos();
   const [archivos, setArchivos] = useState<DocumentoIdentidad[]>([]);
   const [revision, setRevision] = useState<number | null>(null);
@@ -119,9 +121,11 @@ export function GestionIdentidadPagina({
     setDocumento(null);
   };
   const agregar = async (files: File[]) => {
-    if (files.length + archivos.length > 5)
-      return setMensaje("Máximo cinco PDF por expediente.");
+    if (!files.length) return;
+    if (files.length + archivos.length > limiteDocumentos)
+      return setMensaje(`Tu perfil requiere ${limiteDocumentos} documento(s) PDF. Retira el anterior para reemplazarlo.`);
     setOcupado(true);
+    setMensaje('Cargando PDF…');
     setRevision(null);
     try {
       const nuevos: DocumentoIdentidad[] = [];
@@ -141,9 +145,7 @@ export function GestionIdentidadPagina({
         });
       }
       setArchivos((prev) => [...prev, ...nuevos]);
-      setMensaje(
-        "PDF guardados en este navegador; completa sus datos y revisa antes de enviar.",
-      );
+      setMensaje(apiActiva ? 'PDF guardados en el servidor. Completa sus datos y envía el expediente a Subdirección.' : 'PDF guardados en este navegador; completa sus datos y revisa antes de enviar.');
     } catch (e) {
       setMensaje((e as Error).message);
     } finally {
@@ -283,16 +285,17 @@ export function GestionIdentidadPagina({
               <label className="block text-sm font-bold">¿Por qué solicitas la verificación?<textarea required className={campo} value={motivoSolicitud} onChange={e=>{setMotivoSolicitud(e.target.value);setRevision(null);}}/></label>
               {impedimentoVerificacion(cuenta,auth.periodosIdentidad)&&<p role="status" className="rounded-xl bg-amber-50 p-4 text-sm">{impedimentoVerificacion(cuenta,auth.periodosIdentidad)}</p>}
               <label className="block text-sm font-bold">
-                Adjuntar documentos PDF (hasta cinco; 10 MiB por archivo)
+                Adjuntar documentos PDF ({limiteDocumentos} por expediente; 10 MiB por archivo)
                 <input
                   disabled={ocupado}
                   type="file"
                   multiple
                   accept=".pdf,application/pdf"
                   className={campo}
-                  onChange={(e) => {
-                    void agregar(Array.from(e.target.files || []));
-                    e.target.value = "";
+                  onChange={async (e) => {
+                    const entrada = e.currentTarget;
+                    await agregar(Array.from(entrada.files || []));
+                    entrada.value = "";
                   }}
                 />
               </label>
@@ -448,8 +451,7 @@ export function GestionIdentidadPagina({
             </>
           )}
           <p className="text-xs text-neutral-500">
-            Archivos conservados en este navegador. El almacenamiento privado
-            compartido y la entrega real de correo requieren servidor.
+            {apiActiva ? 'Los PDF se guardan de forma privada en PostgreSQL. Envía el expediente para que Subdirección lo revise.' : 'Archivos conservados en este navegador. El almacenamiento privado compartido y la entrega real de correo requieren servidor.'}
           </p>
           {new URLSearchParams(window.location.search).get('continuar')==='/solicitar-evento' && <button className={primario} onClick={()=>navigate('/solicitar-evento')}>{cuenta.esVerificado?'Continuar con mi solicitud de evento':'Volver a solicitar evento'}</button>}
           <h2 className="font-bold">Historial del expediente</h2>

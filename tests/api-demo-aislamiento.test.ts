@@ -4,6 +4,11 @@ import pg from "pg";
 import crypto from "node:crypto";
 import http from "node:http";
 import { instalar } from "../backend/scripts/bd";
+import React from 'react';
+import { renderToString } from 'react-dom/server';
+import { MapaAsientos } from '../src/componentes/asientos/MapaAsientos';
+import { readFile } from 'node:fs/promises';
+import { prepararPdfIdentidad } from '../src/utilidades/documentosIdentidad';
 
 test(
   "URL normal y demo: bases independientes, cuentas, sesiones y registros sin contaminación",
@@ -173,6 +178,12 @@ test(
     for (const arreglo of estado.listaArreglos) {
       const recinto = estado.listaRecintos.find((r: any) => r.id === arreglo.idRecinto);
       assert.equal(new Set(arreglo.asientos.map((a: any) => a.id)).size, arreglo.asientos.length);
+      const mapa = renderToString(React.createElement(MapaAsientos, {asientos: arreglo.asientos, tipoRecinto: recinto.tipo, permitirVip: false}));
+      assert.equal((mapa.match(/title="[^"]* — /g) || []).length, arreglo.asientos.length, 'El mapa dibuja todos los lugares reales una sola vez');
+      if (recinto.tipo === 'auditorio') {
+        assert.equal(new Set(arreglo.asientos.map((a: any) => a.fila)).size, 11);
+        assert.equal(arreglo.asientos.length, 242);
+      }
       if (recinto.tipo !== 'laboratorio') {
         for (const fila of new Set(arreglo.asientos.map((a: any) => a.fila))) {
           const numeros = arreglo.asientos.filter((a: any) => a.fila === fila).map((a: any) => a.numero);
@@ -184,6 +195,7 @@ test(
       ["libre", "registro", "controlado"].every((m) => modalidades.has(m)),
       "Hay acceso libre, registro y asiento controlado",
     );
+    assert.ok(estado.listaEventos.filter((e: any) => e.fechas.every((a: any) => a.modalidadAsistencia === 'libre')).length > estado.listaEventos.length / 2, 'Predominan eventos de entrada libre');
     assert.ok(
       estado.listaEventos.some(
         (e: any) => new Set(e.fechas.map((f: any) => f.idRecinto)).size > 1,
@@ -210,5 +222,19 @@ test(
     assert.ok(boleto, 'Registro sin asiento genera un pase persistido');
     assert.ok(!boleto.etiquetaAsiento, 'No inventa una butaca para registro general');
     await bien(await pedir(`/api/taquilla/reservaciones/${reservacion.id}/cancelacion`, true, {}, cookieDemo));
+    const bytesPdf = await readFile(new URL('./fixtures/documento-identidad-prueba.pdf', import.meta.url));
+    const pdfWindows = await prepararPdfIdentidad(new File([bytesPdf], 'horario-prueba.pdf'));
+    const cargaPdf = await bien(await fetch(base+'/api/archivos?nombre=horario-prueba.pdf', {
+      method:'POST',headers:{'X-TicketTrade-Demo':'1',Cookie:cookieDemo,'Content-Type':pdfWindows.type},body:pdfWindows,
+    }),201);
+    const expediente = await bien(await pedir('/api/auth/expediente',true,{
+      motivoSolicitud:'Organizar una charla escolar',documentos:[{id:cargaPdf.id,tipo:'horario',periodo:'Periodo de prueba',periodoActual:true}],
+    },cookieDemo),201);
+    assert.equal(expediente.usuario.archivosExpediente[0].tipo,'horario');
+    const sesionSub = await pedir('/api/auth/login',true,{correo:'cuenta1002@example.invalid',password:'Password123!'});
+    await bien(sesionSub);
+    const cookieSub=sesionSub.headers.get('set-cookie')!.split(';')[0];
+    await bien(await pedir(`/api/auth/expedientes/${expediente.id}/resolucion`,true,{decision:'Aprobada',motivo:'Documento de práctica revisado'},cookieSub));
+    assert.equal((await bien(await pedir('/api/auth/yo',true,undefined,cookieDemo))).usuario.esVerificado,true);
   },
 );

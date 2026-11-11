@@ -73,8 +73,12 @@ export function ProveedorAutenticacionRemota({
       .then(() => setError(""))
       .catch((e) => setError(e.message))
       .finally(() => setListo(true));
+    const actualizacion = window.setInterval(() => {
+      void refrescar().catch((e) => setError(e.message));
+    }, 15000);
     return () => {
       vigente.current = false;
+      window.clearInterval(actualizacion);
     };
   }, []);
   const operacion = async (ruta: string, datos?: unknown) => {
@@ -189,6 +193,7 @@ export function ProveedorAutenticacionRemota({
       decision: string,
       motivo: string,
     ) => {
+      if (!['aprobado', 'rechazado'].includes(decision)) return noDisponible();
       const u = usuarios.find((u) => u.id === id) as
         (Usuario & { idSolicitudVerificacion?: string }) | undefined;
       return operacion(

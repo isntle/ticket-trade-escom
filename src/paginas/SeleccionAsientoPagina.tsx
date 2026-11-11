@@ -362,7 +362,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   const msgCupoAgotado = obtenerMensaje('ERR-MT-03');
 
   return (
-    <div data-interfaz="UI-40" tabIndex={-1} className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <div data-interfaz="UI-40" tabIndex={-1} className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       {/* Botón Volver */}
       <button
         type="button"
@@ -479,10 +479,10 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         }}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_20rem] gap-6">
         
         {/* Mapa Interactivo o Contenedor de Cupo General */}
-        <div className="lg:col-span-2">
+        <div className="min-w-0">
           {esSinMapa ? (
             <div className="bg-white rounded-2xl border border-neutral-200 p-8 flex flex-col items-center justify-center h-full min-h-[400px]">
                <div className="w-16 h-16 bg-neutral-50 border border-neutral-100 rounded-full flex items-center justify-center mb-4">
@@ -497,6 +497,8 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
             <MapaAsientos
               asientos={arregloFinal!.asientos}
               modo="asistente"
+              tipoRecinto={recinto?.tipo}
+              permitirVip={!apiActiva}
               idAsientoSeleccionado={asientoSeleccionado?.id}
               idsAsientosApartados={idsAsientosApartados}
               idsAsientosReservados={idsAsientosReservados}

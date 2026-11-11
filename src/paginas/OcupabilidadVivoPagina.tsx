@@ -194,6 +194,7 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
       {regla.tipo === 'mapa' && arregloFinal && <MapaAsientos
         asientos={arregloFinal.asientos}
         modo="ocupacion"
+        tipoRecinto={recinto?.tipo}
         idsAsientosCheckIn={idsAsientosCheckIn}
         idsAsientosReservados={idsAsientosReservados}
         permiteEliminar={recinto?.permiteEliminarAsientos}

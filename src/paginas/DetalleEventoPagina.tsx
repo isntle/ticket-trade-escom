@@ -465,7 +465,9 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
 
                   {/* Acciones de Registro */}
                   <div className="flex items-center gap-3 shrink-0">
-                    {yaRegistrado && modalidad !== 'controlado' ? (
+                    {apiActiva && modalidad === 'libre' ? (
+                      <span className="text-sm font-semibold text-neutral-600">Entrada libre · Sin registro</span>
+                    ) : yaRegistrado && modalidad !== 'controlado' ? (
                       <button type="button" onClick={() => cancelarRegistroLibre(fecha.id)} className="px-5 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4" /><span>Cancelar registro</span>
                       </button>
@@ -503,7 +505,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                 </div>
 
                 {fecha.descripcionActividad&&<p className="px-5 py-3 text-sm text-neutral-600">{fecha.descripcionActividad}</p>}
-                <p className="px-5 py-3 text-sm font-semibold">Aforo: {aforo} personas · {modalidad === 'controlado' ? 'Con reservación' : modalidad === 'registro' ? 'Registro de asistencia' : 'Entrada libre'}</p>
+                <p className="px-5 py-3 text-sm font-semibold">{modalidad === 'libre' ? 'Entrada libre, sin reservación.' : `Aforo: ${aforo} personas · ${modalidad === 'controlado' ? 'Con reservación' : 'Registro de asistencia'}`}</p>
                 {/* Cronograma */}
                 {fecha.programa && fecha.programa.length > 0 ? (
                   <div className="p-5 sm:p-6 bg-white space-y-3">

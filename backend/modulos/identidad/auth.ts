@@ -93,7 +93,7 @@ export async function proyectarUsuario(id: string) {
       id: d.id,
       nombre: d.nombre,
       tamano: d.tamano,
-      tipo:
+      tipo: d.metadatos?.tipo === 'horario' ? 'horario' :
         (
           {
             "Constancia de estudios": "constancia",

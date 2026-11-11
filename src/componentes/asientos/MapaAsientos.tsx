@@ -33,6 +33,7 @@ interface PropiedadesMapaAsientos {
   alAlternarBloqueoAsiento?: (idAsiento: string) => void;
   alEliminarAsientoModular?: (idAsiento: string) => void;
   permiteEliminar?: boolean; // Sala 14: true (modular), Auditorio/Lab: false
+  permitirVip?: boolean;
 }
 
 export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
@@ -44,7 +45,8 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
   idsAsientosReservados = [],
   idsAsientosCheckIn = [],
   alSeleccionarAsiento,
-  permiteEliminar = false
+  permiteEliminar = false,
+  permitirVip = true
 }) => {
   // Modalidad de escala: 'ajustar' (ajuste compacto para caber en desktop sin scroll) o 'amplio' (tamaño táctil espacioso)
   const [modoAjuste, setModoAjuste] = useState<'ajustar' | 'amplio'>('ajustar');
@@ -89,7 +91,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
   const claseTamañoBotonAuditorio =
     modoAjuste === 'amplio'
       ? 'w-7.5 h-7.5 sm:w-8.5 sm:h-8.5 text-[9px] sm:text-[10px]'
-      : 'w-5 h-5 sm:w-5.5 sm:h-5.5 md:w-6 md:h-6 text-[8px] sm:text-[8.5px] md:text-[9px]';
+      : 'w-5 h-5 text-[8px] sm:text-[8.5px] md:text-[9px]';
 
   const claseTamañoBotonLab = 'w-8 h-8 sm:w-9 sm:h-9 text-[9px] sm:text-[10px]';
   const claseTamañoBotonSala = 'w-7.5 h-7.5 sm:w-8.5 sm:h-8.5 text-xs';
@@ -103,12 +105,12 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
   // Anchos calculados para los bloques de asientos del Auditorio
   const anchoBloqueLateralAuditorio =
     modoAjuste === 'amplio'
-      ? 'w-[195px] sm:w-[215px]'
+      ? 'w-[235px]'
       : 'w-[134px] sm:w-[145px] md:w-[152px]';
 
   const anchoBloqueCentralAuditorio =
     modoAjuste === 'amplio'
-      ? 'w-[355px] sm:w-[385px]'
+      ? 'w-[435px]'
       : 'w-[242px] sm:w-[260px] md:w-[275px]';
 
   const manejarAumentarZoom = () => {
@@ -155,7 +157,8 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
         estaApartado ||
         estaReservado ||
         lugar.categoria === 'organizador' ||
-        lugar.categoria === 'staff';
+        lugar.categoria === 'staff' ||
+        (!permitirVip && lugar.categoria === 'vip');
 
       let estiloBoton =
         'bg-white border-neutral-300 text-neutral-800 hover:border-[#7a132b] hover:shadow-2xs cursor-pointer';
@@ -179,8 +182,8 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
         textoAyuda = `${lugar.etiqueta} — En apartado temporal (2 min)`;
       } else if (lugar.categoria === 'vip') {
         estiloBoton =
-          'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 hover:border-amber-400 cursor-pointer font-bold';
-        textoAyuda = `${lugar.etiqueta} — Lugar VIP / Invitado de Honor`;
+          permitirVip ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 hover:border-amber-400 cursor-pointer font-bold' : 'bg-amber-50 border-amber-200 text-amber-700 cursor-not-allowed';
+        textoAyuda = `${lugar.etiqueta} — ${permitirVip ? 'Lugar VIP / Invitado de Honor' : 'Reservado para invitados'}`;
       } else if (lugar.categoria === 'organizador' || lugar.categoria === 'staff') {
         estiloBoton =
           'bg-indigo-50/70 border-indigo-200 text-indigo-300 cursor-not-allowed';
@@ -758,7 +761,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                     >
                       {/* Identificador izquierdo de Fila */}
                       <div className="w-8 sm:w-10 shrink-0 text-right pr-1">
-                        <span className="text-[10px] sm:text-[11px] font-mono font-bold text-neutral-400">
+                        <span className="text-[10px] sm:text-[11px] font-mono font-bold text-neutral-400 whitespace-nowrap">
                           Fila {claveFila}
                         </span>
                       </div>
@@ -802,7 +805,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
 
                       {/* Identificador derecho de Fila */}
                       <div className="w-8 sm:w-10 shrink-0 text-left pl-1">
-                        <span className="text-[10px] sm:text-[11px] font-mono font-bold text-neutral-400">
+                        <span className="text-[10px] sm:text-[11px] font-mono font-bold text-neutral-400 whitespace-nowrap">
                           Fila {claveFila}
                         </span>
                       </div>

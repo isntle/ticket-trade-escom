@@ -216,13 +216,14 @@ routerPerfil.post(
         fallo("No hay periodo escolar vigente. Solicita su configuración.");
       const tipos: Record<string, number> = {
         constancia: 1,
+        horario: 1,
         adscripcion: 2,
         existencia: 3,
         representacion: 4,
       };
       const requeridos =
         u.afiliacion === "alumno"
-          ? ["constancia"]
+          ? [b.documentos[0]?.tipo === 'horario' ? 'horario' : 'constancia']
           : u.afiliacion === "externo"
             ? ["existencia", "representacion"]
             : ["adscripcion"];

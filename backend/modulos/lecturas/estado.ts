@@ -43,6 +43,7 @@ export async function leerEstado(u: any) {
               fila: l.fila || "A",
               numero: laboratorio ? i + 1 : numeroFila,
               etiqueta: l.codigo,
+              ...(laboratorio ? { equipoComputo: l.codigo } : {}),
               categoria:
                 ({
                   Asistente: "asistente",

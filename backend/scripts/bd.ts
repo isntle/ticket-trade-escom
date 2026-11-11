@@ -160,6 +160,7 @@ export async function sembrar(c: pg.Pool | pg.Client) {
       WHERE a.id_tipo_acceso=3 AND a.id_evento IN (1001,1002,1010,1011,1012,1013,1014,1015,1016,1017,1018,1033)
       AND NOT EXISTS(SELECT 1 FROM ticket_trade."LugarActividad" la WHERE la.id_actividad=a.id_actividad AND la.id_lugar_recinto=l.id_lugar_recinto)`);
     // No se insertan invitaciones ni asignaciones Staff ajenas a las de la semilla original.
+    await ejecutarSql(c, '14_presentacion_demo.sql');
     for (const archivo of (
       await c.query(
         `SELECT id_archivo,nombre FROM ticket_trade."Archivo" WHERE id_archivo BETWEEN 1010 AND 1021`,
