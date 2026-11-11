@@ -1,10 +1,85 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'node:crypto';
-import { pool } from '../../bd/pool';
+import { pool, conTransaccion } from '../../bd/pool';
 
 export const routerAuth = Router();
 
 const CLAVE_SECRETA = process.env.SESSION_SECRET || 'tt_clave_secreta_institucional_2026';
+
+type AfiliacionRegistro =
+  | 'alumno'
+  | 'externo'
+  | 'profesor'
+  | 'administrativo'
+  | 'pae';
+
+const ID_TIPO_COMUN = 1;
+const ID_ESTADO_PENDIENTE = 1;
+const ID_ESTADO_ACTIVA = 2;
+const ID_ROL_ESTUDIANTE = 1;
+const ID_ROL_EXTERNO = 2;
+const ID_ROL_EMPLEADO = 3;
+const ID_PROPOSITO_CONFIRMACION = 1;
+
+function hashToken(tokenPlano: string): string {
+  return crypto.createHash('sha256').update(tokenPlano).digest('hex');
+}
+
+function generarTokenConfirmacion(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function contrasenaRegistroValida(password: string): string | null {
+  if (!password || password.length < 8) {
+    return 'La contraseña debe contener al menos 8 caracteres.';
+  }
+  if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password)) {
+    return 'La contraseña debe incluir al menos una letra mayúscula, una minúscula y un número.';
+  }
+  return null;
+}
+
+function dominioAdmitido(correo: string, afiliacion: AfiliacionRegistro): boolean {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return false;
+  const dominio = correo.split('@')[1];
+  if (afiliacion === 'externo') return true;
+  if (afiliacion === 'alumno') return dominio === 'alumno.ipn.mx';
+  return dominio === 'ipn.mx';
+}
+
+function boletaValida(boleta: string): boolean {
+  return /^(\d{10}|(?:PE|PP)\d{8})$/.test(boleta.trim().toUpperCase());
+}
+
+function rfcValido(rfc: string): boolean {
+  return /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/i.test(rfc.trim());
+}
+
+function mapearErrorPostgres(error: unknown): { estado: number; codigo: string; mensaje: string } | null {
+  const err = error as { code?: string; constraint?: string; message?: string };
+  if (err?.code === '23505') {
+    if (err.constraint?.includes('correo') || err.message?.includes('correo')) {
+      return { estado: 409, codigo: 'CORREO_DUPLICADO', mensaje: 'El correo no está disponible.' };
+    }
+    if (err.constraint?.toLowerCase().includes('boleta') || err.message?.toLowerCase().includes('boleta')) {
+      return { estado: 409, codigo: 'BOLETA_DUPLICADA', mensaje: 'Boleta ya registrada.' };
+    }
+    if (err.constraint?.toLowerCase().includes('rfc') || err.message?.toLowerCase().includes('rfc')) {
+      return { estado: 409, codigo: 'RFC_DUPLICADO', mensaje: 'RFC ya registrado.' };
+    }
+    return { estado: 409, codigo: 'DATO_DUPLICADO', mensaje: 'Ya existe un registro con esos datos.' };
+  }
+  if (err?.code === '23514') {
+    return {
+      estado: 400,
+      codigo: 'REGLA_INTEGRIDAD',
+      mensaje: err.message?.includes('TT')
+        ? 'Los datos no cumplen las reglas de registro de la base de datos.'
+        : 'Los datos enviados no son válidos.',
+    };
+  }
+  return null;
+}
 
 /**
  * Funciones de hashing y verificación de contraseñas
@@ -270,4 +345,249 @@ routerAuth.post('/logout', (_req: Request, res: Response): void => {
       mensaje: 'Sesión cerrada con éxito.',
     },
   });
+});
+
+/**
+ * POST /api/auth/registro
+ * Crea una cuenta común en PostgreSQL (Pendiente de activación) + perfil y token de confirmación.
+ */
+routerAuth.post('/registro', async (req: Request, res: Response): Promise<void> => {
+  const cuerpo = req.body || {};
+  const nombres = String(cuerpo.nombres || '').trim();
+  const primerApellido = String(cuerpo.primerApellido || '').trim();
+  const segundoApellido = String(cuerpo.segundoApellido || '').trim();
+  const correo = String(cuerpo.correo || '').trim().toLowerCase();
+  const password = String(cuerpo.password || '');
+  const afiliacion = String(cuerpo.afiliacion || '') as AfiliacionRegistro;
+  const boleta = cuerpo.boleta ? String(cuerpo.boleta).trim().toUpperCase() : '';
+  const rfc = cuerpo.rfc ? String(cuerpo.rfc).trim().toUpperCase() : '';
+
+  const afiliacionesValidas: AfiliacionRegistro[] = [
+    'alumno',
+    'externo',
+    'profesor',
+    'administrativo',
+    'pae',
+  ];
+
+  if (!nombres || !primerApellido) {
+    res.status(400).json({
+      error: {
+        codigo: 'DATOS_INCOMPLETOS',
+        mensaje: 'Ingresa tu nombre y primer apellido.',
+      },
+    });
+    return;
+  }
+
+  if (!afiliacionesValidas.includes(afiliacion) || !dominioAdmitido(correo, afiliacion)) {
+    res.status(400).json({
+      error: {
+        codigo: 'IDENTIDAD_INVALIDA',
+        mensaje: 'Revisa nombre, correo y dominio admitido para tu categoría.',
+      },
+    });
+    return;
+  }
+
+  const errorPassword = contrasenaRegistroValida(password);
+  if (errorPassword) {
+    res.status(400).json({
+      error: { codigo: 'CONTRASENA_INVALIDA', mensaje: errorPassword },
+    });
+    return;
+  }
+
+  let idRol = ID_ROL_EXTERNO;
+  if (afiliacion === 'alumno') {
+    idRol = ID_ROL_ESTUDIANTE;
+    if (!boletaValida(boleta)) {
+      res.status(400).json({
+        error: {
+          codigo: 'BOLETA_INVALIDA',
+          mensaje: 'Boleta: diez dígitos o PE/PP seguidos de ocho dígitos.',
+        },
+      });
+      return;
+    }
+  } else if (afiliacion !== 'externo') {
+    idRol = ID_ROL_EMPLEADO;
+    if (!rfcValido(rfc)) {
+      res.status(400).json({
+        error: {
+          codigo: 'RFC_INVALIDO',
+          mensaje: 'El RFC debe tener el formato oficial (12 o 13 caracteres).',
+        },
+      });
+      return;
+    }
+  }
+
+  const tokenPlano = generarTokenConfirmacion();
+  const tokenHash = hashToken(tokenPlano);
+  const contrasenaHash = hashContrasena(password);
+
+  try {
+    const idCuenta = await conTransaccion(async (cliente) => {
+      const cuenta = await cliente.query(
+        `INSERT INTO ticket_trade."Cuenta"
+          (nombres, primer_apellido, segundo_apellido, correo, contrasena_hash, id_tipo_cuenta, id_estado_cuenta)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id_cuenta::text AS id`,
+        [
+          nombres,
+          primerApellido,
+          segundoApellido,
+          correo,
+          contrasenaHash,
+          ID_TIPO_COMUN,
+          ID_ESTADO_PENDIENTE,
+        ],
+      );
+      const id = cuenta.rows[0].id as string;
+
+      await cliente.query(
+        `INSERT INTO ticket_trade."PerfilUsuario" (id_cuenta, id_rol_registro)
+         VALUES ($1, $2)`,
+        [id, idRol],
+      );
+
+      if (idRol === ID_ROL_ESTUDIANTE) {
+        await cliente.query(
+          `INSERT INTO ticket_trade."Estudiante" (id_cuenta, boleta) VALUES ($1, $2)`,
+          [id, boleta],
+        );
+      } else if (idRol === ID_ROL_EMPLEADO) {
+        await cliente.query(
+          `INSERT INTO ticket_trade."EmpleadoIPN" (id_cuenta, rfc) VALUES ($1, $2)`,
+          [id, rfc],
+        );
+      }
+
+      await cliente.query(
+        `INSERT INTO ticket_trade."TokenCuenta"
+          (id_cuenta, id_proposito_token_cuenta, token_hash, correo_destino, vence_en)
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP + interval '24 hours')`,
+        [id, ID_PROPOSITO_CONFIRMACION, tokenHash, correo],
+      );
+
+      return id;
+    });
+
+    res.status(201).json({
+      datos: {
+        idCuenta,
+        correo,
+        mensaje:
+          'Cuenta creada. Confirma el correo para continuar. El envío real aún no está configurado.',
+        // Se devuelve mientras no exista envío de correo real, para poder completar el flujo.
+        codigoPrueba: tokenPlano,
+      },
+    });
+  } catch (error) {
+    const conocido = mapearErrorPostgres(error);
+    if (conocido) {
+      res.status(conocido.estado).json({
+        error: { codigo: conocido.codigo, mensaje: conocido.mensaje },
+      });
+      return;
+    }
+    console.error('Error al registrar cuenta:', error);
+    res.status(500).json({
+      error: {
+        codigo: 'ERROR_REGISTRO',
+        mensaje: 'No se pudo crear la cuenta en la base de datos.',
+      },
+    });
+  }
+});
+
+/**
+ * POST /api/auth/confirmar-correo
+ * Activa la cuenta y marca el correo como confirmado usando el token de TokenCuenta.
+ */
+routerAuth.post('/confirmar-correo', async (req: Request, res: Response): Promise<void> => {
+  const codigo = String(req.body?.codigo || req.body?.token || '').trim();
+  if (!codigo) {
+    res.status(400).json({
+      error: {
+        codigo: 'CODIGO_REQUERIDO',
+        mensaje: 'Enlace inválido, vencido o ya utilizado.',
+      },
+    });
+    return;
+  }
+
+  const tokenHash = hashToken(codigo);
+
+  try {
+    const resultado = await conTransaccion(async (cliente) => {
+      const token = await cliente.query(
+        `SELECT t.id_token_cuenta, t.id_cuenta::text AS id_cuenta
+         FROM ticket_trade."TokenCuenta" t
+         WHERE t.token_hash = $1
+           AND t.id_proposito_token_cuenta = $2
+           AND t.utilizado_en IS NULL
+           AND t.vence_en > CURRENT_TIMESTAMP
+         FOR UPDATE`,
+        [tokenHash, ID_PROPOSITO_CONFIRMACION],
+      );
+
+      if (token.rows.length === 0) {
+        return null;
+      }
+
+      const { id_token_cuenta, id_cuenta } = token.rows[0];
+
+      await cliente.query(
+        `UPDATE ticket_trade."TokenCuenta"
+         SET utilizado_en = CURRENT_TIMESTAMP
+         WHERE id_token_cuenta = $1`,
+        [id_token_cuenta],
+      );
+
+      await cliente.query(
+        `UPDATE ticket_trade."Cuenta"
+         SET correo_confirmado_en = COALESCE(correo_confirmado_en, CURRENT_TIMESTAMP),
+             id_estado_cuenta = $2
+         WHERE id_cuenta = $1`,
+        [id_cuenta, ID_ESTADO_ACTIVA],
+      );
+
+      return id_cuenta as string;
+    });
+
+    if (!resultado) {
+      res.status(400).json({
+        error: {
+          codigo: 'CODIGO_INVALIDO',
+          mensaje: 'Enlace inválido, vencido o ya utilizado.',
+        },
+      });
+      return;
+    }
+
+    res.json({
+      datos: {
+        exito: true,
+        idCuenta: resultado,
+        mensaje: 'Correo confirmado correctamente.',
+      },
+    });
+  } catch (error) {
+    const conocido = mapearErrorPostgres(error);
+    if (conocido) {
+      res.status(conocido.estado).json({
+        error: { codigo: conocido.codigo, mensaje: conocido.mensaje },
+      });
+      return;
+    }
+    console.error('Error al confirmar correo:', error);
+    res.status(500).json({
+      error: {
+        codigo: 'ERROR_CONFIRMACION',
+        mensaje: 'No se pudo confirmar el correo.',
+      },
+    });
+  }
 });

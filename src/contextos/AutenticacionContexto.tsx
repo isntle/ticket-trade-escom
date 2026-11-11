@@ -318,9 +318,10 @@ function usarIdentidad() {
       return mal("Boleta ya registrada.");
     if (
       !["externo", "alumno"].includes(datos.afiliacion) &&
+      !datos.rfc?.trim() &&
       !datos.numeroEmpleado?.trim()
     )
-      return mal("Registra tu número de empleado.");
+      return mal("Registra tu RFC.");
     if (
       datos.afiliacion === "externo" &&
       datos.tipoExterno === "representante" &&

@@ -83,7 +83,26 @@ export function AutenticacionPagina({
   const afiliacion: TipoAfiliacion =
     categoria === "trabajador" ? rolEmpleado : categoria;
 
-  const registrar = (e: React.FormEvent) => {
+  const irAConfirmacion = (correoParaRegistro: string, codigoPrueba?: string) => {
+    if (codigoPrueba) {
+      sessionStorage.setItem(
+        "tt_confirmacion_demo",
+        JSON.stringify({ correo: correoParaRegistro, codigo: codigoPrueba }),
+      );
+    }
+    navigate(
+      "/confirmar-correo?correo=" +
+        encodeURIComponent(correoParaRegistro) +
+        "&continuar=" +
+        encodeURIComponent(
+          destinoInternoSeguro(
+            new URLSearchParams(window.location.search).get("continuar"),
+          ),
+        ),
+    );
+  };
+
+  const registrar = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!nombre.trim() || !apellidoPaterno.trim()) {
@@ -106,45 +125,54 @@ export function AutenticacionPagina({
     if (!validarDominioIdentidad(c, afiliacion)) {
       return setMensaje(categoria === "externo" ? "Ingresa un correo electrónico válido." : categoria === "alumno" ? "Usa tu correo @alumno.ipn.mx. No modificaremos la dirección que captures." : "Usa tu correo @ipn.mx.");
     }
-    const nombreCompleto = [nombre, apellidoPaterno, apellidoMaterno].map(p=>p.trim()).filter(Boolean).join(" ");
     const correoParaRegistro = c;
+    const boleta =
+      categoria === "alumno" ? identificador.trim().toUpperCase() : undefined;
+    const rfc =
+      categoria === "trabajador" ? identificador.trim().toUpperCase() : undefined;
 
-    const r = auth.registrarUsuario({
-      nombre: nombreCompleto,
-      correo: correoParaRegistro,
-      password,
-      afiliacion,
-      tipoExterno: categoria === "externo" ? tipoExterno : undefined,
-      nombreOrganizacion: categoria === "externo" && tipoExterno === "representante" ? entidad.trim() : undefined,
-      puestoContacto: categoria === "externo" && tipoExterno === "representante" ? cargo.trim() : undefined,
-      boleta:
-        categoria === "alumno"
-          ? identificador.trim().toUpperCase()
-          : undefined,
-      numeroEmpleado:
-        categoria === "trabajador"
-          ? identificador.trim().toUpperCase()
-          : undefined,
-    });
-
-    setMensaje(r.mensaje);
-    if (r.exito) {
-      if (r.codigoPrueba) {
-        sessionStorage.setItem(
-          "tt_confirmacion_demo",
-          JSON.stringify({ correo: correoParaRegistro, codigo: r.codigoPrueba }),
-        );
+    try {
+      const res = await fetch("/api/auth/registro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          nombres: nombre.trim(),
+          primerApellido: apellidoPaterno.trim(),
+          segundoApellido: apellidoMaterno.trim(),
+          correo: correoParaRegistro,
+          password,
+          afiliacion,
+          boleta,
+          rfc,
+          tipoExterno: categoria === "externo" ? tipoExterno : undefined,
+          nombreOrganizacion:
+            categoria === "externo" && tipoExterno === "representante"
+              ? entidad.trim()
+              : undefined,
+          puestoContacto:
+            categoria === "externo" && tipoExterno === "representante"
+              ? cargo.trim()
+              : undefined,
+        }),
+      });
+      const cuerpo = await res.json();
+      if (res.ok && cuerpo?.datos) {
+        setMensaje(cuerpo.datos.mensaje || "Cuenta creada.");
+        irAConfirmacion(correoParaRegistro, cuerpo.datos.codigoPrueba);
+        return;
       }
-      navigate(
-        "/confirmar-correo?correo=" +
-          encodeURIComponent(correoParaRegistro) +
-          "&continuar=" +
-          encodeURIComponent(
-            destinoInternoSeguro(
-              new URLSearchParams(window.location.search).get("continuar"),
-            ),
-          ),
+      if (!res.ok && cuerpo?.error?.mensaje) {
+        setMensaje(cuerpo.error.mensaje);
+        return;
+      }
+      setMensaje("No se pudo completar el registro en el servidor.");
+      return;
+    } catch {
+      setMensaje(
+        "No hay conexión con la base de datos. Arranca el backend con npm run server y vuelve a intentar.",
       );
+      return;
     }
   };
 
@@ -464,16 +492,16 @@ export function AutenticacionPagina({
             </div>
           )}
 
-          {/* Número de empleado para trabajador del IPN */}
+          {/* RFC para trabajador del IPN (requerido por EmpleadoIPN en PostgreSQL) */}
           {categoria === "trabajador" && (
             <div>
               <label className="block text-sm font-semibold text-neutral-800">
-                Número de empleado
+                RFC
                 <input
                   required
                   type="text"
                   className={campo}
-                  
+                  placeholder="XAXX010101000"
                   value={identificador}
                   onChange={(e) =>
                     setIdentificador(e.target.value.toUpperCase())
@@ -481,7 +509,7 @@ export function AutenticacionPagina({
                 />
               </label>
               <p className="mt-1 text-xs text-neutral-500">
-                Número de empleado registrado en el IPN.
+                RFC con homoclave. El número de empleado se captura al solicitar verificación.
               </p>
             </div>
           )}

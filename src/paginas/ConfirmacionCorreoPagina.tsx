@@ -74,8 +74,31 @@ export function ConfirmacionCorreoPagina({
           )}
           <form
             className="space-y-4"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
+              try {
+                const res = await fetch("/api/auth/confirmar-correo", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "same-origin",
+                  body: JSON.stringify({ codigo: token }),
+                });
+                const cuerpo = await res.json();
+                if (res.ok && cuerpo?.datos?.exito) {
+                  setMensaje(cuerpo.datos.mensaje || "Correo confirmado correctamente.");
+                  setConfirmado(true);
+                  setToken("");
+                  setCodigo("");
+                  sessionStorage.removeItem("tt_confirmacion_demo");
+                  return;
+                }
+                if (!res.ok && cuerpo?.error?.mensaje) {
+                  setMensaje(cuerpo.error.mensaje);
+                  return;
+                }
+              } catch {
+                // Respaldo local si la API remota está inactiva
+              }
               const r = auth.confirmarCorreo(token);
               setMensaje(r.mensaje);
               if (r.exito) {
