@@ -1,4 +1,6 @@
 /** Transporte único: sesión por cookie, sin reintentos automáticos de escrituras. */
+import { modoDemostracionActivo } from '../dominio/demostracion';
+export const cabecerasModo = (): Record<string,string> => modoDemostracionActivo() ? { 'X-TicketTrade-Demo': '1' } : {};
 export class ErrorApi extends Error {
   constructor(public estado: number, public codigo: string, mensaje: string, public campos?: Record<string, string>) { super(mensaje); }
 }
@@ -6,7 +8,7 @@ export function transporteApi(base = '/api', ejecutar: typeof fetch = fetch) {
   return async function solicitar<T>(ruta: string, opciones: { metodo?: string; datos?: unknown; signal?: AbortSignal; idPeticion?: string } = {}): Promise<T> {
     const respuesta = await ejecutar(base + ruta, {
       method: opciones.metodo || 'GET', credentials: 'same-origin', signal: opciones.signal,
-      headers: { Accept: 'application/json', ...(opciones.datos !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(opciones.idPeticion ? { 'Idempotency-Key': opciones.idPeticion } : {}) },
+      headers: { Accept: 'application/json', ...cabecerasModo(), ...(opciones.datos !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(opciones.idPeticion ? { 'Idempotency-Key': opciones.idPeticion } : {}) },
       body: opciones.datos === undefined ? undefined : JSON.stringify(opciones.datos),
     });
     let cuerpo: any;

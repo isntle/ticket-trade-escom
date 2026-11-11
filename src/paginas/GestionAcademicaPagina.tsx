@@ -112,14 +112,14 @@ export function GestionAcademicaPagina({
         {propuesta && elegida && (
           <form
             className="space-y-3 rounded-xl bg-amber-50 p-4"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              const r = auth.cambiarAutoaprobacion(
+              const r = (await auth.cambiarAutoaprobacion(
                 propuesta.id,
                 propuesta.valor,
                 motivo,
                 propuesta.version,
-              );
+              ));
               setMensaje(r.mensaje);
               if (r.exito) setPropuesta(null);
             }}
@@ -176,12 +176,12 @@ export function GestionAcademicaPagina({
         </p>
         <form
           className="space-y-4"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            const r = auth.configurarPeriodosIdentidad(
+            const r = (await auth.configurarPeriodosIdentidad(
               periodos,
               versionPeriodos,
-            );
+            ));
             setMensaje(r.mensaje);
             if (r.exito) setVersionPeriodos(JSON.stringify(periodos));
           }}

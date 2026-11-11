@@ -1,3 +1,5 @@
+import { ContextoAutenticacion } from './almacenes';
+import { ProveedorAutenticacionRemota } from './AutenticacionRemota';
 import {apiActiva} from '../servicios/modoDatos';
 import { CLAVE_PERIODOS_IDENTIDAD, leerPeriodosIdentidad, validarPeriodosIdentidad, periodoIdentidadActual, impedimentoVerificacion, type PeriodoIdentidad } from "../dominio/periodosIdentidad";
 import React, {
@@ -33,6 +35,9 @@ import {
 import { validarContrasena } from "../utilidades/validaciones";
 
 export interface DatosRegistroUsuario {
+  nombres?: string;
+  primerApellido?: string;
+  segundoApellido?: string;
   nombre: string;
   correo: string;
   password: string;
@@ -63,15 +68,18 @@ const mal = (mensaje: string): ResultadoOperacionAuth => ({
   exito: false,
   mensaje,
 });
+const claveUsuarios = () => CLAVE + (modoDemostracionActivo() ? "" : "_normal");
+const claveSesion = () => CLAVE_SESION + (modoDemostracionActivo() ? "" : "_normal");
 function leerUsuarios(): Usuario[] {
+  const semillas = modoDemostracionActivo() ? USUARIOS_INICIALES : [];
   try {
-    const valor = JSON.parse(localStorage.getItem(CLAVE) || "null");
+    const valor = JSON.parse(localStorage.getItem(claveUsuarios()) || "null");
     const cuentas: Usuario[] = Array.isArray(valor)
       ? valor
-      : USUARIOS_INICIALES;
+      : semillas;
     return [
       ...cuentas,
-      ...USUARIOS_INICIALES.filter((s) => !cuentas.some((u) => u.id === s.id)),
+      ...semillas.filter((s) => !cuentas.some((u) => u.id === s.id)),
     ].map((u) =>
       u.esVerificado && !u.estadoExpediente
         ? movimiento(
@@ -83,12 +91,12 @@ function leerUsuarios(): Usuario[] {
         : u,
     );
   } catch {
-    return USUARIOS_INICIALES;
+    return semillas;
   }
 }
 function leerSesion(): SesionIdentidad | null {
   try {
-    return JSON.parse(sessionStorage.getItem(CLAVE_SESION) || "null");
+    return JSON.parse(sessionStorage.getItem(claveSesion()) || "null");
   } catch {
     return null;
   }
@@ -138,7 +146,7 @@ function usarIdentidad() {
       }
     : null;
   const guardar = (nuevas: Usuario[]) => {
-    const r = guardarLoteLocal(localStorage, { [CLAVE]: nuevas });
+    const r = guardarLoteLocal(localStorage, { [claveUsuarios()]: nuevas });
     if (!r.exito) return mal(r.error || "No se pudo guardar.");
     cuentasRef.current = nuevas;
     ponerUsuarios(nuevas);
@@ -146,8 +154,8 @@ function usarIdentidad() {
   };
   const cambiarSesion = (s: SesionIdentidad | null) => {
     try {
-      if (s) sessionStorage.setItem(CLAVE_SESION, JSON.stringify(s));
-      else sessionStorage.removeItem(CLAVE_SESION);
+      if (s) sessionStorage.setItem(claveSesion(), JSON.stringify(s));
+      else sessionStorage.removeItem(claveSesion());
       sesionRef.current = s;
       ponerSesion(s);
       localStorage.removeItem("tt_id_usuario_actual_v2");
@@ -206,7 +214,7 @@ function usarIdentidad() {
   useEffect(() => {
     const sincronizar = (e: StorageEvent) => {
       if (e.key === CLAVE_PERIODOS_IDENTIDAD) { ponerPeriodosIdentidad(leerPeriodosIdentidad()); ponerAhora(Date.now()); }
-      if (e.key === CLAVE) {
+      if (e.key === claveUsuarios()) {
         const nuevas = leerUsuarios();
         cuentasRef.current = nuevas;
         ponerUsuarios(nuevas);
@@ -291,6 +299,7 @@ function usarIdentidad() {
   const registrarUsuario = (
     datos: DatosRegistroUsuario,
   ): ResultadoOperacionAuth => {
+    if (!modoDemostracionActivo()) return mal('El registro requiere la conexión a PostgreSQL. No se creó una cuenta local.');
     const correo = datos.correo.trim().toLowerCase();
     if (
       !datos.nombre.trim() ||
@@ -1031,12 +1040,10 @@ function usarIdentidad() {
     iniciarSesionConUsuario,
   };
 }
-const ContextoAutenticacion = createContext<
-  ReturnType<typeof usarIdentidad> | undefined
->(undefined);
+export type TipoAutenticacion = ReturnType<typeof usarIdentidad>;
 export const ProveedorAutenticacion: React.FC<{
   children: React.ReactNode;
-}> = ({ children }) => (
+}> = ({ children }) => apiActiva ? <ProveedorAutenticacionRemota>{children}</ProveedorAutenticacionRemota> : (
   <ContextoAutenticacion.Provider value={usarIdentidad()}>
     {children}
   </ContextoAutenticacion.Provider>

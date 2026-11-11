@@ -26,7 +26,7 @@ class Almacen {
 }
 function preparar(eventoActual = evento, cuenta: Usuario | null = usuario) {
   const local = new Almacen(), sesion = new Almacen();
-  Object.assign(globalThis, { localStorage: local, sessionStorage: sesion, window: { location: { search: '', hostname: 'localhost' } } });
+  Object.assign(globalThis, { localStorage: local, sessionStorage: sesion, window: { location: { search: '?demo=1', hostname: 'localhost' } } });
   local.setItem('tt_usuarios_sistema_v2', JSON.stringify(USUARIOS_INICIALES.map(u => u.id === cuenta?.id ? cuenta : u)));
   local.setItem('tt_rol_activo_v2', 'asistente');
   if (cuenta) sesion.setItem('tt_sesion_identidad_v3', JSON.stringify({ id: 'prueba', usuario: cuenta.id, inicio: Date.now(), actividad: Date.now(), version: cuenta.versionCredenciales || 0 }));
@@ -41,9 +41,9 @@ function preparar(eventoActual = evento, cuenta: Usuario | null = usuario) {
 test('sin programa hay una reserva; dos renglones descriptivos conservan una sola acción por actividad', () => {
   const c = preparar();
   const html = c.render(React.createElement(DetalleEventoPagina, { eventId: evento.id, navigate: () => {} }));
-  assert.equal((html.match(/Reservar lugar \(/g) || []).length, 2);
+  assert.equal((html.match(/Registrar asistencia \(Día 1\)/g) || []).length, 3);
   assert.match(html, /Primera ponencia/); assert.match(html, /Segunda ponencia/);
-  assert.match(html, /Registrar asistencia \(Encuentro libre\)/);
+  assert.doesNotMatch(html, /Reservar lugar \(Actividad/);
   assert.match(html, /Aforo: 2 personas/); assert.match(html, /Aforo: 3 personas/);
 });
 test('dos actividades del mismo día reservan IDs distintos y conservan el QR por evento', () => {

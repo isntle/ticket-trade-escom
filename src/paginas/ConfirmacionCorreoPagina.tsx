@@ -24,7 +24,6 @@ export function ConfirmacionCorreoPagina({
   const [mensaje, setMensaje] = useState("");
   const [confirmado, setConfirmado] = useState(false);
   const [codigo, setCodigo] = useState(() => {
-    if (!modoDemostracionActivo()) return "";
     try {
       const dato = JSON.parse(
         sessionStorage.getItem("tt_confirmacion_demo") || "null",
@@ -74,9 +73,9 @@ export function ConfirmacionCorreoPagina({
           )}
           <form
             className="space-y-4"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              const r = auth.confirmarCorreo(token);
+              const r = (await auth.confirmarCorreo(token));
               setMensaje(r.mensaje);
               if (r.exito) {
                 setConfirmado(true);
@@ -101,9 +100,9 @@ export function ConfirmacionCorreoPagina({
           </form>
           <form
             className="mt-6 space-y-4 border-t pt-5"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              const r = auth.reenviarConfirmacionCorreo(correo);
+              const r = (await auth.reenviarConfirmacionCorreo(correo));
               setMensaje(r.mensaje);
               setCodigo(r.codigoPrueba || "");
             }}

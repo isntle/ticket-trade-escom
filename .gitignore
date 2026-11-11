@@ -6,3 +6,6 @@ screens
 assets
 .DS_Store
 .vercel
+
+# Respaldo privado y evidencia de la revisión local
+.revision-local/

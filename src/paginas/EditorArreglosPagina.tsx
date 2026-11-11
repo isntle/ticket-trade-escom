@@ -1,4 +1,5 @@
 import { volverA } from '../dominio/navegacion';
+import { apiActiva } from '../servicios/modoDatos';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { generarAsientosAuditorio, generarAsientosSala14, generarEstacionesLaboratorio } from '../datos/datosIniciales';
 import React, { useState } from 'react';
@@ -48,6 +49,11 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
   } = useDatos();
 
   const { mostrarNotificacion } = useNotificaciones();
+  const edicionDisponible = () => {
+    if (!apiActiva) return true;
+    mostrarNotificacion('Distribución en consulta', 'Los lugares mostrados provienen de PostgreSQL. La edición de versiones todavía no está conectada; no se guardaron cambios.', 'advertencia');
+    return false;
+  };
   const { usuarioActual } = useAutenticacion();
 
   const evento = listaEventos.find((e) => e.id === eventId);
@@ -87,6 +93,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
 
   if (!arregloActivo) {
     const iniciarDistribucion = () => {
+      if (!edicionDisponible()) return;
       const asientos = recinto.tipo === 'auditorio' ? generarAsientosAuditorio() : recinto.tipo === 'laboratorio' ? generarEstacionesLaboratorio(recinto.codigo) : generarAsientosSala14();
       const nuevo = crearArreglo({
         idFechaEvento: fecha.id, idRecinto: recinto.id, nombre: 'Primera distribución', etiquetaVersion: 'v1-borrador', estado: 'borrador',
@@ -101,6 +108,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
 
   // Aplicar acción al hacer clic en un asiento del mapa (100% interactivo)
   const manejarClicAsiento = (asiento: ConfiguracionAsiento) => {
+    if (!edicionDisponible()) return;
     const asientosActualizados = arregloActivo.asientos.map((a) => {
       if (a.id === asiento.id) {
         if (herramientaActiva === 'bloquear') {
@@ -151,6 +159,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
 
   // Asignar fila completa
   const asignarFilaCompleta = (fila: string, categoria: CategoriaAsiento | 'bloquear') => {
+    if (!edicionDisponible()) return;
     const asientosActualizados = arregloActivo.asientos.map((a) => {
       if (a.fila === fila) {
         if (categoria === 'bloquear') {
@@ -195,6 +204,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
 
   // Crear una nueva versión borrador a partir de la actual
   const duplicarComoNuevoBorrador = () => {
+    if (!edicionDisponible()) return;
     const nuevo = crearArreglo({
       idFechaEvento: fecha.id,
       idRecinto: recinto.id,
@@ -217,6 +227,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
 
   // Confirmar formalmente como Versión Final (1:1)
   const fijarComoVersionFinal = () => {
+    if (!edicionDisponible()) return;
     confirmarVersionFinalArreglo(fecha.id, arregloActivo.id);
     mostrarNotificacion(
       'Distribución Oficial Confirmada (1:1)',

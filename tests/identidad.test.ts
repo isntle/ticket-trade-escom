@@ -59,7 +59,7 @@ function preparar(id = "usr-carlos", cambios: Partial<Usuario> = {}) {
   Object.assign(globalThis, {
     localStorage: local,
     sessionStorage: sesion,
-    window: { location: { search: "", hostname: "localhost" } },
+    window: { location: { search: "?demo=1", hostname: "localhost" } },
   });
   const cuentas = structuredClone(USUARIOS_INICIALES).map((u) =>
     u.id === id ? { ...u, ...cambios } : u,

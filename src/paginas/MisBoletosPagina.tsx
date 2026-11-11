@@ -113,7 +113,7 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
     setBoletoACancelar({ ...boleto, nombreDia: dia, horaEvento: fecha ? `${fecha.horaInicio} - ${fecha.horaFin}` : boleto.horaEvento });
   };
 
-  const confirmarCancelacion = (boleto: BoletoConDia, motivo: string) => {
+  const confirmarCancelacion = async (boleto: BoletoConDia, motivo: string) => {
     const restriccion = obtenerRestriccionCancelacion(boleto);
     if (restriccion) {
       setBoletoACancelar(null);
@@ -121,7 +121,7 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
       return;
     }
 
-    const resultado = cancelarReservacion(boleto.idReservacion, usuarioActual!.id, motivo);
+    const resultado = (await cancelarReservacion(boleto.idReservacion, usuarioActual!.id, motivo));
     if (!resultado.exito) {
       mostrarNotificacion('No se pudo cancelar la reservación', resultado.error || 'Actualiza la información e inténtalo de nuevo.', 'error');
       return;

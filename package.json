@@ -10,7 +10,15 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "start": "node scripts/iniciar.mjs",
+    "db:init": "tsx backend/scripts/bd.ts init",
+    "db:demo": "tsx backend/scripts/bd.ts demo",
+    "db:verify": "tsx backend/scripts/bd.ts verify",
+    "db:ver": "tsx backend/scripts/bd.ts explore",
+    "test:postgres": "tsx backend/scripts/pruebas-postgres.ts",
+    "db:ver:demo": "tsx backend/scripts/bd.ts explore --demo",
+    "db:verify:demo": "tsx backend/scripts/bd.ts verify --demo"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

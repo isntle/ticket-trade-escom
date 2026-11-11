@@ -19,7 +19,7 @@ class Almacen { datos = new Map<string, string>(); getItem(k: string) { return t
 function renderizarHistorial(props: { initialEventId?: string; initialDateId?: string }) {
   const local = new Almacen(), sesion = new Almacen();
   const usuario = USUARIOS_INICIALES.find((u) => u.id === 'usr-silva')!;
-  Object.assign(globalThis, { localStorage: local, sessionStorage: sesion, window: { location: { search: '', hostname: 'localhost' } } });
+  Object.assign(globalThis, { localStorage: local, sessionStorage: sesion, window: { location: { search: '?demo=1', hostname: 'localhost' } } });
   local.setItem('tt_usuarios_sistema_v2', JSON.stringify(USUARIOS_INICIALES));
   local.setItem('tt_rol_activo_v2', 'organizador');
   sesion.setItem('tt_sesion_identidad_v3', JSON.stringify({ id: 'prueba', usuario: usuario.id, inicio: Date.now(), actividad: Date.now(), version: usuario.versionCredenciales || 0 }));

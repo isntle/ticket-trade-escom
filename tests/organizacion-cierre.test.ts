@@ -70,7 +70,7 @@ function contexto(id='usr-fernando',eventos=[evento],reservas?:unknown[],cuentas
   const local=new Almacen(),sesion=new Almacen();
   const cuenta=USUARIOS_INICIALES.find(u=>u.roles.includes('admin'))!;
   const usuario=cuentas.find(u=>u.id===id)||cuenta;
-  Object.assign(globalThis,{localStorage:local,sessionStorage:sesion,window:{location:{search:'',hostname:'localhost'}}});
+  Object.assign(globalThis,{localStorage:local,sessionStorage:sesion,window:{location:{search:'?demo=1',hostname:'localhost'}}});
   local.setItem('tt_usuarios_sistema_v2',JSON.stringify(cuentas));local.setItem('tt_rol_activo_v2',usuario.rolActivo);
   sesion.setItem('tt_sesion_identidad_v3',JSON.stringify({id:'prueba',usuario:usuario.id,inicio:Date.now(),actividad:Date.now(),version:usuario.versionCredenciales||0}));
   const prefijo='tt_datos_almacen_escom_v7_';
@@ -108,7 +108,7 @@ test('consulta de disponibilidad cambia con el recinto y el horario, respetando 
 });
 test('formulario por pasos conserva el acceso directo a programa y distribución desde documentación',()=>{
   contexto('usr-silva');
-  window.location.search='?distribucion=1';
+  window.location.search='?demo=1&distribucion=1';
   const html=renderToString(React.createElement(ProveedorAutenticacion,null,React.createElement(ProveedorDatos,null,
     React.createElement(DiaSolicitud,{dia:{...dia,nombreDia:'Día 1'},indice:0,modalidad:'controlado',aforo:20,puedeEliminar:false,alCambiar:()=>{},alEliminar:()=>{}}))));
   assert.match(html,/Configurar distribución/);
@@ -177,7 +177,7 @@ test('el evento programado se reutiliza con su distribución sin crear ni despla
 test('la demostración reutiliza el evento vigente y no está disponible sin modo demo',()=>{
   const c=contexto('usr-silva');
   assert.equal(c.datos.prepararEventoDemostracion().evento!.id,evento.id);
-  Object.assign(window.location,{hostname:'tickett3.vercel.app'});
+  Object.assign(window.location,{hostname:'tickett3.vercel.app',search:'?demo=0'});
   assert.equal(c.datos.prepararEventoDemostracion().exito,false);
 });
 test('la revisión de envío parte de un borrador válido, sin enviarlo automáticamente',()=>{

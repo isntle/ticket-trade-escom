@@ -72,7 +72,7 @@ function preparar() {
   const reservas = ['a', 'b'].map((l) => ({ id: 'res-' + l, idEvento: evento.id, idFechaEvento: 'act-' + l, ...titular, estado: 'confirmada', fechaCreacion: new Date(ahora).toISOString(), idBoleto: 'bol-' + l }));
   const boletos = ['a', 'b'].map((l) => ({ id: 'bol-' + l, idReservacion: 'res-' + l, idEvento: evento.id, idFechaEvento: 'act-' + l, ...titular, tituloEvento: evento.titulo, fechaEvento: hoy, horaEvento: '00:00 - 23:59', nombreRecinto: 'Laboratorio', codigoQr: CODIGO, estado: 'valido', fechaEmision: new Date(ahora - 1000).toISOString() }));
   const local = new Almacen(), sesion = new Almacen();
-  Object.assign(globalThis, { localStorage: local, sessionStorage: sesion, window: { location: { search: '', hostname: 'localhost' } } });
+  Object.assign(globalThis, { localStorage: local, sessionStorage: sesion, window: { location: { search: '?demo=1', hostname: 'localhost' } } });
   const andrea = USUARIOS_INICIALES.find((u) => u.id === 'usr-andrea')!;
   local.setItem('tt_usuarios_sistema_v2', JSON.stringify(USUARIOS_INICIALES.map((u) => u.id === andrea.id ? { ...u, eventosAsignadosStaff: [...(u.eventosAsignadosStaff || []), evento.id] } : u)));
   local.setItem('tt_rol_activo_v2', 'staff');

@@ -1,4 +1,5 @@
 import { eventoParaActividad, nombreActividad, modalidadActividad } from '../dominio/actividades';
+import { apiActiva } from '../servicios/modoDatos';
 import { REGLA_INGRESO_ACTIVIDAD, describirActividad } from '../dominio/presentacionActividad';
 import { capacidadActividad } from '../dominio/taquilla';
 import { impedimentoActividad, impedimentoParticipante, rutaAccesoConRegreso, rutaDetalleEvento, rutaReservaActividad } from '../dominio/participacionActividad';
@@ -119,7 +120,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     return <div className="max-w-4xl mx-auto px-4 py-16"><EstadoVacio titulo={acceso === '/login' ? 'Inicia sesión para reservar' : acceso ? 'Confirma tu correo' : 'Público no permitido'} descripcion={errorPermiso} textoAccion={acceso === '/login' ? 'Iniciar sesión' : acceso ? 'Confirmar correo' : 'Regresar al evento'} alHacerAccion={() => navigate(acceso ? rutaAccesoConRegreso(acceso, rutaReserva) : volverA(rutaDetalle))} /></div>;
   }
 
-  if (modalidadActividad(fecha, evento.modalidadAsistencia) !== 'controlado') {
+  if (modalidadActividad(fecha, evento.modalidadAsistencia) === 'libre' || !apiActiva && modalidadActividad(fecha, evento.modalidadAsistencia) !== 'controlado') {
     return <div className="max-w-4xl mx-auto px-4 py-16"><EstadoVacio titulo="Esta actividad no requiere reservación" descripcion="Registra o cancela tu intención de asistencia desde la ficha del evento. No se genera boleto." textoAccion="Ver actividad" alHacerAccion={() => navigate(rutaDetalle)} /></div>;
   }
 
@@ -195,7 +196,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   };
 
   // Manejo de clic en un asiento del mapa
-  const manejarSeleccionAsiento = (asiento: ConfiguracionAsiento) => {
+  const manejarSeleccionAsiento = async (asiento: ConfiguracionAsiento) => {
     if (!usuarioActual) {
       const msg = obtenerMensaje('ERR-TR-01');
       mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
@@ -229,11 +230,11 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     }
 
     if (reservacionActiva) {
-      liberarApartadoAsiento(reservacionActiva.id);
+      await liberarApartadoAsiento(reservacionActiva.id);
       setReservacionActiva(null);
     }
 
-    const resultado = apartarAsiento(
+    const resultado = (await apartarAsiento(
       evento.id,
       fecha.id,
       asiento.id,
@@ -241,7 +242,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       usuarioActual.id,
       usuarioActual.nombre,
       usuarioActual.correo
-    );
+    ));
 
     if (resultado.exito && resultado.reservacion) {
       setAsientoSeleccionado(asiento);
@@ -258,11 +259,11 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   };
 
   // Confirmar reservación con mapa
-  const manejarConfirmacion = () => {
+  const manejarConfirmacion = async () => {
     if (!reservacionActiva) return;
     setConfirmando(true);
 
-    const resultado = confirmarReservacion(reservacionActiva.id);
+    const resultado = (await confirmarReservacion(reservacionActiva.id));
     setConfirmando(false);
 
     if (resultado.exito) {
@@ -280,7 +281,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   };
 
   // Confirmar reservación directa sin mapa (Cupo General)
-  const manejarConfirmacionGeneral = () => {
+  const manejarConfirmacionGeneral = async () => {
     if (!usuarioActual) return;
     setConfirmando(true);
     setErrorColision(null);
@@ -323,7 +324,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       return;
     }
 
-    const resultadoApartado = apartarAsiento(
+    const resultadoApartado = (await apartarAsiento(
       evento.id,
       fecha.id,
       `gen-${Date.now()}`,
@@ -331,10 +332,10 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       usuarioActual.id,
       usuarioActual.nombre,
       usuarioActual.correo
-    );
+    ));
 
     if (resultadoApartado.exito && resultadoApartado.reservacion) {
-      const confirmacion = confirmarReservacion(resultadoApartado.reservacion.id);
+      const confirmacion = (await confirmarReservacion(resultadoApartado.reservacion.id));
       setConfirmando(false);
       
       if (confirmacion.exito) {

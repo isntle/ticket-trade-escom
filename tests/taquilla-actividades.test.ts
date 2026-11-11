@@ -190,7 +190,7 @@ class AlmacenPrueba {
 }
 function montarContexto() {
   const local = new AlmacenPrueba(), sesion = new AlmacenPrueba(), prefijo = 'tt_datos_almacen_escom_v7_';
-  Object.assign(globalThis, { localStorage: local, sessionStorage: sesion, window: { location: { search: '', hostname: 'localhost' } } });
+  Object.assign(globalThis, { localStorage: local, sessionStorage: sesion, window: { location: { search: '?demo=1', hostname: 'localhost' } } });
   local.setItem('tt_usuarios_sistema_v2', JSON.stringify(USUARIOS_INICIALES));
   local.setItem('tt_rol_activo_v2', 'organizador');
   sesion.setItem('tt_sesion_identidad_v3', JSON.stringify({ id: 'sesion-prueba', usuario: organizador.id, inicio: Date.now(), actividad: Date.now(), version: organizador.versionCredenciales || 0 }));

@@ -47,8 +47,8 @@ export function PerfilUsuarioPagina({
         <div><p className="mb-1 text-sm font-semibold text-[#7a132b]">Tu cuenta en Ticket Trade</p><h1 className="text-3xl font-black tracking-tight">Mi perfil</h1></div>
         <button
           className={boton}
-          onClick={() => {
-            auth.cerrarSesion();
+          onClick={async () => {
+            (await auth.cerrarSesion());
             navigate("/login");
           }}
         >
@@ -111,7 +111,7 @@ export function PerfilUsuarioPagina({
         {edicion && (
           <form
             className="space-y-4 border-t pt-4"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
               if (!revisar) {
                 if (!nombre.trim())
@@ -119,7 +119,7 @@ export function PerfilUsuarioPagina({
                 setRevisar(true);
                 return;
               }
-              const r = auth.actualizarPerfil(
+              const r = (await auth.actualizarPerfil(
                 u.id,
                 {
                   nombre: nombre.trim(),
@@ -132,7 +132,7 @@ export function PerfilUsuarioPagina({
                     : {}),
                 },
                 version,
-              );
+              ));
               setMensaje(r.mensaje);
               if (r.exito) {
                 setEdicion(false);
@@ -230,13 +230,13 @@ export function PerfilUsuarioPagina({
         )}
         <form
           className="space-y-4"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             if (!confirmarCorreo) {
               setConfirmarCorreo(true);
               return;
             }
-            const r = auth.solicitarCambioCorreo(u.id, correo);
+            const r = (await auth.solicitarCambioCorreo(u.id, correo));
             setMensaje(r.mensaje);
             setCodigo(r.codigoPrueba || "");
             if (r.exito) {
@@ -299,9 +299,9 @@ export function PerfilUsuarioPagina({
         <h2 data-interfaz="UI-IP-06" tabIndex={-1} className="mb-4 flex scroll-mt-24 items-center gap-3 text-lg font-bold"><span className="rounded-xl bg-[#7a132b]/5 p-2.5 text-[#7a132b]"><KeyRound className="h-5 w-5" aria-hidden="true" /></span>Seguridad</h2>
         <form
           className="space-y-4"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            const r = auth.cambiarPassword(actual, nueva, repetida);
+            const r = (await auth.cambiarPassword(actual, nueva, repetida));
             setMensaje(r.mensaje);
             if (r.exito) {
               setActual("");

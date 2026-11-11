@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { apiActiva } from '../servicios/modoDatos';
 import {
   Layers,
   CheckCircle,
@@ -80,7 +81,13 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
   }
 
   // Recinto seleccionado en la pestaña (por defecto: Auditorio Principal)
-  const [idRecintoSeleccionado, setIdRecintoSeleccionado] = useState<string>('rec-auditorio');
+  const [idRecintoSeleccionado, setIdRecintoSeleccionado] = useState<string>(listaRecintos[0]?.id || 'rec-auditorio');
+
+  const edicionDisponible = () => {
+    if (!apiActiva) return true;
+    mostrarNotificacion('Distribución en consulta', 'Los lugares mostrados provienen de PostgreSQL. La edición de versiones todavía no está conectada; no se guardaron cambios.', 'advertencia');
+    return false;
+  };
 
   const recintoActivo =
     listaRecintos.find((r) => r.id === idRecintoSeleccionado) || listaRecintos[0];
@@ -110,6 +117,7 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
 
   // Manejo de clic interactivo en una butaca o estación
   const manejarClicAsiento = (asiento: ConfiguracionAsiento) => {
+    if (!edicionDisponible()) return;
     if (!arregloActivo) return;
 
     const asientosActualizados = arregloActivo.asientos.map((a) => {
@@ -165,6 +173,7 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
 
   // Asignar fila completa como categoría seleccionada
   const asignarFilaCompleta = (fila: string, categoria: CategoriaAsiento | 'bloquear') => {
+    if (!edicionDisponible()) return;
     if (!arregloActivo) return;
 
     const asientosActualizados = arregloActivo.asientos.map((a) => {
@@ -211,6 +220,7 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
 
   // Guardar y confirmar formalmente como Versión Oficial
   const marcarComoOficial = () => {
+    if (!edicionDisponible()) return;
     if (!arregloActivo) return;
     confirmarVersionFinalArreglo(arregloActivo.idFechaEvento, arregloActivo.id);
     mostrarNotificacion(
@@ -222,6 +232,7 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
 
   // Duplicar como nuevo borrador para experimentar
   const duplicarBorrador = () => {
+    if (!edicionDisponible()) return;
     if (!arregloActivo) return;
     const nuevo = crearArreglo({
       idFechaEvento: arregloActivo.idFechaEvento,
@@ -252,15 +263,14 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
               Subsistema 02 · Espacios Físicos ESCOM
             </span>
             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-              ✓ Edición Siempre Habilitada
+              {apiActiva ? 'Consulta de lugares en PostgreSQL' : '✓ Edición Siempre Habilitada'}
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight">
             Distribución y Asignación de Butacas por Recinto
           </h1>
           <p className="text-xs sm:text-sm text-neutral-500 mt-1 max-w-3xl">
-            Edita de forma interactiva la disposición de lugares del Auditorio Principal, la Sala 14 modular
-            y los Laboratorios de Cómputo. Asigna butacas VIP, lugares para comité organizador, staff de apoyo o bloqueos logísticos.
+            {apiActiva ? 'Consulta la distribución y las categorías de los lugares guardados en PostgreSQL para cada actividad. La edición de versiones todavía está pendiente de conexión.' : 'Edita de forma interactiva la disposición de lugares del Auditorio Principal, la Sala 14 modular y los Laboratorios de Cómputo. Asigna butacas VIP, lugares para comité organizador, staff de apoyo o bloqueos logísticos.'}
           </p>
         </div>
 

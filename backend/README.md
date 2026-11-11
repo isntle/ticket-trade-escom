@@ -1,46 +1,81 @@
-# API de Ticket Trade
+# Ticket Trade: misma interfaz, PostgreSQL y demo aislada
 
-Integración de la rama backend_Regina con correcciones de seguridad y primeras escrituras de organización. El despliegue de frontend conserva el modo local predeterminado. No activar el modo API para uso general mientras falten los adaptadores de escritura y los recorridos de identidad/taquilla.
+Se conservan las pantallas, colores, filtros y navegación originales de `main`. La imagen del acceso está integrada en el panel guinda existente. Los eventos temáticos y sus imágenes se mantienen dentro de esa interfaz.
 
-## Preparación local
+## Ejecutar
 
-1. Crear una base nueva e instalar `base-de-datos/postgresql/00_instalar_tickettrade.sql`.
-2. Aplicar `base-de-datos/postgresql/migraciones/07_sesiones_http.sql`. Es infraestructura de sesión separada del ER de negocio.
-3. Configurar DATABASE_URL o PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD en el entorno privado. No usar el superusuario en una instalación compartida. El código no proporciona contraseñas predeterminadas.
-4. Configurar APP_ORIGIN con el origen exacto del frontend, por ejemplo http://localhost:3000. El proxy de Vite dirige /api al servidor local en 4000.
-5. Ejecutar `npm ci`, `npm run server` y `npm run dev` en terminales separadas.
+1. `npm ci`.
+2. Copiar `.env.example` a `.env` y configurar dos conexiones distintas: `DATABASE_URL` para cuentas normales y `DATABASE_URL_DEMO` para demostración. Ambas bases deben existir. No publicar credenciales.
+3. `npm run db:init` instala el esquema y las migraciones de infraestructura en la base normal, **sin insertar cuentas ni eventos**.
+4. `npm run db:demo` instala y prepara exclusivamente la base demo. Rechaza una conexión igual a la normal y nunca utiliza `DATABASE_URL` como destino de la semilla. La base demo debe estar vacía o contener las seis cuentas ficticias de la instalación académica original.
+5. `npm start`; abrir <http://localhost:3000> o <http://localhost:3000/?demo=1>.
 
-Las cuentas ficticias del SQL no tienen contraseñas utilizables. El endpoint de registro crea cuentas comunes con hash scrypt; no crea administradores ni asigna privilegios. Las cuentas operativas se provisionan por el equipo mediante un procedimiento controlado, no mediante una contraseña universal.
+También pueden ejecutarse `npm run server` y `npm run dev` por separado. `APP_ORIGIN` debe coincidir exactamente con el origen del navegador. El proxy de Vite dirige `/api` a 4000.
 
-## Implementado
+## Qué significa demo
 
-- Lectura pública de recintos y de eventos publicados/públicos. No devuelve borradores ni eventos privados por ese listado.
-- Login con hash scrypt, cookie HttpOnly y sesión aleatoria cuyo hash se guarda en PostgreSQL. Logout revoca la sesión; una copia de la cookie deja de funcionar.
-- Consulta de sesión y registro transaccional de cuentas comunes.
-- Primeros endpoints `/api/organizacion/solicitudes`: consulta autorizada y creación transaccional de borrador/solicitud con actividades.
-- Resolución en `/api/organizacion/solicitudes/:id/resolucion`: revisión por Subdirección/Administración, control de versión/estado y publicación al aprobar. El DDL vuelve a comprobar los cruces al confirmar.
-- Errores JSON sin exponer SQL ni credenciales. Origen de escrituras comprobado. Límite de intentos local por IP para el proceso de desarrollo.
+- Sin `demo=1`, se consulta y escribe en la base normal. No se insertan ejemplos automáticamente.
+- Con `?demo=1`, se usa una base distinta, con su propia cookie `tt_sesion_demo`. La navegación conserva el parámetro. Salir de demo vuelve a la conexión normal y no borra registros.
+- `TT_DEMO=1` habilita este modo únicamente si existe la conexión independiente. El selector consulta cuentas reales de la base demo. Cambiar de cuenta inicia una sesión HTTP real.
+- Las cuentas creadas durante una demostración quedan en PostgreSQL demo. Las creadas desde la URL normal quedan en PostgreSQL normal. Ninguna cookie de un modo autentica en el otro.
+- `TT_MOSTRAR_CODIGOS=1` permite usar el código generado por la aplicación durante la práctica; no demuestra acceso a un buzón. El envío real de correo aún no está conectado.
 
-La declaración de urgencia se calcula a partir de las actividades al enviar; no basta un boolean del cliente. Las clases siguen siendo informativas. Los bloqueos sin reactivación se consideran vigentes aunque haya transcurrido su fin previsto.
+La demo incluye accesos con asiento, registro sin asiento y entrada libre; eventos de una sola actividad y otros con varios días y recintos. El catálogo contiene IA, Expo ESCOM, programación, robótica, ciberseguridad, vinculación, Game Jam y STEM. Son escenarios académicos realistas, no convocatorias oficiales. Se conservaron las imágenes recibidas de Antigravity; esta revisión no las generó ni atribuye su generación a Nano Banana.
+
+Contraseña demo: `Password123!`, comprobada contra el hash normal de cada cuenta. No existe contraseña universal para cuentas registradas.
+
+| Perfil | Cuenta demo |
+| --- | --- |
+| Administración | cuenta1001@example.invalid |
+| Subdirección | cuenta1002@example.invalid |
+| Organizador verificado | cuenta1003@example.invalid |
+| Estudiante | cuenta1004@example.invalid |
+| Externa con expediente pendiente | cuenta1005@example.invalid |
+| Staff del simposio | cuenta1006@example.invalid |
+| Estudiante con correo pendiente | ltorres.demo@alumno.ipn.mx |
+
+## Recorridos conectados a las pantallas originales
+
+Registro con acentos, dominio exacto, boleta/RFC, hash scrypt, confirmación por token de un solo uso, login/logout revocable y recuperación. PDF privado, expediente por perfil y revisión por Subdirección. Solicitudes con cartel, varias actividades y aforos, borrador, devolución/corrección, reenvío, cancelación y resolución con versión. Selección sobre lugares físicos, apartado de dos minutos conforme al SQL, confirmación, pase por evento, cancelación, QR/manual y ocupación consultada cada 15 segundos.
+
+En estos recorridos, las pantallas esperan las respuestas remotas antes de mostrar éxito. Los proveedores remotos no guardan cuentas o reservaciones en localStorage. No existe alternativa automática local cuando la API falla.
+
+El modelo de negocio mantiene las 73 tablas del HTML. `infra` contiene sesiones, bytes privados y datos de perfil preparados antes de enviar el expediente. Los documentos se vinculan mediante las tablas de verificación del ER; solo su titular o un revisor autorizado pueden abrirlos.
+
+Los comandos avanzados que todavía no tienen adaptador (por ejemplo, publicación institucional directa, edición de versiones de arreglos, listas de espera, pases especiales, invitaciones Staff y administración de jefaturas) responden que no se guardaron cambios. La distribución muestra los lugares reales en modo consulta. El prototipo local completo sigue accesible con `?modo=local&demo=1`, con aviso explícito y almacenamiento separado del modo normal.
+
+## Mostrar tablas directamente en PostgreSQL
+
+```powershell
+npm run db:ver
+npm run db:ver:demo
+npm run db:ver -- Cuenta
+npm run db:ver:demo -- Evento
+```
+
+El menú muestra las 73 tablas y sus conteos, y ejecuta `SELECT *` con **psql**, el cliente nativo conectado directamente a la base elegida. También están `base-de-datos/postgresql/Ver-Tablas.ps1` y las consultas de `12_consultar_para_exposicion.sql` para pgAdmin. Si psql no está en PATH, configurar `PSQL_PATH`.
 
 ## Comprobaciones
 
-`npm run lint`, `npm run build`, `npm test`.
+```powershell
+npm run lint
+npm test
+npm run build
+npm run db:verify
+npm run db:verify:demo
+npm run test:postgres
+```
 
-La prueba de integración real se habilita con `TT_API_PRUEBAS=1` y las variables PG apuntando EXCLUSIVAMENTE a una base desechable que contenga los ejemplos opcionales y la migración 07. `tests/api-auth.test.ts` cambia los hashes de cuentas ficticias y crea solicitudes; nunca apuntarla a datos de uso real.
+La verificación lee el HTML de referencia y compara las 73 tablas, sus columnas/tipos/nulabilidad y las 96 relaciones contra PostgreSQL, además de ejecutar `validar_integridad()`.
 
-Se comprueba HTTP → PostgreSQL: rechazo de contraseña incorrecta, revocación de cookie, guardado real del borrador, rollback de un envío inválido, revisión sin permiso rechazada, aprobación, doble resolución y filtrado público. Las pruebas de contraseñas se ejecutan también sin BD.
+`test:postgres` crea y elimina bases desechables, instala desde cero, ejecuta `04_pruebas_integridad.sql` y comprueba HTTP → PostgreSQL: confirmación/vencimiento, PDF y permisos, solicitud/publicación, cupo concurrente, expiración, cancelación, ingreso/QR reutilizado y persistencia. También prueba que normal y demo no comparten cuentas, eventos ni sesiones, y que el catálogo tiene las tres modalidades y variedad de recintos. Requiere permiso local para crear bases y rechaza destinos ajenos a este ejecutor.
 
-## Lo que todavía no está conectado de extremo a extremo
+## Vercel y Supabase
 
-El plan completo de Luis y Regina sigue en `base-de-datos/postgresql/PLAN_IMPLEMENTACION_LUIS_Y_REGINA.md`.
+Se prepararon el punto de entrada `api/index.ts` y las rutas de Vercel. **Todavía no se crearon proyectos Supabase ni se configuraron conexiones remotas**, conforme a lo solicitado. La guía está en [POSTGRESQL_DEMO_Y_SUPABASE.md](../docs/POSTGRESQL_DEMO_Y_SUPABASE.md).
 
-Faltan las rutas de documentos/almacenamiento, confirmación y recuperación por correo, edición de perfil y revisión documental, jefaturas, todo el contrato de organización (edición/reenvío, cancelaciones/reasignaciones, distribuciones y bloqueos), y los adaptadores remotos de las pantallas. Los endpoints de esta primera entrega no sustituyen aún todos los métodos del contexto.
+Sin `VITE_MODO_DATOS=api`, el alojamiento estático conserva el prototipo y avisa que es local. Fuera de demo rechaza crear cuentas locales: no muestra un registro exitoso como si hubiese llegado a PostgreSQL.
 
-La rama de Regina aporta lectura y autenticación inicial; no contiene todavía reservas remotas, pases, Check-in ni CSV/PDF. Esos módulos conservan su implementación local. No activar una lectura de PostgreSQL y seguir guardando las reservas en localStorage como si fuesen remotas.
+## Aportes revisados
 
-Antes de habilitar API en la UI: completar los comandos, conservar los estados de carga/error, quitar la alternativa automática local y probar cada recorrido con otra sesión y después de reiniciar. También resolver las diferencias de modelo documentadas (afiliación, visibilidad interna, espera e historial de rechazos).
-
-Antes de alojar: configurar PostgreSQL, HTTPS/cookies, almacenamiento y correo, permisos del usuario del servidor, rate limiting compartido y copias de seguridad. La limitación de intentos en memoria es una protección del proceso local; no sustituye la limitación de un servicio con varias instancias.
-
-Las credenciales de desarrollo que hayan estado en la rama original deben cambiarse y no reutilizarse. Corregir el código no retira esos valores del historial previo de Git.
+Se revisó `backend_Regina` hasta `a54528f`. Se recuperó el registro y la confirmación persistentes, conservando sesiones aleatorias revocables y scrypt asíncrono de `main`. Se excluyeron acceso universal, contraseñas en claro y cookies con clave predeterminada. De Antigravity se conservaron imágenes, semillas, UTF-8 y adaptación de carteles; se corrigieron itinerarios, secuencias y guardados que ignoraban errores. El rediseño inicial de esta revisión se retiró.

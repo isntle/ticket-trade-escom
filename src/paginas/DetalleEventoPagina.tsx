@@ -1,4 +1,5 @@
 import { REGLA_INGRESO_ACTIVIDAD, fechaLegible } from '../dominio/presentacionActividad';
+import { apiActiva } from '../servicios/modoDatos';
 import { modalidadActividad, nombreActividad, accesoMixto } from '../dominio/actividades';
 import { capacidadActividad } from '../dominio/taquilla';
 import { impedimentoActividad, impedimentoParticipante, rutaAccesoConRegreso, rutaDetalleEvento, rutaReservaActividad } from '../dominio/participacionActividad';
@@ -400,6 +401,8 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
           {[...evento.fechas].sort((a,b)=>(a.fecha+a.horaInicio).localeCompare(b.fecha+b.horaInicio)).map((fecha, indice) => {
             const nombreRecinto = obtenerNombreRecinto(fecha.idRecinto);
             const etiquetaDia = nombreActividad(fecha,indice);
+            const numeroDia = [...new Set(evento.fechas.map(f => f.fecha))].sort().indexOf(fecha.fecha) + 1;
+            const etiquetaRegistro = `Registrar asistencia (Día ${numeroDia})`;
             const impedimento = impedimentoActividad(evento, fecha, listaBloqueos);
             const inscripcionesAbiertas = !impedimento;
             const modalidad = modalidadActividad(fecha, evento.modalidadAsistencia);
@@ -423,7 +426,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
               >
                 {/* Cabecera de la Tarjeta del Día */}
                 <div className="p-5 sm:p-6 bg-gradient-to-r from-neutral-50/80 via-white to-neutral-50/30 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-100">
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="px-3 py-1 rounded-lg bg-[#7a132b] text-white font-mono text-xs font-bold shadow-2xs">
                         {etiquetaDia}
@@ -476,13 +479,13 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                         <span>{fecha.cancelada ? 'Actividad cancelada' : impedimento?.includes('SUSPENDIDA') ? 'Actividad suspendida' : 'Inscripciones cerradas'}</span>
                       </button>
                     ) : (
-                      modalidad === 'controlado' ? (
+                      modalidad === 'controlado' || apiActiva && modalidad === 'registro' ? (
                         <button
                           type="button"
                           onClick={() => navigate(rutaReservaActividad(evento.id, fecha.id, claveAcceso))}
-                          className="px-5 py-2.5 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2"
+                          className="px-5 py-2.5 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2 whitespace-nowrap"
                         >
-                          <span>Reservar lugar ({etiquetaDia})</span>
+                          <span>{etiquetaRegistro}</span>
                         </button>
                       ) : (
                           <button
@@ -492,7 +495,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                             className="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2 transition-colors"
                           >
                             <UserCheck className="w-4 h-4" />
-                            <span>{procesandoRegistro ? 'Registrando...' : `Registrar asistencia (${etiquetaDia})`}</span>
+                            <span>{procesandoRegistro ? 'Registrando...' : etiquetaRegistro}</span>
                           </button>
                       )
                     )}
@@ -549,14 +552,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div className="px-6 py-4 bg-white flex items-center justify-between text-xs text-neutral-500">
-                    <span>
-                      Sin programa detallado. Consulta el acceso y la acción de esta actividad en su cabecera.
-                    </span>
-                    <span className="font-mono text-[11px] text-neutral-400">{nombreRecinto}</span>
-                  </div>
-                )}
+                ) : null}
               </div>
             );
           })}

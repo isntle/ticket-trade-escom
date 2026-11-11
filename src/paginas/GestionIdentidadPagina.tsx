@@ -126,8 +126,7 @@ export function GestionIdentidadPagina({
     try {
       const nuevos: DocumentoIdentidad[] = [];
       for (const file of files) {
-        const id = crypto.randomUUID();
-        await guardarDocumentoIdentidad(id, file);
+        const id = await guardarDocumentoIdentidad(crypto.randomUUID(), file);
         nuevos.push({
           id,
           nombre: file.name,
@@ -246,7 +245,7 @@ export function GestionIdentidadPagina({
               " · Válido hasta " + cuenta.verificacionHasta}
           </p>
           <div className="rounded-xl bg-neutral-50 p-4 text-sm"><strong>{cuenta.nombre}</strong><p>{cuenta.correo} · {cuenta.afiliacion}</p><p>{cuenta.boleta ? 'Boleta: '+cuenta.boleta : cuenta.afiliacion==='externo' ? [cuenta.nombreOrganizacion,cuenta.puestoContacto].filter(Boolean).join(' · ') : 'Número de empleado: '+(cuenta.numeroEmpleado||'Pendiente')}</p><button className="mt-2 font-semibold text-[#7a132b] underline" onClick={()=>navigate('/perfil')}>Revisar datos de mi perfil</button>{periodoIdentidadActual(auth.periodosIdentidad)&&<p className="mt-2">Periodo {periodoIdentidadActual(auth.periodosIdentidad)!.id} · Rechazos: {rechazosPeriodo(cuenta,periodoIdentidadActual(auth.periodosIdentidad)!)} de 3</p>}</div>
-          {cuenta.afiliacion!=='alumno' && cuenta.afiliacion!=='externo' && <form className="rounded-xl bg-neutral-50 p-4" onSubmit={e=>{e.preventDefault();const datos=new FormData(e.currentTarget);resultado(auth.actualizarPerfil(cuenta.id,{numeroEmpleado:String(datos.get('numeroEmpleado')||'').trim()},cuenta.versionIdentidad||0));}}><label className="block text-sm font-semibold">Número de empleado<input name="numeroEmpleado" required defaultValue={cuenta.numeroEmpleado||''} className={campo}/></label><button type="submit" className={boton+" mt-3"}>Guardar número de empleado</button></form>}
+          {cuenta.afiliacion!=='alumno' && cuenta.afiliacion!=='externo' && <form className="rounded-xl bg-neutral-50 p-4" onSubmit={async e=>{e.preventDefault();const datos=new FormData(e.currentTarget);resultado((await auth.actualizarPerfil(cuenta.id,{numeroEmpleado:String(datos.get('numeroEmpleado')||'').trim()},cuenta.versionIdentidad||0)));}}><label className="block text-sm font-semibold">Número de empleado<input name="numeroEmpleado" required defaultValue={cuenta.numeroEmpleado||''} className={campo}/></label><button type="submit" className={boton+" mt-3"}>Guardar número de empleado</button></form>}
           {cuenta.motivoExpediente && (
             <p>Observaciones: {cuenta.motivoExpediente}</p>
           )}
@@ -409,9 +408,9 @@ export function GestionIdentidadPagina({
                   <button
                     disabled={ocupado}
                     className={primario}
-                    onClick={() =>
+                    onClick={async () =>
                       resultado(
-                        auth.enviarExpediente(cuenta.id, archivos, revision,motivoSolicitud),
+                        (await auth.enviarExpediente(cuenta.id, archivos, revision,motivoSolicitud)),
                       )
                     }
                   >
@@ -542,7 +541,7 @@ export function GestionIdentidadPagina({
                   </button>
                 ))}
               </div>
-              {subdireccion && <form className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={e=>{e.preventDefault();resultado(auth.silenciarVerificacion(elegida.id,silencioHasta,motivoSilencio,seleccion!.version));}}><h3 className="font-bold">Pausar nuevos envíos de verificación</h3><p className="text-sm">No bloquea la cuenta, las reservas ni el inicio de sesión. Deja la fecha vacía para levantar una pausa anterior.</p>{elegida.verificacionSilenciadaHasta&&<p className="text-sm">Pausa hasta {elegida.verificacionSilenciadaHasta}: {elegida.motivoSilencioVerificacion}</p>}<label className="block text-sm">Hasta<input type="date" value={silencioHasta} onChange={e=>setSilencioHasta(e.target.value)} className={campo}/></label><label className="block text-sm">Motivo<textarea required value={motivoSilencio} onChange={e=>setMotivoSilencio(e.target.value)} className={campo}/></label><button type="submit" className={boton}>Confirmar pausa o habilitación</button></form>}
+              {subdireccion && <form className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={async e=>{e.preventDefault();resultado((await auth.silenciarVerificacion(elegida.id,silencioHasta,motivoSilencio,seleccion!.version)));}}><h3 className="font-bold">Pausar nuevos envíos de verificación</h3><p className="text-sm">No bloquea la cuenta, las reservas ni el inicio de sesión. Deja la fecha vacía para levantar una pausa anterior.</p>{elegida.verificacionSilenciadaHasta&&<p className="text-sm">Pausa hasta {elegida.verificacionSilenciadaHasta}: {elegida.motivoSilencioVerificacion}</p>}<label className="block text-sm">Hasta<input type="date" value={silencioHasta} onChange={e=>setSilencioHasta(e.target.value)} className={campo}/></label><label className="block text-sm">Motivo<textarea required value={motivoSilencio} onChange={e=>setMotivoSilencio(e.target.value)} className={campo}/></label><button type="submit" className={boton}>Confirmar pausa o habilitación</button></form>}
               {decision && (
                 <div className="space-y-3 rounded-xl border border-amber-200 p-4">
                   <h3 className="font-bold">Confirmar: {estado(decision)}</h3>
@@ -572,15 +571,15 @@ export function GestionIdentidadPagina({
                   </p>
                   <button
                     className={primario}
-                    onClick={() =>
+                    onClick={async () =>
                       resultado(
-                        auth.dictaminarExpediente(
+                        (await auth.dictaminarExpediente(
                           elegida.id,
                           decision,
                           motivo,
                           seleccion!.version,
                           periodoIdentidadActual(auth.periodosIdentidad)?.fin || vigencia,
-                        ),
+                        )),
                       )
                     }
                   >
@@ -714,14 +713,14 @@ export function GestionIdentidadPagina({
               {subdireccion ? (
                 <button
                   className={primario}
-                  onClick={() =>
+                  onClick={async () =>
                     resultado(
-                      auth.solicitarRestriccion(
+                      (await auth.solicitarRestriccion(
                         elegida.id,
                         accion,
                         motivo,
                         relacionadas,
-                      ),
+                      )),
                     )
                   }
                 >
@@ -730,9 +729,9 @@ export function GestionIdentidadPagina({
               ) : (
                 <button
                   className={primario}
-                  onClick={() =>
+                  onClick={async () =>
                     resultado(
-                      auth.actualizarRestriccionSolicitudes(
+                      (await auth.actualizarRestriccionSolicitudes(
                         elegida.id,
                         accion === "aplicar" ? hasta : "",
                         motivo,
@@ -740,7 +739,7 @@ export function GestionIdentidadPagina({
                         undefined,
                         true,
                         seleccion!.version,
-                      ),
+                      )),
                     )
                   }
                 >
@@ -760,9 +759,9 @@ export function GestionIdentidadPagina({
                     <div className="flex flex-wrap gap-2">
                       <button
                         className={boton}
-                        onClick={() =>
+                        onClick={async () =>
                           resultado(
-                            auth.actualizarRestriccionSolicitudes(
+                            (await auth.actualizarRestriccionSolicitudes(
                               elegida.id,
                               p.accion === "aplicar" ? hasta : "",
                               motivo,
@@ -770,7 +769,7 @@ export function GestionIdentidadPagina({
                               p.id,
                               true,
                               seleccion!.version,
-                            ),
+                            )),
                           )
                         }
                       >
@@ -778,9 +777,9 @@ export function GestionIdentidadPagina({
                       </button>
                       <button
                         className={boton}
-                        onClick={() =>
+                        onClick={async () =>
                           resultado(
-                            auth.actualizarRestriccionSolicitudes(
+                            (await auth.actualizarRestriccionSolicitudes(
                               elegida.id,
                               "",
                               motivo,
@@ -788,7 +787,7 @@ export function GestionIdentidadPagina({
                               p.id,
                               false,
                               seleccion!.version,
-                            ),
+                            )),
                           )
                         }
                       >
@@ -860,13 +859,13 @@ export function GestionIdentidadPagina({
                   </div>
                   <button
                     className={boton}
-                    onClick={() =>
+                    onClick={async () =>
                       resultado(
-                        auth.asociarStaffAEvento(
+                        (await auth.asociarStaffAEvento(
                           u.id,
                           evento.id,
                           !u.eventosAsignadosStaff?.includes(evento.id),
-                        ),
+                        )),
                       )
                     }
                   >

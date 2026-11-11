@@ -214,8 +214,8 @@ export const BarraSuperior: React.FC<{
                     </button>
                     <button
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-rose-700 hover:bg-rose-50"
-                      onClick={() => {
-                        cerrarSesion();
+                      onClick={async () => {
+                        (await cerrarSesion());
                         ir("/login");
                       }}
                     >
@@ -231,8 +231,8 @@ export const BarraSuperior: React.FC<{
                           {todosLosUsuarios.map((usuario) => (
                             <button
                               key={usuario.id}
-                              onClick={() => {
-                                cambiarUsuario(usuario.id);
+                              onClick={async () => {
+                                (await cambiarUsuario(usuario.id));
                                 ir(inicioRol[usuario.rolActivo]);
                                 mostrarNotificacion(
                                   "Cuenta de demostración",

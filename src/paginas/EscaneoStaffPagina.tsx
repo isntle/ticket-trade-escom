@@ -198,9 +198,9 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     }
   };
 
-  const ejecutarEscaneo = (codigoAProcesar: string, validarFormatoManual = false) => {
+  const ejecutarEscaneo = async (codigoAProcesar: string, validarFormatoManual = false) => {
     if (!codigoAProcesar.trim()) return;
-    if (!/^TT-[A-F0-9]{32}$/i.test(codigoAProcesar.trim())) {
+    if (!/^(?:TT-[A-F0-9]{32}|[A-F0-9]{64}|[A-F0-9]{16})$/i.test(codigoAProcesar.trim())) {
       setUltimoResultado({ exito: false, resultado: 'codigo_no_reconocido', mensaje: 'Código no reconocido. Verifica que sea el identificador completo del boleto Ticket Trade.' });
       return;
     }
@@ -220,13 +220,13 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       return;
     }
 
-    const res = procesarCheckIn(
+    const res = (await procesarCheckIn(
       codigoAProcesar.trim(),
       usuarioActual?.nombre || 'Staff ESCOM',
       fechaSeleccionada?.id,
       usuarioActual || undefined,
       eventoSeleccionado?.id
-    );
+    ));
     const ahora = new Date().toLocaleTimeString('es-MX', {
       hour: '2-digit',
       minute: '2-digit'

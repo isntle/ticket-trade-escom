@@ -1,6 +1,18 @@
+import { crearToken } from "./tokens";
+// Validación de dominio recuperada del registro de Regina; comparación exacta.
+const validarDominioIdentidad = (correo: string, afiliacion: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo) &&
+  (afiliacion === "externo" ||
+    correo.toLowerCase().split("@")[1] ===
+      (afiliacion === "alumno" ? "alumno.ipn.mx" : "ipn.mx"));
 import { Router, type RequestHandler } from "express";
 import crypto from "node:crypto";
-import { pool, conTransaccion } from "../../bd/pool";
+import {
+  pool,
+  conTransaccion,
+  tokenPeticion,
+  nombreCookieSesion,
+} from "../../bd/pool";
 import {
   hashContrasena,
   verificarContrasena,
@@ -28,6 +40,33 @@ export async function proyectarUsuario(id: string) {
   );
   const r = rows[0];
   if (!r) return null;
+  const expediente = await pool.query(
+    `SELECT s.id_solicitud_verificacion::text id,s.motivo_solicitud,s.motivo_resolucion,es.nombre estado,
+    d.numero_empleado,x.nombre_entidad,x.cargo_o_relacion FROM ticket_trade."SolicitudVerificacion" s
+    JOIN ticket_trade."EstadoSolicitudVerificacion" es USING(id_estado_solicitud_verificacion)
+    LEFT JOIN ticket_trade."DatosVerificacionEmpleado" d USING(id_solicitud_verificacion)
+    LEFT JOIN ticket_trade."DatosVerificacionExterno" x USING(id_solicitud_verificacion)
+    WHERE s.id_cuenta=$1 ORDER BY s.id_solicitud_verificacion DESC LIMIT 1`,
+    [id],
+  );
+  const ex = expediente.rows[0];
+  const documentos = ex
+    ? (
+        await pool.query(
+          `SELECT a.id_archivo::text id,a.nombre,a.tamano_bytes tamano,td.nombre tipo,b.metadatos
+    FROM ticket_trade."DocumentoVerificacion" d JOIN ticket_trade."Archivo" a USING(id_archivo)
+    JOIN ticket_trade."TipoDocumentoVerificacion" td USING(id_tipo_documento_verificacion) LEFT JOIN infra.archivo_contenido b USING(id_archivo) WHERE d.id_solicitud_verificacion=$1`,
+          [ex.id],
+        )
+      ).rows
+    : [];
+  const perfil =
+    (
+      await pool.query(
+        "SELECT * FROM infra.perfil_interfaz WHERE id_cuenta=$1",
+        [id],
+      )
+    ).rows[0] || {};
   const roles: string[] = ["asistente"];
   if (r.tipo === "Administrador") roles.unshift("admin");
   if (r.tipo === "Subdirección") roles.unshift("subdireccion");
@@ -35,14 +74,46 @@ export async function proyectarUsuario(id: string) {
   if (r.eventos.length) roles.push("staff");
   return {
     id: r.id,
+    estadoExpediente: r.verificado
+      ? "aprobado"
+      : ex?.estado === "Pendiente de revisión"
+        ? "en_revision"
+        : ex?.estado === "Rechazada"
+          ? "rechazado"
+          : "sin_enviar",
+    idSolicitudVerificacion: ex?.id,
+    motivoExpediente: ex?.motivo_resolucion,
+    motivoSolicitudVerificacion: ex?.motivo_solicitud,
+    numeroEmpleado: perfil.numero_empleado || ex?.numero_empleado,
+    nombreOrganizacion: perfil.nombre_entidad || ex?.nombre_entidad,
+    puestoContacto: perfil.cargo || ex?.cargo_o_relacion,
+    telefonoContacto: perfil.telefono,
+    archivosExpediente: documentos.map((d) => ({
+      ...d.metadatos,
+      id: d.id,
+      nombre: d.nombre,
+      tamano: d.tamano,
+      tipo:
+        (
+          {
+            "Constancia de estudios": "constancia",
+            "Comprobante de adscripción": "adscripcion",
+            "Acreditación de existencia de la entidad": "existencia",
+            "Acreditación de representación": "representacion",
+          } as any
+        )[d.tipo] || "constancia",
+      fechaEmision: d.metadatos?.fechaEmision || "",
+    })),
     nombre: r.nombre,
     correo: r.correo,
     afiliacion:
-      r.afiliacion === "Estudiante"
-        ? "alumno"
-        : r.afiliacion === "Empleado del IPN"
-          ? "profesor"
-          : "externo",
+      r.tipo !== "Común"
+        ? "administrativo"
+        : r.afiliacion === "Estudiante"
+          ? "alumno"
+          : r.afiliacion === "Empleado del IPN"
+            ? "profesor"
+            : "externo",
     roles,
     rolActivo: roles[0],
     estaActivo: r.estado === "Activa",
@@ -51,7 +122,7 @@ export async function proyectarUsuario(id: string) {
     boleta: r.boleta || undefined,
     rfc: r.rfc || undefined,
     eventosAsignadosStaff: r.eventos,
-    puedeAutoaprobar: r.jefatura,
+    puedeAutoaprobar: false, // La autorización automática aún no forma parte del comando remoto.
   };
 }
 export async function usuarioSesion(token: unknown) {
@@ -66,13 +137,11 @@ export async function usuarioSesion(token: unknown) {
 }
 export const exigirSesion: RequestHandler = async (req, res, next) => {
   try {
-    const u = await usuarioSesion(req.cookies?.tt_sesion_id);
+    const u = await usuarioSesion(tokenPeticion(req));
     if (!u) {
-      res
-        .status(401)
-        .json({
-          error: { codigo: "NO_AUTENTICADO", mensaje: "Inicia sesión." },
-        });
+      res.status(401).json({
+        error: { codigo: "NO_AUTENTICADO", mensaje: "Inicia sesión." },
+      });
       return;
     }
     res.locals.usuario = u;
@@ -93,14 +162,12 @@ routerAuth.post("/login", origenSeguro, async (req, res, next) => {
     ip = req.ip || "local";
   const contador = intentos.get(ip);
   if (contador && ahora - contador.desde < 60000 && contador.cantidad >= 20) {
-    res
-      .status(429)
-      .json({
-        error: {
-          codigo: "DEMASIADOS_INTENTOS",
-          mensaje: "Espera un minuto antes de intentar de nuevo.",
-        },
-      });
+    res.status(429).json({
+      error: {
+        codigo: "DEMASIADOS_INTENTOS",
+        mensaje: "Espera un minuto antes de intentar de nuevo.",
+      },
+    });
     return;
   }
   if (intentos.size > 10000)
@@ -119,14 +186,12 @@ routerAuth.post("/login", origenSeguro, async (req, res, next) => {
     !password ||
     password.length > 1024
   ) {
-    res
-      .status(400)
-      .json({
-        error: {
-          codigo: "DATOS_INVALIDOS",
-          mensaje: "Revisa correo y contraseña.",
-        },
-      });
+    res.status(400).json({
+      error: {
+        codigo: "DATOS_INVALIDOS",
+        mensaje: "Revisa correo y contraseña.",
+      },
+    });
     return;
   }
   try {
@@ -138,40 +203,39 @@ routerAuth.post("/login", origenSeguro, async (req, res, next) => {
       !rows[0] ||
       !(await verificarContrasena(password, rows[0].contrasena_hash))
     ) {
-      res
-        .status(401)
-        .json({
-          error: {
-            codigo: "CREDENCIALES_INVALIDAS",
-            mensaje: "Correo o contraseña incorrectos.",
-          },
-        });
+      res.status(401).json({
+        error: {
+          codigo: "CREDENCIALES_INVALIDAS",
+          mensaje: "Correo o contraseña incorrectos.",
+        },
+      });
       return;
     }
     const usuario = await proyectarUsuario(rows[0].id);
     if (!usuario?.estaActivo) {
-      res
-        .status(403)
-        .json({
-          error: {
-            codigo: "CUENTA_INACTIVA",
-            mensaje: "La cuenta no está activa.",
-          },
-        });
+      res.status(403).json({
+        error: {
+          codigo: "CUENTA_INACTIVA",
+          mensaje: "La cuenta no está activa.",
+        },
+      });
       return;
     }
     const token = crypto.randomBytes(32).toString("hex");
     await conTransaccion(async (c) => {
-      if (typeof req.cookies?.tt_sesion_id === "string")
+      if (typeof tokenPeticion(req) === "string")
         await c.query("DELETE FROM infra.sesion_http WHERE token_hash=$1", [
-          huella(req.cookies.tt_sesion_id),
+          huella(tokenPeticion(req)),
         ]);
       await c.query(
         "INSERT INTO infra.sesion_http(token_hash,id_cuenta,vence_en) VALUES($1,$2,CURRENT_TIMESTAMP+interval '7 days')",
         [huella(token), usuario.id],
       );
     });
-    res.cookie("tt_sesion_id", token, { ...cookies, maxAge: 7 * 86400000 });
+    res.cookie(nombreCookieSesion(), token, {
+      ...cookies,
+      maxAge: 7 * 86400000,
+    });
     res.json({ datos: { usuario } });
   } catch (e) {
     next(e);
@@ -182,11 +246,11 @@ routerAuth.get("/yo", exigirSesion, (_req, res) => {
 });
 routerAuth.post("/logout", origenSeguro, async (req, res, next) => {
   try {
-    if (typeof req.cookies?.tt_sesion_id === "string")
+    if (typeof tokenPeticion(req) === "string")
       await pool.query("DELETE FROM infra.sesion_http WHERE token_hash=$1", [
-        huella(req.cookies.tt_sesion_id),
+        huella(tokenPeticion(req)),
       ]);
-    res.clearCookie("tt_sesion_id", cookies);
+    res.clearCookie(nombreCookieSesion(), cookies);
     res.json({ datos: { exito: true } });
   } catch (e) {
     next(e);
@@ -195,24 +259,32 @@ routerAuth.post("/logout", origenSeguro, async (req, res, next) => {
 routerAuth.post("/registro", origenSeguro, async (req, res, next) => {
   const b = req.body || {};
   const roles = ["Estudiante", "Externo", "Empleado del IPN"];
+  const afiliacion =
+    b.rol === "Estudiante"
+      ? "alumno"
+      : b.rol === "Empleado del IPN"
+        ? "profesor"
+        : "externo";
   if (
     !["nombres", "primerApellido", "correo", "password", "rol"].every(
       (k) => typeof b[k] === "string" && b[k].trim(),
     ) ||
     !roles.includes(b.rol) ||
-    b.password.length < 12 ||
+    b.password.length < 8 ||
+    !/[A-Z]/.test(b.password) ||
+    !/[a-z]/.test(b.password) ||
+    !/[0-9]/.test(b.password) ||
+    !validarDominioIdentidad(b.correo.trim().toLowerCase(), afiliacion) ||
     b.password.length > 1024 ||
     b.correo.length > 320
   ) {
-    res
-      .status(422)
-      .json({
-        error: {
-          codigo: "DATOS_INVALIDOS",
-          mensaje:
-            "Revisa los campos y utiliza una contraseña de 12 caracteres o más.",
-        },
-      });
+    res.status(422).json({
+      error: {
+        codigo: "DATOS_INVALIDOS",
+        mensaje:
+          "Revisa los campos, el dominio del correo y usa al menos 8 caracteres con mayúscula, minúscula y número.",
+      },
+    });
     return;
   }
   if (
@@ -220,16 +292,15 @@ routerAuth.post("/registro", origenSeguro, async (req, res, next) => {
     (typeof b.boleta !== "string" ||
       !/^([0-9]{10}|(PE|PP)[0-9]{8})$/i.test(b.boleta))
   ) {
-    res
-      .status(422)
-      .json({
-        error: { codigo: "BOLETA_INVALIDA", mensaje: "Revisa la boleta." },
-      });
+    res.status(422).json({
+      error: { codigo: "BOLETA_INVALIDA", mensaje: "Revisa la boleta." },
+    });
     return;
   }
   if (
     b.rol === "Empleado del IPN" &&
-    (typeof b.rfc !== "string" || !b.rfc.trim())
+    (typeof b.rfc !== "string" ||
+      !/^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/i.test(b.rfc.trim()))
   ) {
     res
       .status(422)
@@ -240,12 +311,12 @@ routerAuth.post("/registro", origenSeguro, async (req, res, next) => {
     const hash = await hashContrasena(b.password);
     const id = await conTransaccion(async (c) => {
       const { rows } = await c.query(
-        `INSERT INTO ticket_trade."Cuenta"(nombres,primer_apellido,segundo_apellido,correo,contrasena_hash,id_tipo_cuenta,id_estado_cuenta) VALUES($1,$2,$3,$4,$5,(SELECT id_tipo_cuenta FROM ticket_trade."TipoCuenta" WHERE nombre='Común'),(SELECT id_estado_cuenta FROM ticket_trade."EstadoCuenta" WHERE nombre='Activa')) RETURNING id_cuenta::text AS id`,
+        `INSERT INTO ticket_trade."Cuenta"(nombres,primer_apellido,segundo_apellido,correo,contrasena_hash,id_tipo_cuenta,id_estado_cuenta) VALUES($1,$2,$3,$4,$5,(SELECT id_tipo_cuenta FROM ticket_trade."TipoCuenta" WHERE nombre='Común'),(SELECT id_estado_cuenta FROM ticket_trade."EstadoCuenta" WHERE nombre='Pendiente de activación')) RETURNING id_cuenta::text AS id`,
         [
           b.nombres.trim(),
           b.primerApellido.trim(),
           typeof b.segundoApellido === "string" ? b.segundoApellido.trim() : "",
-          b.correo.trim(),
+          b.correo.trim().toLowerCase(),
           hash,
         ],
       );
@@ -264,9 +335,17 @@ routerAuth.post("/registro", origenSeguro, async (req, res, next) => {
           id,
           b.rfc.trim().toUpperCase(),
         ]);
-      return id;
+      return {
+        id,
+        codigoPrueba: await crearToken(
+          c,
+          id,
+          b.correo.trim().toLowerCase(),
+          "Confirmación de correo",
+        ),
+      };
     });
-    res.status(201).json({ datos: { id, correoConfirmado: false } });
+    res.status(201).json({ datos: { ...id, correoConfirmado: false } });
   } catch (e) {
     next(e);
   }

@@ -1,3 +1,5 @@
+import { ContextoDatos } from './almacenes';
+import { ProveedorDatosRemotos } from './DatosRemotos';
 import {apiActiva} from '../servicios/modoDatos';
 import { reservaIncompatible } from '../dominio/crucesReservas';
 import { transporteApi } from '../servicios/http';
@@ -58,7 +60,7 @@ import { duracionProgramada, validarLimitesEvento, puedeModificarEvento } from '
 import { afectaBloqueo, revisarBloqueo, type PropuestaBloqueo } from '../dominio/bloqueos';
 import { CLAVE_CALENDARIO, validarCalendario, vencimientoRevision, motivoVencimiento, pausarRevision, reanudarRevision, type CalendarioRevision } from '../dominio/calendarioRevision';
 import { validarDistribuciones, arregloDesdeSolicitud, lugaresDelRecinto } from '../dominio/distribucionSolicitud';
-interface ContextoDatosTipo {
+export interface ContextoDatosTipo {
   prepararEventoDemostracion: () => {exito:boolean;error?:string;evento?:Evento};
   prepararSolicitudDemostracion: (estado:'borrador'|'en_revision'|'requiere_correccion', extraordinaria?:boolean) => {exito:boolean;error?:string;id?:string};
   prepararSuspensionDemostracion: () => {exito:boolean;error?:string;id?:string};
@@ -257,10 +259,11 @@ interface ContextoDatosTipo {
   reiniciarDatosIniciales: () => void;
 }
 
-const ContextoDatos = createContext<ContextoDatosTipo | undefined>(undefined);
+
 const CLAVE_ALMACEN_DATOS = 'tt_datos_almacen_escom_v7';
+const prefijoLocal = () => CLAVE_ALMACEN_DATOS + (modoDemostracionActivo() ? '' : '_normal');
 function leerListaActual<T>(sufijo:string,anterior:T[]):T[]{
-  const guardado=localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_${sufijo}`);
+  const guardado=localStorage.getItem(`${prefijoLocal()}_${sufijo}`);
   const lista=guardado===null?anterior:JSON.parse(guardado);
   if(!Array.isArray(lista))throw new Error('El almacenamiento no contiene una lista válida.');
   return lista;
@@ -274,6 +277,7 @@ const obtenerEstadoInscripciones = estadoInscripcionesActividad;
 const bloqueoAfectaSesion = afectaBloqueo;
 
 export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  if (apiActiva) return <ProveedorDatosRemotos>{children}</ProveedorDatosRemotos>;
   const { usuarioActual, refrescarUsuarios, todosLosUsuarios } = useAutenticacion();
   const [calendarioRevision, setCalendarioRevision] = useState<CalendarioRevision | null>(() => { try {return JSON.parse(localStorage.getItem(CLAVE_CALENDARIO) || 'null');} catch {return null;} });
   const guardarCalendarioRevision = (datos: CalendarioRevision) => {
@@ -281,62 +285,62 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const error = validarCalendario(datos); if(error) return {exito:false,error};
     const nuevo = {...datos, diasLaborables:[...new Set(datos.diasLaborables)], diasInhabiles:[...new Set(datos.diasInhabiles)], responsable:usuarioActual.nombre,fechaConfiguracion:new Date().toISOString()};
     const solicitudes=listaSolicitudes.map(s=>s.estado==='en_revision'&&!s.fechaVencimientoRevision?{...s,fechaVencimientoRevision:vencimientoRevision(s.fechaEnvioInicial||s.fechaCreacion,nuevo)}:s);
-    const resultado=guardarLoteLocal(localStorage,{[CLAVE_CALENDARIO]:nuevo,[`${CLAVE_ALMACEN_DATOS}_solicitudes`]:solicitudes});
+    const resultado=guardarLoteLocal(localStorage,{[CLAVE_CALENDARIO]:nuevo,[`${prefijoLocal()}_solicitudes`]:solicitudes});
     if(resultado.exito){setCalendarioRevision(nuevo);setListaSolicitudes(solicitudes);} return resultado;
   };
-  const [listaEventos, setListaEventos] = useListaLocal<Evento>(`${CLAVE_ALMACEN_DATOS}_eventos`,() => {
-    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_eventos`);
-    return cargarEventosProgramados(g ? JSON.parse(g) : EVENTOS_INICIALES);
+  const [listaEventos, setListaEventos] = useListaLocal<Evento>(`${prefijoLocal()}_eventos`,() => {
+    const g = localStorage.getItem(`${prefijoLocal()}_eventos`);
+    return modoDemostracionActivo() ? cargarEventosProgramados(g ? JSON.parse(g) : EVENTOS_INICIALES) : (g ? JSON.parse(g).filter((e:Evento)=>!EVENTOS_INICIALES.some(d=>d.id===e.id)) : []);
   });
 
-  const [listaSolicitudes, setListaSolicitudes] = useListaLocal<SolicitudEvento>(`${CLAVE_ALMACEN_DATOS}_solicitudes`,() => {
-    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_solicitudes`);
-    return g ? JSON.parse(g) : SOLICITUDES_INICIALES;
+  const [listaSolicitudes, setListaSolicitudes] = useListaLocal<SolicitudEvento>(`${prefijoLocal()}_solicitudes`,() => {
+    const g = localStorage.getItem(`${prefijoLocal()}_solicitudes`);
+    return g ? JSON.parse(g) : modoDemostracionActivo() ? SOLICITUDES_INICIALES : [];
   });
 
-  const [listaRecintos, setListaRecintos] = useListaLocal<Recinto>(`${CLAVE_ALMACEN_DATOS}_recintos`,() => {
-    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_recintos`);
-    return g ? JSON.parse(g) : RECINTOS_INICIALES.map((r) => ({ ...r, activo: true }));
+  const [listaRecintos, setListaRecintos] = useListaLocal<Recinto>(`${prefijoLocal()}_recintos`,() => {
+    const g = localStorage.getItem(`${prefijoLocal()}_recintos`);
+    return g ? JSON.parse(g) : (modoDemostracionActivo() ? RECINTOS_INICIALES : []).map((r) => ({ ...r, activo: true }));
   });
 
-  const [listaOcupacionesInternas, setListaOcupacionesInternas] = useListaLocal<OcupacionInterna>(`${CLAVE_ALMACEN_DATOS}_ocupaciones_internas`,() => {
-    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_ocupaciones_internas`);
+  const [listaOcupacionesInternas, setListaOcupacionesInternas] = useListaLocal<OcupacionInterna>(`${prefijoLocal()}_ocupaciones_internas`,() => {
+    const g = localStorage.getItem(`${prefijoLocal()}_ocupaciones_internas`);
     return g ? JSON.parse(g) : [];
   });
 
-  const [listaArreglos, setListaArreglos] = useListaLocal<ArregloAsientos>(`${CLAVE_ALMACEN_DATOS}_arreglos`,() => {
-    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_arreglos`);
+  const [listaArreglos, setListaArreglos] = useListaLocal<ArregloAsientos>(`${prefijoLocal()}_arreglos`,() => {
+    const g = localStorage.getItem(`${prefijoLocal()}_arreglos`);
     return incorporarProgramados<ArregloAsientos>(g ? JSON.parse(g) : ARREGLOS_INICIALES, ARREGLOS_DEMOSTRACION);
   });
 
-  const [listaBloqueos, setListaBloqueos] = useListaLocal<BloqueoRecinto>(`${CLAVE_ALMACEN_DATOS}_bloqueos`,() => {
-    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_bloqueos`);
+  const [listaBloqueos, setListaBloqueos] = useListaLocal<BloqueoRecinto>(`${prefijoLocal()}_bloqueos`,() => {
+    const g = localStorage.getItem(`${prefijoLocal()}_bloqueos`);
     return g ? JSON.parse(g) : BLOQUEOS_INICIALES;
   });
 
-  const [listaReservaciones, setListaReservaciones] = useListaLocal<Reservacion>(`${CLAVE_ALMACEN_DATOS}_reservaciones`,() => {
-    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_reservaciones`);
-    return g ? JSON.parse(g) : RESERVACIONES_INICIALES;
+  const [listaReservaciones, setListaReservaciones] = useListaLocal<Reservacion>(`${prefijoLocal()}_reservaciones`,() => {
+    const g = localStorage.getItem(`${prefijoLocal()}_reservaciones`);
+    return g ? JSON.parse(g) : modoDemostracionActivo() ? RESERVACIONES_INICIALES : [];
   });
 
-  const [listaBoletos, setListaBoletos] = useListaLocal<BoletoDigital>(`${CLAVE_ALMACEN_DATOS}_boletos`,() => {
-    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_boletos`);
-    return g ? JSON.parse(g) : BOLETOS_INICIALES;
+  const [listaBoletos, setListaBoletos] = useListaLocal<BoletoDigital>(`${prefijoLocal()}_boletos`,() => {
+    const g = localStorage.getItem(`${prefijoLocal()}_boletos`);
+    return g ? JSON.parse(g) : modoDemostracionActivo() ? BOLETOS_INICIALES : [];
   });
 
-  const [listaEspera, setListaEspera] = useListaLocal<EntradaListaEspera>(`${CLAVE_ALMACEN_DATOS}_espera`,() => {
-    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_espera`);
+  const [listaEspera, setListaEspera] = useListaLocal<EntradaListaEspera>(`${prefijoLocal()}_espera`,() => {
+    const g = localStorage.getItem(`${prefijoLocal()}_espera`);
     return g ? JSON.parse(g) : [];
   });
 
-  const [listaIntencionesAsistencia, setListaIntencionesAsistencia] = useListaLocal<RegistroIntencionAsistencia>(`${CLAVE_ALMACEN_DATOS}_intenciones_asistencia`,() => {
-    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_intenciones_asistencia`);
+  const [listaIntencionesAsistencia, setListaIntencionesAsistencia] = useListaLocal<RegistroIntencionAsistencia>(`${prefijoLocal()}_intenciones_asistencia`,() => {
+    const g = localStorage.getItem(`${prefijoLocal()}_intenciones_asistencia`);
     return g ? JSON.parse(g) : [];
   });
 
-  const [bitacoraEscaneos, setBitacoraEscaneos] = useListaLocal<RegistroEscaneo>(`${CLAVE_ALMACEN_DATOS}_escaneos`,() => {
-    const g = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_escaneos`);
-    return g ? JSON.parse(g) : BITACORA_INICIAL_ESCANEOS;
+  const [bitacoraEscaneos, setBitacoraEscaneos] = useListaLocal<RegistroEscaneo>(`${prefijoLocal()}_escaneos`,() => {
+    const g = localStorage.getItem(`${prefijoLocal()}_escaneos`);
+    return g ? JSON.parse(g) : modoDemostracionActivo() ? BITACORA_INICIAL_ESCANEOS : [];
   });
 
   const [listaClasesRegulares] = useState<HorarioClaseRegular[]>(CLASES_REGULARES_INICIALES);
@@ -348,7 +352,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         const actuales=leerListaActual('reservaciones',listaReservaciones);
         const nuevas=actuales.map(res=>res.estado==='apartado_temporal'&&(res.tiempoExpiracionApartado||Infinity)<Date.now()?{...res,estado:'cancelada' as const}:res);
         if(nuevas.some((r,i)=>r!==actuales[i])){
-          const r=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_reservaciones`]:nuevas});
+          const r=guardarLoteLocal(localStorage,{[`${prefijoLocal()}_reservaciones`]:nuevas});
           if(r.exito)setListaReservaciones(nuevas);
         }
       }catch{/* No se modifican apartados si no se pudo consultar su versión guardada. */}
@@ -396,9 +400,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         const siguiente = proyectarCierreAutomatico(actual);
         if (!siguiente.actividadesActualizadas) return;
         const guardado = guardarLoteLocal(localStorage, {
-          [`${CLAVE_ALMACEN_DATOS}_eventos`]: siguiente.eventos,
-          [`${CLAVE_ALMACEN_DATOS}_reservaciones`]: siguiente.reservaciones,
-          [`${CLAVE_ALMACEN_DATOS}_espera`]: siguiente.espera
+          [`${prefijoLocal()}_eventos`]: siguiente.eventos,
+          [`${prefijoLocal()}_reservaciones`]: siguiente.reservaciones,
+          [`${prefijoLocal()}_espera`]: siguiente.espera
         });
         if (!guardado.exito) return;
         setListaEventos(siguiente.eventos);
@@ -426,7 +430,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if(consultarAgendaGuardada){
       try{
         const leer = <T,>(clave:string,base:T[]):T[]=>{
-          const texto=localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_${clave}`);
+          const texto=localStorage.getItem(`${prefijoLocal()}_${clave}`);
           const guardado=texto?JSON.parse(texto):base;
           if(!Array.isArray(guardado))throw new Error('Agenda inválida');
           return guardado;
@@ -705,7 +709,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
   const persistirSolicitudes = (solicitudes: SolicitudEvento[]) => {
     try {
       localStorage.setItem(
-        `${CLAVE_ALMACEN_DATOS}_solicitudes`,
+        `${prefijoLocal()}_solicitudes`,
         JSON.stringify(solicitudes),
       );
       setListaSolicitudes(solicitudes);
@@ -721,7 +725,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     const cerrarVencidas = () => {
-      const actuales: SolicitudEvento[] = JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_solicitudes`) || 'null') || listaSolicitudes;
+      const actuales: SolicitudEvento[] = JSON.parse(localStorage.getItem(`${prefijoLocal()}_solicitudes`) || 'null') || listaSolicitudes;
       let cambiaron=false;
       const nuevas=actuales.map(s=>{const motivo=motivoVencimiento(s);if(!motivo)return s;cambiaron=true;return registrarCambioSolicitud(s,{estado:'rechazada',motivoRechazo:motivo,fechaRevision:new Date().toISOString(),revisadoPor:'Vencimiento automático'},'Sistema','Rechazo por vencimiento',motivo);});
       if(cambiaron) persistirSolicitudes(nuevas);
@@ -731,7 +735,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const solicitudVigente = (id: string) => {
     const guardadas = localStorage.getItem(
-      `${CLAVE_ALMACEN_DATOS}_solicitudes`,
+      `${prefijoLocal()}_solicitudes`,
     );
     const lista: SolicitudEvento[] = guardadas
       ? JSON.parse(guardadas)
@@ -919,8 +923,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     let arreglosNuevos = listaArreglos;
     if(decision==='autorizada'){
       try{
-        const eventosGuardados=JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_eventos`)||'null');
-        const arreglosGuardados=JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_arreglos`)||'null');
+        const eventosGuardados=JSON.parse(localStorage.getItem(`${prefijoLocal()}_eventos`)||'null');
+        const arreglosGuardados=JSON.parse(localStorage.getItem(`${prefijoLocal()}_arreglos`)||'null');
         if(eventosGuardados&&!Array.isArray(eventosGuardados)||arreglosGuardados&&!Array.isArray(arreglosGuardados))throw new Error('Datos inválidos');
         eventosNuevos=cargarEventosProgramados(eventosGuardados||listaEventos);
         arreglosNuevos=incorporarProgramados(arreglosGuardados||listaArreglos,ARREGLOS_DEMOSTRACION);
@@ -996,9 +1000,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     const resultadoGuardado = guardarLoteLocal(localStorage, {
       tt_usuarios_sistema_v2: usuariosNuevos,
-      [`${CLAVE_ALMACEN_DATOS}_solicitudes`]: solicitudesNuevas,
-      [`${CLAVE_ALMACEN_DATOS}_eventos`]: eventosNuevos,
-      [`${CLAVE_ALMACEN_DATOS}_arreglos`]: arreglosNuevos,
+      [`${prefijoLocal()}_solicitudes`]: solicitudesNuevas,
+      [`${prefijoLocal()}_eventos`]: eventosNuevos,
+      [`${prefijoLocal()}_arreglos`]: arreglosNuevos,
     });
     if (!resultadoGuardado.exito) return resultadoGuardado;
     setListaSolicitudes(solicitudesNuevas);
@@ -1224,7 +1228,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       aforoMaximo: datosEvento.aforoMaximo || 120
     };
 
-    const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_eventos`]:[nuevo,...listaEventos]});
+    const resultado=guardarLoteLocal(localStorage,{[`${prefijoLocal()}_eventos`]:[nuevo,...listaEventos]});
     if(!resultado.exito)throw new Error(resultado.error);
     setListaEventos((previos) => [nuevo, ...previos]);
     return nuevo;
@@ -1269,7 +1273,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       const actualizado:Evento={...e,fechas:e.fechas.map(a=>a.id===p.idActividad?r.actividad:a),historialCambios:[...(e.historialCambios||[]),{version:(e.historialCambios?.length||0)+1,fecha,responsable:actor.nombre,motivo:p.motivo.trim(),campos:['Cambio de recinto','Correspondencia de lugares',...(r.propuesta.reduccion?['Reducción de aforo']:[])],valoresAnteriores:valores,valoresNuevos:valores,detalleAnterior:JSON.stringify(e.fechas.find(a=>a.id===p.idActividad)),detalleNuevo:JSON.stringify({actividad:r.actividad,correspondencias:r.propuesta.lugares}),resultadoNotificacion:{estado:'no_configurada',destinatarios,fechaRegistro:fecha}}]};
       const eventos=leerListaActual('eventos',listaEventos).map(a=>a.id===e.id?actualizado:a);
       const arreglos=r.arreglo?[...estado.arreglos.map(a=>a.idFechaEvento===p.idActividad&&a.estado==='version_final'?{...a,estado:'bloqueado' as const}:a),r.arreglo]:estado.arreglos;
-      const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_eventos`]:eventos,[`${CLAVE_ALMACEN_DATOS}_arreglos`]:arreglos,[`${CLAVE_ALMACEN_DATOS}_reservaciones`]:r.reservas,[`${CLAVE_ALMACEN_DATOS}_boletos`]:r.boletos,[`${CLAVE_ALMACEN_DATOS}_espera`]:r.espera});
+      const resultado=guardarLoteLocal(localStorage,{[`${prefijoLocal()}_eventos`]:eventos,[`${prefijoLocal()}_arreglos`]:arreglos,[`${prefijoLocal()}_reservaciones`]:r.reservas,[`${prefijoLocal()}_boletos`]:r.boletos,[`${prefijoLocal()}_espera`]:r.espera});
       if(resultado.exito){setListaEventos(eventos);setListaArreglos(arreglos);setListaReservaciones(r.reservas);setListaBoletos(r.boletos);setListaEspera(r.espera);}
       return resultado;
     }catch(error){return {exito:false,error:error instanceof Error?error.message:'No se confirmó el cambio de recinto.'};}
@@ -1278,7 +1282,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
   const actualizarEvento = (idEvento: string, parcial: Partial<Evento>, versionEsperada?: string) => {
     let vigentes = listaEventos;
     try {
-      const guardados = localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_eventos`);
+      const guardados = localStorage.getItem(`${prefijoLocal()}_eventos`);
       if (guardados) vigentes = JSON.parse(guardados);
     } catch { return { exito: false, error: 'No se pudo consultar la versión guardada. No se modificó el evento.' }; }
     if (!Array.isArray(vigentes)) return { exito: false, error: 'La agenda guardada no es válida.' };
@@ -1287,10 +1291,10 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     let esperaVigente: EntradaListaEspera[];
     let escaneosVigentes: RegistroEscaneo[];
     try {
-      boletosVigentes = JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_boletos`) || 'null') || listaBoletos;
-      reservasVigentes = JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_reservaciones`) || 'null') || listaReservaciones;
-      esperaVigente = JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_espera`) || 'null') || listaEspera;
-      escaneosVigentes = JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_escaneos`) || 'null') || bitacoraEscaneos;
+      boletosVigentes = JSON.parse(localStorage.getItem(`${prefijoLocal()}_boletos`) || 'null') || listaBoletos;
+      reservasVigentes = JSON.parse(localStorage.getItem(`${prefijoLocal()}_reservaciones`) || 'null') || listaReservaciones;
+      esperaVigente = JSON.parse(localStorage.getItem(`${prefijoLocal()}_espera`) || 'null') || listaEspera;
+      escaneosVigentes = JSON.parse(localStorage.getItem(`${prefijoLocal()}_escaneos`) || 'null') || bitacoraEscaneos;
       if (![boletosVigentes, reservasVigentes, esperaVigente, escaneosVigentes].every(Array.isArray)) throw new Error();
     } catch { return { exito: false, error: 'No se pudieron comprobar los compromisos guardados. No se modificó el evento.' }; }
     const vigente = vigentes.find((evento) => evento.id === idEvento);
@@ -1335,8 +1339,8 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         nombreRecinto: recinto?.nombre || boleto.nombreRecinto };
     });
     const resultado = guardarLoteLocal(localStorage, {
-      [`${CLAVE_ALMACEN_DATOS}_eventos`]: nuevos,
-      [`${CLAVE_ALMACEN_DATOS}_boletos`]: boletosActualizados
+      [`${prefijoLocal()}_eventos`]: nuevos,
+      [`${prefijoLocal()}_boletos`]: boletosActualizados
     });
     if (resultado.exito) { setListaEventos(nuevos); setListaBoletos(boletosActualizados); }
     return resultado;
@@ -1348,7 +1352,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       if(!evento||!puedeModificarEvento(usuarioActual,evento)||!motivo.trim())return {exito:false,error:'No hay autorización o falta el motivo de la operación.'};
       if(JSON.stringify(evento)!==versionEsperada)return {exito:false,error:'El evento cambió. Revisa su versión actual antes de confirmar.'};
       const dias=evento.fechas.filter(d=>!d.cancelada&&(!idFecha||d.id===idFecha));const ids=new Set(dias.map(d=>d.id));
-      const boletos:BoletoDigital[]=JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_boletos`)||'null')||listaBoletos;
+      const boletos:BoletoDigital[]=JSON.parse(localStorage.getItem(`${prefijoLocal()}_boletos`)||'null')||listaBoletos;
       if(!dias.length||dias.some(d=>inicioEnMexico(d.fecha,d.horaInicio)<=Date.now()||boletos.some(b=>b.idFechaEvento===d.id&&b.estado==='utilizado')||a.escaneos.some(r=>r.idFechaEvento===d.id&&r.resultado==='exito')))return {exito:false,error:'Solo se pueden retirar o cancelar días futuros sin entradas registradas.'};
       if(retirar&&(evento.fechas.length<=1||a.reservas.some(r=>ids.has(r.idFechaEvento)&&(r.estado==='confirmada'||r.estado==='apartado_temporal'&&(r.tiempoExpiracionApartado||0)>Date.now()))||boletos.some(b=>ids.has(b.idFechaEvento)&&b.estado!=='cancelado')||a.espera.some(e=>ids.has(e.idFechaEvento)&&['esperando','notificado'].includes(e.estado))))return {exito:false,error:'No se puede retirar el último día ni un día con boletos, apartados, ofertas o personas en espera.'};
       const fechas=retirar?evento.fechas.filter(d=>!ids.has(d.id)):evento.fechas.map(d=>ids.has(d.id)?{...d,cancelada:true,estadoInscripciones:'cerradas' as const}:d);
@@ -1360,7 +1364,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       const original=EVENTOS_INICIALES.find(e=>e.id===evento.id)||evento;
       const actualizado:Evento={...evento,fechas,estado:fechas.every(d=>d.cancelada)?'cancelado':evento.estado,limitesAprobados:evento.limitesAprobados||{numeroFechas:original.fechas.length,duracionMinutos:duracionProgramada(original.fechas)},historialCambios:[...(evento.historialCambios||[]),{version:(evento.historialCambios?.length||0)+1,fecha:new Date().toISOString(),responsable:usuarioActual!.nombre,motivo:motivo.trim(),campos:[retirar?'Retiro de día':'Cancelación'],valoresAnteriores:valores,valoresNuevos:valores,detalleAnterior:JSON.stringify(evento.fechas),detalleNuevo:JSON.stringify(fechas),resultadoNotificacion:{estado:'no_configurada',destinatarios,fechaRegistro:new Date().toISOString()}}]};
       const eventos=a.eventos.map(e=>e.id===idEvento?actualizado:e);
-      const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_eventos`]:eventos,[`${CLAVE_ALMACEN_DATOS}_reservaciones`]:reservas,[`${CLAVE_ALMACEN_DATOS}_boletos`]:nuevosBoletos,[`${CLAVE_ALMACEN_DATOS}_espera`]:espera});
+      const resultado=guardarLoteLocal(localStorage,{[`${prefijoLocal()}_eventos`]:eventos,[`${prefijoLocal()}_reservaciones`]:reservas,[`${prefijoLocal()}_boletos`]:nuevosBoletos,[`${prefijoLocal()}_espera`]:espera});
       if(resultado.exito){setListaEventos(eventos);setListaReservaciones(reservas);setListaBoletos(nuevosBoletos);setListaEspera(espera);}return resultado;
     }catch{return {exito:false,error:'No se confirmó la operación; no se pudo guardar el conjunto de cambios.'};}
   };
@@ -1562,7 +1566,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     const nuevas=[...reservacionesLimpias,nuevaReservacion];
-    const guardado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_reservaciones`]:nuevas});
+    const guardado=guardarLoteLocal(localStorage,{[`${prefijoLocal()}_reservaciones`]:nuevas});
     if(!guardado.exito)return guardado;
     setListaReservaciones(nuevas);
     return { exito: true, reservacion: nuevaReservacion };
@@ -1659,9 +1663,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const boletosNuevos=[nuevoBoleto,...boletos];
     const esperaNueva=espera.map(entrada=>entrada.idReservacionOferta===idReservacion&&entrada.estado==='notificado'?{...entrada,estado:'convertido' as const}:entrada);
     const guardado=guardarLoteLocal(localStorage,{
-      [`${CLAVE_ALMACEN_DATOS}_reservaciones`]:reservasNuevas,
-      [`${CLAVE_ALMACEN_DATOS}_boletos`]:boletosNuevos,
-      [`${CLAVE_ALMACEN_DATOS}_espera`]:esperaNueva
+      [`${prefijoLocal()}_reservaciones`]:reservasNuevas,
+      [`${prefijoLocal()}_boletos`]:boletosNuevos,
+      [`${prefijoLocal()}_espera`]:esperaNueva
     });
     if(!guardado.exito)return guardado;
     setListaReservaciones(reservasNuevas);setListaBoletos(boletosNuevos);setListaEspera(esperaNueva);
@@ -1957,9 +1961,9 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       };
       const siguiente = proyectarCambioInscripciones(actual, datos, consultarSolicitanteVigente() || null);
       const guardado = guardarLoteLocal(localStorage, {
-        [`${CLAVE_ALMACEN_DATOS}_eventos`]: siguiente.eventos,
-        [`${CLAVE_ALMACEN_DATOS}_reservaciones`]: siguiente.reservaciones,
-        [`${CLAVE_ALMACEN_DATOS}_espera`]: siguiente.espera
+        [`${prefijoLocal()}_eventos`]: siguiente.eventos,
+        [`${prefijoLocal()}_reservaciones`]: siguiente.reservaciones,
+        [`${prefijoLocal()}_espera`]: siguiente.espera
       });
       if (!guardado.exito) return guardado;
       setListaEventos(siguiente.eventos);
@@ -2016,7 +2020,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     const nuevas = [registro, ...intenciones];
-    const guardado = guardarLoteLocal(localStorage, { [`${CLAVE_ALMACEN_DATOS}_intenciones_asistencia`]: nuevas });
+    const guardado = guardarLoteLocal(localStorage, { [`${prefijoLocal()}_intenciones_asistencia`]: nuevas });
     if (!guardado.exito) return guardado;
     setListaIntencionesAsistencia(nuevas);
     return { exito: true, registro };
@@ -2030,7 +2034,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!registro || registro.idUsuario !== usuarioActual?.id || !consultarSolicitanteVigente())
       return { exito: false, error: 'Solo puedes cancelar registros de tu propia cuenta activa.' };
     const nuevas = intenciones.filter(r => r.id !== idRegistro);
-    const guardado = guardarLoteLocal(localStorage, { [`${CLAVE_ALMACEN_DATOS}_intenciones_asistencia`]: nuevas });
+    const guardado = guardarLoteLocal(localStorage, { [`${prefijoLocal()}_intenciones_asistencia`]: nuevas });
     if (!guardado.exito) return guardado;
     setListaIntencionesAsistencia(nuevas);
     return { exito: true };
@@ -2211,7 +2215,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const crearRegistro=(datos:Omit<RegistroEscaneo,'id'|'fechaEscaneo'|'escaneadoPor'>):RegistroEscaneo=>({...datos,id:'esc-'+crypto.randomUUID(),fechaEscaneo:fechaHora,escaneadoPor:operadorVigente?.nombre||escaneadoPor});
     const registrarIntento = (datos: Omit<RegistroEscaneo, 'id' | 'fechaEscaneo' | 'escaneadoPor'>) => {
       const nuevas=[crearRegistro(datos),...escaneos];
-      const r=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_escaneos`]:nuevas});
+      const r=guardarLoteLocal(localStorage,{[`${prefijoLocal()}_escaneos`]:nuevas});
       if(r.exito)setBitacoraEscaneos(nuevas);
     };
     const rechazar = (
@@ -2290,7 +2294,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const boletoActualizado = { ...boleto, estado: 'utilizado' as const, fechaCheckIn: fechaHora, revisadoPor: operadorVigente!.nombre };
     const boletosNuevos=boletos.map(item=>item.id===boleto.id?boletoActualizado:item);
     const escaneosNuevos=[crearRegistro({idBoleto:boleto.id,idEvento:boleto.idEvento,idFechaEvento:boleto.idFechaEvento,resultado:'exito',nombreAsistente:boleto.nombreUsuario,etiquetaAsiento:boleto.etiquetaAsiento}),...escaneos];
-    const guardado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_boletos`]:boletosNuevos,[`${CLAVE_ALMACEN_DATOS}_escaneos`]:escaneosNuevos});
+    const guardado=guardarLoteLocal(localStorage,{[`${prefijoLocal()}_boletos`]:boletosNuevos,[`${prefijoLocal()}_escaneos`]:escaneosNuevos});
     if(!guardado.exito)return {exito:false,resultado:'reservacion_no_vigente',mensaje:'No se pudo guardar la entrada. No permitas el acceso hasta confirmar el registro.'};
     setListaBoletos(boletosNuevos);setBitacoraEscaneos(escaneosNuevos);
     return {
@@ -2312,14 +2316,14 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const arreglo={...structuredClone(arregloOriginal),id:'arr-'+crypto.randomUUID(),idFechaEvento:idDia,etiquetaVersion:'Demostración 1',fechaCreacion:new Date().toISOString(),fechaConfirmacionFinal:new Date().toISOString()};
     const dia={...structuredClone(plantilla.fechas[0]),id:idDia,idEvento:id,fecha:new Date(Date.now()+21*86400000).toISOString().slice(0,10),idArregloFinal:arreglo.id,esFinalConfirmado:true,estadoInscripciones:'abiertas' as const,fechaLimiteInscripciones:undefined,historialInscripciones:[]};
     const evento:Evento={...structuredClone(plantilla),id,idSolicitud:undefined,titulo:'Evento de demostración de Ticket Trade',descripcion:'Evento de prueba para recorrer interfaces sin modificar los eventos existentes.',fechas:[dia],fechaPublicacion:new Date().toISOString(),inscripcionesAbiertas:true,fechaCierreInscripcion:undefined,historialCambios:[],limitesAprobados:{numeroFechas:1,duracionMinutos:duracionProgramada([dia])}};
-    const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_eventos`]:[evento,...listaEventos],[`${CLAVE_ALMACEN_DATOS}_arreglos`]:[arreglo,...listaArreglos]});
+    const resultado=guardarLoteLocal(localStorage,{[`${prefijoLocal()}_eventos`]:[evento,...listaEventos],[`${prefijoLocal()}_arreglos`]:[arreglo,...listaArreglos]});
     if(resultado.exito){setListaEventos([evento,...listaEventos]);setListaArreglos([arreglo,...listaArreglos]);}
     return {...resultado,evento:resultado.exito?evento:undefined};
   };
   const prepararSolicitudDemostracion:ContextoDatosTipo['prepararSolicitudDemostracion']=(estado, extraordinaria=false)=>{
     if(!modoDemostracionActivo())return {exito:false,error:'Este escenario solo está disponible en demostración.'};
     try {
-      const solicitudes:SolicitudEvento[]=JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_solicitudes`) || 'null') || listaSolicitudes;
+      const solicitudes:SolicitudEvento[]=JSON.parse(localStorage.getItem(`${prefijoLocal()}_solicitudes`) || 'null') || listaSolicitudes;
       const existente=solicitudes.find(s=>s.idSolicitante==='usr-silva'&&s.estado===estado&&Boolean(s.esExcepcional)===extraordinaria&&!motivoVencimiento(s)&&(estado!=='borrador'||!validarDistribuciones(s,listaRecintos))&&s.fechasSolicitadas.every(d=>inicioEnMexico(d.fecha,d.horaInicio)>Date.now()));
       if(existente)return {exito:true,id:existente.id};
       const plantilla=SOLICITUDES_INICIALES.find(s=>s.id===(estado==='borrador'?'sol-borrador-demo':estado==='en_revision'?'sol-revision-ordinaria-demo':'sol-correccion-demo'))!;
@@ -2334,7 +2338,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
         fechaVencimientoRevision:estado==='en_revision'&&!extraordinaria&&calendarioRevision?vencimientoRevision(ahora,calendarioRevision):undefined,
         fechaLimiteCorreccion:estado==='requiere_correccion'?new Date(Date.now()+86400000).toISOString():undefined,tiempoRevisionRestanteMs:estado==='requiere_correccion'?2*86400000:undefined,
         fechasSolicitadas:[{...plantilla.fechasSolicitadas[0],fecha,idRecinto:recinto.id,distribucion,distribucionConfirmada:true}]};
-      const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_solicitudes`]:[nueva,...solicitudes]});
+      const resultado=guardarLoteLocal(localStorage,{[`${prefijoLocal()}_solicitudes`]:[nueva,...solicitudes]});
       if(resultado.exito)setListaSolicitudes([nueva,...solicitudes]);
       return {...resultado,id:resultado.exito?nueva.id:undefined};
     }catch{return {exito:false,error:'No se pudo preparar la solicitud de demostración.'};}
@@ -2346,11 +2350,11 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const demo=escenarioSuspension();
     const eventos=[demo.evento,...listaEventos.filter(e=>e.id!==demo.evento.id)];
     const bloqueos=[demo.bloqueo,...listaBloqueos.filter(b=>b.id!==demo.bloqueo.id)];
-    const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_eventos`]:eventos,[`${CLAVE_ALMACEN_DATOS}_bloqueos`]:bloqueos});
+    const resultado=guardarLoteLocal(localStorage,{[`${prefijoLocal()}_eventos`]:eventos,[`${prefijoLocal()}_bloqueos`]:bloqueos});
     if(resultado.exito){setListaEventos(eventos);setListaBloqueos(bloqueos);}return {...resultado,id:resultado.exito?demo.evento.id:undefined};
   };
   const leerEstadoBloqueos = () => {
-    const leer=<T,>(clave:string,actual:T):T=>JSON.parse(localStorage.getItem(`${CLAVE_ALMACEN_DATOS}_${clave}`) || 'null') || actual;
+    const leer=<T,>(clave:string,actual:T):T=>JSON.parse(localStorage.getItem(`${prefijoLocal()}_${clave}`) || 'null') || actual;
     return {eventos:leer('eventos',listaEventos),bloqueos:leer('bloqueos',listaBloqueos),ocupaciones:leer('ocupaciones_internas',listaOcupacionesInternas),escaneos:leer('escaneos',bitacoraEscaneos),reservas:leer('reservaciones',listaReservaciones),espera:leer('espera',listaEspera)};
   };
   const revisarBloqueoInstitucional:ContextoDatosTipo['revisarBloqueoInstitucional']=(datos,id)=>{
@@ -2373,7 +2377,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       const eventos=actuales.eventos.map(e=>({...e,fechas:e.fechas.map(d=>ids.has(d.id)?{...d,suspendida:true,idBloqueoSuspension:identificador,estadoInscripciones:'cerradas' as const}:d)}));
       const reservas=actuales.reservas.map(r=>ids.has(r.idFechaEvento)&&r.estado==='apartado_temporal'?{...r,estado:'cancelada' as const}:r);
       const espera=actuales.espera.map(e=>ids.has(e.idFechaEvento)&&e.estado==='notificado'?{...e,estado:'esperando' as const,fechaOferta:undefined,fechaExpiracionOferta:undefined,idReservacionOferta:undefined,idAsientoOferta:undefined,etiquetaAsientoOferta:undefined}:e);
-      const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_bloqueos`]:bloques,[`${CLAVE_ALMACEN_DATOS}_eventos`]:eventos,[`${CLAVE_ALMACEN_DATOS}_reservaciones`]:reservas,[`${CLAVE_ALMACEN_DATOS}_espera`]:espera});
+      const resultado=guardarLoteLocal(localStorage,{[`${prefijoLocal()}_bloqueos`]:bloques,[`${prefijoLocal()}_eventos`]:eventos,[`${prefijoLocal()}_reservaciones`]:reservas,[`${prefijoLocal()}_espera`]:espera});
       if(!resultado.exito)return resultado;
       setListaBloqueos(bloques);setListaEventos(eventos);setListaReservaciones(reservas);setListaEspera(espera);
       return {exito:true,id:identificador,version:nuevo.version};
@@ -2384,7 +2388,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     try {const actuales=leerEstadoBloqueos();const b=actuales.bloqueos.find(b=>b.id===id);
       if(!b||b.estado==='cancelado'||(b.version||1)!==version||(!b.esIndefinido&&inicioEnMexico(b.fechaFin||b.fechaInicio,b.horaFin||'23:59')<=Date.now())) return {exito:false,error:'El bloqueo cambió, ya terminó o está cancelado.'};
       const nuevos=actuales.bloqueos.map(item=>item.id===id?{...item,estado:'cancelado' as const,motivoCancelacion:motivo.trim(),version:(item.version||1)+1,historial:[...(item.historial||[]),{fecha:new Date().toISOString(),responsable:usuarioActual.nombre,accion:'Cancelación',motivo:motivo.trim()}]}:item);
-      const resultado=guardarLoteLocal(localStorage,{[`${CLAVE_ALMACEN_DATOS}_bloqueos`]:nuevos});if(resultado.exito)setListaBloqueos(nuevos);return resultado;
+      const resultado=guardarLoteLocal(localStorage,{[`${prefijoLocal()}_bloqueos`]:nuevos});if(resultado.exito)setListaBloqueos(nuevos);return resultado;
     } catch{return {exito:false,error:'No se pudo guardar la cancelación del bloqueo.'};}
   };
 

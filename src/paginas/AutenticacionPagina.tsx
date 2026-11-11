@@ -84,7 +84,7 @@ export function AutenticacionPagina({
   const afiliacion: TipoAfiliacion =
     categoria === "trabajador" ? rolEmpleado : categoria;
 
-  const registrar = (e: React.FormEvent) => {
+  const registrar = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!nombre.trim() || !apellidoPaterno.trim()) {
@@ -110,7 +110,10 @@ export function AutenticacionPagina({
     const nombreCompleto = [nombre, apellidoPaterno, apellidoMaterno].map(p=>p.trim()).filter(Boolean).join(" ");
     const correoParaRegistro = c;
 
-    const r = auth.registrarUsuario({
+    const r = (await auth.registrarUsuario({
+      nombres: nombre.trim(),
+      primerApellido: apellidoPaterno.trim(),
+      segundoApellido: apellidoMaterno.trim(),
       nombre: nombreCompleto,
       correo: correoParaRegistro,
       password,
@@ -126,7 +129,7 @@ export function AutenticacionPagina({
         categoria === "trabajador"
           ? identificador.trim().toUpperCase()
           : undefined,
-    });
+    }));
 
     setMensaje(r.mensaje);
     if (r.exito) {
@@ -226,35 +229,7 @@ export function AutenticacionPagina({
             className="space-y-5"
             onSubmit={async (e) => {
               e.preventDefault();
-              if (apiActiva) {
-              try {
-                const res = await fetch('/api/auth/login', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ correo, password }),
-                  credentials: 'same-origin',
-                });
-                const cuerpo = await res.json();
-                if (res.ok && cuerpo?.datos?.usuario) {
-                  auth.iniciarSesionConUsuario(cuerpo.datos.usuario);
-                  navigate(
-                    destinoInternoSeguro(
-                      new URLSearchParams(window.location.search).get("continuar")
-                    )
-                  );
-                  return;
-                } else if (!res.ok && cuerpo?.error?.mensaje) {
-                  setMensaje(cuerpo.error.mensaje);
-                  return;
-                }
-              } catch {
-                setMensaje('No se pudo comunicar con el servidor. Intenta de nuevo.');
-                return;
-              }
-              setMensaje('No se pudo iniciar sesión con el servidor.');
-              return;
-              }
-              const r = auth.iniciarSesion(correo, password);
+              const r = (await auth.iniciarSesion(correo, password));
               setMensaje(r.mensaje);
               if (r.exito) {
                 navigate(
@@ -330,13 +305,13 @@ export function AutenticacionPagina({
                 Accesos rápidos de prueba
               </h3>
               <div className="grid gap-2 sm:grid-cols-2">
-                {USUARIOS_INICIALES.map((u) => (
+                {(apiActiva ? auth.todosLosUsuarios : USUARIOS_INICIALES).map((u) => (
                   <button
                     key={u.id}
                     className="group min-w-0 rounded-xl border border-transparent bg-white p-3 text-left shadow-sm transition-colors hover:border-[#7a132b]/25 hover:bg-[#7a132b]/5 focus-visible:outline-2 focus-visible:outline-[#7a132b]"
                     onClick={() => {
                       setCorreo(u.correo);
-                      setPassword(u.password || "");
+                      setPassword(u.password || "Password123!");
                     }}
                   >
                     <span className="block truncate text-sm font-bold text-neutral-800 group-hover:text-[#7a132b]">
@@ -610,9 +585,9 @@ export function AutenticacionPagina({
           {paso === "solicitar" ? (
             <form
               className="space-y-4"
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                const r = auth.solicitarRecuperacionPassword(correo);
+                const r = (await auth.solicitarRecuperacionPassword(correo));
                 setMensaje(r.mensaje);
                 setCodigoDemo(r.codigoPrueba || "");
                 if (r.exito) setPaso("token");
@@ -647,7 +622,7 @@ export function AutenticacionPagina({
               )}
               <form
                 className="space-y-4"
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
                   if (paso === "token") {
                     if (auth.esTokenRecuperacionValido(token)) {
@@ -663,7 +638,7 @@ export function AutenticacionPagina({
                   if (password !== confirmacion) {
                     return setMensaje("Las contraseñas no coinciden.");
                   }
-                  const r = auth.restablecerPasswordConToken(token, password);
+                  const r = (await auth.restablecerPasswordConToken(token, password));
                   setMensaje(r.mensaje);
                   if (r.exito) {
                     setPassword("");

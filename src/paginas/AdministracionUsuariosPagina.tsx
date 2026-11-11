@@ -88,12 +88,12 @@ export const AdministracionUsuariosPagina: React.FC<
     }
   };
 
-  const guardarRoles = () => {
+  const guardarRoles = async () => {
     if (!usuarioEditandoRoles) return;
-    const res = asignarRolesAUsuario(
+    const res = (await asignarRolesAUsuario(
       usuarioEditandoRoles.id,
       rolesSeleccionados,
-    );
+    ));
     if (res.exito) {
       mostrarNotificacion("Permisos Actualizados", res.mensaje, "exito");
       setUsuarioEditandoRoles(null);
@@ -106,15 +106,15 @@ export const AdministracionUsuariosPagina: React.FC<
     setUsuarioEditandoStaff(u);
   };
 
-  const alternarAsignacionStaffEvento = (idEvento: string) => {
+  const alternarAsignacionStaffEvento = async (idEvento: string) => {
     if (!usuarioEditandoStaff) return;
     const yaAsignado =
       usuarioEditandoStaff.eventosAsignadosStaff?.includes(idEvento) || false;
-    const res = asociarStaffAEvento(
+    const res = (await asociarStaffAEvento(
       usuarioEditandoStaff.id,
       idEvento,
       !yaAsignado,
-    );
+    ));
     if (res.exito) {
       mostrarNotificacion("Staff Actualizado", res.mensaje, "exito");
       // Actualizar estado local del modal
@@ -291,7 +291,7 @@ export const AdministracionUsuariosPagina: React.FC<
                   <td className="px-5 py-3.5">
                     <button
                       type="button"
-                      onClick={() => alternarEstadoUsuario(u.id)}
+                      onClick={async () => (await alternarEstadoUsuario(u.id))}
                       className={`inline-flex items-center gap-1 font-bold text-[11px] cursor-pointer ${
                         u.estaActivo
                           ? "text-emerald-700"

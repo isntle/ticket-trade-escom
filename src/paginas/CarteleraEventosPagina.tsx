@@ -236,7 +236,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
           {eventoDestacado && (
             <div>
               <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block mb-3">
-                {periodo === 'anteriores' ? 'Evento del historial' : 'Encuentro Principal Destacado'}
+                {periodo === 'anteriores' ? 'Evento del historial' : 'Evento principal destacado'}
               </span>
 
               <div
@@ -290,8 +290,10 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
                       </span>
                       <span className="capitalize text-neutral-600">
                         {eventoDestacado.modalidadAsistencia === "controlado"
-                          ? "Acceso con Butaca Numerada"
-                          : "Acceso Libre"}
+                          ? "Acceso con asiento"
+                          : eventoDestacado.modalidadAsistencia === "registro"
+                            ? "Registro de asistencia"
+                            : "Entrada libre"}
                       </span>
                     </div>
 
@@ -317,7 +319,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
                   {/* Acciones de la tarjeta destacada */}
                   <div className="pt-4 border-t border-neutral-100 flex items-center justify-between">
                     <span className="text-xs font-mono text-neutral-400">
-                      {eventoDestacado.fechas.length} día(s) programado(s)
+                      {new Set(eventoDestacado.fechas.map(f => f.fecha)).size} día(s) programado(s)
                     </span>
 
                     <button
@@ -343,7 +345,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
           {eventosSiguientes.length > 0 && (
             <div>
               <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block mb-4">
-              {periodo === 'anteriores' ? 'Más eventos anteriores' : 'Próximos Encuentros y Talleres'}
+              {periodo === 'anteriores' ? 'Más eventos anteriores' : 'Próximos eventos y talleres'}
               </span>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

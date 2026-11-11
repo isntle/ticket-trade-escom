@@ -76,6 +76,13 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
   });
 
   const clavesFilasOrdenadas = Object.keys(filasAgrupadas).sort();
+  const totalesBloques = asientos.reduce((total, lugar) => {
+    const izquierda = lugar.fila === 'A' ? 3 : lugar.fila === 'B' ? 5 : 6;
+    const centro = lugar.fila === 'A' ? 8 : 11;
+    const seccion = lugar.seccion || (lugar.numero <= izquierda ? 'izq' : lugar.numero <= izquierda + centro ? 'centro' : 'der');
+    if (seccion in total) total[seccion as keyof typeof total]++;
+    return total;
+  }, {izq: 0, centro: 0, der: 0});
 
   // Dimensionamiento visual adaptativo de botones
   // En Auditorio 'ajustar': tamaño optimizado (20-24px) para caber al 100% en pantallas medianas y de escritorio sin scrollbar
@@ -354,28 +361,28 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
             <div className="h-1.5 sm:h-2 w-3/5 mx-auto bg-[#7a132b] rounded-b-md shadow-xs opacity-90" />
           </div>
           <span className="text-[10px] font-semibold text-neutral-400 tracking-wider uppercase block">
-            Aforo Oficial: 242 Butacas Escalonadas · 11 Filas (A - K) · 3 Bloques con 2 Pasillos
+            {asientos.length} Butacas · {clavesFilasOrdenadas.length} Filas ({clavesFilasOrdenadas[0]} - {clavesFilasOrdenadas.at(-1)}) · 3 Bloques con 2 Pasillos
           </span>
 
           {/* Marcadores de Bloques según el boceto arquitectónico y selector adaptativo */}
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:gap-3 text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-500">
             <div className="bg-neutral-100 border border-neutral-200/80 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
               <span>Bloque Lateral Izq.</span>
-              <span className="text-[#7a132b] font-black">62</span>
+              <span className="text-[#7a132b] font-black">{totalesBloques.izq}</span>
             </div>
             <div className="px-2 py-0.5 rounded border border-dashed border-neutral-300 text-[9px] text-neutral-400 bg-neutral-50/50 hidden sm:inline-block">
               Pasillo 1
             </div>
             <div className="bg-neutral-100 border border-neutral-200/80 px-3 py-1 rounded-lg flex items-center gap-1.5">
               <span>Bloque Central</span>
-              <span className="text-[#7a132b] font-black">118</span>
+              <span className="text-[#7a132b] font-black">{totalesBloques.centro}</span>
             </div>
             <div className="px-2 py-0.5 rounded border border-dashed border-neutral-300 text-[9px] text-neutral-400 bg-neutral-50/50 hidden sm:inline-block">
               Pasillo 2
             </div>
             <div className="bg-neutral-100 border border-neutral-200/80 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
               <span>Bloque Lateral Der.</span>
-              <span className="text-[#7a132b] font-black">62</span>
+              <span className="text-[#7a132b] font-black">{totalesBloques.der}</span>
             </div>
 
             {/* Selector de modo y zoom */}
@@ -467,19 +474,19 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                 Distribución Oficial de Laboratorio de Cómputo
               </span>
               <span className="text-[10px] text-neutral-500 block">
-                38 Estaciones de Cómputo · 10 Norte, 18 Centro, 10 Sur · Pizarrón y Estrado Docente a la derecha de PC-28
+                {asientos.length} Estaciones de Cómputo · Distribución de los lugares de esta actividad
               </span>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono font-bold">
               <div className="bg-neutral-100 px-2.5 py-1 rounded-lg text-neutral-600">
-                Zona Norte: <span className="text-[#7a132b]">10 PCs</span>
+                Zona Norte: <span className="text-[#7a132b]">{mesasNorte.flat().length} PCs</span>
               </div>
               <div className="bg-neutral-100 px-2.5 py-1 rounded-lg text-neutral-600">
-                Isla Central: <span className="text-[#7a132b]">18 PCs</span>
+                Isla Central: <span className="text-[#7a132b]">{isla1Sup.length + isla1Inf.length + isla2Sup.length + isla2Inf.length + cabecera.length} PCs</span>
               </div>
               <div className="bg-neutral-100 px-2.5 py-1 rounded-lg text-neutral-600">
-                Zona Sur: <span className="text-[#7a132b]">10 PCs</span>
+                Zona Sur: <span className="text-[#7a132b]">{mesasSur.flat().length} PCs</span>
               </div>
 
               {/* Controles de Zoom para Laboratorio */}
@@ -565,7 +572,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                             </React.Fragment>
                           ))}
                         </div>
-                        <span className="text-[8px] font-mono text-neutral-400 font-semibold">2 equipos</span>
+                        <span className="text-[8px] font-mono text-neutral-400 font-semibold">{mesa.length} equipos</span>
                       </div>
                     ))}
                   </div>
@@ -585,7 +592,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                     <div className="flex flex-col gap-1 p-2 rounded-xl bg-neutral-100/70 border border-neutral-200/90 shadow-2xs">
                       <div className="flex items-center justify-between text-[9px] font-mono text-neutral-500 font-bold px-1">
                         <span>Isla 1 (Superior)</span>
-                        <span className="text-[#7a132b]">4 equipos</span>
+                        <span className="text-[#7a132b]">{isla1Sup.length} equipos</span>
                       </div>
                       <div className="flex items-center gap-1 sm:gap-1.5">
                         {isla1Sup.map((estacion) => (
@@ -604,7 +611,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                       </div>
                       <div className="flex items-center justify-between text-[9px] font-mono text-neutral-500 font-bold px-1">
                         <span>Isla 1 (Inferior)</span>
-                        <span className="text-[#7a132b]">4 equipos</span>
+                        <span className="text-[#7a132b]">{isla1Inf.length} equipos</span>
                       </div>
                     </div>
 
@@ -612,7 +619,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                     <div className="flex flex-col gap-1 p-2 rounded-xl bg-neutral-100/70 border border-neutral-200/90 shadow-2xs">
                       <div className="flex items-center justify-between text-[9px] font-mono text-neutral-500 font-bold px-1">
                         <span>Isla 2 (Superior)</span>
-                        <span className="text-[#7a132b]">4 equipos</span>
+                        <span className="text-[#7a132b]">{isla2Sup.length} equipos</span>
                       </div>
                       <div className="flex items-center gap-1 sm:gap-1.5">
                         {isla2Sup.map((estacion) => (
@@ -631,7 +638,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                       </div>
                       <div className="flex items-center justify-between text-[9px] font-mono text-neutral-500 font-bold px-1">
                         <span>Isla 2 (Inferior)</span>
-                        <span className="text-[#7a132b]">4 equipos</span>
+                        <span className="text-[#7a132b]">{isla2Inf.length} equipos</span>
                       </div>
                     </div>
 
@@ -647,7 +654,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                           </React.Fragment>
                         ))}
                       </div>
-                      <span className="text-[8px] font-mono text-[#7a132b] font-bold">2 equipos</span>
+                      <span className="text-[8px] font-mono text-[#7a132b] font-bold">{cabecera.length} equipos</span>
                     </div>
                   </div>
 
@@ -677,7 +684,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                             </React.Fragment>
                           ))}
                         </div>
-                        <span className="text-[8px] font-mono text-neutral-400 font-semibold">2 equipos</span>
+                        <span className="text-[8px] font-mono text-neutral-400 font-semibold">{mesa.length} equipos</span>
                       </div>
                     ))}
                   </div>

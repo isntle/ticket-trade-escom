@@ -1,4 +1,7 @@
 /** Almacén del prototipo en este navegador. No sustituye almacenamiento privado de servidor. */
+import { apiActiva } from '../servicios/modoDatos';
+import { cabecerasModo } from '../servicios/http';
+import { subirArchivo } from '../servicios/archivos';
 async function abrirAlmacen(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const peticion = indexedDB.open("tt_documentos_identidad", 1);
@@ -31,6 +34,7 @@ export async function validarDocumentoIdentidad(archivo: File) {
 }
 export async function guardarDocumentoIdentidad(id: string, archivo: File) {
   await validarDocumentoIdentidad(archivo);
+  if (apiActiva) return (await subirArchivo(archivo, archivo.name)).id;
   const db = await abrirAlmacen();
   try {
     await new Promise<void>((resolve, reject) => {
@@ -45,8 +49,14 @@ export async function guardarDocumentoIdentidad(id: string, archivo: File) {
   } finally {
     db.close();
   }
+  return id;
 }
 export async function leerDocumentoIdentidad(id: string): Promise<Blob> {
+  if (apiActiva) {
+    const res = await fetch('/api/archivos/' + encodeURIComponent(id), { credentials: 'same-origin', headers: cabecerasModo() });
+    if (!res.ok) throw new Error('No se pudo abrir el documento o no tienes permiso.');
+    return res.blob();
+  }
   const db = await abrirAlmacen();
   try {
     return await new Promise((resolve, reject) => {

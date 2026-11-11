@@ -22,10 +22,32 @@ test(
   async (t) => {
     const { app } = await import("../backend/app");
     const { pool } = await import("../backend/bd/pool");
+    const bd = (await pool.query("SELECT current_database() n")).rows[0].n;
+    assert.ok(
+      /^tt_pruebas_[a-f0-9]{16}$/.test(bd) &&
+        bd === process.env.TT_BD_DESECHABLE,
+      "Usa npm run test:postgres; esta prueba solo admite su base desechable.",
+    );
+    const originales = (
+      await pool.query(
+        'SELECT id_cuenta,contrasena_hash FROM ticket_trade."Cuenta" WHERE id_cuenta IN (1001,1002,1003,1004)',
+      )
+    ).rows;
     const servidor = http.createServer(app);
     await new Promise<void>((r) => servidor.listen(0, "127.0.0.1", r));
     const base = `http://127.0.0.1:${(servidor.address() as any).port}`;
     t.after(async () => {
+      await pool.query(`BEGIN;
+        DELETE FROM ticket_trade."ResolucionSolicitud" WHERE id_solicitud_evento IN (SELECT id_solicitud_evento FROM ticket_trade."SolicitudEvento" WHERE id_evento IN (SELECT id_evento FROM ticket_trade."Evento" WHERE titulo='Prueba API'));
+        DELETE FROM ticket_trade."SolicitudEvento" WHERE id_evento IN (SELECT id_evento FROM ticket_trade."Evento" WHERE titulo='Prueba API');
+        DELETE FROM ticket_trade."Actividad" WHERE id_evento IN (SELECT id_evento FROM ticket_trade."Evento" WHERE titulo='Prueba API');
+        DELETE FROM ticket_trade."Evento" WHERE titulo='Prueba API';
+        COMMIT;`);
+      for (const cuenta of originales)
+        await pool.query(
+          'UPDATE ticket_trade."Cuenta" SET contrasena_hash=$1 WHERE id_cuenta=$2',
+          [cuenta.contrasena_hash, cuenta.id_cuenta],
+        );
       await new Promise<void>((r) => servidor.close(() => r()));
       await pool.end();
     });
@@ -80,7 +102,7 @@ test(
       categoria: "Taller",
       correoContacto: "contacto@example.invalid",
       telefonoContacto: "0000000000",
-      idArchivoCartel: "1002",
+      idArchivoCartel: "1010",
       fechasSolicitadas: [
         {
           nombreActividad: "Actividad API",

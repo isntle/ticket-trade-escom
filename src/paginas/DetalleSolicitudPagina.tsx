@@ -137,34 +137,34 @@ export const DetalleSolicitudPagina: React.FC<{
     setError("");
     setVersionConsultada(version);
   };
-  const ejecutar = () => {
+  const ejecutar = async () => {
     const resultado =
       accion === "cancelar"
-        ? cancelarSolicitud(solicitud.id, versionConsultada)
+        ? (await cancelarSolicitud(solicitud.id, versionConsultada))
         : accion === "devolver"
-          ? devolverSolicitud(
+          ? (await devolverSolicitud(
               solicitud.id,
               motivo,
               usuarioActual?.nombre,
               versionConsultada,
-            )
+            ))
           : accion === "rechazar"
-            ? dictaminarSolicitud(
+            ? (await dictaminarSolicitud(
                 solicitud.id,
                 "rechazada",
                 motivo,
                 usuarioActual?.nombre,
                 versionConsultada,
-              )
+              ))
             : solicitud.esExcepcional
-              ? atenderSolicitudExtraordinaria(solicitud.id, versionConsultada)
-              : dictaminarSolicitud(
+              ? (await atenderSolicitudExtraordinaria(solicitud.id, versionConsultada))
+              : (await dictaminarSolicitud(
                   solicitud.id,
                   "autorizada",
                   undefined,
                   usuarioActual?.nombre,
                   versionConsultada,
-                );
+                ));
     if (!resultado.exito) {
       setError(resultado.error || "No se pudo completar la operación.");
       return;

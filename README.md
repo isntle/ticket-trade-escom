@@ -1,8 +1,12 @@
+> Se conserva la estética original de Ticket Trade. El modo conectado utiliza las mismas pantallas y guarda en PostgreSQL. `?demo=1` activa cuentas, eventos y actividades de una **base independiente**; la URL normal utiliza la base limpia.
+>
+> [Arranque para la presentación y estado real de las conexiones](docs/ARRANQUE_Y_ESTADO.md) · [Guía técnica](backend/README.md) · [Preparación para Supabase y Vercel](docs/POSTGRESQL_DEMO_Y_SUPABASE.md).
+
 # TICKET TRADE — ESCOM IPN
 ### Sistema de Gestión de Eventos, Recintos, Boletaje Digital y Control de Acceso
 **Institución:** Escuela Superior de Cómputo (ESCOM) — Instituto Politécnico Nacional  
 **Materia:** Análisis y Diseño de Sistemas  
-**Alcance:** Prototipo Web de Alta Fidelidad Funcionalmente Navegable (Sprint 1 & Validación de Requerimientos)
+**Alcance:** Aplicación académica con PostgreSQL y prototipo local independiente.
 
 ---
 
@@ -13,7 +17,7 @@ Ticket Trade es una plataforma institucional diseñada para gestionar de manera 
 El sistema se compone de cuatro subsistemas desacoplados pero interconectados:
 1. **01. Identidad y Perfiles:** Cuenta base institucional con capacidades dinámicas (Asistente, Organizador, Staff de acceso, Subdirección y Administrador).
 2. **02. Organización y Recintos:** Solicitud, revisión y dictamen por Subdirección, configuración de eventos, administración de fechas independientes, recintos físicos y editor visual de arreglos (butacas) con versiones finales inmutables 1:1 por fecha.
-3. **03. Motor de Taquilla:** Cartelera de eventos (Público, Interno IPN, Privado con clave), modalidades de asistencia (Libre, Registro, Controlado), mapa interactivo de selección de asiento con apartado temporal de 10 minutos (sin pagos) y emisión de boleto digital QR.
+3. **03. Motor de Taquilla:** Cartelera de eventos (Público, Interno IPN, Privado con clave), modalidades de asistencia (Libre, Registro, Controlado), mapa interactivo de selección de asiento con apartado temporal de 2 minutos (sin pagos) y emisión de boleto digital QR. El alcance conectado vigente está detallado en la guía de arranque.
 4. **04. Check-In:** Aplicación móvil para personal de apoyo (Staff) con escáner QR, detección inmediata de boletos válidos, cancelados o reutilizados, y mapa en vivo de ocupabilidad del recinto.
 
 ---
@@ -24,8 +28,8 @@ El sistema se compone de cuatro subsistemas desacoplados pero interconectados:
 # Instalar dependencias
 npm install
 
-# Iniciar servidor de desarrollo en puerto 3000
-npm run dev
+# Iniciar frontend y API juntos (puertos 3000 y 4000)
+npm start
 
 # Compilar para producción
 npm run build
@@ -38,7 +42,7 @@ El servidor local corre en `http://localhost:3000`.
 
 ---
 
-## 3. Cuentas y Roles de Demostración
+## 3. Cuentas y Roles del Prototipo Local
 
 La aplicación incluye un **Selector de Usuario y Rol** en la barra superior (TopBar), permitiendo cambiar de identidad con un solo clic para evaluar las diferentes perspectivas del sistema:
 

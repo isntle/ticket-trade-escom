@@ -1,4 +1,5 @@
 import { GestionBloqueos } from '../componentes/recintos/GestionBloqueos';
+import { apiActiva } from '../servicios/modoDatos';
 import {
   inicioEnMexico,
   fechaHoyMexico,
@@ -91,6 +92,10 @@ export const PanelSubdireccionPagina: React.FC<
 
   const manejarCrearEventoDirecto = (e: React.FormEvent) => {
     e.preventDefault();
+    if (apiActiva) {
+      mostrarNotificacion('Utiliza una solicitud de evento', 'La publicación directa todavía no está conectada. Puedes crear, enviar y resolver una solicitud guardada en PostgreSQL.', 'advertencia');
+      return;
+    }
     if (!tituloEventoDirecto.trim() || !descripcionEventoDirecto.trim()) {
       mostrarNotificacion(
         "Datos incompletos",
