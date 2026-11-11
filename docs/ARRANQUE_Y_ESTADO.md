@@ -84,4 +84,4 @@ Se revisó `backend_Regina` hasta `a54528f`: se recuperaron los flujos útiles d
 
 ## Ajustes de la presentación
 
-La base demo ahora tiene 23 eventos; 14 no requieren butaca y 12 son completamente de entrada libre. Se conservan los eventos anteriores y sus imágenes. El auditorio mantiene sus 242 lugares con 11 filas A-K y bloques de 62/118/62. Los laboratorios usan su propia vista. Las pruebas HTTP y el renderizado de mapas se verifican por separado de la selección nativa de archivos en Chrome.
+Se conserva el catálogo anterior de 12 eventos y sus actividades e imágenes, con entrada libre, registro sin asiento y acceso controlado. El auditorio mantiene sus 242 lugares con 11 filas A-K y bloques de 62/118/62. Los laboratorios usan su propia vista. Las pruebas HTTP y el renderizado de mapas se verifican por separado de la selección nativa de archivos en Chrome.

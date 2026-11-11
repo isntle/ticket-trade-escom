@@ -195,7 +195,6 @@ test(
       ["libre", "registro", "controlado"].every((m) => modalidades.has(m)),
       "Hay acceso libre, registro y asiento controlado",
     );
-    assert.ok(estado.listaEventos.filter((e: any) => e.fechas.every((a: any) => a.modalidadAsistencia === 'libre')).length > estado.listaEventos.length / 2, 'Predominan eventos de entrada libre');
     assert.ok(
       estado.listaEventos.some(
         (e: any) => new Set(e.fechas.map((f: any) => f.idRecinto)).size > 1,
