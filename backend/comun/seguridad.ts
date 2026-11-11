@@ -30,12 +30,23 @@ export async function verificarContrasena(
 }
 export const huella = (valor: string) =>
   crypto.createHash("sha256").update(valor).digest("hex");
+export function origenPermitido(origen: string, configurado = process.env.APP_ORIGIN, produccion = process.env.NODE_ENV === "production") {
+  if (origen === configurado) return true;
+  if (produccion || !configurado) return false;
+  try {
+    const recibido = new URL(origen), esperado = new URL(configurado);
+    const locales = new Set(["localhost", "127.0.0.1"]);
+    return recibido.origin === origen && esperado.origin === configurado &&
+      locales.has(recibido.hostname) && locales.has(esperado.hostname) &&
+      recibido.protocol === esperado.protocol && recibido.port === esperado.port;
+  } catch { return false; }
+}
 export const origenSeguro: RequestHandler = (req, res, next) => {
   const origen = req.get("origin");
   // Los navegadores envían Origin en las escrituras; las pruebas/CLI sin cookies pueden omitirlo.
   if (
     req.get("sec-fetch-site") === "cross-site" ||
-    (origen && origen !== process.env.APP_ORIGIN)
+    (origen && !origenPermitido(origen))
   ) {
     res
       .status(403)
