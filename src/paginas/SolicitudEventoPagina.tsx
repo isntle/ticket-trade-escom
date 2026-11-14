@@ -859,18 +859,6 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
               ))}
             </div>
 
-            {/* ========================================================================= */}
-            {/* SECCIÓN AISLADA: ITINERARIOS ADJUNTOS POR DÍA                              */}
-            {/* ========================================================================= */}
-            <div className="mt-8 pt-6 border-t border-neutral-200 space-y-4">
-              <EditorItinerarios 
-                fechas={fechas.map(f => f.fecha)} 
-                itinerarios={itinerarios} 
-                alCambiar={setItinerarios} 
-                alCambiarEstado={(fecha, estado) => setEstadoItinerarios(prev => ({ ...prev, [fecha]: estado }))} 
-              />
-            </div>
-
             {/* Advertencia y Justificación Excepcional por Regla de Anticipación */}
             {(fechasFueraDeAnticipacion.length > 0 || viaExtraordinaria) && (
               <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-3 animate-in fade-in duration-200 mt-4">
@@ -905,6 +893,15 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
             )}
           </div>
         </div>
+
+        <section className="mt-8 rounded-2xl border border-neutral-200 bg-white p-6 shadow-xs sm:p-7" aria-label="Itinerarios adjuntos por día">
+              <EditorItinerarios
+                fechas={fechas.map(f => f.fecha)}
+                itinerarios={itinerarios}
+                alCambiar={setItinerarios}
+                alCambiarEstado={(fecha, estado) => setEstadoItinerarios(prev => ({ ...prev, [fecha]: estado }))}
+              />
+        </section>
 
         {/* Acciones de Envío */}
         <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
@@ -1005,7 +1002,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       {confirmarSalida && (
         <VentanaModal
           estaAbierto
-          alCerrar={() => setConfirmarSalyd(false)}
+          alCerrar={() => setConfirmarSalida(false)}
           titulo="¿Salir de la solicitud?"
           anchoMaximo="lg"
         >
