@@ -45,13 +45,10 @@ export function ProveedorAutenticacionRemota({
         : Promise.resolve([]),
     ]);
     const u = sesion?.usuario || null;
-    const lista = demostracion.length ? demostracion : u?.roles.some((r) => ["admin", "subdireccion"].includes(r))
+    // Las tarjetas de presentación no son el directorio de revisión.
+    const lista = u?.roles.some((r) => ["admin", "subdireccion"].includes(r))
       ? await api<Usuario[]>("/auth/usuarios")
-      : demostracion.length
-        ? demostracion
-        : u
-          ? [u]
-          : [];
+      : u ? [u] : [];
     if (vigente.current) {
       setUsuario(u);
       setUsuariosPresentacion(demostracion);
