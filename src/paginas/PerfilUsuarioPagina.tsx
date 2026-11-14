@@ -1,3 +1,4 @@
+import { cuentaInstitucional } from "../dominio/facultadOrganizar.js";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { volverA } from '../dominio/navegacion';
 import React, { useState } from "react";
@@ -74,18 +75,18 @@ export function PerfilUsuarioPagina({
         <div className="grid gap-4 sm:grid-cols-2"><div className="rounded-2xl bg-neutral-50 p-4"><p className="mb-2 flex items-center gap-2 text-sm font-semibold text-neutral-500"><Mail className="h-4 w-4 text-[#7a132b]" aria-hidden="true" />Correo de la cuenta</p>
         <p className="flex items-center gap-2 text-sm font-bold text-neutral-800">{u.correoConfirmado ? <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" /> : <Clock3 className="h-4 w-4 text-amber-600" aria-hidden="true" />}{u.correoConfirmado ? 'Correo confirmado' : 'Confirmación pendiente'}</p>
         <p className="mt-2 text-sm text-neutral-500">{u.boleta ? `Boleta: ${u.boleta}` : u.numeroEmpleado ? `Identificador: ${u.numeroEmpleado}` : 'Sin identificador institucional'}</p></div>
-        <div className="rounded-2xl bg-neutral-50 p-4"><p className="mb-2 flex items-center gap-2 text-sm font-semibold text-neutral-500"><ShieldCheck className="h-4 w-4 text-[#7a132b]" aria-hidden="true" />Verificación de identidad</p><p className="text-sm font-bold text-neutral-800">{u.esVerificado ? 'Identidad verificada' : (u.estadoExpediente || 'Sin solicitar').replaceAll('_', ' ')}</p><p className="mt-2 text-sm text-neutral-500">{u.verificacionHasta ? `Vigente hasta ${u.verificacionHasta}` : u.esVerificado ? 'Tu expediente de identidad está aprobado.' : 'Consulta tu expediente para revisar los requisitos.'}</p></div></div>
+        <div className="rounded-2xl bg-neutral-50 p-4"><p className="mb-2 flex items-center gap-2 text-sm font-semibold text-neutral-500"><ShieldCheck className="h-4 w-4 text-[#7a132b]" aria-hidden="true" />Verificación de identidad</p><p className="text-sm font-bold text-neutral-800">{cuentaInstitucional(u) ? 'Cuenta institucional habilitada' : u.esVerificado ? 'Identidad verificada' : (u.estadoExpediente || 'Sin solicitar').replaceAll('_', ' ')}</p><p className="mt-2 text-sm text-neutral-500">{cuentaInstitucional(u) ? 'Tus facultades corresponden al rol asignado. No necesitas enviar un expediente documental.' : u.verificacionHasta ? `Vigente hasta ${u.verificacionHasta}` : u.esVerificado ? 'Tu expediente de identidad está aprobado.' : 'Consulta tu expediente para revisar los requisitos.'}</p></div></div>
         <p className="text-sm text-neutral-600">
           Aviso de datos: tus datos y documentos se usan para gestionar la
           cuenta y sus permisos; no se publican en la cartelera. Usa datos
           ficticios durante la demostración. Contacto: soporte_ti@escom.ipn.mx.
         </p>
         <div className="flex flex-wrap gap-3">
-          <button className={boton} onClick={() => navigate("/mi-expediente")}>
+          {!cuentaInstitucional(u) && <button className={boton} onClick={() => navigate("/mi-expediente")}>
             {u.esVerificado
               ? "Consultar o renovar expediente"
               : "Mi expediente"}
-          </button>
+          </button>}
           {!u.correoConfirmado && (
             <button
               className={boton}
