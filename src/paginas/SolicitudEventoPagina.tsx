@@ -1,3 +1,4 @@
+import { identidadHabilitadaParaOrganizar } from "../dominio/facultadOrganizar.js";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { servicioOrganizacionLocal } from '../servicios/organizacion';
 import { CATEGORIAS_EVENTO, aforoActividad, modalidadActividad, nombreActividad, validarItinerarios } from '../dominio/actividades';
@@ -358,7 +359,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       navigate("/perfil");
       return;
     }
-    if (usuarioActual && usuarioActual.esVerificado !== true) {
+    if (usuarioActual && !identidadHabilitadaParaOrganizar(usuarioActual)) {
       mostrarNotificacion(
         "Verificación requerida",
         "Envía tu expediente documental y espera el dictamen de Administración.",
@@ -517,7 +518,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       navigate("/login");
       return;
     }
-    if (usuarioActual.esVerificado !== true) {
+    if (!identidadHabilitadaParaOrganizar(usuarioActual)) {
       mostrarNotificacion(
         "Verificación requerida",
         "La preparación de trámites está disponible para solicitantes verificados.",
@@ -613,7 +614,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     navigate(`/organizador/solicitudes/${borrador.id}`);
   };
 
-  if (!usuarioActual || !usuarioActual.correoConfirmado || !usuarioActual.esVerificado || restriccionIdentidadVigente(usuarioActual)) {
+  if (!usuarioActual || !usuarioActual.correoConfirmado || !identidadHabilitadaParaOrganizar(usuarioActual) || restriccionIdentidadVigente(usuarioActual)) {
     const rutaRetorno = '/solicitar-evento';
     const correoPendiente = usuarioActual && !usuarioActual.correoConfirmado;
     const enRevision = usuarioActual?.estadoExpediente === 'en_revision';

@@ -1,3 +1,4 @@
+import { identidadHabilitadaParaOrganizar } from "../../../src/dominio/facultadOrganizar.js";
 import {routerEventos} from "./eventos.js";
 import { encolarAviso } from "../correos/avisos.js";
 import { comprobarArchivo } from "../archivos/rutas.js";
@@ -63,7 +64,7 @@ routerOrganizacion.post("/solicitudes", async (req, res, next) => {
       "VISIBILIDAD_INVALIDA",
       "El modelo admite eventos públicos o privados.",
     );
-  if (!u.correoConfirmado || !u.esVerificado)
+  if (!u.correoConfirmado || !identidadHabilitadaParaOrganizar(u))
     return void error(
       res,
       "VERIFICACION_REQUERIDA",
@@ -342,7 +343,7 @@ routerOrganizacion.patch(
         !["Borrador", "Requiere corrección"].includes(s.estado)
       )
         fallo("La solicitud cambió o ya no admite edición.", 409);
-      if (b.enviar && (!u.correoConfirmado || !u.esVerificado))
+      if (b.enviar && (!u.correoConfirmado || !identidadHabilitadaParaOrganizar(u)))
         fallo("Necesitas una cuenta confirmada y verificada.", 403);
       const revision = b.enviar === true ? await revisarDisponibilidadServidor(c, u, actividadesParaDisponibilidad(b.fechasSolicitadas), { idEventoExcluir: s.evento }) : undefined;
       if (revision) exigirPropuestaSinCruces(revision);
