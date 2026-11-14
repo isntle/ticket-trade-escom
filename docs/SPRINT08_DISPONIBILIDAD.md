@@ -103,3 +103,26 @@ Pendientes para cerrar la aceptación: ejecutar las pruebas preparadas de Postgr
 Archivos compartidos modificados en esta unidad: organizacion/rutas.ts y servicios/contratoOrganizacion.ts. El contrato y los helpers nuevos están separados para facilitar la coordinación.
 
 La segunda unidad modifica además DatosRemotos.tsx y añade solo la propiedad opcional agendaRemota al tipo del contexto local; mantiene el comportamiento del proveedor local. Las pantallas consumidoras cambian únicamente su lectura de disponibilidad, los estados del recorrido y la revisión previa al envío. Compartir este contrato y el diff con Luis antes de integrar las dos ramas.
+
+## Aceptación sobre PostgreSQL (tercera unidad)
+
+Se agregó tests/api-disponibilidad-postgres.test.ts al runner npm run test:postgres. Exige comprobar primero que current_database() sea exactamente la base tt_pruebas_<16 caracteres hexadecimales> declarada por TT_BD_DESECHABLE. Sus fixtures y escrituras de preparación solo se ejecutan después de esa comprobación. No modifica archivos SQL ni admite la base compartida como destino de las pruebas.
+
+La prueba usa el servidor Express real, cookies de sesiones autenticadas distintas y dos titulares. Ambos consultan y envían propuestas para el mismo horario; las solicitudes pendientes no ocupan. Dos revisores autorizados solicitan las resoluciones en paralelo. Una barrera transaccional comprueba que ambas conexiones alcanzan el bloqueo de PostgreSQL antes de liberarlo; así se verifica competencia real. Debe haber exactamente un HTTP 200 y un HTTP 409 con el mensaje autoritativo de disponibilidad, un evento publicado y una solicitud pendiente sin resolución parcial.
+
+La misma prueba compara agendas de ambas sesiones y verifica que no se filtre el título de una actividad privada ajena. Comprueba ocupación parcial, margen exacto, autorización sin publicación, relectura al enviar, cruces internos sin escrituras parciales y exclusiones ajenas rechazadas. Para bloqueos cubre fin efectivo, previsión, medianoche e inicio futuro, y el rechazo de una aprobación cuando el bloqueo se agregó después del envío. Una clase informativa en laboratorio permite enviar y autorizar conservando el horario académico.
+
+La comparación de esta unidad usa dos clientes HTTP con sesiones reales contra PostgreSQL. La revisión visual de los componentes de la segunda unidad sigue identificada como fixture de interfaz; no se presenta como una prueba manual en dos navegadores contra la base del equipo.
+
+Para reproducir con un servicio PostgreSQL local de pruebas que permita crear bases:
+
+    $env:DATABASE_URL = 'postgresql://USUARIO:CONTRASENA@127.0.0.1:5432/postgres'
+    npm run test:postgres
+
+El runner crea y elimina su propia base. No ejecutarlo apuntando a producción o a la demo compartida. Una conexión del equipo no se configura ni se altera como parte de esta prueba.
+
+Resultado ejecutado de esta unidad: PostgreSQL 17.11 temporal en loopback, esquema y semillas del repositorio, 14 pruebas aprobadas, cero fallidas y cero omitidas. La nueva aceptación aporta siete subcasos y su prueba contenedora. Se observaron dos conexiones contendientes, respuestas HTTP 409 y 200, un evento publicado y una solicitud pendiente sin resolución parcial. Al terminar se eliminó la base tt_pruebas y se detuvo el servidor temporal.
+
+La suite ordinaria se mantiene en 202 pruebas aprobadas y seis casos PostgreSQL omitidos por diseño en npm test; esos casos se ejecutaron por separado con el runner real descrito arriba. El tipado es correcto. Estas pruebas reemplazan el pendiente de ejecutar PostgreSQL indicado en las unidades anteriores para este entorno aislado. Continúan pendientes la revisión manual con la configuración del equipo y la coordinación con Luis antes de integrar ramas.
+
+La interpretación del bloqueo se sostiene en el propio comentario de BloqueoRecinto: fin_previsto no es fin real. Se mantiene finalizado_en como cierre efectivo. Si el equipo acuerda un vencimiento automático distinto, deberá definirlo con el responsable del modelo; no se implementa un cambio de esa regla en esta rama.
