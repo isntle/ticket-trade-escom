@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Monitor,
   Calendar,
@@ -18,6 +18,10 @@ import {
 import { useDatos } from '../../contextos/DatosContexto';
 import { Recinto, OcupacionAgenda } from '../../tipos';
 import { VentanaModal } from '../ui/VentanaModal';
+import { fechaHoyMexico } from '../../dominio/solicitudes';
+import { horarioRecintoValido } from '../../dominio/disponibilidadRecintos';
+import { useDisponibilidadRecintos } from '../../contextos/useDisponibilidadRecintos';
+import { EstadoConsultaAgenda } from './EstadoConsultaAgenda';
 
 interface PropiedadesVisorDisponibilidadRecintos {
   fechaSeleccionada?: string;
@@ -26,14 +30,16 @@ interface PropiedadesVisorDisponibilidadRecintos {
 }
 
 export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilidadRecintos> = ({
-  fechaSeleccionada = '2026-10-15',
+  fechaSeleccionada,
   alSeleccionarRecinto,
   recintoActivoId
 }) => {
-  const { listaRecintos, obtenerOcupacionesRecinto } = useDatos();
+  const { listaRecintos, obtenerOcupacionesRecinto, verificarDisponibilidadRecinto } = useDatos();
 
   // Fecha de consulta seleccionada
-  const [fechaConsulta, setFechaConsulta] = useState(fechaSeleccionada);
+  const [fechaConsulta, setFechaConsulta] = useState(fechaSeleccionada || fechaHoyMexico());
+  useEffect(() => { if (fechaSeleccionada) setFechaConsulta(fechaSeleccionada); }, [fechaSeleccionada]);
+  const consulta = useDisponibilidadRecintos(fechaConsulta);
   const [horaInicioConsulta, setHoraInicioConsulta] = useState('10:00');
   const [horaFinConsulta, setHoraFinConsulta] = useState('13:00');
 
@@ -59,30 +65,10 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
 
   // Evaluar conflicto en el horario de consulta
   const evaluarEstadoEnHorario = (idRecinto: string) => {
-    const ocupaciones = obtenerOcupacionesRecinto(idRecinto, fechaConsulta);
-    const conflicto = ocupaciones.find(
-      (o) => horaInicioConsulta < o.horaFin && horaFinConsulta > o.horaInicio
-    );
-
-    if (conflicto) {
-      return {
-        disponible: false,
-        ocupacion: conflicto,
-        etiqueta:
-          conflicto.tipo === 'clase'
-            ? 'Clase Regular'
-            : conflicto.tipo === 'bloqueo'
-            ? 'Mantenimiento'
-            : 'Evento Autorizado',
-        detalle: `${conflicto.titulo} (${conflicto.horaInicio} - ${conflicto.horaFin})`
-      };
-    }
-
-    return {
-      disponible: true,
-      etiqueta: 'Disponible',
-      detalle: 'Espacio libre y compatible en el horario consultado'
-    };
+    if (consulta.estado !== 'listo') return 'Disponibilidad por confirmar';
+    if (!horarioRecintoValido(horaInicioConsulta,horaFinConsulta)) return 'Revisa el horario (hasta las 21:00)';
+    const d = verificarDisponibilidadRecinto(idRecinto, fechaConsulta, horaInicioConsulta, horaFinConsulta);
+    return !d.disponible ? d.motivo || 'Conflicto en el horario consultado' : d.tipoConflicto === 'clase' ? 'Clase informativa: decide Subdirección' : `Sin conflictos de ${horaInicioConsulta} a ${horaFinConsulta}`;
   };
 
   // Fechas de prueba rápidas para facilitar la evaluación
@@ -106,7 +92,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
               Disponibilidad de recintos
             </span>
             <span className="text-sm text-neutral-400 font-mono">
-              Horarios de 08:00 a 20:00
+              Vista de 08:00 a 20:00 · consulta hasta las 21:00
             </span>
           </div>
           <h2 className="text-xl font-extrabold text-neutral-900 tracking-tight">
@@ -123,6 +109,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
             <Calendar className="w-3.5 h-3.5 text-neutral-500" />
             <input
               type="date"
+              aria-label="Fecha de consulta de la agenda"
               value={fechaConsulta}
               onChange={(e) => setFechaConsulta(e.target.value)}
               className="bg-transparent font-bold text-neutral-900 focus:outline-none cursor-pointer"
@@ -133,6 +120,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
             <Clock className="w-3.5 h-3.5 text-neutral-500" />
             <input
               type="time"
+              aria-label="Inicio del horario de consulta"
               value={horaInicioConsulta}
               onChange={(e) => setHoraInicioConsulta(e.target.value)}
               className="bg-transparent font-medium text-neutral-800 text-sm focus:outline-none"
@@ -140,6 +128,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
             <span className="text-neutral-400 text-sm">a</span>
             <input
               type="time"
+              aria-label="Fin del horario de consulta"
               value={horaFinConsulta}
               onChange={(e) => setHoraFinConsulta(e.target.value)}
               className="bg-transparent font-medium text-neutral-800 text-sm focus:outline-none"
@@ -149,7 +138,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
       </div>
 
       {/* Píldoras de Acceso Rápido a Fechas de Demostración */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-sm">
+      {!consulta.remota && <div className="flex items-center gap-2 overflow-x-auto pb-1 text-sm">
         <span className="text-sm font-semibold text-neutral-400  shrink-0">
           Fechas Clave:
         </span>
@@ -167,7 +156,9 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
             {item.label}
           </button>
         ))}
-      </div>
+      </div>}
+      <EstadoConsultaAgenda {...consulta}/>
+      {consulta.remota && consulta.estado === 'listo' && <p className="text-xs text-neutral-500">Agenda consultada a las {new Date(consulta.agenda!.consultadoEn).toLocaleTimeString('es-MX',{timeZone:'America/Mexico_City'})} h · hora de Ciudad de México. <button type="button" onClick={consulta.recargar} className="ml-2 rounded-lg border border-neutral-300 px-3 py-2 font-semibold text-[#7a132b]">Actualizar agenda</button></p>}
 
       {/* ========================================================================= */}
       {/* 2. TIMELINE HORIZONTAL DE RECINTOS (GANTT DE OCUPACIÓN)                  */}
@@ -218,10 +209,11 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                   <div className="text-sm text-neutral-400 font-mono mt-0.5">
                     {recinto.capacidad} cupos · {recinto.ubicacion}
                   </div>
+                  <p className="mt-1 text-xs text-neutral-600">{evaluarEstadoEnHorario(recinto.id)}</p>
                 </div>
 
                 {/* Área de la Línea de Tiempo (08:00 a 20:00 = 12 horas) */}
-                <div className="col-span-9 relative h-10 mr-4 bg-white rounded-xl border border-neutral-200/80 shadow-2xs overflow-hidden flex items-center">
+                <div className="col-span-9 relative h-20 mr-4 bg-white rounded-xl border border-neutral-200/80 shadow-2xs overflow-hidden flex items-center">
                   {/* Líneas guía verticales para cada hora */}
                   <div className="absolute inset-0 grid grid-cols-12 pointer-events-none">
                     {Array.from({ length: 12 }).map((_, i) => (
@@ -233,7 +225,8 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                   {ocupaciones.map((ocu) => {
                     const inicioDec = Math.max(8, convertirHoraADecimal(ocu.horaInicio));
                     const finDec = Math.min(20, convertirHoraADecimal(ocu.horaFin));
-                    const duracion = Math.max(0.5, finDec - inicioDec);
+                    if (finDec <= inicioDec) return null;
+                    const duracion = finDec - inicioDec;
 
                     const posIzquierda = ((inicioDec - 8) / 12) * 100;
                     const ancho = (duracion / 12) * 100;
@@ -243,7 +236,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
 
                     if (ocu.tipo === 'clase') {
                       estiloFondo = 'bg-slate-700 text-white border-slate-800';
-                      etiquetaTipo = 'Clase';
+                      etiquetaTipo = 'Clase informativa';
                     } else if (ocu.tipo === 'bloqueo') {
                       estiloFondo =
                         'bg-amber-600 text-white border-amber-700 repeating-linear-gradient';
@@ -257,7 +250,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                     }
 
                     return (
-                      <div
+                      <button type="button"
                         key={ocu.id}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -267,8 +260,9 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                           left: `${posIzquierda}%`,
                           width: `${ancho}%`
                         }}
-                        title={`${ocu.titulo} (${ocu.horaInicio} - ${ocu.horaFin})`}
-                        className={`absolute h-7 rounded-lg border text-sm font-semibold px-2 flex items-center justify-between overflow-hidden shadow-2xs cursor-pointer hover:brightness-110 transition-transform active:scale-98 ${estiloFondo}`}
+                        aria-label={`${ocu.titulo}, ${ocu.horaInicio} a ${ocu.horaFin}${ocu.tipo==='clase'?', clase informativa':''}. Ver detalle`}
+                        title={`${etiquetaTipo}: ${ocu.titulo} (${ocu.horaInicio} - ${ocu.horaFin})`}
+                        className={`absolute h-7 ${ocu.tipo==='clase'?'top-11':'top-1'} rounded-lg border text-sm font-semibold px-2 flex items-center justify-between overflow-hidden shadow-2xs cursor-pointer hover:brightness-110 transition-transform active:scale-98 ${estiloFondo}`}
                       >
                         <span className="truncate font-sans tracking-tight">
                           {ocu.tipo === 'clase' ? ocu.titulo.replace('Clase: ', '') : ocu.titulo}
@@ -276,14 +270,14 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                         <span className="text-[9px] font-mono opacity-80 shrink-0 ml-1">
                           {ocu.horaInicio}
                         </span>
-                      </div>
+                      </button>
                     );
                   })}
 
                   {/* Indicador de libre si no hay eventos */}
                   {ocupaciones.length === 0 && (
                     <span className="text-sm text-neutral-300 font-mono pl-4 italic">
-                      Completamente disponible durante todo el día
+                      {consulta.estado==='listo'?'Sin ocupaciones registradas para esta fecha':'Disponibilidad por confirmar'}
                     </span>
                   )}
                 </div>
@@ -304,7 +298,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3.5 h-3.5 rounded bg-slate-700" />
-            <span className="font-medium text-neutral-800">Clases Curriculares (Labs)</span>
+            <span className="font-medium text-neutral-800">Clases informativas: decide Subdirección</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3.5 h-3.5 rounded bg-amber-600" />
@@ -317,7 +311,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
         </div>
 
         <div className="text-sm text-neutral-400 font-mono">
-          Regla: 30 minutos de amortiguamiento entre actividades consecutivas
+          Margen entre actividades: {consulta.margen} minutos. Consultar no reserva el espacio.
         </div>
       </div>
 

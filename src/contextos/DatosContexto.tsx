@@ -61,6 +61,7 @@ import { afectaBloqueo, revisarBloqueo, type PropuestaBloqueo } from '../dominio
 import { CLAVE_CALENDARIO, validarCalendario, vencimientoRevision, motivoVencimiento, pausarRevision, reanudarRevision, type CalendarioRevision } from '../dominio/calendarioRevision.js';
 import { validarDistribuciones, arregloDesdeSolicitud, lugaresDelRecinto } from '../dominio/distribucionSolicitud.js';
 export interface ContextoDatosTipo {
+  agendaRemota?: import('../servicios/almacenDisponibilidad.js').AlmacenDisponibilidad;
   prepararEventoDemostracion: () => {exito:boolean;error?:string;evento?:Evento};
   prepararSolicitudDemostracion: (estado:'borrador'|'en_revision'|'requiere_correccion', extraordinaria?:boolean) => {exito:boolean;error?:string;id?:string};
   prepararSuspensionDemostracion: () => {exito:boolean;error?:string;id?:string};

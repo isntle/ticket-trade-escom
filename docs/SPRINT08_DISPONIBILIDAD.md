@@ -1,8 +1,8 @@
-# Sprint 8: disponibilidad del servidor - primera unidad
+# Sprint 8: disponibilidad del servidor y consulta en interfaz
 
 ## Alcance implementado
 
-Esta unidad agrega la lectura autorizada de agenda y la revisión de franjas en el servidor, junto con un puerto reutilizable por el formulario y por la reprogramación de Luis. La conexión de los componentes del calendario y DatosRemotos corresponde a la siguiente unidad.
+La primera unidad agregó la lectura autorizada de agenda y la revisión de franjas en el servidor. La segunda conecta DatosRemotos, la captura por actividad, el calendario, el visor y el expediente con ese contrato.
 
 No cambia tablas, archivos SQL, semillas ni datos de producción. La regla vigente de TT020 conserva 30 minutos entre actividades del mismo recinto.
 
@@ -80,6 +80,26 @@ Comandos:
     npm run build
     npm run verify:api
 
-Siguiente unidad: conectar DatosRemotos, DiaSolicitud, los calendarios y el visor; conservar la fecha y el estilo y presentar carga, error, clases y franjas. Después, completar la aceptación con dos clientes en una base de pruebas.
+## Consulta en la interfaz (segunda unidad)
+
+DatosRemotos deja de deducir ocupaciones de listaEventos. Publica agendaRemota, un almacén de lecturas por fecha y exclusión, separado por cuenta, roles y modo de datos. Los métodos síncronos anteriores conservan su firma para sus consumidores, pero leen únicamente la agenda consultada. Antes de cargar o tras un error, verificarDisponibilidadRecinto devuelve disponible=false y estadoConsulta; nunca anuncia que el espacio esté libre por carecer de eventos publicados.
+
+Los componentes montados usan useDisponibilidadRecintos(fecha, idActividadExcluir?) o useCargarAgendasRecintos(consultas). Se deduplican peticiones, se actualizan cada 15 segundos y al recuperar el foco, y se puede forzar otra consulta. Las respuestas de una fecha no sustituyen otra y las lecturas de una sesión anterior se abortan y descartan. No se cargan todos los días del mes: los no consultados permanecen seleccionables y neutrales.
+
+DiaSolicitud y AgendaHorarioRecinto conservan fecha y horas. Las franjas ocupadas y su margen se distinguen de las libres; una clase se muestra en ámbar y no impide seleccionar su horario. Los intervalos sugeridos terminan como máximo a las 21:00 y no extienden una elección hacia una franja ocupada. Los cruces con otras actividades de la misma captura impiden completar su programación. Las coincidencias externas se advierten y permiten remitir una solicitud ordinaria a revisión, de acuerdo con el documento.
+
+CalendarioRecinto conserva la fecha seleccionada al navegar por meses; su detalle usa esa fecha y no el mismo número de día del mes visible. Ninguna ocupación parcial deshabilita el día completo. El visor conserva su presentación, muestra clases en una línea separada para que no oculten un evento coincidente, permite abrir detalles con teclado y anuncia carga, error y reintento. No muestra fechas de demostración como si fueran agenda real en modo API.
+
+La confirmación del envío llama a revisar, sin utilizar la caché, y la ruta de escritura repite la comprobación en su transacción. La aprobación sigue siendo autoritativa en el servidor. El cliente no anuncia una autoaprobación en modo API cuando la ruta solo envía a revisión.
+
+El expediente y la configuración del evento cargan sus consultas visibles. El consumidor de revisión de reprogramación consulta el puerto asíncrono antes de proponer un cambio. La integración transaccional de cambios de recinto y reprogramación sigue a cargo de Luis; no se modificó backend/modulos/organizacion/eventos.ts.
+
+Dependencias detectadas: las altas directas de evento institucional y de ocupación interna no están conectadas en el adaptador remoto. En esos recorridos se informa la dependencia y se evita anunciar un alta exitosa. Su implementación no forma parte de este cambio.
+
+Validación de esta unidad: 11 pruebas nuevas del almacén y la interfaz; suite completa con 202 aprobadas, cero fallidas y cinco de PostgreSQL omitidas. Tipado, compilación del frontend y verificación de la API también correctos. Se revisaron en navegador selección de una clase informativa, bloqueo de una franja ocupada, error, recuperación y conservación de la fecha. Esa revisión utiliza una fixture local identificada como datos ficticios y no demuestra concurrencia real contra PostgreSQL.
+
+Pendientes para cerrar la aceptación: ejecutar las pruebas preparadas de PostgreSQL y la comparación con dos sesiones sobre una base de pruebas, verificar la segunda aprobación tras competir por el mismo horario y acordar el vencimiento de bloqueos por fin_previsto. No se escribieron datos en la base compartida ni se publicaron estos cambios.
 
 Archivos compartidos modificados en esta unidad: organizacion/rutas.ts y servicios/contratoOrganizacion.ts. El contrato y los helpers nuevos están separados para facilitar la coordinación.
+
+La segunda unidad modifica además DatosRemotos.tsx y añade solo la propiedad opcional agendaRemota al tipo del contexto local; mantiene el comportamiento del proveedor local. Las pantallas consumidoras cambian únicamente su lectura de disponibilidad, los estados del recorrido y la revisión previa al envío. Compartir este contrato y el diff con Luis antes de integrar las dos ramas.

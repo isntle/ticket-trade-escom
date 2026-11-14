@@ -8,7 +8,7 @@ import { useNotificaciones } from '../contextos/NotificacionesContexto';
 import type { OcupacionInterna, Recinto, TipoRecinto } from '../tipos';
 
 export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupaciones'; navigate: (ruta: string) => void }> = ({ modo, navigate }) => {
-  const { listaRecintos, listaOcupacionesInternas, guardarRecinto, crearOcupacionInterna, cancelarOcupacionInterna, verificarDisponibilidadRecinto } = useDatos();
+  const { listaRecintos, listaOcupacionesInternas, guardarRecinto, crearOcupacionInterna, cancelarOcupacionInterna, verificarDisponibilidadRecinto, agendaRemota } = useDatos();
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
   const [recintoEditando, setRecintoEditando] = useState<Recinto | null>(null);
@@ -40,6 +40,7 @@ export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupac
 
   const registrarOcupacion = (e: React.FormEvent) => {
     e.preventDefault();
+    if (agendaRemota) { mostrarNotificacion('Operación pendiente de conexión','El alta de ocupaciones internas todavía no está conectada al servidor. No se guardaron cambios.','advertencia'); return; }
     if (!titulo.trim() || !idRecinto || fechaFin < fechaInicio || (fechaInicio === fechaFin && horaFin <= horaInicio)) {
       mostrarNotificacion('Datos incompletos', 'Verifica el nombre, recinto y periodo de la ocupación.', 'advertencia'); return;
     }

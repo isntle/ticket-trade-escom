@@ -4,6 +4,8 @@ import { useDatos } from '../../contextos/DatosContexto';
 import { CalendarioRecinto } from '../calendario/CalendarioRecinto';
 import { DistribucionSolicitud } from './DistribucionSolicitud';
 import { AgendaHorarioRecinto } from './AgendaHorarioRecinto';
+import { EstadoConsultaAgenda } from './EstadoConsultaAgenda';
+import { useDisponibilidadRecintos } from '../../contextos/useDisponibilidadRecintos';
 import { EditorPrograma, ProgramaDia } from '../eventos/EditorPrograma';
 import { esFechaUrgente, fechaHoyMexico, inicioEnMexico, validarProgramacion } from '../../dominio/solicitudes';
 import { validarDistribuciones } from '../../dominio/distribucionSolicitud';
@@ -20,6 +22,7 @@ export function DiaSolicitud({dia,indice,modalidad:modalidadGeneral,aforo:aforoG
   alCambiar:(dia:ElementoFechaSolicitada)=>void; alEliminar:()=>void; otrasActividades?:ElementoFechaSolicitada[];
 }) {
   const {listaRecintos,verificarDisponibilidadRecinto}=useDatos();
+  const consulta=useDisponibilidadRecintos(dia.fecha);
   const claveVista = `tt_actividad_vista:${dia.id}`;
   const [vistaInicial] = useState<{paso?:number;resumido?:boolean}>(()=>{try{return JSON.parse(sessionStorage.getItem(claveVista)||'{}');}catch{return {};}});
   const [paso,setPaso]=useState(()=>new URLSearchParams(window.location.search).get('distribucion')==='1'&&indice===0?3:[0,1,2,3].includes(vistaInicial.paso??-1)?vistaInicial.paso!:0);
@@ -34,23 +37,24 @@ export function DiaSolicitud({dia,indice,modalidad:modalidadGeneral,aforo:aforoG
   const inicio=inicioEnMexico(dia.fecha,dia.horaInicio), fin=inicioEnMexico(dia.fecha,dia.horaFin);
   const horarioValido=Number.isFinite(inicio)&&Number.isFinite(fin)&&fin>inicio&&inicio>Date.now();
   const disponibilidad=horarioValido&&recinto?verificarDisponibilidadRecinto(dia.idRecinto,dia.fecha,dia.horaInicio,dia.horaFin):undefined;
-  const cruce=otrasActividades.find(a=>a.id!==dia.id&&mismoRecinto(listaRecintos,a.idRecinto,dia.idRecinto)&&a.fecha===dia.fecha&&inicio<inicioEnMexico(a.fecha,a.horaFin)+1800000&&fin+1800000>inicioEnMexico(a.fecha,a.horaInicio));
-  const conflicto=cruce?`El horario coincide con ${nombreActividad(cruce)} en este recinto. Deja 30 minutos entre actividades.`:disponibilidad&&!disponibilidad.disponible?disponibilidad.motivo||'El recinto está ocupado. Elige otro horario o recinto.':undefined;
+  const cruce=otrasActividades.find(a=>a.id!==dia.id&&mismoRecinto(listaRecintos,a.idRecinto,dia.idRecinto)&&a.fecha===dia.fecha&&inicio<inicioEnMexico(a.fecha,a.horaFin)+consulta.margen*60000&&fin+consulta.margen*60000>inicioEnMexico(a.fecha,a.horaInicio));
+  const conflicto=cruce?`El horario coincide con ${nombreActividad(cruce)} en este recinto. Deja ${consulta.margen} minutos entre actividades.`:consulta.estado==='listo'&&disponibilidad&&!disponibilidad.disponible?disponibilidad.motivo||'El recinto está ocupado. Elige otro horario o recinto.':undefined;
+  const impedimento=cruce?conflicto:!consulta.remota?conflicto:consulta.estado!=='listo'?'Espera a confirmar la agenda o reintenta la consulta.':undefined;
   const errorDia=validarProgramacion([dia],listaRecintos,{modalidad,aforo});
   const errorLugares=validarDistribuciones({fechasSolicitadas:[dia],modalidadAsistencia:modalidad,asistenciaEstimada:aforo},listaRecintos);
   const resumenVigente=resumido;
   const duracion=horarioValido?Math.round((fin-inicio)/60000):0;
   const cambiar=(cambios:Partial<ElementoFechaSolicitada>)=>{setError('');alCambiar({...dia,...cambios});};
   const seleccionarPaso=(i:number)=>{setPaso(i);setError('');};
-  const completados=[Boolean(dia.fecha>=fechaHoyMexico()),Boolean(recinto),Boolean(recinto&&horarioValido&&!conflicto),Boolean(!errorDia&&!errorLugares&&!conflicto)];
+  const completados=[Boolean(dia.fecha>=fechaHoyMexico()),Boolean(recinto),Boolean(recinto&&horarioValido&&!impedimento),Boolean(!errorDia&&!errorLugares&&!impedimento)];
   const avanzar=()=>{
     const fallo=paso===0?(!Number.isFinite(inicioEnMexico(dia.fecha,'00:00'))||dia.fecha<fechaHoyMexico()?'Elige hoy o una fecha futura.':undefined)
       :paso===1?(!recinto||recinto.activo===false?'Selecciona un recinto activo.':undefined)
-      :paso===2?validarProgramacion([{...dia,nombreActividad:undefined,asistenciaEstimada:undefined,modalidadAsistencia:'controlado',programa:undefined,actividadOPrograma:undefined}],listaRecintos)||conflicto
-      :errorDia||errorLugares||conflicto;
+      :paso===2?validarProgramacion([{...dia,nombreActividad:undefined,asistenciaEstimada:undefined,modalidadAsistencia:'controlado',programa:undefined,actividadOPrograma:undefined}],listaRecintos)||impedimento
+      :errorDia||errorLugares||impedimento;
     if(fallo){setError(fallo);return;}setError('');if(paso<3)setPaso(paso+1);else setResumido(true);
   };
-  const estadoDisponibilidad=<div role="status" aria-live="polite" className={`rounded-xl p-4 text-sm ${!disponibilidad?'bg-neutral-50 text-neutral-600':conflicto?'bg-rose-50 text-rose-900':disponibilidad?.tipoConflicto==='clase'?'bg-amber-50 text-amber-900':'bg-emerald-50 text-emerald-900'}`}><p className="flex items-center gap-2 font-semibold">{disponibilidad&&!conflicto?<CheckCircle2 className="h-5 w-5" aria-hidden="true"/>:<AlertTriangle className="h-5 w-5" aria-hidden="true"/>}{!disponibilidad?'Completa la fecha, el recinto y el horario':conflicto?'Revisa la disponibilidad':disponibilidad?.tipoConflicto==='clase'?'Coincidencia con clase: requiere revisión de Subdirección':'Recinto disponible para este horario'}</p><p className="mt-2">{conflicto||disponibilidad?.motivo||`${recinto?.nombre||'Recinto por elegir'} · ${dia.fecha} · ${dia.horaInicio} a ${dia.horaFin} h`}</p></div>;
+  const estadoDisponibilidad=consulta.estado!=='listo'?<EstadoConsultaAgenda {...consulta}/>:<div role="status" aria-live="polite" className={`rounded-xl p-4 text-sm ${!disponibilidad?'bg-neutral-50 text-neutral-600':conflicto?'bg-rose-50 text-rose-900':disponibilidad?.tipoConflicto==='clase'?'bg-amber-50 text-amber-900':'bg-emerald-50 text-emerald-900'}`}><p className="flex items-center gap-2 font-semibold">{disponibilidad&&!conflicto?<CheckCircle2 className="h-5 w-5" aria-hidden="true"/>:<AlertTriangle className="h-5 w-5" aria-hidden="true"/>}{!disponibilidad?'Completa la fecha, el recinto y el horario':conflicto?'Revisa la disponibilidad':disponibilidad?.tipoConflicto==='clase'?'Coincidencia con clase: requiere revisión de Subdirección':'Recinto disponible para este horario'}</p><p className="mt-2">{conflicto||disponibilidad?.motivo||`${recinto?.nombre||'Recinto por elegir'} · ${dia.fecha} · ${dia.horaInicio} a ${dia.horaFin} h`}</p>{consulta.remota&&conflicto&&!cruce&&<p className="mt-2">Puedes ajustar el horario o enviar la propuesta a revisión. Subdirección deberá resolver el conflicto antes de autorizar.</p>}{disponibilidad?.advertencias?.length&&conflicto?<p className="mt-2 text-amber-950">También coincide con una clase informativa; Subdirección debe revisarla.</p>:null}<p className="mt-2 text-xs">Seleccionar no reserva el espacio. Se consultará de nuevo al enviar y autorizar.</p></div>;
   return <section aria-label={`Programación de la ${etiqueta.toLowerCase()}`} className="min-w-0 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
     <header className="flex flex-wrap items-center justify-between gap-3 bg-[#7a132b] px-4 py-3 sm:px-5"><div className="flex items-center gap-3"><span className="rounded-full bg-white/15 px-3 py-1 text-sm font-bold text-white">{etiqueta}</span><span className="text-sm text-white/85">{resumenVigente?nombre:pasos[paso].nombre}</span></div><span className="flex items-center gap-2 text-sm text-white/85"><Calendar className="h-4 w-4" aria-hidden="true"/>{dia.fecha||'Elige una fecha'}</span></header>
     <div className="space-y-5 p-4 sm:p-6">

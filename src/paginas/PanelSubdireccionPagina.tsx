@@ -28,6 +28,7 @@ import { useNotificaciones } from "../contextos/NotificacionesContexto";
 import { InsigniaEstado } from "../componentes/ui/InsigniaEstado";
 import { VentanaModal } from "../componentes/ui/VentanaModal";
 import { VisorDisponibilidadRecintos } from "../componentes/recintos/VisorDisponibilidadRecintos";
+import { useDisponibilidadRecintos } from '../contextos/useDisponibilidadRecintos';
 import { SolicitudEvento, Recinto } from "../tipos";
 
 interface PropiedadesPanelSubdireccion {
@@ -74,6 +75,7 @@ export const PanelSubdireccionPagina: React.FC<
   const [horaInicioEventoDirecto, setHoraInicioEventoDirecto] =
     useState("10:00");
   const [horaFinEventoDirecto, setHoraFinEventoDirecto] = useState("13:00");
+  const consultaDirecta = useDisponibilidadRecintos(pestañaActiva === 'evento_directo' ? fechaEventoDirecto : '');
   const [recintoEventoDirecto, setRecintoEventoDirecto] =
     useState("rec-auditorio");
 
@@ -117,6 +119,7 @@ export const PanelSubdireccionPagina: React.FC<
       );
       return;
     }
+    if (consultaDirecta.remota) { mostrarNotificacion('Operación pendiente de conexión','El alta directa de eventos institucionales todavía no está conectada al servidor. No se creó un evento.','advertencia'); return; }
     const disponibilidad = verificarDisponibilidadRecinto(
       recintoEventoDirecto,
       fechaEventoDirecto,
