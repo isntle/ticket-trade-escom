@@ -184,22 +184,37 @@ export function ProveedorAutenticacionRemota({
       operacion("/auth/expediente", {
         documentos,
         motivoSolicitud,
-        numeroEmpleado: usuario?.numeroEmpleado,
-        nombreEntidad: usuario?.nombreOrganizacion,
-        cargo: usuario?.puestoContacto,
+        ...(usuario?.afiliacion === "profesor"
+          ? { numeroEmpleado: usuario.numeroEmpleado }
+          : usuario?.afiliacion === "externo"
+            ? {
+                nombreEntidad: usuario.nombreOrganizacion,
+                cargo: usuario.puestoContacto,
+              }
+            : {}),
       }),
     dictaminarExpediente: async (
       id: string,
       decision: string,
       motivo: string,
+      _version?: number,
+      _vigencia?: string,
+      idSolicitud?: string,
     ) => {
-      if (!['aprobado', 'rechazado'].includes(decision)) return noDisponible();
-      const u = usuarios.find((u) => u.id === id) as
-        (Usuario & { idSolicitudVerificacion?: string }) | undefined;
+      if (!["aprobado", "rechazado", "requiere_correccion"].includes(decision))
+        return noDisponible();
+      const u = usuarios.find((u) => u.id === id);
       return operacion(
-        "/auth/expedientes/" + u?.idSolicitudVerificacion + "/resolucion",
+        "/auth/expedientes/" +
+          (idSolicitud || u?.idSolicitudVerificacion) +
+          "/resolucion",
         {
-          decision: decision === "aprobado" ? "Aprobada" : "Rechazada",
+          decision:
+            decision === "aprobado"
+              ? "Aprobada"
+              : decision === "requiere_correccion"
+                ? "Requiere corrección"
+                : "Rechazada",
           motivo,
         },
       );
