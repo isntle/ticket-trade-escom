@@ -1,3 +1,4 @@
+import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { aforoActividad, modalidadActividad, nombreActividad } from '../dominio/actividades';
 import { VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
 import { volverA } from '../dominio/navegacion';
@@ -750,7 +751,7 @@ export const DetalleSolicitudPagina: React.FC<{
                 role="alert"
                 className="rounded-xl bg-rose-50 p-3 text-rose-800"
               >
-                {error}
+                {textoParaUsuario(error)}
               </p>
             )}
             <div className="flex flex-wrap justify-end gap-3">

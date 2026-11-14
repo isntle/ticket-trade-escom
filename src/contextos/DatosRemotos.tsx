@@ -1,3 +1,4 @@
+import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { ContextoDatosTipo } from "./DatosContexto.js";
 import { ContextoDatos } from "./almacenes.js";
@@ -70,7 +71,7 @@ export function ProveedorDatosRemotos({
       return await accion();
     } catch (e) {
       const mensaje =
-        e instanceof Error ? e.message : "No se pudo guardar en PostgreSQL.";
+        e instanceof Error ? e.message : "No se pudieron guardar los cambios.";
       setError(mensaje);
       return {
         exito: false,
@@ -82,7 +83,7 @@ export function ProveedorDatosRemotos({
   };
   const noDisponible = () => {
     const mensaje =
-      "Esta operación todavía no está conectada al servidor. No se guardaron cambios.";
+      "Esta función aún no está disponible. No se guardaron cambios.";
     setError(mensaje);
     return {
       exito: false,
@@ -353,7 +354,7 @@ export function ProveedorDatosRemotos({
           role="alert"
           className="m-4 flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
         >
-          <p>{error}</p>
+          <p>{textoParaUsuario(error)}</p>
           <button
             className="font-semibold underline"
             onClick={() => void cargar().catch((e) => setError(e.message))}

@@ -348,7 +348,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
                   Tipo de Ocupación
                 </span>
                 <span className="capitalize font-semibold text-neutral-800">
-                  {ocupacionDetalle.item.tipo}
+                  {{evento:'Actividad autorizada',clase:'Clase informativa',bloqueo:'Bloqueo del recinto',actividad_institucional:'Actividad institucional',ocupacion_interna:'Ocupación interna'}[ocupacionDetalle.item.tipo]}
                 </span>
               </div>
               <div>

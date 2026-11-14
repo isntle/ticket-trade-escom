@@ -1,3 +1,4 @@
+import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { destinoInternoSeguro } from '../dominio/navegacion';
 import { volverA } from '../dominio/navegacion';
 import React, { useState } from "react";
@@ -48,7 +49,7 @@ export function ConfirmacionCorreoPagina({
       </p>
       {mensaje && (
         <p role="status" className="my-4 text-sm">
-          {mensaje}
+          {textoParaUsuario(mensaje)}
         </p>
       )}
       {confirmado ? (

@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertCircle, CheckCircle, Info, AlertTriangle, X } from 'lucide-react';
+import { textoParaUsuario } from '../../utilidades/textoParaUsuario';
 
 interface PropiedadesAlertaMensaje {
   tipo?: 'informacion' | 'exito' | 'advertencia' | 'error';
@@ -42,8 +43,8 @@ export const AlertaMensaje: React.FC<PropiedadesAlertaMensaje> = ({
     >
       {estilos.icono}
       <div className="flex-1">
-        {titulo && <div className="font-bold text-sm mb-0.5">{titulo}</div>}
-        <div className="leading-relaxed opacity-90">{mensaje}</div>
+        {titulo && <div className="font-bold text-sm mb-0.5">{textoParaUsuario(titulo)}</div>}
+        <div className="leading-relaxed opacity-90">{typeof mensaje === 'string' ? textoParaUsuario(mensaje) : mensaje}</div>
       </div>
       {alCerrar && (
         <button

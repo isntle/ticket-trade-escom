@@ -1,3 +1,4 @@
+import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { inicioEnMexico } from "../dominio/solicitudes";
 import { modalidadActividad, nombreActividad } from '../dominio/actividades';
 import { volverA, reemplazarParametrosUrl } from '../dominio/navegacion';
@@ -280,7 +281,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
   return (
     <div className="max-w-md mx-auto px-4 py-6 min-h-[85vh] flex flex-col justify-between animate-in fade-in duration-200">
       {faseControl === 'seleccion' ? <section className="my-auto rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-[#7a132b]">Check-in · IU-CI01</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[#7a132b]">Control de acceso</span>
         <h1 className="mt-1 text-xl font-black text-neutral-900">Selecciona una actividad</h1>
         <p className="mb-4 mt-1 text-sm text-neutral-600">Elige un evento autorizado y una actividad con aforo controlado para iniciar el control de acceso.</p>
         <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">
@@ -348,7 +349,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
         </div>
       </section> : <>
         <section className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
-          <div className="min-w-0"><span className="text-[10px] font-bold uppercase tracking-widest text-[#7a132b]">Check-in · IU-CI02</span><strong className="block truncate text-sm">{eventoSeleccionado?.titulo}</strong><span className="block truncate text-xs font-semibold text-neutral-800">{nombreActividadSeleccionada}</span><span className="block text-xs text-neutral-500">{resumenActividad}</span></div>
+          <div className="min-w-0"><span className="text-[10px] font-bold uppercase tracking-widest text-[#7a132b]">Control de acceso</span><strong className="block truncate text-sm">{eventoSeleccionado?.titulo}</strong><span className="block truncate text-xs font-semibold text-neutral-800">{nombreActividadSeleccionada}</span><span className="block text-xs text-neutral-500">{resumenActividad}</span></div>
           <button type="button" onClick={terminarControl} className="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-bold text-neutral-700 hover:bg-neutral-50">Terminar control</button>
         </section>
 
@@ -494,7 +495,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
             <video ref={videoRef} className={`w-full max-h-64 rounded-xl object-cover ${camaraActiva ? '' : 'hidden'}`} muted playsInline />
             {!camaraActiva && <div className="py-8"><Camera className="w-10 h-10 text-neutral-400 mx-auto mb-2" /><p className="text-xs">Lectura de QR con la cámara del dispositivo</p></div>}
             <button type="button" disabled={!estaAsignadoAEvento} onClick={() => camaraActiva ? (controlesCamara.current?.stop(), setCamaraActiva(false)) : void iniciarCamara()} className="mt-3 rounded-xl bg-white px-4 py-2 text-xs font-bold text-neutral-900 disabled:opacity-50">{camaraActiva ? 'Detener cámara' : 'Activar cámara'}</button>
-            {errorCamara && <p role="alert" className="mt-2 text-xs text-rose-200">{errorCamara}</p>}
+            {errorCamara && <p role="alert" className="mt-2 text-xs text-rose-200">{textoParaUsuario(errorCamara)}</p>}
           </div>
 
           {/* Ingreso Manual de Código o Simulador Rápido */}

@@ -146,12 +146,14 @@ function ContenidoApp() {
         ? usuarioActual.roles.some((r) => rolesPermitidos.includes(r))
         : false;
       const nombreModulo = esRutaAdministracion
-        ? "Administrador TI"
+        ? "Administración"
         : esRutaSubdireccion
           ? "Subdirección"
+          : esRutaStaff && rutaActual === '/staff/historial'
+            ? 'organizadores, Subdirección o Administración'
           : esRutaStaff
-            ? "Staff de acceso"
-            : "Organizador";
+            ? "personal de acceso"
+            : "organizadores";
 
       return (
         <div className="max-w-2xl mx-auto px-4 py-16 text-center animate-in fade-in duration-200">
@@ -163,12 +165,11 @@ function ContenidoApp() {
               Control de Accesos ESCOM
             </span>
             <h2 className="text-xl sm:text-2xl font-black text-neutral-900 mt-1 mb-3">
-              Módulo reservado para {nombreModulo}
+              Acceso reservado a {nombreModulo}
             </h2>
             <p className="text-sm text-neutral-600 mb-6 leading-relaxed max-w-lg mx-auto">
-              Tu sesión activa no tiene el rol requerido para consultar este
-              módulo. La aplicación respeta los permisos definidos para cada
-              subequipo y conserva tu información sin realizar cambios.
+              Tu perfil de trabajo actual no tiene permiso para consultar esta
+              página. Puedes revisar tus permisos en Mi perfil o regresar a la cartelera.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -194,7 +195,7 @@ function ContenidoApp() {
                   className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#7a132b] hover:bg-[#620f23] text-white text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
-                  <span>Cambiar a Perspectiva Autorizada</span>
+                  <span>Usar un perfil autorizado</span>
                 </button>
               ) : (
                 <button
@@ -202,7 +203,7 @@ function ContenidoApp() {
                   onClick={() => navegarA("/perfil")}
                   className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-neutral-300 hover:border-neutral-400 hover:bg-neutral-50 text-neutral-700 text-xs font-semibold inline-flex items-center justify-center transition-colors cursor-pointer"
                 >
-                  <span>Acreditarse como Organizador</span>
+                  <span>Ver mi perfil</span>
                 </button>
               )}
             </div>

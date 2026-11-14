@@ -147,7 +147,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
           </p>
           <AlertaMensaje
             tipo="advertencia"
-            titulo={`${msg.codigo} · ${msg.titulo}`}
+            titulo={msg.titulo}
             mensaje={impedimento}
           />
         </div>

@@ -533,9 +533,6 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-neutral-900">Boletos especiales</h3>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">
-                  CU-MT-07
-                </span>
               </div>
               <p className="text-sm text-neutral-500 mt-1 max-w-2xl">
                 Genera e invalida acreditaciones QR para Comité Organizador, Staff de apoyo e invitados VIP.
@@ -561,9 +558,6 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-neutral-900">Apertura y cierre de inscripciones</h3>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">
-                  CU-MT-08
-                </span>
               </div>
               <p className="text-sm text-neutral-500 mt-1 max-w-2xl">
                 Abre o cierra la taquilla por actividad y consulta el historial de cambios.
@@ -589,9 +583,6 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-neutral-900">Panel de taquilla y participación</h3>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">
-                  CU-MT-09
-                </span>
               </div>
               <p className="text-sm text-neutral-500 mt-1 max-w-2xl">
                 Consulta aforo, disponibilidad, reservaciones, lista de espera y participación por actividad.

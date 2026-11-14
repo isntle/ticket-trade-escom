@@ -95,7 +95,7 @@ export const PanelSubdireccionPagina: React.FC<
   const manejarCrearEventoDirecto = (e: React.FormEvent) => {
     e.preventDefault();
     if (apiActiva) {
-      mostrarNotificacion('Utiliza una solicitud de evento', 'La publicación directa todavía no está conectada. Puedes crear, enviar y resolver una solicitud guardada en PostgreSQL.', 'advertencia');
+      mostrarNotificacion('Utiliza una solicitud de evento', 'La creación directa de eventos aún no está disponible. Puedes enviar una solicitud de evento para su revisión.', 'advertencia');
       return;
     }
     if (!tituloEventoDirecto.trim() || !descripcionEventoDirecto.trim()) {

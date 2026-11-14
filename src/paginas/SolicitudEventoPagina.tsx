@@ -1,3 +1,4 @@
+import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { servicioOrganizacionLocal } from '../servicios/organizacion';
 import { CATEGORIAS_EVENTO, aforoActividad, modalidadActividad, nombreActividad, validarItinerarios } from '../dominio/actividades';
 import { EditorItinerarios } from '../componentes/eventos/EditorItinerarios';
@@ -659,7 +660,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
             role="alert"
             className="sticky top-20 z-10 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm font-semibold text-rose-800"
           >
-            {errorFormulario}
+            {textoParaUsuario(errorFormulario)}
           </div>
         )}
         {/* ========================================================================= */}
@@ -806,7 +807,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                     role="alert"
                     className="mt-1 block font-normal text-rose-700"
                   >
-                    {errorDocumento}
+                    {textoParaUsuario(errorDocumento)}
                   </span>
                 )}
               </label>
