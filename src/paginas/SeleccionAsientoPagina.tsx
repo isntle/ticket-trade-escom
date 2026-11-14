@@ -67,6 +67,16 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   // CU-MT-04: confirmación de ingreso a la lista de espera
   const [modalEsperaAbierto, setModalEsperaAbierto] = useState(false);
 
+  // Recuperar el apartado propio después de recargar o volver a la actividad.
+  useEffect(() => {
+    const propio = listaReservaciones.find(r => r.idUsuario === usuarioActual?.id &&
+      r.idFechaEvento === dateId && r.estado === 'apartado_temporal' &&
+      (r.tiempoExpiracionApartado || 0) > Date.now());
+    if (!propio) return;
+    setReservacionActiva(propio);
+    setAsientoSeleccionado(arregloFinal?.asientos.find(a => a.id === propio.idAsiento) || null);
+  }, [listaReservaciones, usuarioActual?.id, dateId, arregloFinal]);
+
   // Temporizador de 2 minutos (120s) para apartados temporales
   useEffect(() => {
     if (!reservacionActiva?.tiempoExpiracionApartado) {
@@ -85,7 +95,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         const msgExpirado = obtenerMensaje('MSG-BOOKING-003');
         mostrarNotificacion(msgExpirado.titulo, msgExpirado.descripcion, msgExpirado.tipo);
       } else {
-        setSegundosRestantes(Math.floor(msRestantes / 1000));
+        setSegundosRestantes(Math.ceil(msRestantes / 1000));
       }
     };
 
@@ -269,7 +279,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     if (resultado.exito) {
       const msg = obtenerMensaje('OK-MT-01', { día: nombreActividad(fecha) });
       mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
-      navigate('/mis-reservaciones');
+      navigate(rutaDetalle);
     } else {
       liberarApartadoAsiento(reservacionActiva.id);
       setAsientoSeleccionado(null);
@@ -324,6 +334,17 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       return;
     }
 
+    if (reservacionActiva && (reservacionActiva.tiempoExpiracionApartado || 0) > Date.now()) {
+      const confirmacion = await confirmarReservacion(reservacionActiva.id);
+      setConfirmando(false);
+      if (confirmacion.exito) {
+        const msg = obtenerMensaje('OK-MT-01', { día: nombreActividad(fecha) });
+        mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+        navigate(rutaDetalle);
+      } else setErrorColision(confirmacion.error || 'No se pudo confirmar tu apartado.');
+      return;
+    }
+
     const resultadoApartado = (await apartarAsiento(
       evento.id,
       fecha.id,
@@ -341,7 +362,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       if (confirmacion.exito) {
         const msg = obtenerMensaje('OK-MT-01', { día: nombreActividad(fecha) });
         mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
-        navigate('/mis-reservaciones');
+        navigate(rutaDetalle);
       } else {
         setErrorColision(confirmacion.error || 'Error al generar el boleto.');
       }
@@ -515,6 +536,19 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
               <Ticket className="w-4 h-4 text-[#7a132b]" />
               <span>Resumen de tu Reservación</span>
             </h3>
+
+            {reservacionActiva && segundosRestantes !== null && (
+              <div className="mb-5 flex items-center gap-4 rounded-2xl bg-neutral-50 p-4">
+                <div className="relative h-24 w-24 shrink-0" role="timer" aria-label={`Tiempo para confirmar: ${formatoTiempo(segundosRestantes)}`}>
+                  <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden="true">
+                    <circle cx="50" cy="50" r="43" fill="none" stroke="#e5e5e5" strokeWidth="6" />
+                    <circle cx="50" cy="50" r="43" fill="none" stroke={segundosRestantes <= 30 ? '#b45309' : '#7a132b'} strokeWidth="6" strokeLinecap="round" strokeDasharray={2 * Math.PI * 43} strokeDashoffset={2 * Math.PI * 43 * (1 - Math.min(120, Math.max(0, segundosRestantes)) / 120)} />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center font-mono text-xl font-bold tabular-nums text-neutral-900">{formatoTiempo(segundosRestantes)}</span>
+                </div>
+                <div><p className="text-sm font-semibold text-neutral-900">Tu lugar está apartado</p><p className="mt-1 text-xs leading-5 text-neutral-600">Confirma antes de que termine el tiempo. Al vencer, vuelve a estar disponible.</p></div>
+              </div>
+            )}
 
             {asientoSeleccionado || esSinMapa ? (
               <div className="space-y-4 text-xs">

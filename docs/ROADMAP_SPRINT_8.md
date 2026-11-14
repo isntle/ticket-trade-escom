@@ -2,6 +2,35 @@
 
 Actualizado: 8 de noviembre de 2026. Propuesta de trabajo; no equivale a tareas creadas en Jira ni a funcionalidades terminadas. Las fechas y la carga del sprint se acuerdan con el equipo.
 
+## Actualización del 14 de noviembre de 2026
+
+El punto de partida del 8 de noviembre que aparece más abajo es histórico: no debe interpretarse como el estado actual de producción. Ya están publicados la conexión a Supabase, los correos reales, las operaciones principales de solicitudes/borradores y eventos, las reservas y el check-in por actividad. Persisten operaciones sin conectar; no declarar terminado un módulo solo porque sus pantallas locales existen.
+
+Pendientes funcionales prioritarios: administración de jefaturas y Staff, periodos/restricciones de identidad, calendario de revisión y bloqueos, edición de distribuciones y lista de espera/ofertas. La emisión e invalidación de boletos especiales es necesaria si se mantiene habilitado ese recorrido. Delimitar contratos y permisos antes de repartir estas conexiones entre personas; no asignar a alguien la modificación general de los contextos compartidos.
+
+Jira confirmado el 14 de noviembre: 157 (Hugo), separar verificaciones pendientes del historial, por hacer; 159 (Horacio), vista previa accesible, en revisión y con PR #11 abierta. No duplicar estas tareas. Agenda/disponibilidad 153 (Tania), archivos 152 (Regina), expedientes 155 (Josué) y PDF 156 (Rodrigo) ya tienen asignación; revisar sus entregas antes de añadir trabajo equivalente.
+
+### Trabajo independiente asignado
+
+- **TICKTRADE-160, Josué Stupignam, 20 puntos:** conectar cambio de contraseña desde perfil, con validación de contraseña actual y revocación transaccional de sesiones. Módulo propio de identidad y enlace puntual en el adaptador; no depende de expedientes, visor, agenda o archivos.
+- **TICKTRADE-161, Diego, 20 puntos:** emitir e invalidar boletos especiales por actividad con persistencia, permisos y cupo. Reutiliza el check-in integrado; no depende del PDF de Rodrigo ni modifica correo, agenda o distribución.
+
+Ambas quedaron en Por hacer dentro del Sprint 8 planificado; no se inició el sprint. Las descripciones de Jira incluyen archivos, exclusiones, aceptación y entrega por PR. Seguimiento en Notion: https://app.notion.com/p/418b817331da8100a641d913abe958d0 .
+
+### Optimización de almacenamiento y transferencia de archivos
+
+**Estado:** planificado, no implementado en esta actualización. **Prioridad:** después de cerrar los recorridos esenciales y antes de ampliar mucho el catálogo de imágenes/documentos. **Dificultad:** intermedia para imágenes; la transformación de PDFs documentales requiere una revisión adicional.
+
+- Medir tamaño actual por tipo de archivo, total almacenado y bytes transferidos. Hoy el contenido se guarda en PostgreSQL (`infra.archivo_contenido`), por lo que consume cuota de base de datos, no de Supabase Storage.
+- Reducir dimensiones y recomprimir carteles/fotografías de gran tamaño manteniendo proporción y orientación. Acordar límites de resolución, calidad y peso con muestras reales; no convertir SVG ni imágenes con transparencia indiscriminadamente. Validar el archivo también en servidor, incluso si el navegador ya lo optimizó.
+- Evaluar trasladar binarios a Supabase Storage conservando IDs y permisos del API. Los documentos de identidad deben seguir siendo privados; no crear URLs públicas. La migración debe ser verificable y permitir volver atrás, sin borrar originales antes de comprobar cada copia.
+- Para PDFs de boletos, evitar fotografías incrustadas a resolución innecesaria y reutilizar fuentes/recursos. Conservar texto nítido y QR legible; no rasterizar todo el boleto ni usar compresión con pérdidas sobre el QR. Mantener el mismo identificador de pase.
+- Para constancias y documentos de identidad, no recomprimir automáticamente ni alterar firmas digitales. Conservar el original y, si hace falta, generar una vista previa separada. No prometer reducción: un PDF ya optimizado puede no reducirse.
+- Evitar guardar copias idénticas innecesarias, respetando propiedad y autorización: una deduplicación por hash no debe permitir consultar archivos de otras cuentas. Revisar adjuntos huérfanos antes de proponer una política de limpieza; nunca borrar por antigüedad sin comprobar referencias.
+- Servir los archivos con caché compatible con sus permisos. No usar caché pública para expedientes privados ni devolver base64 de todos los adjuntos en cada consulta de estado.
+
+**Aceptación:** comparar peso antes/después en carteles reales; verificar apariencia en cartelera y detalle, documentos legibles, QR escaneable y permisos intactos. Comprobar persistencia al recargar desde otra sesión. Registrar ahorro medido; no fijar un porcentaje garantizado. Esta mejora no sustituye conectar las operaciones pendientes ni equivale a ampliar la cuota gratuita.
+
 ## Objetivo
 
 Completar la conexión de los recorridos actuales con la API y PostgreSQL y preparar un despliegue compartido en Supabase. Una pantalla está conectada cuando guarda en el servidor, otra sesión puede consultar el resultado y los datos se conservan después de reiniciar. Guardar únicamente en localStorage no cumple ese objetivo.

@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { useAutenticacion } from "../../contextos/AutenticacionContexto";
 import { apiActiva } from "../../servicios/modoDatos";
-import { cabecerasModo, transporteApi } from "../../servicios/http";
-import { Printer } from "lucide-react";
+import { cabecerasModo } from "../../servicios/http";
 import { QRCodeSVG } from "qrcode.react";
 import { VentanaModal } from "../ui/VentanaModal";
 import type { BoletoDigital } from "../../tipos";
@@ -25,59 +24,26 @@ export const ModalBoletoQR: React.FC<PropiedadesModalBoletoQR> = ({
   if (!boleto) return null;
   const idPase = (boleto as BoletoDigital & { idPase?: string }).idPase;
   const propio = usuarioActual?.id === boleto.idUsuario;
-  async function accionCorreo(pdf = false, consultar = false) {
+  async function descargarPdf() {
     if (ocupado || !idPase) return;
     setOcupado(true);
     setAviso("");
     try {
-      if (consultar) {
-        const r = await transporteApi()<{ estado: string }>(
-          "/taquilla/pases/" + idPase + "/correo",
-        );
-        const textos: Record<string, string> = {
-          pendiente: "Envío pendiente.",
-          enviando: "El servidor está procesando el envío.",
-          aceptado:
-            "Aceptado por el proveedor; revisa también la carpeta de spam.",
-          incierto:
-            "El resultado requiere revisión; no se reintentará automáticamente.",
-          fallido:
-            "El proveedor rechazó el envío. Contacta al responsable antes de reenviar.",
-          omitido: "El envío ya no corresponde a datos vigentes.",
-          sin_envio: "Todavía no hay un envío.",
-          no_configurado: "El correo no está configurado.",
-        };
-        setAviso(textos[r.estado] || "No se pudo determinar el estado.");
-      } else if (pdf) {
-        const res = await fetch("/api/taquilla/pases/" + idPase + "/pdf", {
-          credentials: "same-origin",
-          headers: cabecerasModo(),
-        });
-        if (!res.ok) {
-          const e = await res.json();
-          throw Error(e.error?.mensaje || "No se pudo descargar el boleto.");
-        }
-        const url = URL.createObjectURL(await res.blob());
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "boleto-tickettrade.pdf";
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        setAviso("PDF descargado. La validez se consulta en el servidor.");
-      } else {
-        const r = await transporteApi()<{ mensaje: string }>(
-          "/taquilla/pases/" + idPase + "/correo",
-          { metodo: "POST", datos: {} },
-        );
-        setAviso(r.mensaje);
+      const res = await fetch("/api/taquilla/pases/" + idPase + "/pdf", {
+        credentials: "same-origin", headers: cabecerasModo(),
+      });
+      if (!res.ok) {
+        const e = await res.json();
+        throw Error(e.error?.mensaje || "No se pudo descargar el boleto.");
       }
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url; a.download = "boleto-tickettrade.pdf"; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setAviso("PDF descargado. La validez se consulta en el servidor.");
     } catch (e) {
-      setAviso(
-        e instanceof Error ? e.message : "No se pudo completar la operación.",
-      );
-    } finally {
-      setOcupado(false);
-    }
+      setAviso(e instanceof Error ? e.message : "No se pudo descargar el boleto.");
+    } finally { setOcupado(false); }
   }
   const actividades = accesos || [boleto];
   const vigente = actividades.some((a) =>
@@ -121,6 +87,7 @@ export const ModalBoletoQR: React.FC<PropiedadesModalBoletoQR> = ({
             Este boleto ya no tiene actividades con acceso pendiente.
           </p>
         )}
+        {propio && apiActiva && <p className="text-sm text-neutral-600">Al confirmar una reserva, el boleto actualizado se envía automáticamente al correo de tu cuenta.</p>}
         <ul className="space-y-3" aria-label="Actividades de este boleto">
           {actividades.map((a) => (
             <li
@@ -159,23 +126,9 @@ export const ModalBoletoQR: React.FC<PropiedadesModalBoletoQR> = ({
             <button
               disabled={ocupado}
               className="rounded-xl bg-[#7a132b] px-4 py-3 text-white disabled:opacity-50"
-              onClick={() => void accionCorreo(true)}
+              onClick={() => void descargarPdf()}
             >
               Descargar PDF
-            </button>
-            <button
-              disabled={ocupado}
-              className="rounded-xl border px-4 py-3 disabled:opacity-50"
-              onClick={() => void accionCorreo()}
-            >
-              Enviar a mi correo
-            </button>
-            <button
-              disabled={ocupado}
-              className="rounded-xl border px-4 py-3 disabled:opacity-50"
-              onClick={() => void accionCorreo(false, true)}
-            >
-              Consultar envío
             </button>
           </div>
         )}
@@ -185,14 +138,6 @@ export const ModalBoletoQR: React.FC<PropiedadesModalBoletoQR> = ({
           </p>
         )}
         <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-semibold text-white"
-          >
-            <Printer size={16} />
-            Imprimir boleto
-          </button>
           <button
             type="button"
             onClick={alCerrar}
