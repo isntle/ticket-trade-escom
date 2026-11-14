@@ -299,7 +299,7 @@ function usarIdentidad() {
   const registrarUsuario = (
     datos: DatosRegistroUsuario,
   ): ResultadoOperacionAuth => {
-    if (!modoDemostracionActivo()) return mal('El registro requiere la conexión a PostgreSQL. No se creó una cuenta local.');
+    if (!modoDemostracionActivo()) return mal('El registro no está disponible en este modo. No se creó una cuenta.');
     const correo = datos.correo.trim().toLowerCase();
     if (
       !datos.nombre.trim() ||

@@ -51,7 +51,7 @@ export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
   const { mostrarNotificacion } = useNotificaciones();
   const edicionDisponible = () => {
     if (!apiActiva) return true;
-    mostrarNotificacion('Distribución en consulta', 'Los lugares mostrados provienen de PostgreSQL. La edición de versiones todavía no está conectada; no se guardaron cambios.', 'advertencia');
+    mostrarNotificacion('Distribución en consulta', 'Estás consultando los lugares registrados para esta actividad. La edición de esta distribución aún no está disponible.', 'advertencia');
     return false;
   };
   const { usuarioActual } = useAutenticacion();

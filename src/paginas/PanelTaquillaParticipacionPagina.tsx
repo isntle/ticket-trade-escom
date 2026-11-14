@@ -320,7 +320,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
       <div className="max-w-4xl mx-auto px-4 py-16">
         <EstadoVacio
           titulo="Evento no encontrado"
-          descripcion="ERR-TR-03 · El evento solicitado no existe en el sistema."
+          descripcion="El evento solicitado no existe en el sistema."
           textoAccion="Volver a Mis Eventos"
           alHacerAccion={() => navigate('/organizador')}
         />
@@ -334,7 +334,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
         <EstadoVacio
           icono={<ShieldCheck className="w-6 h-6" />}
           titulo="Consulta no autorizada"
-          descripcion="ERR-TR-02 · Solo el Organizador responsable puede consultar los indicadores de este evento."
+          descripcion="Solo el Organizador responsable puede consultar los indicadores de este evento."
           textoAccion="Volver al panel"
           alHacerAccion={() => navigate('/organizador')}
         />
@@ -406,7 +406,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <span className="text-[10px] font-bold text-[#7a132b] uppercase tracking-wider">
-                CU-MT-09 · Motor de taquilla
+                Taquilla y participación
               </span>
               <span className="px-2 py-0.5 rounded-md bg-neutral-100 border border-neutral-200 text-[9px] font-black text-neutral-600 uppercase tracking-wider">
                 Solo lectura
@@ -522,7 +522,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
       {haySesionesSuspendidas && (
         <AlertaMensaje
           tipo="advertencia"
-          titulo="INF-OR-06 · SUSPENDIDO"
+          titulo="Actividad suspendida"
           mensaje="Una o más actividades están suspendidas. Los datos históricos pueden seguir consultándose."
           className="mb-5"
         />
@@ -530,7 +530,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
       {sesionesFiltradas.length === 0 && (
         <AlertaMensaje
           tipo="informacion"
-          titulo="INF-TR-01 · Sin resultados"
+          titulo="Sin resultados"
           mensaje="No hay actividades que coincidan con el periodo y la modalidad seleccionados. Modifica o elimina los filtros."
           className="mb-5"
         />
@@ -538,7 +538,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
       {sesionesFiltradas.length > 0 && sinActividad && (
         <AlertaMensaje
           tipo="informacion"
-          titulo="INF-MT-07 · Evento sin actividad registrada"
+          titulo="Evento sin actividad registrada"
           mensaje="Los indicadores se muestran en cero porque todavía no existen reservaciones, boletos ni registros de participación para esta selección."
           className="mb-5"
         />
@@ -675,7 +675,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
               {metricasSesiones.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-5 py-8 text-center text-neutral-500">
-                    INF-TR-01 · No hay actividades que coincidan con los filtros.
+                    No hay actividades que coincidan con los filtros.
                   </td>
                 </tr>
               )}
@@ -769,7 +769,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
                 <tr>
                   <td colSpan={5} className="px-5 py-10 text-center">
                     <CalendarDays className="w-7 h-7 text-neutral-300 mx-auto mb-2" />
-                    <p className="font-bold text-neutral-700">INF-TR-01 · Sin resultados</p>
+                    <p className="font-bold text-neutral-700">Sin resultados</p>
                     <p className="text-[11px] text-neutral-400 mt-1">
                       No existen registros que coincidan con la categoría, el estado o la búsqueda.
                     </p>

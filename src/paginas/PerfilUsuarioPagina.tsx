@@ -1,3 +1,4 @@
+import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { volverA } from '../dominio/navegacion';
 import React, { useState } from "react";
 import { UserRound, Mail, ShieldCheck, KeyRound, Bell, CheckCircle2, Clock3, ChevronDown, LogOut, CalendarDays, Ticket, Building2, ScanLine, GraduationCap } from "lucide-react";
@@ -60,7 +61,7 @@ export function PerfilUsuarioPagina({
           role="status"
           className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm"
         >
-          {mensaje}
+          {textoParaUsuario(mensaje)}
         </p>
       )}
       <article className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-neutral-200/70">

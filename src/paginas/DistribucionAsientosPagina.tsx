@@ -85,7 +85,7 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
 
   const edicionDisponible = () => {
     if (!apiActiva) return true;
-    mostrarNotificacion('Distribución en consulta', 'Los lugares mostrados provienen de PostgreSQL. La edición de versiones todavía no está conectada; no se guardaron cambios.', 'advertencia');
+    mostrarNotificacion('Distribución en consulta', 'Estás consultando los lugares registrados para esta actividad. La edición de esta distribución aún no está disponible.', 'advertencia');
     return false;
   };
 
@@ -263,14 +263,14 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
               Subsistema 02 · Espacios Físicos ESCOM
             </span>
             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-              {apiActiva ? 'Consulta de lugares en PostgreSQL' : '✓ Edición Siempre Habilitada'}
+              {apiActiva ? 'Distribución de lugares' : '✓ Edición Siempre Habilitada'}
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight">
             Distribución y Asignación de Butacas por Recinto
           </h1>
           <p className="text-xs sm:text-sm text-neutral-500 mt-1 max-w-3xl">
-            {apiActiva ? 'Consulta la distribución y las categorías de los lugares guardados en PostgreSQL para cada actividad. La edición de versiones todavía está pendiente de conexión.' : 'Edita de forma interactiva la disposición de lugares del Auditorio Principal, la Sala 14 modular y los Laboratorios de Cómputo. Asigna butacas VIP, lugares para comité organizador, staff de apoyo o bloqueos logísticos.'}
+            {apiActiva ? 'Consulta los lugares y sus categorías para cada actividad. Esta distribución está disponible solo para consulta.' : 'Edita de forma interactiva la disposición de lugares del Auditorio Principal, la Sala 14 modular y los Laboratorios de Cómputo. Asigna butacas VIP, lugares para comité organizador, staff de apoyo o bloqueos logísticos.'}
           </p>
         </div>
 

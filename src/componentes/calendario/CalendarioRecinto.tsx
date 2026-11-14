@@ -2,6 +2,8 @@ import { fechaHoyMexico, inicioEnMexico } from '../../dominio/solicitudes';
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Ban, Clock, CheckCircle } from 'lucide-react';
 import { useDatos } from '../../contextos/DatosContexto';
+import { useDisponibilidadRecintos } from '../../contextos/useDisponibilidadRecintos';
+import { EstadoConsultaAgenda } from '../recintos/EstadoConsultaAgenda';
 
 interface PropiedadesCalendarioRecinto {
   idRecinto: string;
@@ -24,11 +26,12 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
   horaInicio = '09:00',
   horaFin = '13:00'
 }) => {
-  const { verificarDisponibilidadRecinto, obtenerOcupacionesRecinto } = useDatos();
+  const { verificarDisponibilidadRecinto, obtenerOcupacionesRecinto, agendaRemota } = useDatos();
+  const consulta = useDisponibilidadRecintos(consultarHorario ? fechaSeleccionada || '' : '');
   const hoy = fechaHoyMexico();
   const base = (fechaSeleccionada || hoy).split('-').map(Number);
 
-  // Fecha base para el calendario: octubre 2026
+  // Navegar por los meses conserva la fecha elegida.
   const [añoActual, setAñoActual] = useState(base[0]);
   const [mesActual, setMesActual] = useState(base[1] - 1); // Octubre (índice 9 en JavaScript)
 
@@ -62,12 +65,9 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
   };
 
   // Obtener estado de un día específico
-  const obtenerEstadoDia = (dia: number) => {
-    const cadenaMes = String(mesActual + 1).padStart(2, '0');
-    const cadenaDia = String(dia).padStart(2, '0');
-    const cadenaFecha = `${añoActual}-${cadenaMes}-${cadenaDia}`;
-
+  const obtenerEstadoDia = (cadenaFecha: string) => {
     if (!consultarHorario || !idRecinto) return { tipo: 'libre' as const, elementos: [] as string[] };
+    if (agendaRemota && agendaRemota.leer({ fecha: cadenaFecha }).estado !== 'listo') return { tipo: 'por consultar' as const, elementos: [] as string[] };
     const disponibilidad = verificarDisponibilidadRecinto(idRecinto, cadenaFecha, horaInicio, horaFin);
     const ocupaciones = obtenerOcupacionesRecinto(idRecinto, cadenaFecha).filter((ocupacion) => horaInicio < ocupacion.horaFin && horaFin > ocupacion.horaInicio);
     if (!disponibilidad.disponible) return { tipo: disponibilidad.tipoConflicto === 'bloqueo' ? 'bloqueo' as const : 'evento' as const, titulo: disponibilidad.motivo, elementos: ocupaciones.map((item) => item.titulo) };
@@ -90,7 +90,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
     const esPasado = fechaActualCadena < hoy;
     const esHoy = fechaActualCadena === hoy;
     const proxima = !esPasado && inicioEnMexico(fechaActualCadena,'00:00') - Date.now() < 168 * 3600000;
-    const infoDia = obtenerEstadoDia(dia);
+    const infoDia = obtenerEstadoDia(fechaActualCadena);
 
     let estiloFondo = 'bg-white hover:bg-neutral-50 border-neutral-200 text-neutral-800';
     let insignia = null;
@@ -124,7 +124,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
         type="button"
         onClick={() => alSeleccionarFecha && alSeleccionarFecha(fechaActualCadena)}
         className={`h-10 sm:h-12 border rounded-lg p-1 flex flex-col justify-between items-center transition-all cursor-pointer text-xs ${estiloFondo}`}
-        title={`${fechaActualCadena} ${!consultarHorario ? '(Seleccionar fecha)' : infoDia.tipo !== 'libre' ? `(${infoDia.tipo})` : '(Libre)'}`}
+        title={`${fechaActualCadena} ${!consultarHorario ? '(Seleccionar fecha)' : infoDia.tipo !== 'libre' ? `(${infoDia.tipo} en el horario consultado)` : '(Sin conflictos en el horario consultado)'}`}
       >
         <span className="font-mono text-xs">{dia}</span>
         {insignia}
@@ -133,7 +133,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
   }
 
   const infoDiaSeleccionado = fechaSeleccionada
-    ? obtenerEstadoDia(parseInt(fechaSeleccionada.split('-')[2], 10))
+    ? obtenerEstadoDia(fechaSeleccionada)
     : null;
 
   return (
@@ -179,11 +179,11 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
         {soloFechasFuturas && <span className="text-neutral-500">Gris: días pasados · Azul: hoy</span>}
         {consultarHorario && <><div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded bg-white border border-neutral-300" />
-          <span>Sin coincidencias registradas</span>
+          <span>{agendaRemota?'Selecciona una fecha para consultar sus franjas':'Sin coincidencias registradas'}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <Clock className="w-3 h-3 text-amber-600" />
-          <span>Conflicto con otra reserva</span>
+          <span>Coincidencia en el horario consultado</span>
         </div>
         <div className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-amber-600"/><span>Clase informativa: decide Subdirección</span></div>
         <div className="flex items-center gap-1.5">
@@ -197,7 +197,8 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
       </div>
 
       {/* Detalle de la fecha seleccionada */}
-      {consultarHorario && fechaSeleccionada && infoDiaSeleccionado && (
+      {consultarHorario && fechaSeleccionada && <EstadoConsultaAgenda {...consulta}/>}
+      {consultarHorario && fechaSeleccionada && infoDiaSeleccionado && infoDiaSeleccionado.tipo !== 'por consultar' && (
         <div className="mt-3 p-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-xs">
           <div className="font-semibold text-neutral-900 flex items-center justify-between">
             <span>Fecha seleccionada: {fechaSeleccionada}</span>
@@ -214,6 +215,7 @@ export const CalendarioRecinto: React.FC<PropiedadesCalendarioRecinto> = ({
             </span>
           </div>
           {infoDiaSeleccionado.tipo === 'clase' && <p role="status" className="mt-2 text-amber-950">{infoDiaSeleccionado.titulo} La coincidencia no reserva ni cancela la clase.</p>}
+          <p className="mt-2 text-neutral-600">Una ocupación parcial no impide elegir otras horas del mismo día. Seleccionar una fecha no reserva el recinto.</p>
           {infoDiaSeleccionado.elementos.length > 0 ? (
             <ul className="mt-1 space-y-0.5 text-neutral-600">
               {infoDiaSeleccionado.elementos.map((elem, i) => (

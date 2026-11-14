@@ -105,7 +105,7 @@ export function ProveedorAutenticacionRemota({
   const noDisponible = () => ({
     exito: false,
     mensaje:
-      "Esta operación todavía no está conectada a PostgreSQL. No se guardaron cambios.",
+      "Esta función aún no está disponible. No se guardaron cambios.",
   });
   const acciones: Record<string, unknown> = {
     usuarioActual: usuario,

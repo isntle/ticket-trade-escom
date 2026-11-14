@@ -554,6 +554,8 @@ export interface RegistroEscaneo {
 // Resultado de verificación de disponibilidad de recinto
 export interface ResultadoDisponibilidadRecinto {
   disponible: boolean;
+  estadoConsulta?: 'inicial' | 'cargando' | 'listo' | 'error';
+  advertencias?: OcupacionAgenda[];
   codigoMensaje?: string;
   motivo?: string;
   tipoConflicto?:

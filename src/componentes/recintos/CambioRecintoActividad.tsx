@@ -1,3 +1,4 @@
+import { textoParaUsuario } from '../../utilidades/textoParaUsuario.js';
 import React from "react";
 import { ArrowRight, MapPin, ShieldCheck } from "lucide-react";
 import { VentanaModal } from "../ui/VentanaModal";
@@ -70,7 +71,7 @@ export function CambioRecintoActividad({
             role="status"
             className={`rounded-xl p-4 text-sm ${confirmado ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-950"}`}
           >
-            {mensaje}
+            {textoParaUsuario(mensaje)}
           </p>
         )}
         {!confirmado && !propuesta && (

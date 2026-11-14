@@ -1,4 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import { crearAlmacenDisponibilidad } from "../servicios/almacenDisponibilidad.js";
+import { modoDemostracionActivo } from "../dominio/demostracion.js";
+import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { ContextoDatosTipo } from "./DatosContexto.js";
 import { ContextoDatos } from "./almacenes.js";
 import { useAutenticacion } from "./AutenticacionContexto.js";
@@ -54,6 +57,9 @@ export function ProveedorDatosRemotos({
   children: React.ReactNode;
 }) {
   const { usuarioActual } = useAutenticacion();
+  const alcanceAgenda = JSON.stringify([usuarioActual?.id, usuarioActual?.roles, modoDemostracionActivo()]);
+  const agendaRemota = useMemo(() => crearAlmacenDisponibilidad(), [alcanceAgenda]);
+  useEffect(() => () => agendaRemota.limpiar(), [agendaRemota]);
   const [estado, setEstado] = useState<any>(vacio),
     [listo, setListo] = useState(false),
     [error, setError] = useState("");
@@ -91,7 +97,7 @@ export function ProveedorDatosRemotos({
       return await accion();
     } catch (e) {
       const mensaje =
-        e instanceof Error ? e.message : "No se pudo guardar en PostgreSQL.";
+        e instanceof Error ? e.message : "No se pudieron guardar los cambios.";
       setError(mensaje);
       return {
         exito: false,
@@ -103,7 +109,7 @@ export function ProveedorDatosRemotos({
   };
   const noDisponible = () => {
     const mensaje =
-      "Esta operación todavía no está conectada al servidor. No se guardaron cambios.";
+      "Esta función aún no está disponible. No se guardaron cambios.";
     setError(mensaje);
     return {
       exito: false,
@@ -166,61 +172,12 @@ export function ProveedorDatosRemotos({
       await cargar();
       return { exito: true };
     });
-  const verificarDisponibilidadRecinto = (
-    id: string,
-    fecha: string,
-    inicio: string,
-    fin: string,
-    excluir?: string,
-  ) => {
-    const choque = estadoRef.current.listaEventos
-      .filter((e: Evento) => e.estado === "publicado")
-      .flatMap((e: Evento) => e.fechas.map((f) => ({ ...f, titulo: e.titulo })))
-      .find(
-        (f: any) =>
-          !f.cancelada &&
-          f.id !== excluir &&
-          f.idRecinto === id &&
-          f.fecha === fecha &&
-          minutos(inicio) < minutos(f.horaFin) + 30 &&
-          minutos(f.horaInicio) < minutos(fin) + 30,
-      );
-    return choque
-      ? {
-          disponible: false,
-          tipoConflicto: "evento",
-          tituloConflicto: choque.titulo,
-          motivo:
-            "El recinto coincide con " +
-            choque.titulo +
-            ". Conserva 30 minutos de separación.",
-        }
-      : { disponible: true };
-  };
+  const verificarDisponibilidadRecinto = agendaRemota.verificar;
   const agenda = (fecha: string) =>
-    estadoRef.current.listaEventos
-      .filter((e: Evento) => e.estado === "publicado")
-      .flatMap((e: Evento) =>
-        e.fechas
-          .filter((f) => f.fecha === fecha && !f.cancelada)
-          .map((f) => ({
-            id: f.id,
-            idRecinto: f.idRecinto,
-            nombreRecinto:
-              estadoRef.current.listaRecintos.find(
-                (r: any) => r.id === f.idRecinto,
-              )?.nombre || "",
-            fecha: f.fecha,
-            horaInicio: f.horaInicio,
-            horaFin: f.horaFin,
-            tipo: "evento",
-            titulo: e.titulo,
-            descripcion: f.nombreActividad,
-            responsable: e.nombreOrganizador,
-          })),
-      );
+    agendaRemota.leer({ fecha }).agenda?.recintos.flatMap(r => r.ocupaciones) || [];
   const operaciones: Record<string, unknown> = {
     ...estado,
+    agendaRemota,
     verificarDisponibilidadRecinto,
     obtenerOcupacionesRecinto: (id: string, fecha: string) =>
       agenda(fecha).filter((a: any) => a.idRecinto === id),
@@ -493,7 +450,7 @@ export function ProveedorDatosRemotos({
           role="alert"
           className="m-4 flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
         >
-          <p>{error}</p>
+          <p>{textoParaUsuario(error)}</p>
           <button
             className="font-semibold underline"
             onClick={() => void cargar().catch((e) => setError(e.message))}
@@ -505,8 +462,4 @@ export function ProveedorDatosRemotos({
       {children}
     </ContextoDatos.Provider>
   );
-}
-function minutos(hora: string) {
-  const [h, m] = hora.split(":").map(Number);
-  return h * 60 + m;
 }

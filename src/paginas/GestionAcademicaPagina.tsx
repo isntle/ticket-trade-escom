@@ -1,3 +1,4 @@
+import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import React from "react";
 import { ArrowLeft, GraduationCap, CalendarDays } from "lucide-react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
@@ -56,7 +57,7 @@ export function GestionAcademicaPagina({
       </header>
       {mensaje && (
         <p role="status" className="rounded-xl bg-amber-50 p-4 text-amber-950">
-          {mensaje}
+          {textoParaUsuario(mensaje)}
         </p>
       )}
       <section className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6">

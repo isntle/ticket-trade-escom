@@ -1,3 +1,4 @@
+import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import {transporteApi} from "../servicios/http";
 import {apiActiva} from '../servicios/modoDatos';
 import { validarDominioIdentidad } from "../dominio/identidad";
@@ -223,7 +224,7 @@ export function AutenticacionPagina({
           role="status"
           className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900"
         >
-          {mensaje}
+          {textoParaUsuario(mensaje)}
         </p>
       )}
 
@@ -312,7 +313,7 @@ export function AutenticacionPagina({
                 <form className="space-y-3" onSubmit={async e=>{e.preventDefault();setAbriendoPresentacion(true);setErrorPresentacion('');try{await transporteApi()('/auth/presentacion',{metodo:'POST',datos:{clave:clavePresentacion}});setClavePresentacion('');await auth.refrescarUsuarios?.();}catch(error){setErrorPresentacion(error instanceof Error?error.message:'No se pudo habilitar el acceso.');}finally{setAbriendoPresentacion(false);}}}>
                   <p className="text-sm text-neutral-600">Estos perfiles utilizan los registros de la plataforma. Introduce la clave privada para mostrar las tarjetas.</p>
                   <label className="block text-sm font-semibold">Clave de presentación<input type="password" autoComplete="off" value={clavePresentacion} onChange={e=>setClavePresentacion(e.target.value)} className={campo} required /></label>
-                  {errorPresentacion&&<p role="alert" className="text-sm text-red-700">{errorPresentacion}</p>}
+                  {errorPresentacion&&<p role="alert" className="text-sm text-red-700">{textoParaUsuario(errorPresentacion)}</p>}
                   <button disabled={abriendoPresentacion} className={boton}>{abriendoPresentacion?'Habilitando…':'Mostrar perfiles'}</button>
                 </form>
               )}
