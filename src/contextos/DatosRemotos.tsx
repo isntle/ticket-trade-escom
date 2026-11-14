@@ -3,7 +3,7 @@ import type { ContextoDatosTipo } from "./DatosContexto.js";
 import { ContextoDatos } from "./almacenes.js";
 import { useAutenticacion } from "./AutenticacionContexto.js";
 import { transporteApi, ErrorApi } from "../servicios/http.js";
-import { guardarCartelRemoto } from "../servicios/archivos.js";
+import { guardarArchivoRemoto, guardarCartelRemoto } from "../servicios/archivos.js";
 import {
   obtenerConflictoReserva,
   obtenerMensajeErrorCruce,
@@ -117,11 +117,26 @@ export function ProveedorDatosRemotos({
       d.urlImagen,
       d.nombreBanner,
     );
+    let itinerarios = d.itinerarios;
+    if (Array.isArray(itinerarios)) {
+      itinerarios = await Promise.all(
+        itinerarios.map(async (i: any) => ({
+          ...i,
+          idArchivo: await guardarCartelRemoto(i.urlImagen, i.nombreArchivo),
+        }))
+      );
+    }
+    const idArchivoDocumento = await guardarArchivoRemoto(
+      d.urlDocumento,
+      d.nombreDocumento || "documento_respaldo.pdf",
+    );
     const r = await api<any>("/organizacion/solicitudes", {
       metodo: "POST",
       datos: {
         ...d,
         idArchivoCartel,
+        itinerarios,
+        idArchivoDocumento,
         enviar,
         fechasSolicitadas: d.fechasSolicitadas.map((a: any) => ({
           ...a,
@@ -269,11 +284,26 @@ export function ProveedorDatosRemotos({
           cambios.urlImagen,
           cambios.nombreBanner,
         );
+        let itinerarios = cambios.itinerarios;
+        if (Array.isArray(itinerarios)) {
+          itinerarios = await Promise.all(
+            itinerarios.map(async (i: any) => ({
+              ...i,
+              idArchivo: await guardarCartelRemoto(i.urlImagen, i.nombreArchivo),
+            }))
+          );
+        }
+        const idArchivoDocumento = await guardarArchivoRemoto(
+          cambios.urlDocumento,
+          cambios.nombreDocumento || "documento_respaldo.pdf",
+        );
         await api("/organizacion/solicitudes/" + id, {
           metodo: "PATCH",
           datos: {
             ...cambios,
             idArchivoCartel: cartel,
+            itinerarios,
+            idArchivoDocumento,
             enviar: reenviar,
             version,
           },

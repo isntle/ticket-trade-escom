@@ -34,7 +34,7 @@ const formatoFecha = (valor: string) =>
 const archivoSeguro = (url?: string) =>
   Boolean(
     url &&
-    /^(https?:\/\/|data:image\/(png|jpeg|webp);base64,|data:application\/pdf;base64,)/i.test(
+    /^(https?:\/\/|\/api\/archivos\/|data:image\/(png|jpeg|webp);base64,|data:application\/pdf;base64,)/i.test(
       url,
     ),
   );
