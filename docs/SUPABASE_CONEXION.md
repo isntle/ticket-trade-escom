@@ -39,3 +39,9 @@ No ejecutar `test:postgres` contra Supabase: crea una base desechable local y re
 Ejecutar `npm run verify:api` además de lint, build y las pruebas PostgreSQL. Compila la función como módulos Node y carga el JavaScript resultante sin tsx. Las importaciones relativas usan extensión `.js`, resuelta hacia TypeScript durante desarrollo. Esto evita publicar una API que compila con Vite pero falla al iniciar en Vercel.
 
 La URL de producción usa el pool transaccional de Supabase (6543), adecuado para funciones con conexiones breves. El pool de sesión (5432) se conserva para herramientas locales persistentes. Se limitan las conexiones por instancia de Vercel y se liberan con attachDatabasePool. Ambos dominios del proyecto, tickett3.vercel.app y tickettradescom.vercel.app, se admiten explícitamente mediante APP_ORIGIN y APP_ORIGIN_ALIASES; no se acepta cualquier dominio enviado por el navegador.
+
+## Recorrido público comprobado
+
+El 14 de noviembre se verificó la API en el dominio principal, la cartelera normal y de presentación con los mismos 11 eventos, la descarga de sus 11 carteles activos, las siete tarjetas protegidas y el inicio de sesión real. Se confirmaron dos reservaciones de distintas actividades del Simposio con un solo BoletoEvento y QR. Se descargó el PDF desde Vercel con ambas actividades y se comprobó recepción en Recibidos del buzón del proyecto, con QR, PDF adjunto y enlace al dominio público. Ningún procesador local de correo participó en ese envío.
+
+La suite general aprobó 176 pruebas y las seis pruebas de integración PostgreSQL también pasaron; adicionalmente se comprobaron los alias de origen. Las credenciales, copias previas y evidencias de aceptación permanecen fuera de Git. No se trasladaron sesiones antiguas ni trabajos de correo antiguos a la base compartida.
