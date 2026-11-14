@@ -408,21 +408,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
             <p className="text-xs text-neutral-500 mt-2">Aforo de esta actividad: {capacidad} personas. {REGLA_INGRESO_ACTIVIDAD}</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {segundosRestantes !== null && (
-              <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl text-amber-900 shrink-0">
-                <Clock className="w-5 h-5 text-amber-600 animate-pulse" />
-                <div>
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-amber-700">
-                    Tiempo de apartado restante
-                  </div>
-                  <div className="text-lg font-mono font-extrabold text-amber-900 leading-none">
-                    {formatoTiempo(segundosRestantes)}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+
         </div>
       </div>
 

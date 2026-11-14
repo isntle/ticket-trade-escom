@@ -18,6 +18,7 @@ const SELECTOR_ENFOCABLE = [
 
 /** Ventanas abiertas, de la más antigua a la más reciente: solo la superior responde al teclado. */
 const pilaVentanas: symbol[] = [];
+let overflowOriginal = '';
 
 const elementosEnfocables = (contenedor: HTMLElement) =>
   Array.from(contenedor.querySelectorAll<HTMLElement>(SELECTOR_ENFOCABLE))
@@ -45,7 +46,7 @@ export const VentanaModal: React.FC<PropiedadesVentanaModal> = ({
     pilaVentanas.push(identificador);
     const esSuperior = () => pilaVentanas[pilaVentanas.length - 1] === identificador;
     const origen = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const overflowPrevio = document.body.style.overflow;
+    if (pilaVentanas.length === 1) overflowOriginal = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
     // Respeta un autoFocus del contenido; si no hay, el foco entra a la ventana.
@@ -55,6 +56,7 @@ export const VentanaModal: React.FC<PropiedadesVentanaModal> = ({
     const alTeclear = (e: KeyboardEvent) => {
       if (!esSuperior()) return;
       if (e.key === 'Escape') {
+        e.preventDefault();
         e.stopPropagation();
         alCerrarRef.current();
         return;
@@ -101,7 +103,7 @@ export const VentanaModal: React.FC<PropiedadesVentanaModal> = ({
       window.removeEventListener('keydown', alTeclear);
       const posicion = pilaVentanas.indexOf(identificador);
       if (posicion >= 0) pilaVentanas.splice(posicion, 1);
-      if (pilaVentanas.length === 0) document.body.style.overflow = overflowPrevio === 'hidden' ? 'unset' : overflowPrevio;
+      if (pilaVentanas.length === 0) document.body.style.overflow = overflowOriginal;
       // Al cerrar, el foco vuelve al control que abrió la ventana si sigue en la página.
       if (origen && origen.isConnected) window.setTimeout(() => origen.focus(), 0);
     };
