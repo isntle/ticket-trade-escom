@@ -525,8 +525,6 @@ export default function App() {
     <ProveedorNotificaciones>
       <ProveedorAutenticacion>
         <ProveedorDatos>
-          {apiActiva && modoDemostracionActivo() && <div className="border-b border-[#7a132b]/15 bg-[#7a132b]/5 px-4 py-1 text-center text-xs text-[#7a132b]">Modo demo <a className="ml-2 font-semibold underline" href="/">Salir</a></div>}
-          {!apiActiva && <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">{modoDemostracionActivo() ? 'Demostración local: los cambios de esta vista se conservan en el navegador.' : 'Vista pública: la conexión remota aún no está configurada.'}</div>}
           <ContenidoApp />
         </ProveedorDatos>
       </ProveedorAutenticacion>

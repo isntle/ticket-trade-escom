@@ -749,6 +749,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                   onChange={(e) => setCorreoContacto(e.target.value)}
                   className="mt-1 w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-[#7a132b]"
                 />
+                <span className="mt-2 block text-xs font-normal leading-5 text-neutral-500">Los avisos de tu solicitud se envían al correo verificado de tu cuenta. Este contacto adicional es para consultas sobre el evento.</span>
               </label>
               <label className="block font-semibold text-neutral-800">
                 Teléfono de contacto (opcional)
