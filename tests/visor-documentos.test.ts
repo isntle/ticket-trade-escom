@@ -65,7 +65,7 @@ test("el visor abre una ventana identificada en estado Cargando", () => {
 
 test("la ventana cerrada no deja contenido en la página", () => {
   const html = renderToString(
-    React.createElement(VentanaModal, { estaAbierto: false, alCerrar: () => {}, titulo: "X" }, "contenido"),
+    React.createElement(VentanaModal, { estaAbierto: false, alCerrar: () => {}, titulo: "X", children: "contenido" }),
   );
   assert.equal(html, "");
 });

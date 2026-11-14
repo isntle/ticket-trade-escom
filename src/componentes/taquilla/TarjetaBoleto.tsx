@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
+import { apiActiva } from "../../servicios/modoDatos";
+import { cabecerasModo } from "../../servicios/http";
 import { QrCode, CalendarDays, MapPin, Clock3 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { InsigniaEstadoTaquilla } from "./InsigniaEstadoTaquilla";
@@ -6,6 +8,7 @@ import type { BoletoDigital } from "../../tipos";
 
 export type AccesoBoleto = BoletoDigital & {
   nombreDia: string;
+  idPase?: string;
   entradaPendiente?: boolean;
   restriccionCancelacion?: string;
 };
@@ -21,6 +24,21 @@ export const TarjetaBoleto: React.FC<PropiedadesTarjetaBoleto> = ({
   alAmpliarQr,
   alCancelar,
 }) => {
+  const [descargando, setDescargando] = useState(false);
+  const [errorPdf, setErrorPdf] = useState('');
+  const idPase = boleto.idPase;
+  async function descargar() {
+    if (!idPase || descargando) return;
+    setDescargando(true); setErrorPdf('');
+    try {
+      const respuesta = await fetch('/api/taquilla/pases/' + idPase + '/pdf', { credentials: 'same-origin', headers: cabecerasModo() });
+      if (!respuesta.ok) throw new Error('No se pudo descargar el PDF. Inténtalo de nuevo.');
+      const url = URL.createObjectURL(await respuesta.blob());
+      const enlace = document.createElement('a'); enlace.href = url; enlace.download = 'boleto-tickettrade.pdf'; enlace.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { setErrorPdf(e instanceof Error ? e.message : 'No se pudo descargar el PDF.'); }
+    finally { setDescargando(false); }
+  }
   const pendientes = accesos.filter(
     (a) => a.entradaPendiente ?? a.estado === "valido",
   ).length;
@@ -74,6 +92,8 @@ export const TarjetaBoleto: React.FC<PropiedadesTarjetaBoleto> = ({
                 ? "Ver boleto y ampliar QR"
                 : "Ver actividades del boleto"}
             </button>
+            {apiActiva && idPase && <button type="button" disabled={descargando} onClick={() => void descargar()} className="mt-3 ml-2 rounded-xl border border-neutral-200 px-4 py-2.5 text-sm font-semibold disabled:opacity-50">{descargando ? 'Descargando…' : 'Descargar PDF'}</button>}
+            {errorPdf && <p role="alert" className="mt-2 text-sm text-rose-700">{errorPdf}</p>}
           </div>
         </div>
         <ul className="space-y-3" aria-label="Actividades reservadas">
