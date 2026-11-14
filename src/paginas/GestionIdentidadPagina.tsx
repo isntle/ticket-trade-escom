@@ -11,10 +11,8 @@ import {
   validarExpedienteIdentidad,
   restriccionIdentidadVigente,
 } from "../dominio/identidad";
-import {
-  guardarDocumentoIdentidad,
-  leerDocumentoIdentidad,
-} from "../utilidades/documentosIdentidad";
+import { guardarDocumentoIdentidad } from "../utilidades/documentosIdentidad";
+import { BotonVerDocumento, VisorDocumentoIdentidad, etiquetaTipoDocumento } from "../componentes/identidad/VisorDocumentoIdentidad";
 
 type Vista = "expediente" | "revision" | "restricciones" | "staff";
 type Decision = "aprobado" | "rechazado" | "requiere_correccion" | "revocado";
@@ -63,9 +61,10 @@ export function GestionIdentidadPagina({
   const [accion, setAccion] = useState<"aplicar" | "levantar">("aplicar");
   const [eventoId, setEventoId] = useState("");
   const [filtro, setFiltro] = useState("");
+  // Documento abierto en la vista previa; el visor obtiene el PDF con la sesión vigente.
   const [documento, setDocumento] = useState<{
-    url: string;
-    nombre: string;
+    archivo: DocumentoIdentidad;
+    titular: Usuario;
   } | null>(null);
   const admin = !!cuenta?.roles.includes("admin") && rolActivo === "admin";
   const subdireccion =
@@ -87,12 +86,6 @@ export function GestionIdentidadPagina({
     setMensaje("");
     setDocumento(null);
   }, [cuenta?.id, vista]);
-  useEffect(
-    () => () => {
-      if (documento) URL.revokeObjectURL(documento.url);
-    },
-    [documento],
-  );
   useEffect(() => {
     if (!cuenta || (!admin && !subdireccion && vista === "revision")) setDocumento(null);
   }, [cuenta?.id, rolActivo, vista]);
@@ -110,14 +103,7 @@ export function GestionIdentidadPagina({
   ) => {
     if (!cuenta || (cuenta.id !== titular.id && !admin && !subdireccion))
       return setMensaje("No tienes permiso para consultar este documento.");
-    try {
-      setDocumento({
-        url: URL.createObjectURL(await leerDocumentoIdentidad(archivo.id)),
-        nombre: archivo.nombre,
-      });
-    } catch (e) {
-      setMensaje((e as Error).message);
-    }
+    setDocumento({ archivo, titular });
   };
   const elegir = (u: Usuario) => {
     setSeleccion({ id: u.id, version: u.versionIdentidad || 0 });
@@ -169,18 +155,16 @@ export function GestionIdentidadPagina({
     lista.length ? (
       <ul className="space-y-2">
         {lista.map((a) => (
-          <li key={a.id} className="rounded-xl bg-neutral-50 p-3 text-sm">
-            <button
-              className="break-all font-bold text-[#7a132b] underline"
-              onClick={() => abrirDocumento(a, u)}
-            >
-              {a.nombre}
-            </button>
-            <p>
-              {a.tipo} · Emisión: {a.fechaEmision} · Vigencia:{" "}
-              {a.vigenteHasta || "Revisión manual"}{" "}
-              {a.periodo && " · Periodo: " + a.periodo}
-            </p>
+          <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-neutral-50 p-3 text-sm">
+            <div className="min-w-0 flex-1">
+              <p className="break-all font-bold text-neutral-900">{a.nombre}</p>
+              <p className="text-neutral-700">
+                {etiquetaTipoDocumento(a.tipo)} · PDF · Emisión: {a.fechaEmision} · Vigencia:{" "}
+                {a.vigenteHasta || "Revisión manual"}
+                {a.periodo && " · Periodo: " + a.periodo}
+              </p>
+            </div>
+            <BotonVerDocumento archivo={a} onClick={() => abrirDocumento(a, u)} />
           </li>
         ))}
       </ul>
@@ -384,12 +368,7 @@ export function GestionIdentidadPagina({
                     )}
                   </div>
                   <div className="flex gap-3">
-                    <button
-                      className={boton}
-                      onClick={() => abrirDocumento(a, cuenta)}
-                    >
-                      Ver PDF
-                    </button>
+                    <BotonVerDocumento archivo={a} onClick={() => abrirDocumento(a, cuenta)} />
                     <button
                       className={boton}
                       onClick={() => {
@@ -904,26 +883,12 @@ export function GestionIdentidadPagina({
         </article>
       )}
       {documento && (
-        <section className="space-y-3 rounded-2xl border bg-white p-4">
-          <div className="flex justify-between gap-3">
-            <h2 className="break-all font-bold">{documento.nombre}</h2>
-            <button className={boton} onClick={() => setDocumento(null)}>
-              Cerrar PDF
-            </button>
-          </div>
-          <iframe
-            title={documento.nombre}
-            src={documento.url}
-            className="h-[65vh] w-full rounded-xl border"
-          />
-          <a
-            className="text-sm underline"
-            href={documento.url}
-            download={documento.nombre}
-          >
-            Descargar documento de prueba
-          </a>
-        </section>
+        <VisorDocumentoIdentidad
+          archivo={documento.archivo}
+          titular={documento.titular.nombre}
+          puedeDescargar={cuenta.id === documento.titular.id || admin || subdireccion}
+          alCerrar={() => setDocumento(null)}
+        />
       )}
     </section>
   );
