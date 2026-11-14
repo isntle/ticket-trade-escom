@@ -1,11 +1,25 @@
 import React from 'react';
-import { QrCode, Calendar, Clock, MapPin, Ticket as IconoSesion } from 'lucide-react';
+import { QrCode, Calendar, Clock, MapPin, Ticket as IconoSesion, Download } from 'lucide-react';
 import { InsigniaEstadoTaquilla } from './InsigniaEstadoTaquilla';
 import { obtenerMensaje } from '../../dominio/mensajes';
 import { QRCodeSVG } from 'qrcode.react';
 import { BoletoDigital } from '../../tipos';
+import { generarBoletoPdf } from '../../utilidades/generadorBoletoPdf';
 
-type BoletoVista = BoletoDigital & { nombreDia: string; restriccionCancelacion?: string };
+type BoletoVista = BoletoDigital & { 
+  nombreDia: string; 
+  restriccionCancelacion?: string;
+  correoUsuario?: string;
+  actividades?: Array<{
+    nombre: string;
+    fecha: string;
+    inicio: string;
+    fin: string;
+    recinto: string;
+    lugar: string;
+    estado: 'valido' | 'cancelado' | 'utilizado';
+  }>;
+};
 
 interface PropiedadesTarjetaBoleto {
   boleto: BoletoVista;
@@ -34,6 +48,34 @@ export const TarjetaBoleto: React.FC<PropiedadesTarjetaBoleto> = ({ boleto, alAm
   const etiquetaAsiento = boleto.etiquetaAsiento || 'Acceso General';
   const nombreTitular = boleto.nombreUsuario || 'Asistente Institucional';
   const codigoManual = boleto.codigoQr;
+
+  // Función para disparar la descarga del PDF reutilizando el generador
+  const manejarDescargaPdf = () => {
+    // Construimos el payload respetando estrictamente el contrato acordado con Luis
+    const payloadBoleto = {
+      id: boleto.id || 'pase-01',
+      titular: nombreTitular,
+      correo: boleto.correoUsuario || 'estudiante@ipn.mx',
+      titulo: tituloEvento,
+      qr: codigoManual,
+      // Si el boleto trae actividades asociadas las usa, de lo contrario genera una actividad por defecto basada en la tarjeta
+      actividades: boleto.actividades && boleto.actividades.length > 0 ? boleto.actividades : [
+        {
+          nombre: tituloEvento,
+          fecha: fechaEvento,
+          inicio: horaEvento.split('-')[0] || '10:00',
+          fin: horaEvento.split('-')[1] || '12:00',
+          recinto: nombreRecinto,
+          lugar: etiquetaAsiento,
+          estado: (boleto.estado === 'utilizado' || boleto.estado === 'cancelado' ? boleto.estado : 'valido') as 'valido' | 'cancelado' | 'utilizado'
+        }
+      ]
+    };
+
+    // Generamos el documento y disparamos la descarga directa en el navegador
+    const docPdf = generarBoletoPdf(payloadBoleto);
+    docPdf.save(`Boleto_${tituloEvento.replace(/\s+/g, '_')}_${boleto.id || 'acceso'}.pdf`);
+  };
 
   return (
     <div
@@ -116,6 +158,7 @@ export const TarjetaBoleto: React.FC<PropiedadesTarjetaBoleto> = ({ boleto, alAm
           </div>
         </div>
 
+        {/* Botonera de acciones (Ampliar QR, Descargar PDF y Cancelar) */}
         <div className="flex items-center gap-2 pt-2">
           <button
             type="button"
@@ -124,7 +167,18 @@ export const TarjetaBoleto: React.FC<PropiedadesTarjetaBoleto> = ({ boleto, alAm
             className="flex-1 py-2.5 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
           >
             <QrCode className="w-3.5 h-3.5" />
-            <span>Ampliar Código QR</span>
+            <span>Ampliar QR</span>
+          </button>
+
+          {/* Botón nuevo para la descarga directa del PDF real */}
+          <button
+            type="button"
+            onClick={manejarDescargaPdf}
+            className="py-2.5 px-3 bg-neutral-100 hover:bg-[#7a132b] hover:text-white text-neutral-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            title="Descargar Boleto en PDF"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>PDF</span>
           </button>
 
           <button
