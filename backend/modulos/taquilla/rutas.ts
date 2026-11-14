@@ -9,6 +9,7 @@ import { conTransaccion, pool } from "../../bd/pool.js";
 import { exigirSesion } from "../identidad/auth.js";
 import { origenSeguro } from "../../comun/seguridad.js";
 import { fallo, ruta, idEntero, texto } from "../../comun/http.js";
+import {obtenerMensajeErrorCruce} from "../../../src/dominio/crucesReservas.js";
 
 export const routerTaquilla = Router();
 routerTaquilla.use((req, res, next) =>
@@ -18,6 +19,7 @@ const bloquear=liberarApartadosVencidos;
 async function actividad(c: PoolClient, id: string) {
   const r = await c.query(
     `SELECT a.*,a.id_evento::text evento,ta.nombre acceso,ea.nombre estado,ee.nombre estado_evento,v.nombre visibilidad,e.token_enlace_privado,
+    EXISTS(SELECT 1 FROM ticket_trade."AfectacionActividad" af WHERE af.id_actividad=a.id_actividad AND NOT af.resuelta) afectada,
     (a.fecha+a.hora_inicio) AT TIME ZONE 'America/Mexico_City' inicio,(a.fecha+a.hora_fin) AT TIME ZONE 'America/Mexico_City' fin
     FROM ticket_trade."Actividad" a JOIN ticket_trade."Evento" e USING(id_evento) JOIN ticket_trade."TipoAcceso" ta USING(id_tipo_acceso)
     JOIN ticket_trade."EstadoActividad" ea USING(id_estado_actividad) JOIN ticket_trade."EstadoEvento" ee ON ee.id_estado_evento=e.id_estado_evento
@@ -168,6 +170,35 @@ routerTaquilla.post(
         fallo("El apartado venció, ya se confirmó o no te pertenece.", 409);
       const a = await actividad(c, ap.rows[0].actividad);
       reservable(a, req.body?.token);
+      const cruce = await c.query(
+        `SELECT a2.nombre AS actividad,e2.titulo AS evento,a2.id_evento::text AS id_evento,
+          to_char(a2.hora_inicio,'HH24:MI') AS inicio,to_char(a2.hora_fin,'HH24:MI') AS fin
+          FROM ticket_trade."Reservacion" r2
+          JOIN ticket_trade."BoletoEvento" b2 USING(id_boleto_evento)
+          JOIN ticket_trade."CompromisoCupo" cp2 USING(id_compromiso_cupo)
+          JOIN ticket_trade."Actividad" a2 ON a2.id_actividad=cp2.id_actividad
+          JOIN ticket_trade."Evento" e2 ON e2.id_evento=a2.id_evento
+          JOIN ticket_trade."EstadoReservacion" er2 ON er2.id_estado_reservacion=r2.id_estado_reservacion
+          WHERE b2.id_cuenta=$1 AND er2.nombre='Confirmada' AND a2.fecha=$2
+            AND $3::time < a2.hora_fin AND a2.hora_inicio < $4::time
+          LIMIT 1`,
+        [u.id, a.fecha, a.hora_inicio, a.hora_fin],
+      );
+      if (cruce.rowCount) {
+        const ch = cruce.rows[0];
+        const nombreCruce =
+          ch.id_evento === a.evento
+            ? ch.actividad || ch.evento
+            : ch.evento || ch.actividad;
+        fallo(
+          obtenerMensajeErrorCruce({
+            actividad: nombreCruce,
+            inicio: ch.inicio,
+            fin: ch.fin,
+          }),
+          409,
+        );
+      }
       let pase = (
         await c.query(
           'SELECT id_boleto_evento::text id FROM ticket_trade."BoletoEvento" WHERE id_cuenta=$1 AND id_evento=$2',
@@ -259,14 +290,26 @@ routerTaquilla.post(
 routerTaquilla.get(
   "/operacion",
   exigirSesion,
-  ruta(async (_req, res) => {
+  ruta(async (req, res) => {
     const u = res.locals.usuario;
+    const idEvento =
+      typeof req.query.idEvento === "string" && req.query.idEvento.trim()
+        ? idEntero(req.query.idEvento)
+        : null;
     const filas = await conTransaccion(async (c) => {
       await bloquear(c);
       const r = await c.query(
-        `SELECT v.*,v.id_actividad::text id FROM ticket_trade.v_actividades v WHERE $1::boolean OR v.id_cuenta_organizadora=$2
-    OR EXISTS(SELECT 1 FROM ticket_trade."StaffEvento" s WHERE s.id_evento=v.id_evento AND s.id_cuenta=$2) ORDER BY fecha,hora_inicio`,
-        [u.roles.includes("admin") || u.roles.includes("subdireccion"), u.id],
+        `SELECT v.*,v.id_actividad::text id FROM ticket_trade.v_actividades v
+          WHERE ($1::boolean OR ($3::boolean AND v.id_cuenta_organizadora=$2)
+            OR EXISTS(SELECT 1 FROM ticket_trade."StaffEvento" s WHERE s.id_evento=v.id_evento AND s.id_cuenta=$2))
+            AND ($4::bigint IS NULL OR v.id_evento=$4)
+          ORDER BY fecha,hora_inicio`,
+        [
+          u.roles.includes("admin") || u.roles.includes("subdireccion"),
+          u.id,
+          u.roles.includes("organizador"),
+          idEvento,
+        ],
       );
       return r.rows;
     });
@@ -289,8 +332,22 @@ routerTaquilla.post(
       );
       if (!staff.rowCount && !u.roles.includes("admin"))
         fallo("Solo el personal asignado puede registrar el acceso.", 403);
-      if (a.estado !== "Programada" || a.estado_evento !== "Publicado")
-        fallo("La actividad no está habilitada.", 409);
+      if (a.acceso === "Entrada libre")
+        fallo(
+          "Esta actividad es de entrada libre y no utiliza control de acceso.",
+          409,
+        );
+      if (
+        a.estado !== "Programada" ||
+        a.estado_evento !== "Publicado" ||
+        a.afectada
+      )
+        fallo(
+          a.estado === "Suspendida por bloqueo" || a.afectada
+            ? "La actividad está suspendida temporalmente por un bloqueo del recinto."
+            : "La actividad no está habilitada.",
+          409,
+        );
       if (
         Date.now() < new Date(a.inicio).getTime() - 30 * 60000 ||
         Date.now() > new Date(a.fin).getTime()
@@ -300,31 +357,86 @@ routerTaquilla.post(
           409,
         );
       const r = await c.query(
-        `SELECT r.id_reservacion::text id FROM ticket_trade."Reservacion" r JOIN ticket_trade."BoletoEvento" b USING(id_boleto_evento)
-      JOIN ticket_trade."CompromisoCupo" cp USING(id_compromiso_cupo) JOIN ticket_trade."EstadoReservacion" er USING(id_estado_reservacion)
-      WHERE cp.id_actividad=$1 AND (b.codigo_qr=$2 OR upper(b.codigo_manual)=upper($2)) AND er.nombre='Confirmada'`,
+        `SELECT r.id_reservacion::text id,er.nombre estado FROM ticket_trade."Reservacion" r
+          JOIN ticket_trade."BoletoEvento" b USING(id_boleto_evento)
+          JOIN ticket_trade."CompromisoCupo" cp USING(id_compromiso_cupo)
+          JOIN ticket_trade."EstadoReservacion" er USING(id_estado_reservacion)
+          WHERE cp.id_actividad=$1 AND (upper(b.codigo_qr)=upper($2) OR upper(b.codigo_manual)=upper($2))
+          ORDER BY (er.nombre='Confirmada') DESC, r.id_reservacion DESC`,
         [id, codigo],
       );
-      if (!r.rowCount)
+      const confirmada = r.rows.find((f: any) => f.estado === "Confirmada");
+      if (confirmada) {
+        if (
+          (
+            await c.query(
+              'SELECT 1 FROM ticket_trade."EntradaOrdinaria" WHERE id_reservacion=$1',
+              [confirmada.id],
+            )
+          ).rowCount
+        )
+          fallo("Este boleto ya fue utilizado para esta actividad.", 409);
+        const ins = await c.query(
+          'INSERT INTO ticket_trade."EntradaOrdinaria"(id_reservacion,id_cuenta_operadora,registrada_en) VALUES($1,$2,clock_timestamp()) RETURNING id_entrada_ordinaria::text id_entrada,registrada_en::text registrada_en',
+          [confirmada.id, u.id],
+        );
+        return {
+          exito: true,
+          resultado: "exito",
+          mensaje: "Acceso registrado correctamente.",
+          idReservacion: confirmada.id,
+          idEntrada: ins.rows[0].id_entrada,
+          registradaEn: ins.rows[0].registrada_en,
+          operador: u.nombre,
+        };
+      }
+      if (r.rowCount) {
         fallo("Boleto inválido o cancelado para esta actividad.", 409);
-      if (
-        (
-          await c.query(
-            'SELECT 1 FROM ticket_trade."EntradaOrdinaria" WHERE id_reservacion=$1',
-            [r.rows[0].id],
-          )
-        ).rowCount
-      )
-        fallo("Este boleto ya fue utilizado para esta actividad.", 409);
-      await c.query(
-        'INSERT INTO ticket_trade."EntradaOrdinaria"(id_reservacion,id_cuenta_operadora,registrada_en) VALUES($1,$2,clock_timestamp())',
-        [r.rows[0].id, u.id],
+      }
+      const esp = await c.query(
+        `SELECT b.id_boleto_especial::text id,cp.id_actividad::text actividad,b.invalidado_en
+          FROM ticket_trade."BoletoEspecial" b
+          JOIN ticket_trade."CompromisoCupo" cp USING(id_compromiso_cupo)
+          WHERE upper(b.codigo_qr)=upper($1) OR upper(b.codigo_manual)=upper($1)`,
+        [codigo],
       );
-      return {
-        exito: true,
-        mensaje: "Acceso registrado correctamente.",
-        idReservacion: r.rows[0].id,
-      };
+      if (esp.rowCount) {
+        const b = esp.rows[0];
+        if (b.actividad !== id)
+          fallo("El pase no tiene una reservación para esta actividad.", 409);
+        if (b.invalidado_en)
+          fallo("Boleto inválido o cancelado para esta actividad.", 409);
+        if (
+          (
+            await c.query(
+              'SELECT 1 FROM ticket_trade."EntradaEspecial" WHERE id_boleto_especial=$1',
+              [b.id],
+            )
+          ).rowCount
+        )
+          fallo("Este boleto ya fue utilizado para esta actividad.", 409);
+        const ins = await c.query(
+          'INSERT INTO ticket_trade."EntradaEspecial"(id_boleto_especial,id_cuenta_operadora,registrada_en) VALUES($1,$2,clock_timestamp()) RETURNING id_entrada_especial::text id_entrada,registrada_en::text registrada_en',
+          [b.id, u.id],
+        );
+        return {
+          exito: true,
+          resultado: "exito",
+          mensaje: "Acceso registrado correctamente.",
+          idBoletoEspecial: b.id,
+          idEntrada: ins.rows[0].id_entrada,
+          registradaEn: ins.rows[0].registrada_en,
+          operador: u.nombre,
+        };
+      }
+      const paseExistente = await c.query(
+        `SELECT 1 FROM ticket_trade."BoletoEvento" b WHERE upper(b.codigo_qr)=upper($1) OR upper(b.codigo_manual)=upper($1)`,
+        [codigo],
+      );
+      if (paseExistente.rowCount) {
+        fallo("El pase no tiene una reservación para esta actividad.", 409);
+      }
+      fallo("El código no corresponde a un boleto emitido.", 409);
     });
     res.json({ datos: resultado });
   }),

@@ -546,10 +546,29 @@ test(
       (
         await pool.query(
           `SELECT count(*)::int n FROM ticket_trade."EntradaOrdinaria" en JOIN ticket_trade."Reservacion" r USING(id_reservacion) JOIN ticket_trade."CompromisoCupo" cp USING(id_compromiso_cupo) WHERE cp.id_actividad=$1`,
-          [actividad],
+        [actividad],
         )
       ).rows[0].n,
       1,
+    );
+    const estadoAdmin = await ok(await pedir("/api/estado", undefined, admin));
+    const registroHistorial = estadoAdmin.bitacoraEscaneos.find(
+      (x: any) => x.idFechaEvento === actividad,
+    );
+    assert.ok(registroHistorial, "El historial incluye la entrada aceptada");
+    assert.equal(
+      registroHistorial.escaneadoPor,
+      "Administrador General",
+      "Recupera el operador real desde EntradaOrdinaria",
+    );
+    assert.ok(registroHistorial.fechaEscaneo);
+    const estadoAnonimo = await ok(await pedir("/api/estado"));
+    assert.equal(
+      estadoAnonimo.bitacoraEscaneos.filter(
+        (x: any) => x.idEvento === s.idEvento,
+      ).length,
+      0,
+      "El historial respeta el alcance autorizado",
     );
     relojIngreso.mock.restore();
     const recuperacion = await ok(

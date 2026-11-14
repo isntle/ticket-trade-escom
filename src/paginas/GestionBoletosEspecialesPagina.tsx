@@ -1,5 +1,6 @@
 import { volverA } from '../dominio/navegacion';
 import { etiquetaActividad, impedimentoApertura, puedeAdministrarTaquilla } from '../dominio/taquilla';
+import { apiActiva } from '../servicios/modoDatos';
 import React, { useMemo, useState } from 'react';
 import {
   ArrowLeft,
@@ -250,13 +251,22 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
         <button
           type="button"
           onClick={abrirModalEmision}
-          disabled={actividadesEmision.length === 0}
+          disabled={actividadesEmision.length === 0 || apiActiva}
           className="px-5 py-3 rounded-xl bg-[#7a132b] hover:bg-[#620f23] disabled:bg-neutral-300 disabled:cursor-not-allowed text-white text-xs font-bold inline-flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Generar boletos especiales</span>
         </button>
       </div>
+
+      {apiActiva && (
+        <AlertaMensaje
+          tipo="informacion"
+          titulo="Dependencia pendiente en servidor"
+          className="mb-6"
+          mensaje="La emisión e invalidación de pases especiales desde la interfaz aún no está conectada al servidor. Los boletos especiales ya registrados en PostgreSQL se consultan y validan en el control de acceso sin simular cambios locales."
+        />
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs">

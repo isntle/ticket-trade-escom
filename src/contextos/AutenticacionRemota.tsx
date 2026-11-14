@@ -227,7 +227,11 @@ export function ProveedorAutenticacionRemota({
     solicitarCambioCorreo: noDisponible,
     cambiarPassword: noDisponible,
     asignarRolesAUsuario: noDisponible,
-    asociarStaffAEvento: noDisponible,
+    asociarStaffAEvento: () => ({
+      exito: false,
+      mensaje:
+        "Dependencia pendiente: el alta y retiro de Staff aún no está conectado a PostgreSQL. No se guardaron cambios.",
+    }),
     alternarEstadoUsuario: noDisponible,
     reiniciarConfirmacionPrueba: noDisponible,
     solicitarRestriccion: noDisponible,

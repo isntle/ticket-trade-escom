@@ -72,10 +72,12 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
   const leyendoQr = useRef(false);
   const reanudarCamaraAlContinuar = useRef(false);
 
-  // Solo eventos propios del organizador o asignados explícitamente al Staff.
+  // Solo eventos propios del organizador, asignados explícitamente al Staff o administrados por Admin.
   const eventosPermitidos = listaEventos.filter((ev) => {
     if (!usuarioActual) return false;
-    const esResponsable = (usuarioActual.roles.includes('organizador') && ev.idOrganizador === usuarioActual.id) ||
+    const esResponsable =
+      usuarioActual.roles.includes('admin') ||
+      (usuarioActual.roles.includes('organizador') && ev.idOrganizador === usuarioActual.id) ||
       (usuarioActual.roles.includes('staff') && Boolean(usuarioActual.eventosAsignadosStaff?.includes(ev.id)));
     return esResponsable && ev.fechas.some(f=>modalidadActividad(f,ev.modalidadAsistencia)==='controlado');
   });
@@ -133,9 +135,10 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     }
   }, [eventoActivoId, eventosPermitidos, fechaActivaId]);
 
-  // Verificación de si el staff tiene asignado este evento
+  // Verificación de si el operador tiene asignado este evento
   const estaAsignadoAEvento = Boolean(usuarioActual && eventoSeleccionado &&
-    ((usuarioActual.roles.includes('organizador') && eventoSeleccionado.idOrganizador === usuarioActual.id) ||
+    (usuarioActual.roles.includes('admin') ||
+    (usuarioActual.roles.includes('organizador') && eventoSeleccionado.idOrganizador === usuarioActual.id) ||
     (usuarioActual.roles.includes('staff') && usuarioActual.eventosAsignadosStaff?.includes(eventoSeleccionado.id))));
 
   // Cálculo de aforo e ingresos en vivo en puerta
@@ -516,12 +519,12 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
               <input
                 type="text"
                 required
-                minLength={35}
-                maxLength={35}
+                minLength={16}
+                maxLength={64}
                 value={codigoIngresado}
                 disabled={!estaAsignadoAEvento}
                 onChange={(e) => setCodigoIngresado(e.target.value)}
-                placeholder="TT- seguido de 32 caracteres hexadecimales"
+                placeholder="Código QR (TT-...) o código manual de 16 caracteres"
                 className="flex-1 px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-mono focus:outline-none focus:border-[#7a132b]"
               />
               <button
