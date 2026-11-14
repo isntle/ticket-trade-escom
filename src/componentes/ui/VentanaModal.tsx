@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
+import { textoParaUsuario } from '../../utilidades/textoParaUsuario';
 
 interface PropiedadesVentanaModal {
   estaAbierto: boolean;
@@ -143,8 +144,8 @@ export const VentanaModal: React.FC<PropiedadesVentanaModal> = ({
         {(titulo || subtitulo) && (
           <div className="px-6 py-4 border-b border-neutral-100 flex items-center justify-between gap-3 bg-neutral-50/50">
             <div className="min-w-0">
-              {titulo && <h3 id={idTitulo} className="text-base font-bold text-neutral-900 break-words">{titulo}</h3>}
-              {subtitulo && <p id={idSubtitulo} className="text-xs text-neutral-500 mt-0.5 break-words">{subtitulo}</p>}
+              {titulo && <h3 id={idTitulo} className="text-base font-bold text-neutral-900 break-words">{textoParaUsuario(titulo)}</h3>}
+              {subtitulo && <p id={idSubtitulo} className="text-xs text-neutral-500 mt-0.5 break-words">{textoParaUsuario(subtitulo)}</p>}
             </div>
             <button
               type="button"

@@ -7,6 +7,7 @@ import { Router } from "express";
 import { pool, conTransaccion } from "../../bd/pool.js";
 import { exigirSesion } from "../identidad/auth.js";
 import { origenSeguro } from "../../comun/seguridad.js";
+import { actividadesParaDisponibilidad, consultarAgendaRecintos, revisarDisponibilidadServidor, revisarEventoServidor, exigirPropuestaSinCruces } from "./disponibilidad.js";
 export const routerOrganizacion = Router();
 routerOrganizacion.use(exigirSesion);
 routerOrganizacion.use((req, res, next) =>
@@ -17,6 +18,28 @@ const esRevision = (u: any) =>
   u.roles.includes("subdireccion") || u.roles.includes("admin");
 const error = (res: any, codigo: string, mensaje: string, estado = 422) =>
   res.status(estado).json({ error: { codigo, mensaje } });
+routerOrganizacion.get("/disponibilidad/agenda", ruta(async (req, res) => {
+  const fecha = typeof req.query.fecha === "string" ? req.query.fecha : "";
+  const idRecinto = req.query.idRecinto === undefined ? undefined : idEntero(req.query.idRecinto);
+  const idActividadExcluir = req.query.idActividadExcluir === undefined ? undefined : idEntero(req.query.idActividadExcluir);
+  const datos = await conTransaccion(async (c) => {
+    await c.query("SELECT pg_advisory_xact_lock(744220261107::bigint)");
+    return consultarAgendaRecintos(c, res.locals.usuario, fecha, idRecinto, { idActividadExcluir });
+  });
+  res.set("Cache-Control", "no-store").json({ datos });
+}));
+routerOrganizacion.post("/disponibilidad/revision", ruta(async (req, res) => {
+  const b = req.body || {}, actividades = actividadesParaDisponibilidad(b.actividades);
+  const contexto = {
+    idSolicitud: b.idSolicitud === undefined ? undefined : idEntero(b.idSolicitud),
+    idActividadExcluir: b.idActividadExcluir === undefined ? undefined : idEntero(b.idActividadExcluir),
+  };
+  const datos = await conTransaccion(async (c) => {
+    await c.query("SELECT pg_advisory_xact_lock(744220261107::bigint)");
+    return revisarDisponibilidadServidor(c, res.locals.usuario, actividades, contexto);
+  });
+  res.set("Cache-Control", "no-store").json({ datos });
+}));
 routerOrganizacion.get("/solicitudes", async (_req, res, next) => {
   try {
     const u = res.locals.usuario;
@@ -88,6 +111,13 @@ routerOrganizacion.post("/solicitudes", async (req, res, next) => {
     );
   try {
     const resultado = await conTransaccion(async (c) => {
+      let disponibilidad;
+      if (b.enviar === true) {
+        await c.query("SELECT pg_advisory_xact_lock(744220261107::bigint)");
+        disponibilidad = await revisarDisponibilidadServidor(c, u, actividadesParaDisponibilidad(b.fechasSolicitadas));
+        // Enviar a revisión no reserva: las coincidencias externas se informan.
+        exigirPropuestaSinCruces(disponibilidad);
+      }
       if (b.idArchivoCartel) {
         const semilla = await c.query(
           `SELECT 1 FROM ticket_trade."Archivo" WHERE id_archivo=$1 AND clave_almacenamiento LIKE '/imagenes/eventos/%'`,
@@ -172,7 +202,7 @@ routerOrganizacion.post("/solicitudes", async (req, res, next) => {
             " está en revisión. Recibir la solicitud no reserva por sí mismo el recinto ni autoriza el evento.",
           "/organizador/solicitudes/" + r.rows[0].id,
         );
-      return { id: r.rows[0].id, idEvento: id };
+      return { id: r.rows[0].id, idEvento: id, ...(disponibilidad ? { disponibilidad } : {}) };
     });
     res.status(201).json({ datos: resultado });
   } catch (e) {
@@ -228,6 +258,8 @@ routerOrganizacion.post(
             { estado: 409 },
           );
         if (decision === "Aprobada") {
+          const disponibilidad = await revisarEventoServidor(c, res.locals.usuario, s.id_evento.toString());
+          exigirPropuestaSinCruces(disponibilidad, true);
           // La distribución usa los lugares físicos del recinto del modelo ER.
           await c.query(
             `INSERT INTO ticket_trade."LugarActividad"(id_actividad,id_lugar_recinto,id_categoria_lugar_actividad)
@@ -237,15 +269,6 @@ routerOrganizacion.post(
             AND NOT EXISTS(SELECT 1 FROM ticket_trade."LugarActividad" la WHERE la.id_actividad=a.id_actividad AND la.id_lugar_recinto=l.id_lugar_recinto)`,
             [s.id_evento],
           );
-          const bloqueos = await c.query(
-            `SELECT 1 FROM ticket_trade."Actividad" a JOIN ticket_trade."BloqueoRecinto" b ON b.id_recinto=a.id_recinto AND b.finalizado_en IS NULL WHERE a.id_evento=$1 AND (a.fecha+a.hora_fin) AT TIME ZONE 'America/Mexico_City'>b.inicio LIMIT 1`,
-            [s.id_evento],
-          );
-          if (bloqueos.rowCount)
-            throw Object.assign(
-              new Error("El recinto tiene un bloqueo vigente."),
-              { estado: 409 },
-            );
           await c.query(
             `UPDATE ticket_trade."Evento" SET id_estado_evento=(SELECT id_estado_evento FROM ticket_trade."EstadoEvento" WHERE nombre='Publicado'),publicado_en=CURRENT_TIMESTAMP WHERE id_evento=$1`,
             [s.id_evento],
@@ -304,7 +327,7 @@ routerOrganizacion.patch(
       registro: "Registro sin asiento asignado",
       controlado: "Reservación con lugar asignado",
     };
-    await conTransaccion(async (c) => {
+    const disponibilidad = await conTransaccion(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(744220261107::bigint)");
       const r = await c.query(
         `SELECT s.id_evento::text evento,s.version_edicion,es.nombre estado,e.id_cuenta_organizadora::text titular FROM ticket_trade."SolicitudEvento" s
@@ -321,6 +344,8 @@ routerOrganizacion.patch(
         fallo("La solicitud cambió o ya no admite edición.", 409);
       if (b.enviar && (!u.correoConfirmado || !u.esVerificado))
         fallo("Necesitas una cuenta confirmada y verificada.", 403);
+      const revision = b.enviar === true ? await revisarDisponibilidadServidor(c, u, actividadesParaDisponibilidad(b.fechasSolicitadas), { idEventoExcluir: s.evento }) : undefined;
+      if (revision) exigirPropuestaSinCruces(revision);
       if (!["publico", "privado"].includes(b.visibilidad))
         fallo("El modelo admite visibilidad pública o privada.");
       if (b.idArchivoCartel)
@@ -422,8 +447,9 @@ routerOrganizacion.patch(
           "Tu solicitud fue enviada a revisión. Consulta su estado y las observaciones desde el detalle.",
           "/organizador/solicitudes/" + id,
         );
+      return revision;
     });
-    res.json({ datos: { exito: true } });
+    res.json({ datos: { exito: true, ...(disponibilidad ? { disponibilidad } : {}) } });
   }),
 );
 

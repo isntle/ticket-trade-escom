@@ -1,3 +1,4 @@
+import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { impedimentoVerificacion, intentosPeriodo, periodoIdentidadActual, rechazosPeriodo } from "../dominio/periodosIdentidad";
 import { volverA } from '../dominio/navegacion';
 import { apiActiva } from '../servicios/modoDatos';
@@ -223,7 +224,7 @@ export function GestionIdentidadPagina({
           role="status"
           className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm"
         >
-          {mensaje}
+          {textoParaUsuario(mensaje)}
         </p>
       )}
       {vista === "expediente" && (
@@ -437,7 +438,7 @@ export function GestionIdentidadPagina({
             </>
           )}
           <p className="text-xs text-neutral-500">
-            {apiActiva ? 'Los PDF se guardan de forma privada en PostgreSQL. Envía el expediente para que Subdirección lo revise.' : 'Archivos conservados en este navegador. El almacenamiento privado compartido y la entrega real de correo requieren servidor.'}
+            {apiActiva ? 'Tus documentos se guardan de forma privada. Envía el expediente para que Subdirección lo revise.' : 'Archivos conservados en este navegador. El almacenamiento privado compartido y la entrega real de correo requieren servidor.'}
           </p>
           {new URLSearchParams(window.location.search).get('continuar')==='/solicitar-evento' && <button className={primario} onClick={()=>navigate('/solicitar-evento')}>{cuenta.esVerificado?'Continuar con mi solicitud de evento':'Volver a solicitar evento'}</button>}
           <h2 className="font-bold">Historial del expediente</h2>

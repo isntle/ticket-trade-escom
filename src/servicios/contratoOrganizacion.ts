@@ -1,4 +1,6 @@
 import type {useDatos} from '../contextos/DatosContexto.js';
+export { crearServicioDisponibilidad } from './disponibilidadRecintos.js';
+export type { ActividadDisponibilidad, AgendaDisponibilidad, RevisionDisponibilidad, ContextoDisponibilidad, OcupacionDisponibilidad } from './disponibilidadRecintos.js';
 /** Contrato de UI: la API debe reconstruir estas proyecciones a partir del modelo ER. */
 type Datos = ReturnType<typeof useDatos>;
 export const consultasOrganizacion = ['verificarDisponibilidadRecinto','obtenerOcupacionesRecinto','obtenerAgendaMultiRecinto','obtenerListaDeVerificacion','revisarCambioRecinto','revisarBloqueoInstitucional'] as const;

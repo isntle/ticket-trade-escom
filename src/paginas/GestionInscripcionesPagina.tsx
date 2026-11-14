@@ -109,7 +109,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
         <EstadoVacio
           icono={<Lock className="w-6 h-6" />}
           titulo="Administración no autorizada"
-          descripcion="ERR-TR-02 · Solo el Organizador responsable puede modificar las inscripciones de este evento."
+          descripcion="Solo el organizador responsable puede modificar las inscripciones de este evento."
           textoAccion="Volver al panel"
           alHacerAccion={() => navigate('/organizador')}
         />
@@ -211,7 +211,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-8">
         <div>
           <span className="text-[10px] font-bold text-[#7a132b] uppercase tracking-wider">
-            Motor de Taquilla · CU-MT-08
+            Inscripciones
           </span>
           <h1 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight mt-1">
             Apertura y cierre de inscripciones

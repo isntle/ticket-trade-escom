@@ -922,7 +922,8 @@ export const ExploradorCasosUso: React.FC<PropiedadesExploradorCasosUso> = ({
     mostrarNotificacion("Escenario activado", escenario.titulo, "informacion");
   };
 
-  if (!modoDemostracionActivo()) return null;
+  // La documentación académica se abre expresamente, fuera de la navegación de usuarios.
+  if (!modoDemostracionActivo() || new URLSearchParams(window.location.search).get('documentacion') !== '1') return null;
 
   return (
     <div className="fixed bottom-4 left-4 z-40 no-print">

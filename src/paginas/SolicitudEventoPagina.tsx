@@ -1,3 +1,4 @@
+import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { servicioOrganizacionLocal } from '../servicios/organizacion';
 import { CATEGORIAS_EVENTO, aforoActividad, modalidadActividad, nombreActividad, validarItinerarios } from '../dominio/actividades';
 import { EditorItinerarios } from '../componentes/eventos/EditorItinerarios';
@@ -55,6 +56,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     guardarBorradorSolicitud,
     actualizarSolicitud,
     verificarDisponibilidadRecinto,
+    agendaRemota,
   } = useDatos();
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
@@ -198,7 +200,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       mostrarNotificacion("Revisa la programación", error || errorDistribucion || "", "advertencia");
       return false;
     }
-    if (!borrador) {
+    if (!borrador && !agendaRemota) {
       const ocupado = fechas.find(dia => !verificarDisponibilidadRecinto(dia.idRecinto, dia.fecha, dia.horaInicio, dia.horaFin, undefined, true).disponible);
       if (ocupado) {
         setErrorFormulario(`${ocupado.nombreDia || 'Un día'} tiene un conflicto de disponibilidad. Cambia el recinto o el horario antes de enviar.`);
@@ -466,7 +468,16 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     setResumenEnvioAbierto(false);
     bloqueoGuardado.current = true; setGuardandoSolicitud(true);
     let nuevaSolicitud;
+    let coincidenciasActuales = false;
     try {
+      if (agendaRemota) {
+        // Lectura fresca, independiente de la caché visible. La escritura vuelve a
+        // validar en su propia transacción para cubrir cambios entre ambas llamadas.
+        const revision = await agendaRemota.revisar(fechas, requestId ? { idSolicitud: requestId } : {});
+        const crucePropio = revision.actividades.find(a => a.conflictos.some(c => c.fuente === 'propuesta'));
+        if (crucePropio) throw new Error('Dos actividades de esta solicitud coinciden en el mismo recinto. Ajusta sus horarios y el margen de separación antes de enviar.');
+        coincidenciasActuales = revision.actividades.some(a => a.conflictos.length || a.advertencias.length);
+      }
       if (solicitudEnEdicion) {
         const resultado = await servicio.actualizarSolicitud(
           solicitudEnEdicion.id,
@@ -490,8 +501,8 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     } finally {bloqueoGuardado.current=false;setGuardandoSolicitud(false);}
 
     mostrarNotificacion(
-      usuarioActual.puedeAutoaprobar && !requiereJustificacion ? "Evento autorizado" : "Solicitud enviada a Subdirección",
-      usuarioActual.puedeAutoaprobar && !requiereJustificacion ? "La solicitud cumple las validaciones y quedó autorizada por tu jefatura de academia. Puedes consultar el evento desde Mis eventos y solicitudes." : "Puedes consultar su estado y las observaciones desde Mis solicitudes.",
+      !agendaRemota && usuarioActual.puedeAutoaprobar && !requiereJustificacion ? "Evento autorizado" : "Solicitud enviada a Subdirección",
+      !agendaRemota && usuarioActual.puedeAutoaprobar && !requiereJustificacion ? "La solicitud cumple las validaciones y quedó autorizada por tu jefatura de academia. Puedes consultar el evento desde Mis eventos y solicitudes." : coincidenciasActuales ? "Se detectaron coincidencias en la agenda actual. Subdirección deberá revisarlas antes de autorizar. Puedes consultar el estado desde Mis solicitudes." : "Puedes consultar su estado y las observaciones desde Mis solicitudes.",
       "exito",
     );
 
@@ -649,7 +660,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
             role="alert"
             className="sticky top-20 z-10 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm font-semibold text-rose-800"
           >
-            {errorFormulario}
+            {textoParaUsuario(errorFormulario)}
           </div>
         )}
         {/* ========================================================================= */}
@@ -796,7 +807,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                     role="alert"
                     className="mt-1 block font-normal text-rose-700"
                   >
-                    {errorDocumento}
+                    {textoParaUsuario(errorDocumento)}
                   </span>
                 )}
               </label>

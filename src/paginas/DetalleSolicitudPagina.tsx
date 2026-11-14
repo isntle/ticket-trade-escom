@@ -1,3 +1,4 @@
+import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { aforoActividad, modalidadActividad, nombreActividad } from '../dominio/actividades';
 import { VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
 import { volverA } from '../dominio/navegacion';
@@ -13,6 +14,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useDatos } from "../contextos/DatosContexto";
+import { useCargarAgendasRecintos } from '../contextos/useDisponibilidadRecintos';
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { useNotificaciones } from "../contextos/NotificacionesContexto";
 import { InsigniaEstado } from "../componentes/ui/InsigniaEstado";
@@ -88,6 +90,12 @@ export const DetalleSolicitudPagina: React.FC<{
   const [error, setError] = useState("");
   const [versionConsultada, setVersionConsultada] = useState(1);
   const solicitud = listaSolicitudes.find((s) => s.id === requestId);
+  const evento = listaEventos.find((e) => e.idSolicitud === solicitud?.id);
+  const consultasAgenda = (solicitud?.fechasSolicitadas || []).flatMap(d => {
+    const idActividadExcluir = evento?.fechas.find(f => f.id === d.id)?.id;
+    return [{fecha:d.fecha}, {fecha:d.fecha, ...(idActividadExcluir?{idActividadExcluir}:{})}];
+  });
+  const agendaRemota = useCargarAgendasRecintos(consultasAgenda);
   useEffect(() => {
     if (interfazSolicitada() === "UI.05" && solicitud && solicitud.idSolicitante === usuarioActual?.id && ["borrador","en_revision","requiere_correccion"].includes(solicitud.estado)) {
       setVersionConsultada(versionSolicitud(solicitud));
@@ -114,7 +122,6 @@ export const DetalleSolicitudPagina: React.FC<{
   const titular = todosLosUsuarios.find(
     (u) => u.id === solicitud.idSolicitante,
   );
-  const evento = listaEventos.find((e) => e.idSolicitud === solicitud.id);
   const imagenVistaPrevia = solicitud.urlImagen || evento?.urlImagen;
   const esTitular = usuarioActual?.id === solicitud.idSolicitante;
   const esRevisor =
@@ -225,7 +232,7 @@ export const DetalleSolicitudPagina: React.FC<{
           d.fecha,
           d.horaInicio,
           d.horaFin,
-          evento?.fechas[i]?.id,
+          evento?.fechas.find(f => f.id === d.id)?.id,
         );
         return (
           <li key={d.id} className="border-l-2 border-[#7a132b]/25 pl-4">
@@ -253,10 +260,10 @@ export const DetalleSolicitudPagina: React.FC<{
               <p
                 className={
                   "mt-2 text-sm " +
-                  (disp.disponible ? "text-emerald-700" : "text-rose-700")
+                  (disp.estadoConsulta && disp.estadoConsulta !== 'listo' ? 'text-neutral-600' : disp.disponible ? "text-emerald-700" : "text-rose-700")
                 }
               >
-                {disp.disponible
+                {disp.estadoConsulta && disp.estadoConsulta !== 'listo' ? disp.motivo : disp.tipoConflicto === 'clase' ? disp.motivo : disp.disponible
                   ? "Recinto disponible en el horario solicitado"
                   : disp.motivo}
               </p>
@@ -276,8 +283,9 @@ export const DetalleSolicitudPagina: React.FC<{
         <ArrowLeft size={17} /><span>Regresar</span></button>
       {solicitud.fechasSolicitadas.map((f, indice) => {
         const disponibilidad = verificarDisponibilidadRecinto(f.idRecinto, f.fecha, f.horaInicio, f.horaFin);
-        return disponibilidad.tipoConflicto === 'clase' ? <div key={indice} role="note" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950"><strong>Coincidencia con horario de clase · {f.fecha}</strong><p>{disponibilidad.motivo}</p><p>El horario es informativo. La decisión de Subdirección queda registrada en el historial; no se elimina ni modifica la clase.</p></div> : null;
+        return disponibilidad.tipoConflicto === 'clase' || disponibilidad.advertencias?.length ? <div key={indice} role="note" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950"><strong>Coincidencia con horario de clase · {f.fecha}</strong><p>El horario académico es informativo. Subdirección debe revisar la coincidencia; no se elimina ni modifica la clase.</p></div> : null;
       })}
+      {agendaRemota && <button type="button" onClick={()=>consultasAgenda.forEach(q=>{void agendaRemota.cargar(q,true);})} className="mb-4 rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold">Actualizar disponibilidad de las actividades</button>}
       <header className="mb-7 flex flex-wrap justify-between gap-4">
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap gap-2 items-center">
@@ -743,7 +751,7 @@ export const DetalleSolicitudPagina: React.FC<{
                 role="alert"
                 className="rounded-xl bg-rose-50 p-3 text-rose-800"
               >
-                {error}
+                {textoParaUsuario(error)}
               </p>
             )}
             <div className="flex flex-wrap justify-end gap-3">

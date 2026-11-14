@@ -249,7 +249,7 @@ export const BarraSuperior: React.FC<{
                             >
                               {usuario.nombre}
                               <span className="block text-xs text-neutral-500">
-                                {usuario.afiliacion}
+                                {{alumno:"Estudiante",profesor:"Docente",administrativo:"Administrativo",pae:"Personal de apoyo",externo:"Externo"}[usuario.afiliacion]}
                               </span>
                             </button>
                           ))}

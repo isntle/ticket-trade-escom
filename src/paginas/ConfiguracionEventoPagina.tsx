@@ -35,6 +35,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
+import { useCargarAgendasRecintos } from '../contextos/useDisponibilidadRecintos';
 import { useNotificaciones } from '../contextos/NotificacionesContexto';
 import { InsigniaEstado } from '../componentes/ui/InsigniaEstado';
 import { EstadoVacio } from '../componentes/ui/EstadoVacio';
@@ -83,6 +84,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   const [verConstancia,setVerConstancia] = React.useState(interfazSolicitada() === 'UI.22');
 
   const evento = listaEventos.find((e) => e.id === eventId);
+  const agendaRemota = useCargarAgendasRecintos((evento?.fechas || []).filter(f=>!f.cancelada).map(f=>({fecha:f.fecha,idActividadExcluir:f.id})));
   const checklist = obtenerListaDeVerificacion(eventId);
   const casoDocumentado = new URLSearchParams(window.location.search).get('caso');
   const interfazDocumentada = interfazSolicitada();
@@ -217,7 +219,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
 
   const esPublicado = evento.estado === 'publicado';
   const puedeEditarInformacion = puedeGestionar && ['configuracion', 'borrador', 'publicado'].includes(evento.estado) && evento.fechas.every((dia) => inicioEnMexico(dia.fecha, dia.horaInicio) > Date.now()) && !bitacoraEscaneos.some((registro) => registro.idEvento === evento.id && registro.resultado === 'exito');
-  const guardarCambioFecha = (e: React.FormEvent<HTMLFormElement>, idFecha: string) => {
+  const guardarCambioFecha = async (e: React.FormEvent<HTMLFormElement>, idFecha: string) => {
     e.preventDefault();
     if (!puedeGestionar) { mostrarNotificacion('Sin autorización', 'Solo el organizador responsable o Subdirección pueden modificar este evento.', 'error'); return; }
     const datos = new FormData(e.currentTarget);
@@ -246,9 +248,14 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     if (!recinto || (aforoActividad(fechaActual,evento.aforoMaximo) || 0) > recinto.capacidad || (arregloExistente && arregloExistente.totalAsientos > recinto.capacidad)) {
       mostrarNotificacion('Capacidad incompatible', 'El recinto elegido no tiene capacidad suficiente para el aforo del evento.', 'error'); return;
     }
-    const disponibilidad = verificarDisponibilidadRecinto(idRecinto, fecha, horaInicio, horaFin, idFecha);
+    let disponibilidad;
+    try {
+      disponibilidad = agendaRemota ? (await agendaRemota.revisar([{id:idFecha,idRecinto,fecha,horaInicio,horaFin}],{idActividadExcluir:idFecha})).actividades[0] : verificarDisponibilidadRecinto(idRecinto, fecha, horaInicio, horaFin, idFecha);
+    } catch (error) {
+      mostrarNotificacion('No se pudo confirmar la disponibilidad',error instanceof Error?error.message:'Reintenta la consulta.','error');return;
+    }
     if (!disponibilidad.disponible) {
-      mostrarNotificacion('Conflicto de agenda', disponibilidad.motivo || 'El recinto no está disponible.', 'error'); return;
+      mostrarNotificacion('Conflicto de agenda', 'motivo' in disponibilidad && disponibilidad.motivo || 'El recinto no está disponible en la agenda actual.', 'error'); return;
     }
     const compromisosReservados = listaReservaciones.some((reserva) => reserva.idEvento === evento.id && reserva.idFechaEvento === idFecha && (reserva.estado === 'confirmada' || (reserva.estado === 'apartado_temporal' && (reserva.tiempoExpiracionApartado||0)>Date.now()))) || listaBoletos.some(b=>b.idFechaEvento===idFecha&&b.estado!=='cancelado');
     if (idRecinto !== fechaActual.idRecinto && compromisosReservados) {
@@ -526,9 +533,6 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-neutral-900">Boletos especiales</h3>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">
-                  CU-MT-07
-                </span>
               </div>
               <p className="text-sm text-neutral-500 mt-1 max-w-2xl">
                 Genera e invalida acreditaciones QR para Comité Organizador, Staff de apoyo e invitados VIP.
@@ -554,9 +558,6 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-neutral-900">Apertura y cierre de inscripciones</h3>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">
-                  CU-MT-08
-                </span>
               </div>
               <p className="text-sm text-neutral-500 mt-1 max-w-2xl">
                 Abre o cierra la taquilla por actividad y consulta el historial de cambios.
@@ -582,9 +583,6 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-neutral-900">Panel de taquilla y participación</h3>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">
-                  CU-MT-09
-                </span>
               </div>
               <p className="text-sm text-neutral-500 mt-1 max-w-2xl">
                 Consulta aforo, disponibilidad, reservaciones, lista de espera y participación por actividad.
@@ -649,7 +647,8 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                           </span>
                         )}
                       </div>
-                      {!fecha.cancelada && !disponibilidadDia.disponible && <div className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm text-amber-950"><strong>{disponibilidadDia.tipoConflicto === 'bloqueo' ? 'Día afectado por bloqueo institucional' : 'Conflicto de agenda'}</strong><p>{disponibilidadDia.motivo}</p><span>Resuelve el conflicto reprogramando el día o cancelándolo de forma segura.</span></div>}
+                      {!fecha.cancelada && disponibilidadDia.estadoConsulta && disponibilidadDia.estadoConsulta!=='listo' ? <p role="status" className="rounded-lg bg-neutral-100 p-3 text-neutral-600">{disponibilidadDia.motivo}<button type="button" onClick={()=>{void agendaRemota?.cargar({fecha:fecha.fecha,idActividadExcluir:fecha.id},true);}} className="ml-2 font-semibold underline">Consultar de nuevo</button></p> : !fecha.cancelada && !disponibilidadDia.disponible && <div className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm text-amber-950"><strong>{disponibilidadDia.tipoConflicto === 'bloqueo' ? 'Día afectado por bloqueo institucional' : 'Conflicto de agenda'}</strong><p>{disponibilidadDia.motivo}</p><span>Resuelve el conflicto reprogramando el día o cancelándolo de forma segura.</span></div>}
+                      {!fecha.cancelada && (disponibilidadDia.tipoConflicto==='clase'||Boolean(disponibilidadDia.advertencias?.length)) && <p className="rounded-lg bg-amber-50 p-3 text-amber-950">Coincidencia con clase informativa: requiere revisión de Subdirección.</p>}
 
                       <div className="text-neutral-600 flex flex-wrap items-center gap-x-4 gap-y-2">
                         <span className="flex items-center gap-1 font-semibold text-neutral-800">

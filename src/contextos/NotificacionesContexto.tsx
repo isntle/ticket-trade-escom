@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { CheckCircle, AlertTriangle, Info, XCircle, X } from 'lucide-react';
+import { textoParaUsuario } from '../utilidades/textoParaUsuario';
 
 export type TipoNotificacion = 'exito' | 'advertencia' | 'error' | 'informacion';
 
@@ -38,7 +39,7 @@ export const ProveedorNotificaciones: React.FC<{ children: React.ReactNode }> = 
       duracionMs: number = 4000
     ) => {
       const id = `notif-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-      const nueva: ElementoNotificacion = { id, titulo, mensaje, tipo, duracionMs };
+      const nueva: ElementoNotificacion = { id, titulo: textoParaUsuario(titulo), mensaje: textoParaUsuario(mensaje), tipo, duracionMs };
 
       setNotificaciones((previas) => [...previas, nueva]);
 

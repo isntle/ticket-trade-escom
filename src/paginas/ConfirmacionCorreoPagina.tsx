@@ -1,3 +1,4 @@
+import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { destinoInternoSeguro } from '../dominio/navegacion';
 import { apiActiva } from '../servicios/modoDatos';
 import { volverA } from '../dominio/navegacion';
@@ -52,7 +53,7 @@ export function ConfirmacionCorreoPagina({
       </p>
       {mensaje && (
         <p role="status" className="my-4 text-sm">
-          {mensaje}
+          {textoParaUsuario(mensaje)}
         </p>
       )}
       {confirmado ? (

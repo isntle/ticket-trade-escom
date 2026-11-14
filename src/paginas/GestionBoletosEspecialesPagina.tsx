@@ -238,7 +238,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-8">
         <div>
           <span className="text-[11px] font-bold text-[#7a132b] uppercase tracking-wider">
-            Motor de Taquilla · CU-MT-07
+            Boletos especiales
           </span>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 mt-0.5">
             Gestión de boletos especiales
