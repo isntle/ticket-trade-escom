@@ -272,3 +272,9 @@ Hugo, Horacio y Rodrigo pueden terminar sus tareas pequeñas independientes. No 
 - [ ] El entorno Supabase/API/frontend compartido está comprobado o está marcado explícitamente como pendiente.
 
 Wallet, validación offline, cifrado/firma de QR con secretos en el navegador, interpretación automática de itinerarios, una reescritura con otro ORM y un sistema general de auditoría no son requisitos para completar esta conexión. No añadirlos para llenar el sprint. El QR opaco y su validación atómica en servidor son la prioridad.
+
+## Rendimiento de lectura y demostración
+
+Priorizar medir tiempos de imágenes y del directorio de revisión. Evitar que cada actualización de sesión proyecte secuencialmente consultas por cada cuenta; evaluar una consulta de bandeja paginada con filtros de estado y rol, sin exponer documentos ni correos a usuarios sin permiso. Conservar la lista de accesos rápidos separada de los usuarios reales: activar demo no debe ocultar solicitudes de cuentas nuevas. La optimización de imágenes/caché se coordina con la tarea de archivos 152; no duplicarla ni recomprimir expedientes originales.
+
+La gestión de jefaturas todavía aparece en Subdirección en el código actual. Pendiente separar jefaturas (Administración, según retroalimentación más reciente) de periodos de verificación y aplicar el mismo permiso en API y documentación; mover solo el botón no completa la conexión. No declarar esto resuelto por una entrega de revisión documental.

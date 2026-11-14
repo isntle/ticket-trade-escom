@@ -171,7 +171,7 @@ export const BarraSuperior: React.FC<{
                     </span>
                     {verificacionIdentidadVigente(usuarioActual)&&<span className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-sky-700" title="Identidad verificada vigente"><BadgeCheck size={15} aria-hidden="true"/>Verificado</span>}
                     <span className="block text-xs text-neutral-500">
-                      {{alumno:"Estudiante",profesor:"Docente",administrativo:"Administrativo",pae:"Personal de apoyo",externo:"Externo"}[usuarioActual.afiliacion]}
+                      {usuarioActual.roles.includes("admin") ? "Administración" : usuarioActual.roles.includes("subdireccion") ? "Subdirección" : {alumno:"Estudiante",profesor:"Docente",administrativo:"Administrativo",pae:"Personal de apoyo",externo:"Externo"}[usuarioActual.afiliacion]}
                     </span>
                   </span>
                   <ChevronDown size={15} className="shrink-0" />
