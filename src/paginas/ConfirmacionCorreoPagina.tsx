@@ -1,4 +1,5 @@
 import { destinoInternoSeguro } from '../dominio/navegacion';
+import { apiActiva } from '../servicios/modoDatos';
 import { volverA } from '../dominio/navegacion';
 import React, { useState } from "react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
@@ -23,6 +24,8 @@ export function ConfirmacionCorreoPagina({
   );
   const [mensaje, setMensaje] = useState("");
   const [confirmado, setConfirmado] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
   const [codigo, setCodigo] = useState(() => {
     try {
       const dato = JSON.parse(
@@ -43,8 +46,9 @@ export function ConfirmacionCorreoPagina({
         verificación documental ni concede facultades para organizar eventos.
       </p>
       <p className="mb-5 rounded-xl bg-amber-50 p-4 text-sm">
-        El envío real todavía no está conectado. En demostración puedes probar
-        el recorrido con un código; no acredita acceso a un buzón real.
+        {apiActiva
+          ? `Enviamos un enlace de confirmación${correo ? ` a ${correo}` : ' a tu correo'}. Abre el mensaje y pulsa «Confirmar correo». Si aún no aparece, revisa correo no deseado; la entrega puede tardar unos minutos.`
+          : 'Esta vista usa datos locales. Puedes probar la confirmación con el código de demostración; no se envía a un buzón real.'}
       </p>
       {mensaje && (
         <p role="status" className="my-4 text-sm">
@@ -71,10 +75,13 @@ export function ConfirmacionCorreoPagina({
               <output className="block select-all font-mono">{codigo}</output>
             </p>
           )}
-          <form
+          {(parametros.has("token") || !apiActiva) && <form
             className="space-y-4"
             onSubmit={async (e) => {
               e.preventDefault();
+              if (confirmando) return;
+              setConfirmando(true);
+              try {
               const r = (await auth.confirmarCorreo(token));
               setMensaje(r.mensaje);
               if (r.exito) {
@@ -83,9 +90,10 @@ export function ConfirmacionCorreoPagina({
                 setCodigo("");
                 sessionStorage.removeItem("tt_confirmacion_demo");
               }
+              } finally { setConfirmando(false); }
             }}
           >
-            <label className="block text-sm font-semibold">
+            {!apiActiva && <label className="block text-sm font-semibold">
               Código de confirmación
               <input
                 required
@@ -93,22 +101,26 @@ export function ConfirmacionCorreoPagina({
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
               />
-            </label>
-            <button className={boton + " bg-[#7a132b] text-white"}>
-              Confirmar correo
+            </label>}
+            <button disabled={confirmando || !token.trim()} className={boton + " bg-[#7a132b] text-white disabled:opacity-50"}>
+              {confirmando ? "Confirmando…" : "Confirmar correo"}
             </button>
-          </form>
+          </form>}
           <form
             className="mt-6 space-y-4 border-t pt-5"
             onSubmit={async (e) => {
               e.preventDefault();
+              if (enviando) return;
+              setEnviando(true);
+              try {
               const r = (await auth.reenviarConfirmacionCorreo(correo));
               setMensaje(r.mensaje);
               setCodigo(r.codigoPrueba || "");
+              } finally { setEnviando(false); }
             }}
           >
             <label className="block text-sm">
-              Correo pendiente o nuevo correo
+              Correo de tu cuenta
               <input
                 type="email"
                 required
@@ -117,7 +129,7 @@ export function ConfirmacionCorreoPagina({
                 onChange={(e) => setCorreo(e.target.value)}
               />
             </label>
-            <button className={boton}>Solicitar nuevo enlace</button>
+            <button disabled={enviando} className={boton + " disabled:opacity-50"}>{enviando ? "Solicitando enlace…" : "Solicitar nuevo enlace"}</button>
             <p className="text-xs text-neutral-500">
               Máximo un enlace por minuto y cinco por hora.
             </p>
