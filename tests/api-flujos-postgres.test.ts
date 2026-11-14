@@ -227,6 +227,20 @@ test(
       ).status,
       403,
     );
+    // Una corrección conserva la evidencia anterior y admite otro envío.
+    await ok(await pedir('/api/auth/expedientes/'+expediente.id+'/resolucion',
+      {decision:'Requiere corrección',motivo:'Adjunta una constancia legible'},sub));
+    const corregido=(await ok(await pedir('/api/auth/yo',undefined,cookie))).usuario;
+    assert.equal(corregido.estadoExpediente,'requiere_correccion');
+    assert.equal(corregido.archivosExpediente.length,0,'El nuevo envío empieza sin archivos seleccionados');
+    assert.equal(corregido.historialExpediente[0].archivos[0].id,archivo.id,'El PDF resuelto sigue enlazado en el historial');
+    assert.equal((await pedir('/api/archivos/'+archivo.id,undefined,sub)).status,200,'Subdirección conserva la evidencia revisada');
+    const nuevoExpediente=await ok(await pedir('/api/auth/expediente',{
+      motivoSolicitud:'Organizar charlas de algoritmos con constancia corregida',
+      documentos:[{id:archivo.id,tipo:'constancia'}]},cookie),201);
+    expediente.id=nuevoExpediente.id;
+    assert.equal(nuevoExpediente.usuario.historialExpediente.length,2);
+    assert.equal((await pedir('/api/auth/expediente',{motivoSolicitud:'No duplicar',documentos:[{id:archivo.id,tipo:'constancia'}]},cookie)).status,409);
     await ok(
       await pedir(
         "/api/auth/expedientes/" + expediente.id + "/resolucion",
@@ -249,6 +263,7 @@ test(
       ).status,
       409,
     );
+    assert.equal((await pedir('/api/auth/expediente', {motivoSolicitud:'No duplicar una verificación vigente',documentos:[{id:archivo.id,tipo:'constancia'}]},cookie)).status,409);
     const png = await readFile(
       new URL("../public/imagenes/eventos/simposio-ia.jpg", import.meta.url),
     );

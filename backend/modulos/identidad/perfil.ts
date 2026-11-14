@@ -199,6 +199,7 @@ routerPerfil.post(
     const u = res.locals.usuario,
       b = req.body || {};
     if (!u.correoConfirmado) fallo("Confirma primero tu correo.", 403);
+    if (u.esVerificado) fallo("Tu verificación sigue vigente. Podrás renovarla cuando corresponda.",409);
     if (u.roles.includes("admin") || u.roles.includes("subdireccion"))
       fallo("Las cuentas especiales no requieren expediente.");
     if (
@@ -328,7 +329,8 @@ routerPerfil.post(
       fallo("Solo Subdirección puede revisar expedientes.", 403);
     if (!["Aprobada", "Rechazada", "Requiere corrección"].includes(b.decision))
       fallo("Decisión inválida.");
-    const motivo = texto(b.motivo, "el motivo de la resolución");
+    const motivo = texto(b.motivo, "el motivo de la resolución").replace(/^(?:\[CORRECCION\]\s*)+/g, "").trim();
+    if(!motivo)fallo("Escribe el motivo de la resolución.");
     await conTransaccion(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(744220261107::bigint)");
       const s = await c.query(
@@ -355,11 +357,7 @@ routerPerfil.post(
           'INSERT INTO ticket_trade."Verificacion"(id_solicitud_verificacion_aprobada) VALUES($1)',
           [id],
         );
-      else
-        await c.query(
-          'DELETE FROM ticket_trade."DocumentoVerificacion" WHERE id_solicitud_verificacion=$1',
-          [id],
-        );
+      // Los documentos resueltos se conservan para el historial y la revisión.
     });
     res.json({ datos: { exito: true } });
   }),

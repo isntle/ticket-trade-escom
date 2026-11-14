@@ -54,16 +54,34 @@ export async function proyectarUsuario(id: string) {
   const solicitudes = expediente.rows;
   const ex = solicitudes[0];
   const esCorreccion = ex?.motivo_resolucion?.startsWith("[CORRECCION] ");
-  const documentos = ex
+  const archivosHistoricos = ex
     ? (
         await pool.query(
-          `SELECT a.id_archivo::text id,a.nombre,a.tamano_bytes tamano,td.nombre tipo,b.metadatos
+          `SELECT d.id_solicitud_verificacion::text solicitud,a.id_archivo::text id,a.nombre,a.tamano_bytes tamano,td.nombre tipo,b.metadatos
     FROM ticket_trade."DocumentoVerificacion" d JOIN ticket_trade."Archivo" a USING(id_archivo)
-    JOIN ticket_trade."TipoDocumentoVerificacion" td USING(id_tipo_documento_verificacion) LEFT JOIN infra.archivo_contenido b USING(id_archivo) WHERE d.id_solicitud_verificacion=$1`,
-          [ex.id],
+    JOIN ticket_trade."TipoDocumentoVerificacion" td USING(id_tipo_documento_verificacion) LEFT JOIN infra.archivo_contenido b USING(id_archivo) WHERE d.id_solicitud_verificacion=ANY($1::bigint[])`,
+          [solicitudes.map(s=>s.id)],
         )
       ).rows
     : [];
+  const proyectarDocumento = (d:any) => ({
+      ...d.metadatos,
+      id: d.id,
+      nombre: d.nombre,
+      tamano: d.tamano,
+      tipo: d.metadatos?.tipo === 'horario' ? 'horario' :
+        (
+          {
+            "Constancia de estudios": "constancia",
+            "Comprobante de adscripción": "adscripcion",
+            "Acreditación de existencia de la entidad": "existencia",
+            "Acreditación de representación": "representacion",
+          } as any
+        )[d.tipo] || "constancia",
+      fechaEmision: d.metadatos?.fechaEmision || "",
+  });
+
+  const documentos = ex?.estado === "Rechazada" ? [] : archivosHistoricos.filter(d=>d.solicitud===ex?.id);
   const perfil =
     (
       await pool.query(
@@ -100,7 +118,8 @@ export async function proyectarUsuario(id: string) {
       motivo: s.motivo_resolucion?.replace(/^\[CORRECCION\] /, "") || s.motivo_solicitud,
       responsable: s.resolutora || "",
       fecha: new Date(s.enviada_en).toISOString(),
-      documentos: [] as string[],
+      documentos: archivosHistoricos.filter(d=>d.solicitud===s.id).map(d=>d.nombre),
+      archivos: archivosHistoricos.filter(d=>d.solicitud===s.id).map(proyectarDocumento),
       envio: true,
     })),
     motivoExpediente: ex?.motivo_resolucion?.replace(/^\[CORRECCION\] /, ""),
@@ -109,22 +128,7 @@ export async function proyectarUsuario(id: string) {
     nombreOrganizacion: perfil.nombre_entidad || ex?.nombre_entidad,
     puestoContacto: perfil.cargo || ex?.cargo_o_relacion,
     telefonoContacto: perfil.telefono,
-    archivosExpediente: documentos.map((d) => ({
-      ...d.metadatos,
-      id: d.id,
-      nombre: d.nombre,
-      tamano: d.tamano,
-      tipo: d.metadatos?.tipo === 'horario' ? 'horario' :
-        (
-          {
-            "Constancia de estudios": "constancia",
-            "Comprobante de adscripción": "adscripcion",
-            "Acreditación de existencia de la entidad": "existencia",
-            "Acreditación de representación": "representacion",
-          } as any
-        )[d.tipo] || "constancia",
-      fechaEmision: d.metadatos?.fechaEmision || "",
-    })),
+    archivosExpediente: documentos.map(proyectarDocumento),
     nombre: r.nombre,
     correo: r.correo,
     afiliacion:
