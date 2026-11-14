@@ -138,26 +138,55 @@ export async function leerEstado(u: any) {
     const e = eventos.find((e) => e.id === solicitud.idEvento);
     if (e) Object.assign(e, { idSolicitud: solicitud.id });
   }
+  const autorizadoEvento = (idEvento: string, idOrganizador: string) =>
+    Boolean(
+      revisor ||
+      (u?.roles.includes("organizador") && idOrganizador === u?.id) ||
+      (u?.roles.includes("staff") &&
+        u?.eventosAsignadosStaff?.includes(idEvento)),
+    );
   const filas = (
     await pool.query(
       `SELECT r.id_reservacion::text id,cp.id_compromiso_cupo::text cupo,a.id_evento::text evento,a.id_actividad::text actividad,
-    b.id_cuenta::text titular,concat_ws(' ',c.nombres,c.primer_apellido) nombre,c.correo,lr.codigo lugar,la.id_lugar_actividad::text asiento,
-    er.nombre estado,r.confirmada_en,r.cancelada_en,b.id_boleto_evento::text pase,b.codigo_qr,b.codigo_manual,en.registrada_en entrada,
+    b.id_cuenta::text titular,concat_ws(' ',c.nombres,c.primer_apellido,nullif(c.segundo_apellido,'')) nombre,c.correo,lr.codigo lugar,la.id_lugar_actividad::text asiento,
+    er.nombre estado,r.confirmada_en,r.cancelada_en,ca.nombre causa,b.id_boleto_evento::text pase,b.codigo_qr,b.codigo_manual,
+    en.id_entrada_ordinaria::text id_entrada,en.registrada_en entrada,en.id_cuenta_operadora::text id_operador,
+    concat_ws(' ',op.nombres,op.primer_apellido,nullif(op.segundo_apellido,'')) operador,
     ev.id_cuenta_organizadora::text organizador
     FROM ticket_trade."Reservacion" r JOIN ticket_trade."CompromisoCupo" cp USING(id_compromiso_cupo) JOIN ticket_trade."Actividad" a USING(id_actividad)
     JOIN ticket_trade."Evento" ev USING(id_evento) JOIN ticket_trade."BoletoEvento" b USING(id_boleto_evento) JOIN ticket_trade."Cuenta" c ON c.id_cuenta=b.id_cuenta
-    JOIN ticket_trade."EstadoReservacion" er USING(id_estado_reservacion) LEFT JOIN ticket_trade."AsignacionAsiento" aa USING(id_compromiso_cupo)
+    JOIN ticket_trade."EstadoReservacion" er USING(id_estado_reservacion)
+    LEFT JOIN ticket_trade."CausaCancelacionReservacion" ca USING(id_causa_cancelacion_reservacion)
+    LEFT JOIN ticket_trade."AsignacionAsiento" aa USING(id_compromiso_cupo)
     LEFT JOIN ticket_trade."LugarActividad" la USING(id_lugar_actividad) LEFT JOIN ticket_trade."LugarRecinto" lr USING(id_lugar_recinto)
-    LEFT JOIN ticket_trade."EntradaOrdinaria" en USING(id_reservacion) WHERE a.id_evento=ANY($1::bigint[])`,
+    LEFT JOIN ticket_trade."EntradaOrdinaria" en USING(id_reservacion)
+    LEFT JOIN ticket_trade."Cuenta" op ON op.id_cuenta=en.id_cuenta_operadora
+    WHERE a.id_evento=ANY($1::bigint[])`,
+      [ids],
+    )
+  ).rows;
+  const especiales = (
+    await pool.query(
+      `SELECT b.id_boleto_especial::text id,cp.id_compromiso_cupo::text cupo,a.id_evento::text evento,a.id_actividad::text actividad,
+    lr.codigo lugar,la.id_lugar_actividad::text asiento,cl.nombre categoria,
+    b.codigo_qr,b.codigo_manual,b.emitido_en,b.invalidado_en,b.motivo_invalidacion,
+    en.id_entrada_especial::text id_entrada,en.registrada_en entrada,en.id_cuenta_operadora::text id_operador,
+    concat_ws(' ',op.nombres,op.primer_apellido,nullif(op.segundo_apellido,'')) operador,
+    ev.id_cuenta_organizadora::text organizador
+    FROM ticket_trade."BoletoEspecial" b JOIN ticket_trade."CompromisoCupo" cp USING(id_compromiso_cupo) JOIN ticket_trade."Actividad" a USING(id_actividad)
+    JOIN ticket_trade."Evento" ev USING(id_evento) LEFT JOIN ticket_trade."AsignacionAsiento" aa USING(id_compromiso_cupo)
+    LEFT JOIN ticket_trade."LugarActividad" la USING(id_lugar_actividad)
+    LEFT JOIN ticket_trade."CategoriaLugarActividad" cl USING(id_categoria_lugar_actividad)
+    LEFT JOIN ticket_trade."LugarRecinto" lr USING(id_lugar_recinto)
+    LEFT JOIN ticket_trade."EntradaEspecial" en USING(id_boleto_especial)
+    LEFT JOIN ticket_trade."Cuenta" op ON op.id_cuenta=en.id_cuenta_operadora
+    WHERE a.id_evento=ANY($1::bigint[])`,
       [ids],
     )
   ).rows;
   const reservaciones = filas.map((r) => {
     const puede =
-      revisor ||
-      r.titular === u?.id ||
-      r.organizador === u?.id ||
-      u?.eventosAsignadosStaff?.includes(r.evento);
+      r.titular === u?.id || autorizadoEvento(r.evento, r.organizador);
     return {
       id: r.id,
       idEvento: r.evento,
@@ -171,6 +200,7 @@ export async function leerEstado(u: any) {
       fechaCreacion: r.confirmada_en,
       fechaConfirmacion: r.confirmada_en,
       idBoleto: "boleto-" + r.id,
+      motivoCancelacion: puede ? r.causa || undefined : undefined,
     };
   });
   const apartados = (
@@ -196,57 +226,125 @@ export async function leerEstado(u: any) {
     fechaCreacion: r.creado_en,
     tiempoExpiracionApartado: new Date(r.vence).getTime(),
   }));
-  const boletos = filas
-    .filter(
-      (r) =>
-        r.titular === u?.id ||
-        revisor ||
-        u?.eventosAsignadosStaff?.includes(r.evento) ||
-        r.organizador === u?.id,
-    )
-    .map((r) => {
-      const e = eventos.find((e) => e.id === r.evento),
-        f = e?.fechas.find((f) => f.id === r.actividad);
-      return {
-        id: "boleto-" + r.id,
-        idReservacion: r.id,
-        idEvento: r.evento,
-        idFechaEvento: r.actividad,
-        idUsuario: r.titular,
-        nombreUsuario: r.nombre,
-        correoUsuario: r.correo,
-        tituloEvento: e?.titulo || "",
-        fechaEvento: f?.fecha || "",
-        horaEvento: f?.horaInicio || "",
-        nombreRecinto:
-          recintos.find((x) => x.id === f?.idRecinto)?.nombre || "",
-        etiquetaAsiento: r.lugar,
-        codigoQr:
-          r.titular === u?.id || modoBaseDatos() === "demo" ? r.codigo_qr : "",
-        codigoManual: r.codigo_manual,
-        estado:
-          r.estado === "Cancelada"
+  const boletos = [
+    ...filas
+      .filter(
+        (r) =>
+          r.titular === u?.id || autorizadoEvento(r.evento, r.organizador),
+      )
+      .map((r) => {
+        const e = eventos.find((e) => e.id === r.evento),
+          f = e?.fechas.find((f) => f.id === r.actividad);
+        return {
+          id: "boleto-" + r.id,
+          idReservacion: r.id,
+          idEvento: r.evento,
+          idFechaEvento: r.actividad,
+          idUsuario: r.titular,
+          nombreUsuario: r.nombre,
+          correoUsuario: r.correo,
+          tituloEvento: e?.titulo || "",
+          fechaEvento: f?.fecha || "",
+          horaEvento: f?.horaInicio || "",
+          nombreRecinto:
+            recintos.find((x) => x.id === f?.idRecinto)?.nombre || "",
+          etiquetaAsiento: r.lugar,
+          codigoQr:
+            r.titular === u?.id || modoBaseDatos() === "demo" ? r.codigo_qr : "",
+          codigoManual: r.codigo_manual,
+          estado:
+            r.estado === "Cancelada"
+              ? "cancelado"
+              : r.entrada
+                ? "utilizado"
+                : "valido",
+          fechaEmision: r.confirmada_en,
+          fechaCheckIn: r.entrada || undefined,
+          revisadoPor: r.operador || undefined,
+        };
+      }),
+    ...especiales
+      .filter((b: any) => autorizadoEvento(b.evento, b.organizador))
+      .map((b: any) => {
+        const e = eventos.find((e: any) => e.id === b.evento),
+          f = e?.fechas.find((f: any) => f.id === b.actividad);
+        return {
+          id: "boleto-esp-" + b.id,
+          idReservacion: "esp-" + b.id,
+          idEvento: b.evento,
+          idFechaEvento: b.actividad,
+          idUsuario: "especial-" + b.id,
+          nombreUsuario:
+            b.categoria === "Staff" ? "Integrante de staff" : "Invitado VIP",
+          correoUsuario: "",
+          tituloEvento: e?.titulo || "",
+          fechaEvento: f?.fecha || "",
+          horaEvento: f?.horaInicio || "",
+          nombreRecinto:
+            recintos.find((x: any) => x.id === f?.idRecinto)?.nombre || "",
+          etiquetaAsiento: b.lugar,
+          codigoQr: modoBaseDatos() === "demo" ? b.codigo_qr : "",
+          codigoManual: b.codigo_manual,
+          esEspecial: true,
+          tipoEspecial: (b.categoria === "Staff" ? "staff" : "vip") as
+            | "staff"
+            | "vip",
+          estado: b.invalidado_en
             ? "cancelado"
-            : r.entrada
+            : b.entrada
               ? "utilizado"
               : "valido",
-        fechaEmision: r.confirmada_en,
-        fechaCheckIn: r.entrada,
-      };
-    });
-  const escaneos = filas
-    .filter((r) => r.entrada)
-    .map((r) => ({
-      id: "entrada-" + r.id,
-      idEvento: r.evento,
-      idFechaEvento: r.actividad,
-      idBoleto: "boleto-" + r.id,
-      idAsiento: r.asiento,
-      resultado: "exito",
-      fechaEscaneo: r.entrada,
-      escaneadoPor: "Personal autorizado",
-      mensaje: "Acceso registrado",
-    }));
+          fechaEmision: b.emitido_en,
+          fechaInvalidacion: b.invalidado_en || undefined,
+          motivoInvalidacion: b.motivo_invalidacion || undefined,
+          fechaCheckIn: b.entrada || undefined,
+          revisadoPor: b.operador || undefined,
+        };
+      }),
+  ];
+  const escaneos = [
+    ...filas
+      .filter((r: any) => r.entrada && autorizadoEvento(r.evento, r.organizador))
+      .map((r: any) => ({
+        id: "entrada-" + r.id,
+        idEvento: r.evento,
+        idFechaEvento: r.actividad,
+        idBoleto: "boleto-" + r.id,
+        idAsiento: r.asiento,
+        nombreAsistente: r.nombre,
+        etiquetaAsiento: r.lugar || undefined,
+        resultado: "exito",
+        fechaEscaneo: r.entrada,
+        escaneadoPor: r.operador || "Personal autorizado",
+        idOperador: r.id_operador || undefined,
+        notas: "Entrada registrada",
+        mensaje: "Acceso registrado",
+      })),
+    ...especiales
+      .filter((b: any) => b.entrada && autorizadoEvento(b.evento, b.organizador))
+      .map((b: any) => ({
+        id: "entrada-esp-" + b.id,
+        idEvento: b.evento,
+        idFechaEvento: b.actividad,
+        idBoleto: "boleto-esp-" + b.id,
+        idAsiento: b.asiento,
+        nombreAsistente:
+          b.categoria === "Staff"
+            ? "Integrante de staff (Especial)"
+            : "Invitado VIP (Especial)",
+        etiquetaAsiento: b.lugar || undefined,
+        resultado: "exito",
+        fechaEscaneo: b.entrada,
+        escaneadoPor: b.operador || "Personal autorizado",
+        idOperador: b.id_operador || undefined,
+        notas: "Entrada especial registrada",
+        mensaje: "Acceso especial registrado",
+      })),
+  ].sort(
+    (a, b) =>
+      Date.parse(String(b.fechaEscaneo || "")) -
+      Date.parse(String(a.fechaEscaneo || "")),
+  );
   const periodos = (
     await pool.query(
       "SELECT clave id,to_char(inicio,'YYYY-MM-DD') inicio,to_char(fin,'YYYY-MM-DD') fin FROM ticket_trade.\"PeriodoEscolar\" ORDER BY inicio",

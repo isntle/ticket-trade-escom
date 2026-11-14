@@ -6,7 +6,10 @@ export interface PaseEvento {
   codigoQr: string;
   accesos: BoletoDigital[];
 }
-const codigoValido = (codigo: string) => /^TT-[A-F0-9]{32}$/i.test(codigo);
+const codigoValido = (codigo: string) =>
+  /^(?:TT-[A-F0-9]{32}|[A-F0-9]{64}|[A-F0-9]{16}|QR-[A-Z0-9-]+)$/i.test(
+    codigo.trim(),
+  );
 /** El primer identificador emitido permanece estable aunque se cancele su actividad. */
 export function codigoQrDelEvento(
   boletos: BoletoDigital[],

@@ -16,7 +16,8 @@ export function obtenerConflictoReserva(
   eventos: Evento[]
 ): DetalleConflicto | null {
   const eventoPropuesta = eventos.find((e) => e.id === propuesta.idEvento);
-  const fechaPropuesta = eventoPropuesta?.fechas.find((f) => f.id === propuesta.idFechaEvento);
+  if (!eventoPropuesta || eventoPropuesta.estado === 'cancelado') return null;
+  const fechaPropuesta = eventoPropuesta.fechas.find((f) => f.id === propuesta.idFechaEvento);
 
   if (!fechaPropuesta || fechaPropuesta.cancelada) return null;
 
@@ -35,8 +36,12 @@ export function obtenerConflictoReserva(
 
     if (fechaExistente.fecha === fechaDia) {
       if (inicioPropuesta < fechaExistente.horaFin && finPropuesta > fechaExistente.horaInicio) {
+        const nombreConflicto =
+          reserva.idEvento === propuesta.idEvento
+            ? fechaExistente.nombreActividad || eventoExistente.titulo || 'Evento'
+            : eventoExistente.titulo || fechaExistente.nombreActividad || 'Evento';
         return {
-          actividad: eventoExistente.titulo || 'Evento',
+          actividad: nombreConflicto,
           inicio: fechaExistente.horaInicio,
           fin: fechaExistente.horaFin,
         };

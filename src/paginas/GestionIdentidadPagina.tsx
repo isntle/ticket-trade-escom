@@ -811,6 +811,17 @@ export function GestionIdentidadPagina({
       )}
       {vista === "staff" && (
         <article className="space-y-4 rounded-3xl border bg-white p-5">
+          {apiActiva && (
+            <p
+              role="note"
+              className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"
+            >
+              <strong>Dependencia pendiente:</strong> el alta y retiro de Staff
+              desde la interfaz aún no está conectado a PostgreSQL. Las
+              asignaciones vigentes en <code>StaffEvento</code> se respetan en
+              el servidor sin simular cambios locales.
+            </p>
+          )}
           <p>
             Asigna cuentas activas con correo confirmado a tus eventos. Retirar
             una asignación impide nuevas operaciones sobre ese evento y conserva

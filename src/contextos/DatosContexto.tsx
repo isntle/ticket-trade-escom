@@ -2241,6 +2241,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const eventoObjetivo = eventos.find((evento) => evento.id === idEventoObjetivo);
     const puedeOperar = Boolean(
       operadorVigente?.estaActivo && eventoObjetivo && (
+        operadorVigente.roles.includes('admin') ||
         (operadorVigente.roles.includes('organizador') && eventoObjetivo.idOrganizador === operadorVigente.id) ||
         (operadorVigente.roles.includes('staff') && operadorVigente.eventosAsignadosStaff?.includes(eventoObjetivo.id))
       )

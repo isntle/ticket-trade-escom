@@ -2,9 +2,35 @@ import React, { useEffect, useRef, useState } from "react";
 import type { ContextoDatosTipo } from "./DatosContexto";
 import { ContextoDatos } from "./almacenes";
 import { useAutenticacion } from "./AutenticacionContexto";
-import { transporteApi } from "../servicios/http";
+import { transporteApi, ErrorApi } from "../servicios/http";
 import { guardarCartelRemoto } from "../servicios/archivos";
-import type { Evento, SolicitudEvento } from "../tipos";
+import {
+  obtenerConflictoReserva,
+  obtenerMensajeErrorCruce,
+} from "../dominio/crucesReservas";
+import type { Evento, ResultadoEscaneo, SolicitudEvento } from "../tipos";
+
+function clasificarErrorCheckIn(
+  mensaje: string,
+  estado?: number,
+): ResultadoEscaneo {
+  if (
+    estado === 401 ||
+    estado === 403 ||
+    /personal asignado|autorizaci/i.test(mensaje)
+  )
+    return "no_autorizado";
+  if (/ya fue utilizado/i.test(mensaje)) return "ya_utilizado";
+  if (/no tiene una reservaci|otra actividad/i.test(mensaje))
+    return "fecha_invalida";
+  if (/cancelad|invalidad/i.test(mensaje)) return "cancelado";
+  if (/30 minutos antes|horario/i.test(mensaje)) return "fuera_de_horario";
+  if (/suspendid|no está habilitada/i.test(mensaje)) return "suspendido";
+  if (/entrada libre|no disponible|no existe/i.test(mensaje))
+    return "evento_invalido";
+  if (/no corresponde a un boleto/i.test(mensaje)) return "inexistente";
+  return "inexistente";
+}
 
 const api = transporteApi();
 const vacio = {
@@ -306,6 +332,19 @@ export function ProveedorDatosRemotos({
       }),
     confirmarReservacion: (id: string) =>
       intentar(async () => {
+        const apartado = estadoRef.current.listaReservaciones.find(
+          (x: any) => x.id === id || x.id === "apartado-" + id.replace(/^apartado-/, ""),
+        );
+        if (apartado) {
+          const conflicto = obtenerConflictoReserva(
+            apartado,
+            estadoRef.current.listaReservaciones,
+            estadoRef.current.listaEventos,
+          );
+          if (conflicto) {
+            throw new Error(obtenerMensajeErrorCruce(conflicto));
+          }
+        }
         const r = await api<any>(
           "/taquilla/apartados/" +
             id.replace(/^apartado-/, "") +
@@ -327,22 +366,76 @@ export function ProveedorDatosRemotos({
         await cargar();
         return { exito: true };
       }),
-    procesarCheckIn: (codigo: string, _operador: string, idActividad: string) =>
-      intentar(async () => {
+    emitirBoletosEspeciales: () => {
+      const mensaje =
+        "Dependencia pendiente: la emisión de boletos especiales aún no está conectada al servidor. No se guardaron cambios.";
+      setError(mensaje);
+      return { exito: false, error: mensaje, mensaje };
+    },
+    invalidarBoletoEspecial: () => {
+      const mensaje =
+        "Dependencia pendiente: la invalidación de boletos especiales aún no está conectada al servidor. No se guardaron cambios.";
+      setError(mensaje);
+      return { exito: false, error: mensaje, mensaje };
+    },
+    procesarCheckIn: async (
+      codigo: string,
+      _operador: string,
+      idActividad?: string,
+    ) => {
+      if (!idActividad) {
+        return {
+          exito: false,
+          resultado: "evento_invalido" as ResultadoEscaneo,
+          mensaje: "Selecciona una actividad válida para registrar accesos.",
+        };
+      }
+      try {
+        setError("");
         const r = await api<any>("/taquilla/checkin", {
           metodo: "POST",
           datos: { codigo, idActividad },
         });
         const nuevo = await cargar();
+        const boleto = nuevo.listaBoletos.find(
+          (b: any) =>
+            b.idReservacion === r.idReservacion ||
+            (r.idBoletoEspecial && b.id === "boleto-esp-" + r.idBoletoEspecial),
+        );
         return {
           exito: true,
-          resultado: "exito",
-          mensaje: r.mensaje,
-          boleto: nuevo.listaBoletos.find(
-            (b: any) => b.idReservacion === r.idReservacion,
-          ),
+          resultado: "exito" as ResultadoEscaneo,
+          mensaje: boleto
+            ? `Acceso concedido a ${boleto.nombreUsuario}. Asiento asignado: ${boleto.etiquetaAsiento || "General"}.`
+            : r.mensaje,
+          boleto,
         };
-      }),
+      } catch (e) {
+        const mensaje =
+          e instanceof Error ? e.message : "No se pudo validar el acceso.";
+        const estadoHttp = e instanceof ErrorApi ? e.estado : undefined;
+        if (estadoHttp && estadoHttp >= 500) setError(mensaje);
+        const nuevo = await cargar().catch(() => estadoRef.current);
+        const resultado = clasificarErrorCheckIn(mensaje, estadoHttp);
+        const codigoNorm = codigo.trim().toUpperCase();
+        const boleto =
+          resultado === "ya_utilizado" || resultado === "cancelado"
+            ? nuevo.listaBoletos?.find(
+                (b: any) =>
+                  b.idFechaEvento === idActividad &&
+                  (String(b.codigoQr || "").toUpperCase() === codigoNorm ||
+                    String(b.codigoManual || "").toUpperCase() === codigoNorm),
+              )
+            : undefined;
+        return {
+          exito: false,
+          error: mensaje,
+          mensaje,
+          resultado,
+          boleto,
+        };
+      }
+    },
     reiniciarDatosIniciales: () => {
       setError(
         "La demostración utiliza una base independiente. Los registros no se borran al cambiar de cuenta ni al salir del modo demo.",
