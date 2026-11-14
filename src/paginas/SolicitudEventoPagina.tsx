@@ -249,7 +249,6 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
   };
 
   const agregarDia = () => {
-    const siguienteNumero = fechas.length + 1;
     setFechas((previas) => [
       ...previas,
       {
@@ -419,9 +418,6 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       );
       return;
     }
-
-    // Las coincidencias de ocupación se informan al capturar y se vuelven a validar
-    // al autorizar. Una propuesta en revisión no reserva el recinto.
 
     if (!usuarioActual) {
       mostrarNotificacion(
@@ -863,7 +859,18 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
               ))}
             </div>
 
-            <EditorItinerarios fechas={fechas.map(f=>f.fecha)} itinerarios={itinerarios} alCambiar={setItinerarios} alCambiarEstado={(fecha,estado)=>setEstadoItinerarios(prev=>({...prev,[fecha]:estado}))} />
+            {/* ========================================================================= */}
+            {/* SECCIÓN AISLADA: ITINERARIOS ADJUNTOS POR DÍA                              */}
+            {/* ========================================================================= */}
+            <div className="mt-8 pt-6 border-t border-neutral-200 space-y-4">
+              <EditorItinerarios 
+                fechas={fechas.map(f => f.fecha)} 
+                itinerarios={itinerarios} 
+                alCambiar={setItinerarios} 
+                alCambiarEstado={(fecha, estado) => setEstadoItinerarios(prev => ({ ...prev, [fecha]: estado }))} 
+              />
+            </div>
+
             {/* Advertencia y Justificación Excepcional por Regla de Anticipación */}
             {(fechasFueraDeAnticipacion.length > 0 || viaExtraordinaria) && (
               <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-3 animate-in fade-in duration-200 mt-4">
@@ -998,7 +1005,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
       {confirmarSalida && (
         <VentanaModal
           estaAbierto
-          alCerrar={() => setConfirmarSalida(false)}
+          alCerrar={() => setConfirmarSalyd(false)}
           titulo="¿Salir de la solicitud?"
           anchoMaximo="lg"
         >
