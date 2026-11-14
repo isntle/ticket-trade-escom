@@ -1,3 +1,4 @@
+import {attachDatabasePool} from "@vercel/functions";
 import {opcionesTlsPostgres} from "./tls.js";
 import pg from "pg";
 import "dotenv/config";
@@ -8,7 +9,7 @@ pg.types.setTypeParser(20, (valor: string) => valor);
 // Una fecha académica no es un instante UTC: evitar cambios de día al serializar JSON.
 pg.types.setTypeParser(1082, (valor: string) => valor);
 const opciones = {
-  max: 10,
+  max: process.env.VERCEL ? 3 : 10,
   connectionTimeoutMillis: 5000,
   idleTimeoutMillis: 30000,
 };
@@ -38,6 +39,7 @@ const demo = process.env.DATABASE_URL_DEMO
         : {}),
     })
   : null;
+if(process.env.VERCEL){attachDatabasePool(real);if(demo)attachDatabasePool(demo);}
 const contexto = new AsyncLocalStorage<"real" | "demo">();
 export const modoBaseDatos = () => contexto.getStore() || "real";
 export const nombreCookieSesion = () =>
@@ -50,6 +52,8 @@ export const seleccionarBaseDatos: RequestHandler = (req, res, next) => {
     (req.method === "GET" &&
       /^\/archivos\/[1-9]\d*$/.test(req.path) &&
       req.query.demo === "1");
+  if (demostracion && process.env.TT_DEMO === "1" && process.env.TT_DEMO_COMPARTIDA === "1")
+    return contexto.run("real", next);
   if (demostracion && (process.env.TT_DEMO !== "1" || !demo))
     return void res
       .status(503)

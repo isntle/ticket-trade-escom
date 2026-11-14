@@ -1,3 +1,4 @@
+import {transporteApi} from "../servicios/http";
 import {apiActiva} from '../servicios/modoDatos';
 import { validarDominioIdentidad } from "../dominio/identidad";
 import { destinoInternoSeguro } from "../dominio/navegacion";
@@ -36,6 +37,9 @@ export function AutenticacionPagina({
   navigate: (ruta: string) => void;
 }) {
   const auth = useAutenticacion();
+  const [clavePresentacion,setClavePresentacion]=useState("");
+  const [errorPresentacion,setErrorPresentacion]=useState("");
+  const [abriendoPresentacion,setAbriendoPresentacion]=useState(false);
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
   const [confirmacion, setConfirmacion] = useState("");
@@ -302,10 +306,18 @@ export function AutenticacionPagina({
           {modoDemostracionActivo() && (
             <section className="my-6 rounded-2xl bg-[#f5f3f0] p-4 sm:p-5">
               <h3 className="mb-3 text-sm font-semibold text-neutral-500">
-                Accesos rápidos de prueba
+                Accesos de presentación
               </h3>
+              {apiActiva && auth.usuariosPresentacion.length === 0 && (
+                <form className="space-y-3" onSubmit={async e=>{e.preventDefault();setAbriendoPresentacion(true);setErrorPresentacion('');try{await transporteApi()('/auth/presentacion',{metodo:'POST',datos:{clave:clavePresentacion}});setClavePresentacion('');await auth.refrescarUsuarios?.();}catch(error){setErrorPresentacion(error instanceof Error?error.message:'No se pudo habilitar el acceso.');}finally{setAbriendoPresentacion(false);}}}>
+                  <p className="text-sm text-neutral-600">Estos perfiles utilizan los registros de la plataforma. Introduce la clave privada para mostrar las tarjetas.</p>
+                  <label className="block text-sm font-semibold">Clave de presentación<input type="password" autoComplete="off" value={clavePresentacion} onChange={e=>setClavePresentacion(e.target.value)} className={campo} required /></label>
+                  {errorPresentacion&&<p role="alert" className="text-sm text-red-700">{errorPresentacion}</p>}
+                  <button disabled={abriendoPresentacion} className={boton}>{abriendoPresentacion?'Habilitando…':'Mostrar perfiles'}</button>
+                </form>
+              )}
               <div className="grid gap-2 sm:grid-cols-2">
-                {(apiActiva ? auth.todosLosUsuarios : USUARIOS_INICIALES).map((u) => (
+                {(apiActiva ? auth.usuariosPresentacion : USUARIOS_INICIALES).map((u) => (
                   <button
                     key={u.id}
                     className="group min-w-0 rounded-xl border border-transparent bg-white p-3 text-left shadow-sm transition-colors hover:border-[#7a132b]/25 hover:bg-[#7a132b]/5 focus-visible:outline-2 focus-visible:outline-[#7a132b]"
@@ -318,7 +330,7 @@ export function AutenticacionPagina({
                       {u.nombre}
                     </span>
                     <span className="text-xs text-neutral-500">
-                      {{
+                      {u.roles.includes("admin") ? "Administración" : u.roles.includes("subdireccion") ? "Subdirección" : u.roles.includes("staff") ? "Personal de acceso" : {
                         alumno: "Estudiante",
                         profesor: "Docente",
                         administrativo: "Administrativo",

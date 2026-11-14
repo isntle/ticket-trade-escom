@@ -1,3 +1,5 @@
+import {procesarCorreos} from "./modulos/correos/servicio.js";
+import {huella} from "./comun/seguridad.js";
 import { routerEstado } from './modulos/lecturas/estado.js';
 import { leerRecintos, leerEventos } from "./modulos/lecturas/catalogos.js";
 import { routerArchivos } from './modulos/archivos/rutas.js';
@@ -23,6 +25,16 @@ app.use("/api/archivos", routerArchivos);
 app.use("/api/taquilla", routerTaquilla);
 app.use("/api/estado", routerEstado);
 app.use("/api/organizacion", routerOrganizacion);
+
+// Recuperación diaria de avisos pendientes; la clave solo vive en el servidor.
+app.get('/api/correos/procesar', async(req,res,next)=>{
+ try{
+  const secreto=process.env.CRON_SECRET;
+  if(!secreto||secreto.length<32)return void res.status(503).json({error:{codigo:'PROGRAMADOR_NO_CONFIGURADO',mensaje:'Procesamiento programado no disponible.'}});
+  if(huella(req.get('authorization')||'')!==huella('Bearer '+secreto))return void res.status(401).json({error:{codigo:'NO_AUTORIZADO',mensaje:'Acceso no autorizado.'}});
+  res.json({datos:await procesarCorreos(20)});
+ }catch(e){next(e);}
+});
 
 // Endpoint de comprobación de salud
 app.get("/api/salud", async (_req: Request, res: Response) => {
@@ -62,6 +74,7 @@ app.use("/api", (_req, res) => {
     });
 });
 app.use((err: any, _req: Request, res: Response, _next: any) => {
+  if(!err.estado && !['23505','23514','23503','22P02'].includes(err.code)) console.error('Error interno API',JSON.stringify({codigo:err.code||err.name,punto:String(err.stack||'').split('\n').slice(1,4)}));
   const estado =
     err.estado ||
     (err.type === "entity.too.large" ? 413 : undefined) ||

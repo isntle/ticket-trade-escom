@@ -1,3 +1,5 @@
+> Configuración vigente: el despliegue usa presentación compartida y protegida sobre una sola base de Supabase. Ver [SUPABASE_CONEXION.md](SUPABASE_CONEXION.md). La separación descrita aquí se conserva como opción para desarrollo local.
+
 # Preparación de PostgreSQL normal y demostración
 
 Estado: código preparado y verificado con PostgreSQL local. El usuario indicó que aún no tiene los proyectos Supabase; no se crearon servicios externos ni se desplegaron credenciales.

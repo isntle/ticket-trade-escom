@@ -21,3 +21,9 @@ test('peticiones entre sitios continúan bloqueadas incluso con un origen local 
   assert.equal(status, 403);
   assert.equal(continuo, false);
 });
+
+test('solo los alias HTTPS explícitos del proyecto pueden escribir en producción',()=>{
+ const principal='https://tickett3.vercel.app',alias='https://tickettradescom.vercel.app';
+ assert.equal(origenPermitido(alias,principal,true,alias),true);
+ for(const ajeno of ['https://tickettradescom.vercel.app.evil.test','https://evil.test','http://tickettradescom.vercel.app',alias+'/ruta'])assert.equal(origenPermitido(ajeno,principal,true,alias),false);
+});

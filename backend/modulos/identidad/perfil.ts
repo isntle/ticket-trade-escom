@@ -1,3 +1,4 @@
+import {presentacionCompartida,presentacionAutorizada,clavePresentacionValida,crearCookiePresentacion,nombreCookiePresentacion} from "./presentacion.js";
 import { Router } from "express";
 import { encolarAviso } from "../correos/avisos.js";
 import { pool, conTransaccion } from "../../bd/pool.js";
@@ -28,16 +29,25 @@ routerPerfil.use((req, _res, next) =>
 );
 routerPerfil.get(
   "/demo",
-  ruta(async (_req, res) => {
-    if (!demoHabilitada()) return void res.json({ datos: [] });
+  ruta(async (req, res) => {
+    const compartida=presentacionCompartida();
+    if (compartida ? !presentacionAutorizada(req) : !demoHabilitada()) return void res.json({ datos: [] });
     const r =
       await pool.query(`SELECT id_cuenta::text id,concat_ws(' ',nombres,primer_apellido) nombre,correo,correo_confirmado_en IS NOT NULL AS "correoConfirmado" FROM ticket_trade."Cuenta"
-    WHERE id_cuenta BETWEEN 1001 AND 1007 AND (correo LIKE 'cuenta%@example.invalid' OR correo='ltorres.demo@alumno.ipn.mx') ORDER BY id_cuenta`);
-    res.json({
-      datos: await Promise.all(r.rows.map((r) => proyectarUsuario(r.id))),
+    WHERE id_cuenta BETWEEN 1001 AND 1007 AND (correo LIKE 'cuenta%@example.invalid' OR correo='ltorres.demo@alumno.ipn.mx' OR correo LIKE 'tickettradescom+%@gmail.com') ORDER BY id_cuenta`);
+    res.set("Cache-Control","no-store").json({
+      datos: await Promise.all(r.rows.map(async (r) => ({...await proyectarUsuario(r.id),...(compartida?{password:process.env.TT_PRESENTACION_PASSWORD}:{})}))),
     });
   }),
 );
+routerPerfil.post('/presentacion',ruta(async(req,res)=>{
+  const ip='presentacion:'+req.ip;
+  if((limitado.get(ip)||0)>Date.now()-2000)fallo('Espera antes de intentarlo de nuevo.',429);
+  limitado.set(ip,Date.now());
+  if(!clavePresentacionValida(req.body?.clave))fallo('La clave de presentación no es válida.',403);
+  res.cookie(nombreCookiePresentacion,crearCookiePresentacion(),{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',path:'/',maxAge:12*60*60*1000});
+  res.set('Cache-Control','no-store').json({datos:{exito:true}});
+}));
 routerPerfil.post(
   "/confirmar-correo",
   ruta(async (req, res) => {

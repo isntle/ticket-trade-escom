@@ -27,6 +27,7 @@ export function ProveedorAutenticacionRemota({
   const [usuario, setUsuario] = useState<Usuario | null>(null),
     [usuarios, setUsuarios] = useState<Usuario[]>([]),
     [rol, setRol] = useState<RolUsuario>("asistente");
+  const [usuariosPresentacion,setUsuariosPresentacion]=useState<Usuario[]>([]);
   const [periodos, setPeriodos] = useState<PeriodoIdentidad[]>([]),
     [listo, setListo] = useState(false),
     [error, setError] = useState("");
@@ -44,7 +45,7 @@ export function ProveedorAutenticacionRemota({
         : Promise.resolve([]),
     ]);
     const u = sesion?.usuario || null;
-    const lista = u?.roles.some((r) => ["admin", "subdireccion"].includes(r))
+    const lista = demostracion.length ? demostracion : u?.roles.some((r) => ["admin", "subdireccion"].includes(r))
       ? await api<Usuario[]>("/auth/usuarios")
       : demostracion.length
         ? demostracion
@@ -53,6 +54,7 @@ export function ProveedorAutenticacionRemota({
           : [];
     if (vigente.current) {
       setUsuario(u);
+      setUsuariosPresentacion(demostracion);
       setUsuarios(lista.map((u) => ({ ...u, rolActivo: principal(u) })));
       setPeriodos(p);
       const anterior = cuentaRef.current;
@@ -113,6 +115,7 @@ export function ProveedorAutenticacionRemota({
     estaAutenticado: !!usuario,
     rolActivo: rol,
     todosLosUsuarios: usuarios,
+    usuariosPresentacion,
     periodosIdentidad: periodos,
     refrescarUsuarios: refrescar,
     cambiarRolActivo: (r: RolUsuario) => {
@@ -138,7 +141,7 @@ export function ProveedorAutenticacionRemota({
       if (!modoDemostracionActivo()) return noDisponible();
       const u = usuarios.find((u) => u.id === id);
       if (!u) return noDisponible();
-      return iniciarSesion(u.correo, "Password123!");
+      return iniciarSesion(u.correo, u.password || "Password123!");
     },
     registrarUsuario: async (
       d: DatosRegistroUsuario & {

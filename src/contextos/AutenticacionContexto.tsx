@@ -1003,6 +1003,7 @@ function usarIdentidad() {
     estaAutenticado: !!usuarioActual,
     rolActivo,
     todosLosUsuarios: usuarios,
+    usuariosPresentacion: usuarios,
     refrescarUsuarios: () => {
       const nuevas = leerUsuarios();
       cuentasRef.current = nuevas;

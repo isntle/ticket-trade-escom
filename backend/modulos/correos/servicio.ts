@@ -38,8 +38,9 @@ export async function procesarCorreos(
 ) {
   if (!correoHabilitado()) return { procesados: 0 };
   const smtp = transporte || transporteCorreo();
+  const limiteTiempo=Date.now()+40000;
   let procesados = 0;
-  for (let i = 0; i < limite; i++) {
+  for (let i = 0; i < limite && Date.now()<limiteTiempo; i++) {
     const job = await conTransaccion(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(14920261113::bigint)");
       const limiteDiario = Number(process.env.TT_CORREO_LIMITE_DIARIO || 80);

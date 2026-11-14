@@ -1,4 +1,4 @@
-# Ticket Trade: misma interfaz, PostgreSQL y demo aislada
+# Ticket Trade: interfaz, PostgreSQL y presentación
 
 Se conservan las pantallas, colores, filtros y navegación originales de `main`. La imagen del acceso está integrada en el panel guinda existente. Los eventos temáticos y sus imágenes se mantienen dentro de esa interfaz.
 
@@ -12,7 +12,13 @@ Se conservan las pantallas, colores, filtros y navegación originales de `main`.
 
 También pueden ejecutarse `npm run server` y `npm run dev` por separado. `APP_ORIGIN` debe coincidir exactamente con el origen del navegador. El proxy de Vite dirige `/api` a 4000.
 
-## Qué significa demo
+## Presentación compartida en Supabase
+
+En el despliegue vigente `TT_DEMO_COMPARTIDA=1`: `?demo=1` consulta la **misma base y sesión** que el acceso normal. Únicamente añade tarjetas protegidas por una clave privada de presentación. Las cuentas están persistidas, sus contraseñas no son las públicas de la semilla y sus correos usan alias del buzón del proyecto. Los cambios desde presentación afectan a los mismos registros. No usar la semilla local para sobrescribir esta base.
+
+El correo lo envía la API de Vercel mediante Gmail. Supabase almacena cuentas, tokens, archivos y cola; no se ha sustituido la autenticación del proyecto por Supabase Auth. Ver [configuración vigente](../docs/SUPABASE_CONEXION.md).
+
+## Modo aislado opcional para desarrollo
 
 - Sin `demo=1`, se consulta y escribe en la base normal. No se insertan ejemplos automáticamente.
 - Con `?demo=1`, se usa una base distinta, con su propia cookie `tt_sesion_demo`. La navegación conserva el parámetro. Salir de demo vuelve a la conexión normal y no borra registros.
@@ -72,7 +78,7 @@ La verificación lee el HTML de referencia y compara las 73 tablas, sus columnas
 
 ## Vercel y Supabase
 
-Se prepararon el punto de entrada `api/index.ts` y las rutas de Vercel. **Todavía no se crearon proyectos Supabase ni se configuraron conexiones remotas**, conforme a lo solicitado. La guía está en [POSTGRESQL_DEMO_Y_SUPABASE.md](../docs/POSTGRESQL_DEMO_Y_SUPABASE.md).
+Se prepararon el punto de entrada `api/index.ts` y las rutas de Vercel. La base y las variables de producción ya están configuradas en el proyecto autorizado. La presentación compartida reemplaza la separación descrita en las notas iniciales para el despliegue; el modo aislado sigue disponible en desarrollo. La guía está en [POSTGRESQL_DEMO_Y_SUPABASE.md](../docs/POSTGRESQL_DEMO_Y_SUPABASE.md).
 
 Sin `VITE_MODO_DATOS=api`, el alojamiento estático conserva el prototipo y avisa que es local. Fuera de demo rechaza crear cuentas locales: no muestra un registro exitoso como si hubiese llegado a PostgreSQL.
 

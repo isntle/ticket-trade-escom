@@ -28,6 +28,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@types/cookie-parser": "^1.4.10",
+    "@vercel/functions": "^3.11.3",
     "@vitejs/plugin-react": "^6.1.1",
     "@zxing/browser": "^0.2.1",
     "cookie-parser": "^1.4.7",

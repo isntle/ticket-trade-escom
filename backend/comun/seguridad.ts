@@ -30,8 +30,9 @@ export async function verificarContrasena(
 }
 export const huella = (valor: string) =>
   crypto.createHash("sha256").update(valor).digest("hex");
-export function origenPermitido(origen: string, configurado = process.env.APP_ORIGIN, produccion = process.env.NODE_ENV === "production") {
+export function origenPermitido(origen: string, configurado = process.env.APP_ORIGIN, produccion = process.env.NODE_ENV === "production", aliases=process.env.APP_ORIGIN_ALIASES||"") {
   if (origen === configurado) return true;
+  if(produccion && aliases.split(',').some(valor=>{const a=valor.trim();try{const u=new URL(a);return u.protocol==='https:'&&u.origin===a&&a===origen;}catch{return false;}}))return true;
   if (produccion || !configurado) return false;
   try {
     const recibido = new URL(origen), esperado = new URL(configurado);
