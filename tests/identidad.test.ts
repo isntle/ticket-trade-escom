@@ -312,6 +312,55 @@ test("expediente exige documentos y vigencia por categoría y limita archivos", 
     ),
   );
 });
+test("externos entregan exactamente dos PDF distintos y el resto uno solo", () => {
+  const u = {
+    ...USUARIOS_INICIALES.find((u) => u.id === "usr-carlos")!,
+    correoConfirmado: true,
+    afiliacion: "externo" as const,
+    nombreOrganizacion: "Entidad de prueba",
+    puestoContacto: "Representante legal",
+  };
+  const hoy = new Date("2026-10-18T12:00:00-06:00");
+  assert.ok(
+    validarExpedienteIdentidad(
+      u,
+      [{ ...documento, tipo: "existencia" }],
+      hoy,
+    ),
+  );
+  assert.ok(
+    validarExpedienteIdentidad(
+      u,
+      [
+        { ...documento, tipo: "existencia" },
+        { ...documento, tipo: "existencia" },
+      ],
+      hoy,
+    ),
+  );
+  assert.equal(
+    validarExpedienteIdentidad(
+      u,
+      [
+        { ...documento, tipo: "existencia" },
+        { ...documento, tipo: "representacion" },
+      ],
+      hoy,
+    ),
+    undefined,
+  );
+  const trabajador = { ...u, afiliacion: "profesor" as const, numeroEmpleado: "EMP1" };
+  assert.ok(
+    validarExpedienteIdentidad(
+      trabajador,
+      [
+        { ...documento, tipo: "adscripcion" },
+        { ...documento, tipo: "adscripcion" },
+      ],
+      hoy,
+    ),
+  );
+});
 test("Subdirección revisa con periodo y versión; solo Administración revoca", () => {
   const p=preparar('usr-subdireccion');
   const cuentas=p.leer(),u=cuentas.find(c=>c.id==='usr-carlos')!;

@@ -79,14 +79,23 @@ export function validarExpedienteIdentidad(
   ahora = new Date(),
 ): string | undefined {
   if (cuenta.correoConfirmado !== true) return "Confirma primero tu correo.";
-  if (!archivos.length || archivos.length > 5)
-    return "Adjunta entre uno y cinco documentos PDF.";
   const requeridos =
     cuenta.afiliacion === "alumno"
       ? []
       : cuenta.afiliacion === "externo"
         ? ["existencia", "representacion"]
         : ["adscripcion"];
+  if (cuenta.afiliacion === "externo") {
+    const tipos = archivos.map((a) => a.tipo);
+    if (
+      archivos.length !== 2 ||
+      new Set(tipos).size !== 2 ||
+      requeridos.some((tipo) => !tipos.includes(tipo as DocumentoIdentidad["tipo"]))
+    )
+      return "Adjunta exactamente dos PDF distintos: acreditación de existencia y acreditación de representación.";
+  } else if (archivos.length !== 1) {
+    return "Adjunta exactamente un documento PDF.";
+  }
   if (cuenta.afiliacion === "alumno" && !archivos.some(a=>["constancia","horario"].includes(a.tipo))) return "Adjunta una constancia de estudios o comprobante de horario vigente.";
   if (requeridos.some((tipo) => !archivos.some((a) => a.tipo === tipo)))
     return `Faltan documentos: ${requeridos.join(", ")}.`;
