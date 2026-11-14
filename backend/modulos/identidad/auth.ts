@@ -42,14 +42,18 @@ export async function proyectarUsuario(id: string) {
   if (!r) return null;
   const expediente = await pool.query(
     `SELECT s.id_solicitud_verificacion::text id,s.motivo_solicitud,s.motivo_resolucion,es.nombre estado,
+    s.enviada_en,s.resuelta_en,concat_ws(' ',rc.nombres,rc.primer_apellido) resolutora,
     d.numero_empleado,x.nombre_entidad,x.cargo_o_relacion FROM ticket_trade."SolicitudVerificacion" s
     JOIN ticket_trade."EstadoSolicitudVerificacion" es USING(id_estado_solicitud_verificacion)
+    LEFT JOIN ticket_trade."Cuenta" rc ON rc.id_cuenta=s.id_cuenta_resolutora
     LEFT JOIN ticket_trade."DatosVerificacionEmpleado" d USING(id_solicitud_verificacion)
     LEFT JOIN ticket_trade."DatosVerificacionExterno" x USING(id_solicitud_verificacion)
-    WHERE s.id_cuenta=$1 ORDER BY s.id_solicitud_verificacion DESC LIMIT 1`,
+    WHERE s.id_cuenta=$1 ORDER BY s.id_solicitud_verificacion DESC`,
     [id],
   );
-  const ex = expediente.rows[0];
+  const solicitudes = expediente.rows;
+  const ex = solicitudes[0];
+  const esCorreccion = ex?.motivo_resolucion?.startsWith("[CORRECCION] ");
   const documentos = ex
     ? (
         await pool.query(
@@ -78,11 +82,28 @@ export async function proyectarUsuario(id: string) {
       ? "aprobado"
       : ex?.estado === "Pendiente de revisión"
         ? "en_revision"
-        : ex?.estado === "Rechazada"
-          ? "rechazado"
-          : "sin_enviar",
+        : esCorreccion
+          ? "requiere_correccion"
+          : ex?.estado === "Rechazada"
+            ? "rechazado"
+            : "sin_enviar",
     idSolicitudVerificacion: ex?.id,
-    motivoExpediente: ex?.motivo_resolucion,
+    versionIdentidad: solicitudes.length,
+    historialExpediente: solicitudes.map((s) => ({
+      estado: s.estado === "Pendiente de revisión"
+        ? "en_revision"
+        : s.motivo_resolucion?.startsWith("[CORRECCION] ")
+          ? "requiere_correccion"
+          : s.estado === "Aprobada"
+            ? "aprobado"
+            : "rechazado",
+      motivo: s.motivo_resolucion?.replace(/^\[CORRECCION\] /, "") || s.motivo_solicitud,
+      responsable: s.resolutora || "",
+      fecha: new Date(s.enviada_en).toISOString(),
+      documentos: [] as string[],
+      envio: true,
+    })),
+    motivoExpediente: ex?.motivo_resolucion?.replace(/^\[CORRECCION\] /, ""),
     motivoSolicitudVerificacion: ex?.motivo_solicitud,
     numeroEmpleado: perfil.numero_empleado || ex?.numero_empleado,
     nombreOrganizacion: perfil.nombre_entidad || ex?.nombre_entidad,

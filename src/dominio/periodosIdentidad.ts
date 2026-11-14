@@ -82,6 +82,14 @@ export function rechazosPeriodo(cuenta: Usuario, periodo: PeriodoIdentidad) {
       Date.parse(h.fecha) <= Date.parse(periodo.fin + "T23:59:59.999-06:00"),
   ).length;
 }
+export function intentosPeriodo(cuenta: Usuario, periodo: PeriodoIdentidad) {
+  return (cuenta.historialExpediente || []).filter(
+    (h) =>
+      (h.envio === true || (h.envio === undefined && h.estado === "en_revision")) &&
+      Date.parse(h.fecha) >= Date.parse(periodo.inicio + "T00:00:00-06:00") &&
+      Date.parse(h.fecha) <= Date.parse(periodo.fin + "T23:59:59.999-06:00"),
+  ).length;
+}
 export function impedimentoVerificacion(
   cuenta: Usuario,
   periodos: PeriodoIdentidad[],
@@ -103,6 +111,12 @@ export function impedimentoVerificacion(
   if (rechazosPeriodo(cuenta, periodo) >= 3)
     return (
       "Tuviste tres rechazos en el periodo " +
+      periodo.id +
+      ". Podrás solicitar la verificación en el siguiente periodo. Tu inicio de sesión sigue habilitado."
+    );
+  if (intentosPeriodo(cuenta, periodo) >= 3)
+    return (
+      "Alcanzaste los tres envíos permitidos en el periodo " +
       periodo.id +
       ". Podrás solicitar la verificación en el siguiente periodo. Tu inicio de sesión sigue habilitado."
     );

@@ -87,8 +87,11 @@ export async function leerEstado(u: any) {
           `SELECT s.*,s.id_solicitud_evento::text id,e.id_cuenta_organizadora::text titular,e.titulo,e.descripcion,e.correo_contacto,e.telefono_contacto,
     e.id_evento::text evento,ce.nombre categoria,ve.nombre visibilidad,e.id_archivo_cartel::text cartel,ar.clave_almacenamiento,
     es.nombre estado,ta.nombre anticipacion,concat_ws(' ',c.nombres,c.primer_apellido,c.segundo_apellido) nombre,c.correo,
+    CASE WHEN tc2.nombre<>'Común' THEN 'administrativo' WHEN rr.nombre='Estudiante' THEN 'alumno' WHEN rr.nombre='Empleado del IPN' THEN 'profesor' ELSE 'externo' END afiliacion,
     (SELECT mensaje FROM ticket_trade."ResolucionSolicitud" r WHERE r.id_solicitud_evento=s.id_solicitud_evento ORDER BY r.resuelta_en DESC LIMIT 1) resolucion
     FROM ticket_trade."SolicitudEvento" s JOIN ticket_trade."Evento" e USING(id_evento) JOIN ticket_trade."Cuenta" c ON c.id_cuenta=e.id_cuenta_organizadora
+    JOIN ticket_trade."TipoCuenta" tc2 ON tc2.id_tipo_cuenta=c.id_tipo_cuenta
+    LEFT JOIN ticket_trade."PerfilUsuario" pu ON pu.id_cuenta=c.id_cuenta LEFT JOIN ticket_trade."RolRegistro" rr ON rr.id_rol_registro=pu.id_rol_registro
     JOIN ticket_trade."EstadoSolicitudEvento" es USING(id_estado_solicitud_evento) LEFT JOIN ticket_trade."TipoAnticipacion" ta USING(id_tipo_anticipacion)
     JOIN ticket_trade."CategoriaEvento" ce USING(id_categoria_evento) JOIN ticket_trade."VisibilidadEvento" ve USING(id_visibilidad_evento)
     LEFT JOIN ticket_trade."Archivo" ar ON ar.id_archivo=e.id_archivo_cartel WHERE $1::boolean OR e.id_cuenta_organizadora=$2 ORDER BY s.id_solicitud_evento DESC`,
@@ -103,7 +106,7 @@ export async function leerEstado(u: any) {
           idSolicitante: s.titular,
           nombreSolicitante: s.nombre,
           correoSolicitante: s.correo,
-          afiliacionSolicitante: s.titular === u.id ? u.afiliacion : "externo",
+          afiliacionSolicitante: s.afiliacion,
           tituloEvento: s.titulo,
           descripcionEvento: s.descripcion,
           categoria: s.categoria,

@@ -209,11 +209,25 @@ routerPerfil.post(
       fallo("Adjunta uno o dos PDF según tu perfil.");
     const motivo = texto(b.motivoSolicitud, "el motivo de la verificación");
     const id = await conTransaccion(async (c) => {
+      await c.query("SELECT pg_advisory_xact_lock(744220261107::bigint)");
       const periodo = await c.query(
-        `SELECT id_periodo_escolar FROM ticket_trade."PeriodoEscolar" WHERE CURRENT_DATE BETWEEN inicio AND fin ORDER BY inicio DESC LIMIT 1`,
+        `SELECT id_periodo_escolar FROM ticket_trade."PeriodoEscolar" WHERE (CURRENT_TIMESTAMP AT TIME ZONE 'America/Mexico_City')::date BETWEEN inicio AND fin ORDER BY inicio DESC LIMIT 1`,
       );
       if (!periodo.rowCount)
         fallo("No hay periodo escolar vigente. Solicita su configuración.");
+      const idPeriodo = periodo.rows[0].id_periodo_escolar;
+      const pendiente = await c.query(
+        `SELECT 1 FROM ticket_trade."SolicitudVerificacion" s JOIN ticket_trade."EstadoSolicitudVerificacion" es USING(id_estado_solicitud_verificacion) WHERE s.id_cuenta=$1 AND es.nombre='Pendiente de revisión'`,
+        [u.id],
+      );
+      if (pendiente.rowCount)
+        fallo("Ya tienes una solicitud pendiente de revisión.", 409);
+      const intentos = await c.query(
+        'SELECT count(*)::int n FROM ticket_trade."SolicitudVerificacion" WHERE id_cuenta=$1 AND id_periodo_escolar=$2',
+        [u.id, idPeriodo],
+      );
+      if (intentos.rows[0].n >= 3)
+        fallo("Alcanzaste los tres envíos permitidos en este periodo.", 409);
       const tipos: Record<string, number> = {
         constancia: 1,
         horario: 1,
@@ -235,23 +249,47 @@ routerPerfil.post(
       const s = await c.query(
         `INSERT INTO ticket_trade."SolicitudVerificacion"(id_cuenta,id_periodo_escolar,motivo_solicitud,enviada_en,id_estado_solicitud_verificacion)
       VALUES($1,$2,$3,CURRENT_TIMESTAMP,(SELECT id_estado_solicitud_verificacion FROM ticket_trade."EstadoSolicitudVerificacion" WHERE nombre='Pendiente de revisión')) RETURNING id_solicitud_verificacion::text id`,
-        [u.id, periodo.rows[0].id_periodo_escolar, motivo],
+        [u.id, idPeriodo, motivo],
       );
       const id = s.rows[0].id;
-      if (u.afiliacion === "externo")
+      const perfil =
+        (
+          await c.query(
+            "SELECT numero_empleado,nombre_entidad,cargo FROM infra.perfil_interfaz WHERE id_cuenta=$1",
+            [u.id],
+          )
+        ).rows[0] || {};
+      if (u.afiliacion === "externo") {
+        const nombreEntidad = texto(
+          b.nombreEntidad || perfil.nombre_entidad,
+          "la entidad",
+        );
+        const cargo = texto(b.cargo || perfil.cargo, "el cargo");
         await c.query(
           'INSERT INTO ticket_trade."DatosVerificacionExterno" VALUES($1,$2,$3)',
-          [
-            id,
-            texto(b.nombreEntidad, "la entidad"),
-            texto(b.cargo, "el cargo"),
-          ],
+          [id, nombreEntidad, cargo],
         );
-      else if (u.afiliacion !== "alumno")
+        await c.query(
+          `INSERT INTO infra.perfil_interfaz(id_cuenta,nombre_entidad,cargo) VALUES($1,$2,$3)
+      ON CONFLICT(id_cuenta) DO UPDATE SET nombre_entidad=EXCLUDED.nombre_entidad,cargo=EXCLUDED.cargo`,
+          [u.id, nombreEntidad, cargo],
+        );
+      } else if (u.afiliacion !== "alumno") {
+        const numeroEmpleado = texto(
+          b.numeroEmpleado || perfil.numero_empleado,
+          "el número de empleado",
+          100,
+        );
         await c.query(
           'INSERT INTO ticket_trade."DatosVerificacionEmpleado" VALUES($1,$2)',
-          [id, texto(b.numeroEmpleado, "el número de empleado", 100)],
+          [id, numeroEmpleado],
         );
+        await c.query(
+          `INSERT INTO infra.perfil_interfaz(id_cuenta,numero_empleado) VALUES($1,$2)
+      ON CONFLICT(id_cuenta) DO UPDATE SET numero_empleado=EXCLUDED.numero_empleado`,
+          [u.id, numeroEmpleado],
+        );
+      }
       for (const d of b.documentos) {
         await comprobarArchivo(c, d.id, u.id, ["application/pdf"]);
         await c.query(
@@ -288,27 +326,38 @@ routerPerfil.post(
       id = idEntero(req.params.id);
     if (!u.roles.includes("subdireccion"))
       fallo("Solo Subdirección puede revisar expedientes.", 403);
-    if (!["Aprobada", "Rechazada"].includes(b.decision))
+    if (!["Aprobada", "Rechazada", "Requiere corrección"].includes(b.decision))
       fallo("Decisión inválida.");
     const motivo = texto(b.motivo, "el motivo de la resolución");
     await conTransaccion(async (c) => {
       await c.query("SELECT pg_advisory_xact_lock(744220261107::bigint)");
       const s = await c.query(
         `SELECT s.id_cuenta::text titular FROM ticket_trade."SolicitudVerificacion" s JOIN ticket_trade."EstadoSolicitudVerificacion" es USING(id_estado_solicitud_verificacion)
-      JOIN ticket_trade."PeriodoEscolar" p USING(id_periodo_escolar) WHERE s.id_solicitud_verificacion=$1 AND es.nombre='Pendiente de revisión' AND CURRENT_DATE BETWEEN p.inicio AND p.fin FOR UPDATE OF s`,
+      JOIN ticket_trade."PeriodoEscolar" p USING(id_periodo_escolar) WHERE s.id_solicitud_verificacion=$1 AND es.nombre='Pendiente de revisión' AND (CURRENT_TIMESTAMP AT TIME ZONE 'America/Mexico_City')::date BETWEEN p.inicio AND p.fin FOR UPDATE OF s`,
         [id],
       );
       if (!s.rowCount) fallo("El expediente cambió o su periodo terminó.", 409);
       if (s.rows[0].titular === u.id)
         fallo("No puedes revisar tu propio expediente.", 403);
+      const correccion = b.decision === "Requiere corrección";
       await c.query(
         `UPDATE ticket_trade."SolicitudVerificacion" SET id_estado_solicitud_verificacion=(SELECT id_estado_solicitud_verificacion FROM ticket_trade."EstadoSolicitudVerificacion" WHERE nombre=$2),
       resuelta_en=CURRENT_TIMESTAMP,id_cuenta_resolutora=$3,motivo_resolucion=$4 WHERE id_solicitud_verificacion=$1`,
-        [id, b.decision, u.id, motivo],
+        [
+          id,
+          correccion ? "Rechazada" : b.decision,
+          u.id,
+          correccion ? "[CORRECCION] " + motivo : motivo,
+        ],
       );
       if (b.decision === "Aprobada")
         await c.query(
           'INSERT INTO ticket_trade."Verificacion"(id_solicitud_verificacion_aprobada) VALUES($1)',
+          [id],
+        );
+      else
+        await c.query(
+          'DELETE FROM ticket_trade."DocumentoVerificacion" WHERE id_solicitud_verificacion=$1',
           [id],
         );
     });

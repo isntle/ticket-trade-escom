@@ -72,6 +72,7 @@ export interface Usuario {
   historialReenviosCorreo?: number[];
   tokenConfirmacionCorreo?: string;
   expiracionConfirmacionCorreo?: number;
+  idSolicitudVerificacion?: string;
   estadoExpediente?:
     | "sin_enviar"
     | "en_revision"
@@ -88,6 +89,7 @@ export interface Usuario {
     fecha: string;
     documentos: string[];
     archivos?: DocumentoIdentidad[];
+    envio?: boolean;
   }>;
   restriccionSolicitudesHasta?: string;
   motivoRestriccion?: string;

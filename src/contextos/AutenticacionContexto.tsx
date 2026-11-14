@@ -649,6 +649,7 @@ function usarIdentidad() {
       motivo: motivoSolicitud.trim(),
       documentos: archivos.map((a) => a.nombre),
       archivos,
+      envio: true,
     };
     return guardar(
       cuentasRef.current.map((c) =>
@@ -681,6 +682,7 @@ function usarIdentidad() {
     motivo: string,
     version: number,
     vigencia?: string,
+    _idSolicitud?: string,
   ) => {
     const actor = activa(),
       u = cuentasRef.current.find((c) => c.id === id);
@@ -722,6 +724,14 @@ function usarIdentidad() {
                   decision === "aprobado" ? vigencia : undefined,
                 periodoVerificado: decision === "aprobado" ? periodo!.id : undefined,
                 motivoExpediente: motivo.trim(),
+                archivosExpediente:
+                  decision === "rechazado" || decision === "requiere_correccion"
+                    ? undefined
+                    : c.archivosExpediente,
+                documentosExpediente:
+                  decision === "rechazado" || decision === "requiere_correccion"
+                    ? undefined
+                    : c.documentosExpediente,
                 historialExpediente: [
                   ...(c.historialExpediente || []),
                   entrada,

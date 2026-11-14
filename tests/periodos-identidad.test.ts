@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   impedimentoVerificacion,
+  intentosPeriodo,
   periodoIdentidadActual,
   rechazosPeriodo,
   validarPeriodosIdentidad,
@@ -51,6 +52,28 @@ test("la precarga no sobrescribe calendarios guardados ni oculta datos inválido
     if (anterior) Object.defineProperty(globalThis,"localStorage",anterior);
     else Reflect.deleteProperty(globalThis,"localStorage");
   }
+});
+test("tres envíos del periodo bloquean aunque no todos sean rechazos", () => {
+  const enviar = (estado: string, fecha: string) => ({
+    estado,
+    envio: true,
+    fecha: fecha + "T12:00:00-06:00",
+    responsable: "Prueba",
+    documentos: [],
+  });
+  const u = {
+    ...USUARIOS_INICIALES[0],
+    historialExpediente: [
+      enviar("en_revision", "2026-09-01"),
+      enviar("requiere_correccion", "2026-10-01"),
+      enviar("rechazado", "2026-10-20"),
+    ],
+  };
+  assert.equal(intentosPeriodo(u, periodos[0]), 3);
+  assert.match(
+    impedimentoVerificacion(u, periodos, Date.parse("2026-10-25T12:00:00-06:00"))!,
+    /tres envíos/,
+  );
 });
 test("tres rechazos revisados restringen envíos únicamente durante el periodo correspondiente", () => {
   const historial = ["2026-09-01", "2026-10-01", "2026-10-20"].map((fecha) => ({

@@ -1,4 +1,4 @@
-import { impedimentoVerificacion, periodoIdentidadActual, rechazosPeriodo } from "../dominio/periodosIdentidad";
+import { impedimentoVerificacion, intentosPeriodo, periodoIdentidadActual, rechazosPeriodo } from "../dominio/periodosIdentidad";
 import { volverA } from '../dominio/navegacion';
 import { apiActiva } from '../servicios/modoDatos';
 import React, { useEffect, useState } from "react";
@@ -35,7 +35,13 @@ export function GestionIdentidadPagina({
 }) {
   const auth = useAutenticacion();
   const { usuarioActual: cuenta, todosLosUsuarios: usuarios, rolActivo } = auth;
-  const limiteDocumentos = apiActiva ? (cuenta?.afiliacion === 'externo' ? 2 : 1) : 5;
+  const limiteDocumentos = cuenta?.afiliacion === 'externo' ? 2 : 1;
+  const tiposDocumento: Array<[DocumentoIdentidad["tipo"], string]> =
+    cuenta?.afiliacion === "alumno"
+      ? [["constancia", "Constancia de estudios"], ["horario", "Comprobante de horario"]]
+      : cuenta?.afiliacion === "externo"
+        ? [["existencia", "Acta constitutiva o documento equivalente"], ["representacion", "Poder o nombramiento de representación"]]
+        : [["adscripcion", "Comprobante de adscripción"]];
   const { listaEventos } = useDatos();
   const [archivos, setArchivos] = useState<DocumentoIdentidad[]>([]);
   const [revision, setRevision] = useState<number | null>(null);
@@ -131,6 +137,7 @@ export function GestionIdentidadPagina({
       const nuevos: DocumentoIdentidad[] = [];
       for (const file of files) {
         const id = await guardarDocumentoIdentidad(crypto.randomUUID(), file);
+        const usados = new Set([...archivos, ...nuevos].map((a) => a.tipo));
         nuevos.push({
           id,
           nombre: file.name,
@@ -139,7 +146,7 @@ export function GestionIdentidadPagina({
             cuenta?.afiliacion === "alumno"
               ? "constancia"
               : cuenta?.afiliacion === "externo"
-                ? "existencia"
+                ? usados.has("existencia") ? "representacion" : "existencia"
                 : "adscripcion",
           fechaEmision: "",
         });
@@ -246,8 +253,14 @@ export function GestionIdentidadPagina({
             {cuenta.verificacionHasta &&
               " · Válido hasta " + cuenta.verificacionHasta}
           </p>
-          <div className="rounded-xl bg-neutral-50 p-4 text-sm"><strong>{cuenta.nombre}</strong><p>{cuenta.correo} · {cuenta.afiliacion}</p><p>{cuenta.boleta ? 'Boleta: '+cuenta.boleta : cuenta.afiliacion==='externo' ? [cuenta.nombreOrganizacion,cuenta.puestoContacto].filter(Boolean).join(' · ') : 'Número de empleado: '+(cuenta.numeroEmpleado||'Pendiente')}</p><button className="mt-2 font-semibold text-[#7a132b] underline" onClick={()=>navigate('/perfil')}>Revisar datos de mi perfil</button>{periodoIdentidadActual(auth.periodosIdentidad)&&<p className="mt-2">Periodo {periodoIdentidadActual(auth.periodosIdentidad)!.id} · Rechazos: {rechazosPeriodo(cuenta,periodoIdentidadActual(auth.periodosIdentidad)!)} de 3</p>}</div>
-          {cuenta.afiliacion!=='alumno' && cuenta.afiliacion!=='externo' && <form className="rounded-xl bg-neutral-50 p-4" onSubmit={async e=>{e.preventDefault();const datos=new FormData(e.currentTarget);resultado((await auth.actualizarPerfil(cuenta.id,{numeroEmpleado:String(datos.get('numeroEmpleado')||'').trim()},cuenta.versionIdentidad||0)));}}><label className="block text-sm font-semibold">Número de empleado<input name="numeroEmpleado" required defaultValue={cuenta.numeroEmpleado||''} className={campo}/></label><button type="submit" className={boton+" mt-3"}>Guardar número de empleado</button></form>}
+          <div className="rounded-xl bg-neutral-50 p-4 text-sm"><strong>{cuenta.nombre}</strong><p>{cuenta.correo} · {cuenta.afiliacion}</p><p>{cuenta.boleta ? 'Boleta: '+cuenta.boleta : cuenta.afiliacion==='externo' ? [cuenta.nombreOrganizacion,cuenta.puestoContacto].filter(Boolean).join(' · ') : 'Número de empleado: '+(cuenta.numeroEmpleado||'Pendiente')}</p><button className="mt-2 font-semibold text-[#7a132b] underline" onClick={()=>navigate('/perfil')}>Revisar datos de mi perfil</button>{periodoIdentidadActual(auth.periodosIdentidad)&&<p className="mt-2">Periodo {periodoIdentidadActual(auth.periodosIdentidad)!.id} · Envíos: {intentosPeriodo(cuenta,periodoIdentidadActual(auth.periodosIdentidad)!)} de 3 · Rechazos: {rechazosPeriodo(cuenta,periodoIdentidadActual(auth.periodosIdentidad)!)}</p>}</div>
+          {cuenta.afiliacion==='profesor' && <form className="rounded-xl bg-neutral-50 p-4" onSubmit={async e=>{e.preventDefault();const datos=new FormData(e.currentTarget);resultado((await auth.actualizarPerfil(cuenta.id,{numeroEmpleado:String(datos.get('numeroEmpleado')||'').trim()},cuenta.versionIdentidad||0)));}}><label className="block text-sm font-semibold">Número de empleado<input name="numeroEmpleado" required defaultValue={cuenta.numeroEmpleado||''} className={campo}/></label><button type="submit" className={boton+" mt-3"}>Guardar número de empleado</button></form>}
+          {cuenta.afiliacion==='externo' && <form className="rounded-xl bg-neutral-50 p-4" onSubmit={async e=>{e.preventDefault();const datos=new FormData(e.currentTarget);resultado((await auth.actualizarPerfil(cuenta.id,{nombreOrganizacion:String(datos.get('nombreOrganizacion')||'').trim(),puestoContacto:String(datos.get('puestoContacto')||'').trim()},cuenta.versionIdentidad||0)));}}><label className="block text-sm font-semibold">Entidad<input name="nombreOrganizacion" required defaultValue={cuenta.nombreOrganizacion||''} className={campo}/></label><label className="mt-3 block text-sm font-semibold">Cargo o relación de representación<input name="puestoContacto" required defaultValue={cuenta.puestoContacto||''} className={campo}/></label><button type="submit" className={boton+" mt-3"}>Guardar datos de la entidad</button></form>}
+          {cuenta.estadoExpediente === "requiere_correccion" && (
+            <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm">
+              Subdirección solicitó una corrección. Retira el documento rechazado, adjunta el nuevo PDF y reenvía el expediente.
+            </p>
+          )}
           {cuenta.motivoExpediente && (
             <p>Observaciones: {cuenta.motivoExpediente}</p>
           )}
@@ -314,17 +327,11 @@ export function GestionIdentidadPagina({
                           })
                         }
                       >
-                        <option value="constancia">
-                          Constancia de estudios
-                        </option>
-                        <option value="horario">Comprobante de horario</option>
-                        <option value="adscripcion">
-                          Comprobante de adscripción
-                        </option>
-                        <option value="existencia">
-                          Acta constitutiva o documento equivalente
-                        </option>
-                        <option value="representacion">Poder o nombramiento de representación</option>
+                        {tiposDocumento.map(([valor, etiqueta]) => (
+                          <option key={valor} value={valor}>
+                            {etiqueta}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label className="text-sm">
@@ -509,8 +516,13 @@ export function GestionIdentidadPagina({
                 {elegida.correo} · {elegida.afiliacion}
               </p>
               <p>
-                {elegida.boleta || elegida.numeroEmpleado || elegida.rfc}{" "}
-                {elegida.nombreOrganizacion} {elegida.puestoContacto}
+                {elegida.afiliacion === "alumno"
+                  ? "Boleta: " + (elegida.boleta || "No registrada")
+                  : elegida.afiliacion === "profesor"
+                    ? "Número de empleado: " + (elegida.numeroEmpleado || "No registrado") + (elegida.rfc ? " · RFC: " + elegida.rfc : "")
+                    : elegida.afiliacion === "externo"
+                      ? "Entidad: " + (elegida.nombreOrganizacion || "No registrada") + " · Cargo: " + (elegida.puestoContacto || "No registrado")
+                      : "RFC: " + (elegida.rfc || "No registrado")}
               </p>
               <p>
                 Versión {seleccion?.version} ·{" "}
@@ -524,7 +536,7 @@ export function GestionIdentidadPagina({
                 a eventos ajenos.
               </p>
               <div className="flex flex-wrap gap-2">
-                {(elegida.estadoExpediente === "en_revision" && subdireccion
+                {(elegida.id !== cuenta.id && elegida.estadoExpediente === "en_revision" && subdireccion
                   ? [
                       ["aprobado", "Aprobar expediente"],
                       ["requiere_correccion", "Solicitar corrección"],
@@ -581,6 +593,7 @@ export function GestionIdentidadPagina({
                           motivo,
                           seleccion!.version,
                           periodoIdentidadActual(auth.periodosIdentidad)?.fin || vigencia,
+                          elegida.idSolicitudVerificacion,
                         )),
                       )
                     }
