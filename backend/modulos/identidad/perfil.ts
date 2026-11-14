@@ -1,6 +1,7 @@
 import { Router } from "express";
+import { encolarAviso } from "../correos/avisos";
 import { pool, conTransaccion } from "../../bd/pool";
-import { origenSeguro, hashContrasena } from "../../comun/seguridad";
+import { origenSeguro, hashContrasena, huella } from "../../comun/seguridad";
 import { fallo, ruta, texto, idEntero, demoHabilitada } from "../../comun/http";
 import { exigirSesion, proyectarUsuario } from "./auth";
 import { crearToken, consumirToken } from "./tokens";
@@ -120,6 +121,14 @@ routerPerfil.post(
         [hash, t.id],
       );
       await c.query("DELETE FROM infra.sesion_http WHERE id_cuenta=$1", [t.id]);
+      await encolarAviso(
+        c,
+        t.id,
+        "password-restablecida:" + huella(String(req.body.token)),
+        "Tu contraseña fue actualizada",
+        "Se completó el restablecimiento de tu contraseña y se cerraron las sesiones anteriores. Si no reconoces este cambio, recupera tu cuenta de inmediato.",
+        "/recuperar-password",
+      );
     });
     res.json({
       datos: {
@@ -238,7 +247,7 @@ routerPerfil.post(
       };
       const requeridos =
         u.afiliacion === "alumno"
-          ? [b.documentos[0]?.tipo === 'horario' ? 'horario' : 'constancia']
+          ? [b.documentos[0]?.tipo === "horario" ? "horario" : "constancia"]
           : u.afiliacion === "externo"
             ? ["existencia", "representacion"]
             : ["adscripcion"];
@@ -311,6 +320,14 @@ routerPerfil.post(
           [id, tipos[d.tipo], d.id],
         );
       }
+      await encolarAviso(
+        c,
+        u.id,
+        "expediente-recibido:" + id,
+        "Recibimos tu solicitud de verificación",
+        "Tu expediente está pendiente de revisión por Subdirección. Recibirlo no implica su aprobación.",
+        "/mi-expediente",
+      );
       return id;
     });
     res
@@ -358,6 +375,15 @@ routerPerfil.post(
           [id],
         );
       // Los documentos resueltos se conservan para el historial y la revisión.
+      await encolarAviso(
+        c,
+        s.rows[0].titular,
+        "expediente-resuelto:" + id,
+        b.decision === "Requiere corrección" ? "Tu expediente requiere corrección" : "Tu verificación fue " +
+          (b.decision === "Aprobada" ? "aprobada" : "rechazada"),
+        "Subdirección resolvió tu solicitud. Motivo: " + motivo,
+        "/mi-expediente",
+      );
     });
     res.json({ datos: { exito: true } });
   }),

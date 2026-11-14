@@ -203,7 +203,7 @@ export function ProveedorDatosRemotos({
       const e = estadoRef.current.listaEventos.find((e: Evento) => e.id === id);
       const pendientes = e ? [] : ["Evento no disponible"];
       return {
-        solicitudAutorizada: !!e,
+        solicitudAutorizada: !!e?.solicitudAutorizada,
         informacionGeneralCompleta: !!e,
         tieneFechas: !!e?.fechas.length,
         todasLasFechasTienenRecinto: !!e,
@@ -211,7 +211,7 @@ export function ProveedorDatosRemotos({
           (f: any) =>
             f.modalidadAsistencia !== "controlado" || f.esFinalConfirmado,
         ),
-        puedePublicar: false,
+        puedePublicar: !!e?.solicitudAutorizada && !!e?.urlImagen && !!e?.titulo && !!e?.descripcion && e.fechas.length>0 && e.fechas.every((f:any)=>f.modalidadAsistencia!=="controlado"||f.esFinalConfirmado),
         elementosPendientes: pendientes,
       };
     },
@@ -343,6 +343,36 @@ export function ProveedorDatosRemotos({
           ),
         };
       }),
+    revisarCambioRecinto: (peticion:any) => intentar(async()=>{
+      const e=estadoRef.current.listaEventos.find((e:any)=>e.id===peticion.idEvento);
+      return api('/organizacion/eventos/'+peticion.idEvento+'/recinto/revision',{metodo:'POST',datos:{peticion,version:e?.versionServidor}});
+    }),
+    confirmarCambioRecinto: (propuesta:any,aceptarReduccion:boolean) => intentar(async()=>{
+      await api('/organizacion/eventos/'+propuesta.peticion.idEvento+'/recinto',{metodo:'POST',datos:{peticion:propuesta.peticion,version:propuesta.firma,aceptarReduccion}});
+      await cargar();return {exito:true};
+    }),
+    agregarFechaEvento: (id:string,actividad:any) => intentar(async()=>{
+      const e=estadoRef.current.listaEventos.find((e:any)=>e.id===id);
+      await api('/organizacion/eventos/'+id+'/actividades',{metodo:'POST',datos:{actividad,version:e?.versionServidor,motivo:actividad.motivo}});
+      await cargar();return {exito:true};
+    }),
+    actualizarEvento: (id: string, parcial: any, versionEsperada: string) => intentar(async () => {
+      const original=JSON.parse(versionEsperada);
+      const datos={...parcial};
+      if(parcial.itinerarios)datos.itinerarios=await Promise.all(parcial.itinerarios.map(async(i:any)=>({...i,idArchivo:await guardarCartelRemoto(i.urlImagen,i.nombreArchivo)})));
+      if(Object.prototype.hasOwnProperty.call(parcial,'urlImagen') && parcial.urlImagen!==original.urlImagen) datos.idArchivoCartel=await guardarCartelRemoto(parcial.urlImagen);
+      await api('/organizacion/eventos/'+id,{metodo:'PATCH',datos:{parcial:datos,version:original.versionServidor,motivo:parcial.historialCambios?.at(-1)?.motivo}});
+      await cargar(); return {exito:true};
+    }),
+    cancelarUnidadEvento: (id:string,idActividad:string|undefined,motivo:string,retirar:boolean,version:string) => intentar(async()=>{
+      await api('/organizacion/eventos/'+id+'/cancelacion',{metodo:'POST',datos:{idActividad,motivo,retirar,version:JSON.parse(version).versionServidor}});
+      await cargar();return {exito:true};
+    }),
+    publicarEvento: (id:string) => intentar(async()=>{
+      const e=estadoRef.current.listaEventos.find((e:any)=>e.id===id);
+      await api('/organizacion/eventos/'+id+'/publicacion',{metodo:'POST',datos:{version:e?.versionServidor}});
+      await cargar();return {exito:true};
+    }),
     reiniciarDatosIniciales: () => {
       setError(
         "La demostración utiliza una base independiente. Los registros no se borran al cambiar de cuenta ni al salir del modo demo.",

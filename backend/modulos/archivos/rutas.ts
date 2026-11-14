@@ -72,7 +72,7 @@ routerArchivos.get(
     const { rows } = await pool.query(
       `SELECT a.nombre,m.nombre mime,b.contenido,b.id_cuenta_propietaria::text propietario,
     EXISTS(SELECT 1 FROM ticket_trade."Evento" e JOIN ticket_trade."EstadoEvento" ee USING(id_estado_evento)
-      JOIN ticket_trade."VisibilidadEvento" v USING(id_visibilidad_evento) WHERE e.id_archivo_cartel=a.id_archivo AND ee.nombre='Publicado' AND v.nombre='Público') publico
+      JOIN ticket_trade."VisibilidadEvento" v USING(id_visibilidad_evento) WHERE (e.id_archivo_cartel=a.id_archivo OR EXISTS(SELECT 1 FROM ticket_trade."ItinerarioDia" i WHERE i.id_evento=e.id_evento AND i.id_archivo=a.id_archivo)) AND ee.nombre='Publicado' AND v.nombre='Público') publico
     FROM ticket_trade."Archivo" a JOIN ticket_trade."TipoMime" m USING(id_tipo_mime)
     JOIN infra.archivo_contenido b USING(id_archivo) WHERE a.id_archivo=$1`,
       [id],

@@ -1,3 +1,5 @@
+import {routerEventos} from "./eventos";
+import { encolarAviso } from "../correos/avisos";
 import { comprobarArchivo } from "../archivos/rutas";
 import crypto from "node:crypto";
 import { fallo, idEntero, ruta, texto } from "../../comun/http";
@@ -10,6 +12,7 @@ routerOrganizacion.use(exigirSesion);
 routerOrganizacion.use((req, res, next) =>
   req.method === "GET" ? next() : origenSeguro(req, res, next),
 );
+routerOrganizacion.use(routerEventos);
 const esRevision = (u: any) =>
   u.roles.includes("subdireccion") || u.roles.includes("admin");
 const error = (res: any, codigo: string, mensaje: string, estado = 422) =>
@@ -159,6 +162,16 @@ routerOrganizacion.post("/solicitudes", async (req, res, next) => {
           enviar,
         ],
       );
+      if (enviar)
+        await encolarAviso(
+          c,
+          u.id,
+          "solicitud-recibida:" + r.rows[0].id,
+          "Recibimos tu solicitud de evento",
+          b.tituloEvento +
+            " está en revisión. Recibir la solicitud no reserva por sí mismo el recinto ni autoriza el evento.",
+          "/organizador/solicitudes/" + r.rows[0].id,
+        );
       return { id: r.rows[0].id, idEvento: id };
     });
     res.status(201).json({ datos: resultado });
@@ -251,6 +264,22 @@ routerOrganizacion.post(
         await c.query(
           `UPDATE ticket_trade."SolicitudEvento" SET id_estado_solicitud_evento=(SELECT id_estado_solicitud_evento FROM ticket_trade."EstadoSolicitudEvento" WHERE nombre=$2) WHERE id_solicitud_evento=$1`,
           [req.params.id, estados[decision]],
+        );
+        const e = (
+          await c.query(
+            'SELECT id_cuenta_organizadora::text titular,titulo FROM ticket_trade."Evento" WHERE id_evento=$1',
+            [s.id_evento],
+          )
+        ).rows[0];
+        await encolarAviso(
+          c,
+          e.titular,
+          "solicitud-resuelta:" + req.params.id + ":" + version,
+          "Solicitud de evento: " + estados[decision],
+          e.titulo +
+            ". " +
+            (mensaje || "Consulta la resolución en tu solicitud."),
+          "/organizador/solicitudes/" + req.params.id,
         );
       });
       res.json({ datos: { exito: true } });
@@ -384,6 +413,15 @@ routerOrganizacion.patch(
           b.enviar === true,
         ],
       );
+      if (b.enviar)
+        await encolarAviso(
+          c,
+          res.locals.usuario.id,
+          "solicitud-reenviada:" + id + ":" + (s.version_edicion + 1),
+          "Recibimos tu solicitud de evento",
+          "Tu solicitud fue enviada a revisión. Consulta su estado y las observaciones desde el detalle.",
+          "/organizador/solicitudes/" + id,
+        );
     });
     res.json({ datos: { exito: true } });
   }),
@@ -402,6 +440,14 @@ routerOrganizacion.post(
       );
       if (!r.rowCount)
         fallo("La solicitud cambió o no puedes cancelarla.", 409);
+      await encolarAviso(
+        c,
+        res.locals.usuario.id,
+        "solicitud-cancelada:" + req.params.id,
+        "Tu solicitud de evento fue cancelada",
+        "La solicitud ya no seguirá en revisión. Consulta el detalle para verificar su estado.",
+        "/organizador/solicitudes/" + req.params.id,
+      );
     });
     res.json({ datos: { exito: true } });
   }),

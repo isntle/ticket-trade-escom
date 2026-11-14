@@ -36,6 +36,7 @@ try {
   const env = {
     ...process.env,
     TT_API_PRUEBAS: "1",
+    TT_CORREO_ACTIVO: "0",
     TT_BD_DESECHABLE: nombre,
     TT_DEMO: "1",
     TT_MOSTRAR_CODIGOS: "1",
@@ -51,7 +52,9 @@ try {
         "--test",
         "--test-concurrency=1",
         "tests/api-auth.test.ts",
+        "tests/api-correos-postgres.test.ts",
         "tests/api-flujos-postgres.test.ts",
+        "tests/api-eventos-postgres.test.ts",
         "tests/api-demo-aislamiento.test.ts",
       ],
       { env, stdio: "inherit", windowsHide: true },

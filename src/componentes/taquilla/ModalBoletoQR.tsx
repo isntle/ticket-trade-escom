@@ -1,4 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
+import { useAutenticacion } from "../../contextos/AutenticacionContexto";
+import { apiActiva } from "../../servicios/modoDatos";
+import { cabecerasModo, transporteApi } from "../../servicios/http";
 import { Printer } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { VentanaModal } from "../ui/VentanaModal";
@@ -16,7 +19,66 @@ export const ModalBoletoQR: React.FC<PropiedadesModalBoletoQR> = ({
   accesos,
   alCerrar,
 }) => {
+  const [ocupado, setOcupado] = useState(false),
+    [aviso, setAviso] = useState("");
+  const { usuarioActual } = useAutenticacion();
   if (!boleto) return null;
+  const idPase = (boleto as BoletoDigital & { idPase?: string }).idPase;
+  const propio = usuarioActual?.id === boleto.idUsuario;
+  async function accionCorreo(pdf = false, consultar = false) {
+    if (ocupado || !idPase) return;
+    setOcupado(true);
+    setAviso("");
+    try {
+      if (consultar) {
+        const r = await transporteApi()<{ estado: string }>(
+          "/taquilla/pases/" + idPase + "/correo",
+        );
+        const textos: Record<string, string> = {
+          pendiente: "Envío pendiente.",
+          enviando: "El servidor está procesando el envío.",
+          aceptado:
+            "Aceptado por el proveedor; revisa también la carpeta de spam.",
+          incierto:
+            "El resultado requiere revisión; no se reintentará automáticamente.",
+          fallido:
+            "El proveedor rechazó el envío. Contacta al responsable antes de reenviar.",
+          omitido: "El envío ya no corresponde a datos vigentes.",
+          sin_envio: "Todavía no hay un envío.",
+          no_configurado: "El correo no está configurado.",
+        };
+        setAviso(textos[r.estado] || "No se pudo determinar el estado.");
+      } else if (pdf) {
+        const res = await fetch("/api/taquilla/pases/" + idPase + "/pdf", {
+          credentials: "same-origin",
+          headers: cabecerasModo(),
+        });
+        if (!res.ok) {
+          const e = await res.json();
+          throw Error(e.error?.mensaje || "No se pudo descargar el boleto.");
+        }
+        const url = URL.createObjectURL(await res.blob());
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "boleto-tickettrade.pdf";
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setAviso("PDF descargado. La validez se consulta en el servidor.");
+      } else {
+        const r = await transporteApi()<{ mensaje: string }>(
+          "/taquilla/pases/" + idPase + "/correo",
+          { metodo: "POST", datos: {} },
+        );
+        setAviso(r.mensaje);
+      }
+    } catch (e) {
+      setAviso(
+        e instanceof Error ? e.message : "No se pudo completar la operación.",
+      );
+    } finally {
+      setOcupado(false);
+    }
+  }
   const actividades = accesos || [boleto];
   const vigente = actividades.some((a) =>
     "entradaPendiente" in a ? a.entradaPendiente : a.estado === "valido",
@@ -92,6 +154,36 @@ export const ModalBoletoQR: React.FC<PropiedadesModalBoletoQR> = ({
             </li>
           ))}
         </ul>
+        {idPase && propio && apiActiva && (
+          <div className="flex flex-wrap gap-3">
+            <button
+              disabled={ocupado}
+              className="rounded-xl bg-[#7a132b] px-4 py-3 text-white disabled:opacity-50"
+              onClick={() => void accionCorreo(true)}
+            >
+              Descargar PDF
+            </button>
+            <button
+              disabled={ocupado}
+              className="rounded-xl border px-4 py-3 disabled:opacity-50"
+              onClick={() => void accionCorreo()}
+            >
+              Enviar a mi correo
+            </button>
+            <button
+              disabled={ocupado}
+              className="rounded-xl border px-4 py-3 disabled:opacity-50"
+              onClick={() => void accionCorreo(false, true)}
+            >
+              Consultar envío
+            </button>
+          </div>
+        )}
+        {aviso && (
+          <p role="status" className="text-sm">
+            {aviso}
+          </p>
+        )}
         <div className="flex flex-wrap gap-3">
           <button
             type="button"

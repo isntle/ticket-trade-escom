@@ -267,6 +267,8 @@ export type CategoriaEvento =
 
 // Entidad Principal de Evento
 export interface Evento {
+  /** Huella opaca del estado persistido para evitar sobrescrituras concurrentes. */
+  versionServidor?: string;
   itinerarios?: ItinerarioDia[];
   esDemostracion?: boolean;
   limitesAprobados?: { numeroFechas:number; duracionMinutos:number };

@@ -1,5 +1,9 @@
+import {liberarApartadosVencidos} from "../../bd/apartados";
+import { encolarAviso } from "../correos/avisos";
 import { Router } from "express";
 import crypto from "node:crypto";
+import { encolarCorreo, correoHabilitado } from "../correos/servicio";
+import { generarPdfBoleto, leerBoleto } from "../correos/boleto";
 import type { PoolClient } from "pg";
 import { conTransaccion, pool } from "../../bd/pool";
 import { exigirSesion } from "../identidad/auth";
@@ -10,17 +14,7 @@ export const routerTaquilla = Router();
 routerTaquilla.use((req, res, next) =>
   req.method === "GET" ? next() : origenSeguro(req, res, next),
 );
-async function bloquear(c: PoolClient) {
-  await c.query("SELECT pg_advisory_xact_lock(744220261107::bigint)");
-  const vencidos =
-    await c.query(`UPDATE ticket_trade."Apartado" SET id_estado_apartado=(SELECT id_estado_apartado FROM ticket_trade."EstadoApartado" WHERE nombre='Vencido')
-    WHERE id_estado_apartado=(SELECT id_estado_apartado FROM ticket_trade."EstadoApartado" WHERE nombre='Vigente') AND creado_en+interval '2 minutes'<=clock_timestamp() RETURNING id_compromiso_cupo`);
-  if (vencidos.rowCount)
-    await c.query(
-      `UPDATE ticket_trade."CompromisoCupo" SET id_estado_compromiso_cupo=(SELECT id_estado_compromiso_cupo FROM ticket_trade."EstadoCompromisoCupo" WHERE nombre='Liberado') WHERE id_compromiso_cupo=ANY($1::bigint[])`,
-      [vencidos.rows.map((r) => r.id_compromiso_cupo)],
-    );
-}
+const bloquear=liberarApartadosVencidos;
 async function actividad(c: PoolClient, id: string) {
   const r = await c.query(
     `SELECT a.*,a.id_evento::text evento,ta.nombre acceso,ea.nombre estado,ee.nombre estado_evento,v.nombre visibilidad,e.token_enlace_privado,
@@ -202,7 +196,13 @@ routerTaquilla.post(
       VALUES($1,$2,clock_timestamp(),(SELECT id_estado_reservacion FROM ticket_trade."EstadoReservacion" WHERE nombre='Confirmada')) RETURNING id_reservacion::text id`,
         [pase.id, id],
       );
-      return { id: r.rows[0].id, idPase: pase.id };
+      const correoPendiente = await encolarCorreo(
+        c,
+        u.id,
+        "reserva:" + r.rows[0].id,
+        { tipo: "boleto", idPase: pase.id },
+      );
+      return { id: r.rows[0].id, idPase: pase.id, correoPendiente };
     });
     res.status(201).json({ datos: resultado });
   }),
@@ -243,6 +243,14 @@ routerTaquilla.post(
       await c.query(
         `UPDATE ticket_trade."CompromisoCupo" SET id_estado_compromiso_cupo=(SELECT id_estado_compromiso_cupo FROM ticket_trade."EstadoCompromisoCupo" WHERE nombre='Liberado') WHERE id_compromiso_cupo=$1`,
         [r.rows[0].cupo],
+      );
+      await encolarAviso(
+        c,
+        res.locals.usuario.id,
+        "reserva-cancelada:" + req.params.id,
+        "Tu reservación fue cancelada",
+        `Cancelaste tu reservación para ${a.nombre} (${a.fecha}). Las demás actividades de tu pase conservan su estado. Consulta el detalle y el boleto actualizado.`,
+        "/mis-reservaciones",
       );
     });
     res.json({ datos: { exito: true } });
@@ -319,5 +327,74 @@ routerTaquilla.post(
       };
     });
     res.json({ datos: resultado });
+  }),
+);
+
+routerTaquilla.get(
+  "/pases/:id/pdf",
+  exigirSesion,
+  ruta(async (req, res) => {
+    const b = await conTransaccion((c) =>
+      leerBoleto(c, idEntero(req.params.id), res.locals.usuario.id),
+    );
+    const { pdf } = await generarPdfBoleto(b);
+    res
+      .set({
+        "Content-Type": "application/pdf",
+        "Cache-Control": "no-store",
+        "Content-Disposition": 'attachment; filename="boleto-tickettrade.pdf"',
+      })
+      .send(pdf);
+  }),
+);
+routerTaquilla.post(
+  "/pases/:id/correo",
+  exigirSesion,
+  ruta(async (req, res) => {
+    if (!correoHabilitado())
+      fallo("El envío de correos no está configurado.", 503);
+    const id = idEntero(req.params.id),
+      cuenta = res.locals.usuario.id;
+    const resultado = await conTransaccion(async (c) => {
+      await c.query("SELECT pg_advisory_xact_lock($1::bigint)", [cuenta]);
+      await leerBoleto(c, id, cuenta);
+      const reciente = (
+        await c.query(
+          `SELECT 1 FROM infra.correo_salida WHERE id_cuenta=$1 AND clave LIKE $2 AND creada_en>now()-interval '1 minute'`,
+          [cuenta, "reenvio:" + id + ":%"],
+        )
+      ).rowCount;
+      if (reciente) fallo("Espera un minuto antes de reenviar.", 429);
+      await encolarCorreo(
+        c,
+        cuenta,
+        "reenvio:" + id + ":" + crypto.randomUUID(),
+        { tipo: "boleto", idPase: id },
+      );
+      return {
+        exito: true,
+        mensaje: "El envío quedó pendiente; esto no confirma recepción.",
+      };
+    });
+    res.status(202).json({ datos: resultado });
+  }),
+);
+
+routerTaquilla.get(
+  "/pases/:id/correo",
+  exigirSesion,
+  ruta(async (req, res) => {
+    const id = idEntero(req.params.id),
+      cuenta = res.locals.usuario.id;
+    await conTransaccion((c) => leerBoleto(c, id, cuenta));
+    const r = await pool.query(
+      `SELECT estado,actualizada_en FROM infra.correo_salida WHERE id_cuenta=$1 AND id_pase=$2 ORDER BY creada_en DESC LIMIT 1`,
+      [cuenta, id],
+    );
+    res.set("Cache-Control", "no-store").json({
+      datos: r.rows[0] || {
+        estado: correoHabilitado() ? "sin_envio" : "no_configurado",
+      },
+    });
   }),
 );

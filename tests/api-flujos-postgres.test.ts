@@ -7,8 +7,14 @@ test(
   "PostgreSQL: registro, tokens, PDF privado, revisión, cartel, solicitud, cupo concurrente y persistencia",
   { skip: !process.env.TT_API_PRUEBAS },
   async (t) => {
+    process.env.TT_CORREO_ACTIVO = "1";
+    process.env.TT_CORREO_CLAVE = (await import("node:crypto"))
+      .randomBytes(32)
+      .toString("base64");
     const { app } = await import("../backend/app");
     const { pool } = await import("../backend/bd/pool");
+    const inicioCorreos = (await pool.query("SELECT clock_timestamp() fecha"))
+      .rows[0].fecha;
     const bd = (await pool.query("SELECT current_database() n")).rows[0].n;
     assert.ok(
       /^tt_pruebas_[a-f0-9]{16}$/.test(bd) &&
@@ -510,8 +516,14 @@ test(
     hora_inicio=time '12:00',hora_fin=time '13:00' WHERE id_actividad=$1`,
       [actividad],
     );
-    const instanteIngreso = (await pool.query(`SELECT (CURRENT_DATE+time '12:15') AT TIME ZONE 'America/Mexico_City' instante`)).rows[0].instante;
-    const relojIngreso = t.mock.method(Date, 'now', () => new Date(instanteIngreso).getTime());
+    const instanteIngreso = (
+      await pool.query(
+        `SELECT (CURRENT_DATE+time '12:15') AT TIME ZONE 'America/Mexico_City' instante`,
+      )
+    ).rows[0].instante;
+    const relojIngreso = t.mock.method(Date, "now", () =>
+      new Date(instanteIngreso).getTime(),
+    );
     await ok(
       await pedir(
         "/api/taquilla/checkin",
@@ -565,5 +577,31 @@ test(
     );
     await entrar(cuerpo.correo, "NuevaClave-8395");
     await pool.query("SELECT ticket_trade.validar_integridad()");
+
+    const { descifrar } = await import("../backend/modulos/correos/seguridad");
+    const trabajos = (
+      await pool.query(
+        "SELECT contenido FROM infra.correo_salida WHERE creada_en >= $1",
+        [inicioCorreos],
+      )
+    ).rows.map((x) => descifrar(x.contenido));
+    assert.ok(
+      trabajos.some((x) => x.tipo === "token"),
+      "Registro/recuperación dejan trabajo persistido",
+    );
+    assert.ok(
+      trabajos.some((x) => x.tipo === "boleto"),
+      "La confirmación de reserva encola el pase",
+    );
+    assert.ok(
+      trabajos.some(
+        (x) => x.titulo === "Recibimos tu solicitud de verificación",
+      ),
+      "El expediente registra aviso",
+    );
+    assert.ok(
+      trabajos.some((x) => x.titulo?.includes("Solicitud de evento:")),
+      "El dictamen registra aviso",
+    );
   },
 );

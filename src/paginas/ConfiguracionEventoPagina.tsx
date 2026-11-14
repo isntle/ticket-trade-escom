@@ -1,3 +1,5 @@
+import {apiActiva} from "../servicios/modoDatos";
+import {NuevaActividadEvento} from "../componentes/eventos/NuevaActividadEvento";
 import { CambioRecintoActividad } from "../componentes/recintos/CambioRecintoActividad";
 import { trasladarPrograma } from "../dominio/cambiosEvento";
 import { EditorItinerarios, VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
@@ -60,6 +62,9 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   const { listaEventos, listaRecintos, listaArreglos, listaReservaciones, listaBoletos, cancelarUnidadEvento, bitacoraEscaneos, obtenerListaDeVerificacion, publicarEvento, actualizarEvento, eliminarFechaEvento, verificarDisponibilidadRecinto, cancelarReservacionPorEvento } = useDatos();
   const { mostrarNotificacion } = useNotificaciones();
   const { usuarioActual, rolActivo, todosLosUsuarios } = useAutenticacion();
+  const bloqueoGuardado=React.useRef(false);
+  const [guardando,setGuardando]=React.useState(false);
+  const guardar=async(accion:()=>unknown)=>{if(bloqueoGuardado.current)return;bloqueoGuardado.current=true;setGuardando(true);try{await accion();}catch{mostrarNotificacion('No se pudo guardar','Revisa la conexión y vuelve a consultar el evento antes de intentarlo otra vez.','error');}finally{bloqueoGuardado.current=false;setGuardando(false);}};
   const [propuestaEdicion, setPropuestaEdicion] = React.useState<PropuestaEdicionEvento | null>(null);
   const [urlBannerPropuesto, setUrlBannerPropuesto] = React.useState<string | undefined>();
   const [errorBanner, setErrorBanner] = React.useState('');
@@ -106,7 +111,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
 
   const puedeGestionar = !!usuarioActual?.estaActivo && (evento.idOrganizador === usuarioActual.id || (rolActivo === 'subdireccion' && usuarioActual.roles.includes('subdireccion')));
 
-  const confirmarEdicionEvento = () => {
+  const confirmarEdicionEvento = async () => {
     if (!evento || !propuestaEdicion || !usuarioActual) return;
     if (JSON.stringify(evento) !== propuestaEdicion.versionOriginal) {
       mostrarNotificacion('El evento cambió', 'Vuelve a revisar los cambios antes de confirmar para no sobrescribir otra modificación.', 'advertencia');
@@ -164,7 +169,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       detalleAnterior: JSON.stringify({ ...anterior, itinerarios:evento.itinerarios, actividades:evento.fechas, programas: evento.fechas.map(dia => ({ id: dia.id, programa: dia.programa })) }, null, 2),
       detalleNuevo: JSON.stringify({ ...valoresNuevos, itinerarios, actividades:propuestaEdicion.fechas, programas: propuestaEdicion.fechas.map(dia => ({ id: dia.id, programa: dia.programa })) }, null, 2),
     }];
-    const resultado = actualizarEvento(evento.id, { ...valoresNuevos, fechas: propuestaEdicion.fechas, itinerarios, historialCambios }, propuestaEdicion.versionOriginal);
+    const resultado = await actualizarEvento(evento.id, { ...valoresNuevos, fechas: propuestaEdicion.fechas, itinerarios, historialCambios }, propuestaEdicion.versionOriginal);
     if (!resultado.exito) {
       mostrarNotificacion('No se pudo guardar', resultado.error || 'Tus cambios siguen en el formulario.', 'error');
       return;
@@ -183,8 +188,8 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     return r ? r.nombre : 'Recinto no asignado';
   };
 
-  const manejarPublicar = () => {
-    const res = publicarEvento(evento.id);
+  const manejarPublicar = async () => {
+    const res = await publicarEvento(evento.id);
     if (res.exito) {
       mostrarNotificacion(
         '¡Evento publicado oficialmente!',
@@ -203,7 +208,8 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     if (!ventana) { mostrarNotificacion('Ventana bloqueada', 'Permite ventanas emergentes para imprimir la constancia operativa.', 'advertencia'); return; }
     ventana.opener = null;
     const filas = evento.fechas.map((dia, indice) => `<tr><td>Día ${indice + 1}</td><td>${escapar(dia.fecha)}</td><td>${escapar(dia.horaInicio)}–${escapar(dia.horaFin)}</td><td>${escapar(obtenerNombreRecinto(dia.idRecinto))}</td><td>${dia.cancelada ? 'Cancelado' : 'Programado'}</td></tr>`).join('');
-    ventana.document.write(`<!doctype html><html lang="es"><meta charset="utf-8"><title>Constancia operativa · ${escapar(evento.titulo)}</title><style>body{font:14px Arial,sans-serif;margin:48px;color:#222}h1{font-size:24px}p{line-height:1.5}.folio{font-family:monospace;color:#555}table{border-collapse:collapse;width:100%;margin-top:24px}td,th{border:1px solid #bbb;padding:10px;text-align:left}th{background:#f3f3f3}.nota{margin-top:32px;color:#666;font-size:11px}@media print{body{margin:20mm}}</style><h1>Constancia operativa del evento</h1><p class="folio">Folio local: ${escapar(evento.id)} · Estado: ${escapar(evento.estado)}</p><h2>${escapar(evento.titulo)}</h2><p>${escapar(evento.descripcion)}</p><p>Organiza: ${escapar(evento.nombreOrganizador)} · Modalidad: ${escapar(evento.modalidadAsistencia)}</p><table><thead><tr><th>Día</th><th>Fecha</th><th>Horario</th><th>Recinto</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table><p class="nota">Documento de consulta generado desde los datos locales de Ticket Trade.</p></html>`);
+    ventana.document.write(`<!doctype html><html lang="es"><meta charset="utf-8"><title>Constancia operativa · ${escapar(evento.titulo)}</title><style>body{font:14px Arial,sans-serif;margin:48px;color:#222}h1{font-size:24px}p{line-height:1.5}.folio{font-family:monospace;color:#555}table{border-collapse:collapse;width:100%;margin-top:24px}td,th{border:1px solid #bbb;padding:10px;text-align:left}th{background:#f3f3f3}.nota{margin-top:32px;color:#666;font-size:11px}@media print{body{margin:20mm}}</style><h1>Constancia operativa del evento</h1>
+        {puedeGestionar && rolActivo==='subdireccion' && evento.estado!=='cancelado' && <NuevaActividadEvento evento={evento}/>}<p class="folio">Folio local: ${escapar(evento.id)} · Estado: ${escapar(evento.estado)}</p><h2>${escapar(evento.titulo)}</h2><p>${escapar(evento.descripcion)}</p><p>Organiza: ${escapar(evento.nombreOrganizador)} · Modalidad: ${escapar(evento.modalidadAsistencia)}</p><table><thead><tr><th>Día</th><th>Fecha</th><th>Horario</th><th>Recinto</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table><p class="nota">Documento de consulta generado desde los datos locales de Ticket Trade.</p></html>`);
     ventana.document.close();
     ventana.focus();
     ventana.print();
@@ -251,7 +257,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     const motivoCambio = String(datos.get('motivoCambio') || '').trim();
     if (!motivoCambio?.trim()) { mostrarNotificacion('Cambio cancelado', 'Se requiere un motivo para registrar la modificación.', 'advertencia'); return; }
     const fechaNueva = { ...fechaActual, programa, fecha, horaInicio, horaFin, idRecinto, suspendida:false, idBloqueoSuspension:undefined, ...(idRecinto!==fechaActual.idRecinto?{idArregloFinal:undefined,esFinalConfirmado:false}:{}) };
-    const registrarCambioFecha = (historialExcepcionesAnticipacion = evento.historialExcepcionesAnticipacion) => {
+    const registrarCambioFecha = async (historialExcepcionesAnticipacion = evento.historialExcepcionesAnticipacion) => {
       const historialCambios = [...(evento.historialCambios || []), {
         version: (evento.historialCambios?.length || 0) + 1,
         fecha: new Date().toISOString(),
@@ -277,16 +283,16 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       }
       const motivo = String(datos.get('motivoExcepcion') || '').trim();
       if (!motivo?.trim()) { mostrarNotificacion('Excepción cancelada', 'Se requiere una justificación para aplicar el cambio urgente.', 'advertencia'); return; }
-      revisar(() => {
-      const resultado = registrarCambioFecha([...(evento.historialExcepcionesAnticipacion || []), { idFechaEvento: idFecha, fechaAplicacion: new Date().toISOString(), motivo: motivo.trim(), responsable: usuarioActual?.nombre || 'Subdirección' }]);
+      revisar(async () => {
+      const resultado = await registrarCambioFecha([...(evento.historialExcepcionesAnticipacion || []), { idFechaEvento: idFecha, fechaAplicacion: new Date().toISOString(), motivo: motivo.trim(), responsable: usuarioActual?.nombre || 'Subdirección' }]);
       if (!resultado.exito) { mostrarNotificacion('No se pudo reprogramar', resultado.error || 'Revisa los datos e inténtalo nuevamente.', 'error'); return; }
       mostrarNotificacion('Excepción aplicada', 'La justificación quedó registrada en la bitácora del evento.', 'informacion');
       setReprogramacion(null);
       });
       return;
     }
-    revisar(() => {
-    const resultado = registrarCambioFecha();
+    revisar(async () => {
+    const resultado = await registrarCambioFecha();
     if (!resultado.exito) { mostrarNotificacion('No se pudo reprogramar', resultado.error || 'Revisa los datos e inténtalo nuevamente.', 'error'); return; }
     mostrarNotificacion('Programación actualizada', `Cambio registrado como versión ${(evento.historialCambios?.length || 0) + 1}.`, 'exito');
     setReprogramacion(null);
@@ -297,10 +303,10 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     setMotivoCancelacion('');
     setCancelacion({idFecha, retirar, version:JSON.stringify(evento)});
   };
-  const ejecutarCancelacion = () => {
+  const ejecutarCancelacion = async () => {
     if (!cancelacion || !motivoCancelacion.trim()) return;
-    const resultado = cancelarUnidadEvento(evento.id, cancelacion.idFecha, motivoCancelacion, cancelacion.retirar, cancelacion.version);
-    mostrarNotificacion(resultado.exito ? 'Operación registrada' : 'Operación no realizada', resultado.exito ? 'Los cambios quedaron guardados conjuntamente. El correo real no está configurado.' : resultado.error || '', resultado.exito ? 'exito' : 'error');
+    const resultado = await cancelarUnidadEvento(evento.id, cancelacion.idFecha, motivoCancelacion, cancelacion.retirar, cancelacion.version);
+    mostrarNotificacion(resultado.exito ? 'Operación registrada' : 'Operación no realizada', resultado.exito ? 'Los cambios quedaron guardados. Los avisos se procesan según la configuración de correo del entorno.' : resultado.error || '', resultado.exito ? 'exito' : 'error');
     if (resultado.exito) setCancelacion(null);
   };
   const retirarDia=(id:string)=>confirmarCancelacion(id,true);
@@ -316,7 +322,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
           <div className="grid gap-3 sm:grid-cols-2">{[{titulo:'Programación actual',actividad:reprogramacion.anterior},{titulo:'Nueva programación',actividad:reprogramacion.nueva}].map(({titulo,actividad})=><div key={titulo} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><p className="font-semibold">{titulo}</p><p>{actividad.fecha} · {actividad.horaInicio}–{actividad.horaFin}</p><p>{obtenerNombreRecinto(actividad.idRecinto)}</p></div>)}</div>
           {reprogramacion.nueva.programa?.length && reprogramacion.nueva.horaInicio!==reprogramacion.anterior.horaInicio ? <details className="rounded-xl border border-neutral-200 p-4"><summary className="cursor-pointer font-semibold">Programa ajustado al nuevo inicio</summary><p className="my-2 text-sm text-neutral-500">Se conservan los intervalos y la duración de las actividades del programa.</p><ProgramaDia programa={reprogramacion.nueva.programa}/></details>:null}
           <p className="rounded-xl bg-sky-50 p-4 text-sm text-sky-900">Los boletos vigentes conservarán su código QR y mostrarán la nueva programación. Las demás actividades conservarán sus reservas. Este cambio no envía correos.</p>
-          <div className="flex gap-3"><button type="button" onClick={()=>setReprogramacion(null)} className="rounded-lg border border-neutral-200 px-4 py-2">Seguir editando</button><button type="button" onClick={()=>reprogramacion.confirmar()} className="rounded-lg bg-sky-700 px-4 py-2 font-semibold text-white">Confirmar cambio</button></div>
+          <div className="flex gap-3"><button type="button" onClick={()=>setReprogramacion(null)} className="rounded-lg border border-neutral-200 px-4 py-2">Seguir editando</button><button type="button" disabled={guardando} aria-busy={guardando} onClick={()=>guardar(reprogramacion.confirmar)} className="rounded-lg bg-sky-700 px-4 py-2 font-semibold text-white">Confirmar cambio</button></div>
         </div>}
       </VentanaModal>
       <VentanaModal estaAbierto={verConstancia} alCerrar={() => setVerConstancia(false)} titulo="Constancia operativa del evento" anchoMaximo="4xl">
@@ -325,14 +331,14 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         <ul className="my-5 space-y-3">{evento.fechas.map((dia,i) => <li className="rounded-lg border p-3" key={dia.id}><strong>Día {i+1} · {dia.fecha}</strong><p>{dia.horaInicio}–{dia.horaFin} · {obtenerNombreRecinto(dia.idRecinto)}</p><p>{dia.cancelada?'Cancelado':dia.suspendida?'Pendiente de reprogramación':'Programado'}</p></li>)}</ul>
         <button type="button" onClick={imprimirConstancia} className="rounded-lg border px-4 py-2">Imprimir constancia operativa</button>
       </VentanaModal>
-      <VentanaModal estaAbierto={Boolean(cancelacion)} alCerrar={() => setCancelacion(null)} titulo={cancelacion?.retirar ? 'Retirar día' : 'Confirmar cancelación'}>
-        <form onSubmit={e => {e.preventDefault(); ejecutarCancelacion();}} className="space-y-4">
+      <VentanaModal estaAbierto={Boolean(cancelacion)} alCerrar={() => setCancelacion(null)} titulo={cancelacion?.retirar ? 'Retirar actividad' : 'Confirmar cancelación'}>
+        <form onSubmit={e => {e.preventDefault(); void guardar(ejecutarCancelacion);}} className="space-y-4">
           <p>Se conservará el historial. Al cancelar, se invalidarán únicamente los accesos de las actividades seleccionadas.</p>
           {!cancelacion?.retirar && (!cancelacion?.idFecha || evento.fechas.filter(a=>!a.cancelada).every(a=>a.id===cancelacion.idFecha)) && <p className="rounded-xl bg-rose-50 p-3 text-sm text-rose-900">No quedarán actividades vigentes. El evento completo aparecerá como cancelado, conservando su expediente e historial.</p>}
           <ul className="space-y-2">{evento.fechas.filter(actividad=>!actividad.cancelada&&(!cancelacion?.idFecha||actividad.id===cancelacion.idFecha)).map((actividad,indice)=><li key={actividad.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3"><strong>{nombreActividad(actividad,indice)}</strong><p className="text-sm">{actividad.fecha} · {actividad.horaInicio}–{actividad.horaFin} · {obtenerNombreRecinto(actividad.idRecinto)}</p><p className="mt-2 text-sm text-neutral-600">{listaReservaciones.filter(r=>r.idFechaEvento===actividad.id&&r.estado==='confirmada').length} reservaciones confirmadas · {listaBoletos.filter(b=>b.idFechaEvento===actividad.id&&b.estado==='valido').length} boletos vigentes</p></li>)}</ul>
           <p className="text-sm text-neutral-500">Los compromisos se vuelven a comprobar al confirmar. Las demás actividades conservarán sus accesos.</p>
           <label className="block text-sm font-semibold">Motivo de la operación<textarea required value={motivoCancelacion} onChange={e => setMotivoCancelacion(e.target.value)} className="mt-1 w-full rounded-lg border p-3" /></label>
-          <div className="flex gap-3"><button type="button" onClick={() => setCancelacion(null)} className="rounded-lg border px-4 py-2">Volver</button><button type="submit" className="rounded-lg bg-rose-700 px-4 py-2 text-white">Confirmar operación</button></div>
+          <div className="flex gap-3"><button type="button" onClick={() => setCancelacion(null)} className="rounded-lg border px-4 py-2">Volver</button><button type="submit" disabled={guardando} aria-busy={guardando} className="rounded-lg bg-rose-700 px-4 py-2 text-white">Confirmar operación</button></div>
         </form>
       </VentanaModal>
       {/* Botón Volver */}
@@ -395,7 +401,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       }} data-interfaz={casoDocumentado === 'CU-OR-19' ? 'UI.21' : undefined} tabIndex={-1} className="mb-8 grid scroll-mt-24 gap-3 rounded-2xl border border-neutral-200 bg-white p-5 sm:grid-cols-2">
         <div className="sm:col-span-2"><h2 className="font-bold">Editar información del evento aprobado</h2><p className="text-sm text-neutral-500">Revisa título, descripción, cartel y actividades por día. Las fechas, recintos, horarios generales y compromisos vigentes se conservan.</p></div>
         <label className="text-sm font-semibold">Título<input name="titulo" required defaultValue={evento.titulo} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm"/></label>
-        <label className="text-sm font-semibold">Ponentes (opcional, uno por línea)<textarea name="ponentes" defaultValue={evento.ponentes.join('\n')} rows={2} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm"/></label>
+        {!apiActiva && <label className="text-sm font-semibold">Ponentes (opcional, uno por línea)<textarea name="ponentes" defaultValue={evento.ponentes.join('\n')} rows={2} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm"/></label>}
         <label className="text-sm font-semibold sm:col-span-2">Descripción<textarea name="descripcion" required defaultValue={evento.descripcion} rows={3} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm"/></label>
         <div className="sm:col-span-2"><EditorCartel urlImagen={cartelModificado ? urlBannerPropuesto : evento.urlImagen} nombre={nombreBanner}
           alCambiar={(url, nombre) => { setUrlBannerPropuesto(url); setCartelModificado(true); setNombreBanner(nombre); setPropuestaEdicion(null); }}
@@ -415,7 +421,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         {!propuestaEdicion.urlImagen && evento.urlImagen && <p className="mt-3 text-sm">Se quitará el cartel actual.</p>}
         <VistaItinerarios itinerarios={propuestaEdicion.itinerarios} />
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="font-semibold">Título</dt><dd>{evento.titulo} → {propuestaEdicion.titulo}</dd></div><div><dt className="font-semibold">Ponentes</dt><dd>{evento.ponentes.join(', ')} → {propuestaEdicion.ponentes.join(', ')}</dd></div><div className="sm:col-span-2"><dt className="font-semibold">Descripción</dt><dd>{evento.descripcion} → {propuestaEdicion.descripcion}</dd></div>{propuestaEdicion.urlImagen && <div className="sm:col-span-2"><dt className="font-semibold">Banner</dt><dd className="mt-2 grid grid-cols-2 gap-3">{evento.urlImagen && <img src={evento.urlImagen} alt="Banner actual" className="max-h-36 w-full rounded-lg object-cover"/>}<img src={propuestaEdicion.urlImagen} alt="Banner propuesto" className="max-h-36 w-full rounded-lg object-cover"/></dd></div>}</dl>
-        <div className="mt-4 flex gap-2"><button type="button" onClick={confirmarEdicionEvento} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">Confirmar cambios</button><button type="button" onClick={() => { setPropuestaEdicion(null); setNombreBanner(''); setUrlBannerPropuesto(undefined); setCartelModificado(false); setProgramasEditados({}); }} className="rounded-lg border px-4 py-2 text-sm font-bold">Cancelar</button></div>
+        <div className="mt-4 flex gap-2"><button type="button" disabled={guardando} aria-busy={guardando} onClick={()=>guardar(confirmarEdicionEvento)} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">Confirmar cambios</button><button type="button" onClick={() => { setPropuestaEdicion(null); setNombreBanner(''); setUrlBannerPropuesto(undefined); setCartelModificado(false); setProgramasEditados({}); }} className="rounded-lg border px-4 py-2 text-sm font-bold">Cancelar</button></div>
       </section>}
 
       {(evento.historialCambios?.length || 0) > 0 && <section className="mb-8 rounded-2xl border border-neutral-200 bg-white p-5"><h2 className="font-bold">Historial de modificaciones ({evento.historialCambios?.length})</h2><ol className="mt-3 space-y-3 text-sm text-neutral-600">{[...(evento.historialCambios || [])].reverse().map((cambio) => <li key={cambio.version} className="border-t pt-3"><strong>Versión {cambio.version}</strong> · {new Date(cambio.fecha).toLocaleString('es-MX')} · {cambio.responsable}<p className="mt-1">Campos: {cambio.campos.join(', ')}</p>{cambio.motivo && <p className="mt-1"><strong>Motivo:</strong> {cambio.motivo}</p>}{(cambio.detalleAnterior || cambio.detalleNuevo) && <details className="mt-1"><summary className="cursor-pointer font-semibold">Consultar valores antes y después</summary><div className="mt-2 grid gap-2 sm:grid-cols-2"><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Antes: {cambio.detalleAnterior || JSON.stringify(cambio.valoresAnteriores, null, 2)}</pre><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Después: {cambio.detalleNuevo || JSON.stringify(cambio.valoresNuevos, null, 2)}</pre></div></details>}{cambio.resultadoNotificacion && <p role="status" className="mt-2 rounded bg-amber-50 p-2 text-amber-900">Correo no enviado: no hay proveedor de correo configurado. Destinatarios previstos: {cambio.resultadoNotificacion.destinatarios.join(', ') || 'ninguno registrado'}.</p>}</li>)}</ol></section>}
@@ -486,8 +492,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
             <div>
               <button
                 type="button"
-                disabled={!checklist.puedePublicar}
-                onClick={manejarPublicar}
+                disabled={!checklist.puedePublicar || guardando} aria-busy={guardando} onClick={()=>guardar(manejarPublicar)}
                 className={`px-6 py-3 rounded-xl text-sm font-extrabold flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${
                   checklist.puedePublicar
                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-98'

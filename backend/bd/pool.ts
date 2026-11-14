@@ -1,3 +1,4 @@
+import {opcionesTlsPostgres} from "./tls";
 import pg from "pg";
 import "dotenv/config";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -12,6 +13,7 @@ const opciones = {
   idleTimeoutMillis: 30000,
 };
 const real = new pg.Pool({
+  ...opcionesTlsPostgres(process.env.DATABASE_URL),
   ...opciones,
   ...(!esPoolerSupabase(process.env.DATABASE_URL)
     ? {
@@ -27,6 +29,7 @@ const demo = process.env.DATABASE_URL_DEMO
   ? new pg.Pool({
       ...opciones,
       connectionString: process.env.DATABASE_URL_DEMO,
+      ...opcionesTlsPostgres(process.env.DATABASE_URL_DEMO),
       ...(!esPoolerSupabase(process.env.DATABASE_URL_DEMO)
         ? {
             options:

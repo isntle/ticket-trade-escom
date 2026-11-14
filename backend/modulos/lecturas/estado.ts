@@ -22,7 +22,7 @@ export async function leerEstado(u: any) {
     FROM ticket_trade."LugarActividad" la JOIN ticket_trade."LugarRecinto" lr USING(id_lugar_recinto)
     JOIN ticket_trade."Actividad" a USING(id_actividad) JOIN ticket_trade."CategoriaLugarActividad" cl USING(id_categoria_lugar_actividad)
     LEFT JOIN ticket_trade."EstacionComputo" pc USING(id_lugar_recinto) LEFT JOIN ticket_trade."EstadoFuncionamiento" ef USING(id_estado_funcionamiento)
-    WHERE a.id_evento=ANY($1::bigint[]) ORDER BY la.id_actividad,lr.fila,lr.posicion_x,lr.codigo`,
+    WHERE a.id_evento=ANY($1::bigint[]) AND lr.id_recinto=a.id_recinto ORDER BY la.id_actividad,lr.fila,lr.posicion_x,lr.codigo`,
       [ids],
     )
   ).rows;
@@ -56,7 +56,7 @@ export async function leerEstado(u: any) {
               posicionY: l.y,
             };
           });
-        if (lugares.length) {
+        if (e.estado === "publicado" && lugares.filter(l=>!l.estaBloqueado).length >= (f.asistenciaEstimada || 1)) {
           f.esFinalConfirmado = true;
           Object.assign(f, { idArregloFinal: "pg-" + f.id });
         }
@@ -66,7 +66,7 @@ export async function leerEstado(u: any) {
           idRecinto: f.idRecinto,
           nombre: `${e.titulo} · ${f.nombreActividad || f.fecha}`,
           etiquetaVersion: "PostgreSQL",
-          estado: "version_final",
+          estado: f.esFinalConfirmado ? "version_final" : "borrador",
           asientos: lugares,
           totalAsientos: lugares.length,
           asientosAsistente: lugares.filter((l) => l.categoria === "asistente" && !l.estaBloqueado)
@@ -212,6 +212,7 @@ export async function leerEstado(u: any) {
         f = e?.fechas.find((f) => f.id === r.actividad);
       return {
         id: "boleto-" + r.id,
+        idPase: r.pase,
         idReservacion: r.id,
         idEvento: r.evento,
         idFechaEvento: r.actividad,

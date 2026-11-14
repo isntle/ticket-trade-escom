@@ -1,3 +1,4 @@
+import {modoDemostracionActivo} from '../dominio/demostracion';
 import { CATEGORIAS_EVENTO, modalidadActividad } from '../dominio/actividades';
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
@@ -213,7 +214,9 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
         <EstadoVacio
           icono={<Calendar className="w-8 h-8 text-neutral-400" />}
           titulo="Sin eventos próximos"
-          descripcion="Actualmente no hay eventos próximos en la cartelera."
+          descripcion={modoDemostracionActivo()?"Actualmente no hay eventos próximos en este catálogo.":"Aún no se han publicado eventos en este entorno. Puedes consultar el catálogo académico de demostración sin modificar tus registros."}
+          textoAccion={!modoDemostracionActivo()?"Ver eventos de demostración":undefined}
+          alHacerAccion={!modoDemostracionActivo()?()=>window.location.assign("/eventos?demo=1"):undefined}
         />
       ) : eventosFiltrados.length === 0 ? (
         <EstadoVacio

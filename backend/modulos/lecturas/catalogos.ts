@@ -1,3 +1,4 @@
+import {SQL_VERSION_EVENTO} from "../organizacion/version";
 import { pool, modoBaseDatos } from "../../bd/pool";
 export async function leerRecintos() {
   const consulta = `
@@ -45,6 +46,7 @@ export async function leerEventos(usuario: any = null) {
   const consultaEventos = `
       SELECT
         e.id_evento::text AS id,
+        ${SQL_VERSION_EVENTO} AS "versionServidor",
         e.id_cuenta_organizadora::text AS "idOrganizador",
         concat_ws(' ', cu.nombres, cu.primer_apellido) AS "nombreOrganizador",
         e.titulo,
@@ -127,13 +129,17 @@ export async function leerEventos(usuario: any = null) {
   }
 
   // Combinar evento con sus fechas
-  const eventosAdaptados = resEventos.rows.map((e) => {
+  const eventosAdaptados = await Promise.all(resEventos.rows.map(async (e) => {
     const fechas = actividadesPorEvento.get(e.id) || [];
     const visibLower = (e.visibilidad || "").toLowerCase();
     const estadoLower = (e.estado || "").toLowerCase();
 
     return {
       id: e.id,
+      versionServidor: e.versionServidor,
+      solicitudAutorizada: e.estado==='Publicado' || !!(await pool.query(`SELECT 1 FROM ticket_trade."SolicitudEvento" s JOIN ticket_trade."EstadoSolicitudEvento" es USING(id_estado_solicitud_evento) WHERE id_evento=$1 AND es.nombre='Aprobada' LIMIT 1`,[e.id])).rowCount,
+      historialCambios: usuario && (usuario.id===e.idOrganizador || usuario.roles?.includes("subdireccion")) ? (await pool.query(`SELECT mensaje FROM ticket_trade."Notificacion" WHERE tipo='evento_operacion' AND referencia_destino=$1 ORDER BY id_notificacion`,[e.id])).rows.map((r,i)=>({...JSON.parse(r.mensaje),version:i+1})) : [],
+      itinerarios: (await pool.query(`SELECT to_char(i.fecha,'YYYY-MM-DD') fecha,i.id_archivo::text "idArchivo",a.nombre,a.clave_almacenamiento FROM ticket_trade."ItinerarioDia" i JOIN ticket_trade."Archivo" a USING(id_archivo) WHERE i.id_evento=$1 ORDER BY i.fecha`,[e.id])).rows.map(i=>({fecha:i.fecha,nombreArchivo:i.nombre,urlImagen:i.clave_almacenamiento?.startsWith('/imagenes/eventos/')?i.clave_almacenamiento:`/api/archivos/${i.idArchivo}${modoBaseDatos()==='demo'?'?demo=1':''}`})),
       idOrganizador: e.idOrganizador,
       nombreOrganizador: e.nombreOrganizador,
       titulo: e.titulo,
@@ -160,7 +166,7 @@ export async function leerEventos(usuario: any = null) {
       // El aforo es por actividad; no se inventa un aforo global sumando recintos.
       inscripcionesAbiertas: true,
     };
-  });
+  }));
 
   return eventosAdaptados;
 }

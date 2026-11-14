@@ -1,3 +1,4 @@
+import {opcionesTlsPostgres} from "../bd/tls";
 import { destinoBaseDatos, esPoolerSupabase } from "../bd/destino";
 import "dotenv/config";
 import pg from "pg";
@@ -12,7 +13,7 @@ const raiz = fileURLToPath(new URL("../../", import.meta.url));
 const carpeta = path.join(raiz, "base-de-datos/postgresql");
 export const opciones = () =>
   process.env.DATABASE_URL
-    ? { connectionString: process.env.DATABASE_URL }
+    ? { connectionString: process.env.DATABASE_URL, ...opcionesTlsPostgres(process.env.DATABASE_URL) }
     : {};
 export async function ejecutarSql(c: pg.Pool | pg.Client, nombre: string) {
   const sql = (await fs.readFile(path.join(carpeta, nombre), "utf8")).replace(
@@ -30,6 +31,7 @@ export async function instalar(c: pg.Pool | pg.Client) {
   await ejecutarSql(c, "migraciones/07_sesiones_http.sql");
   await ejecutarSql(c, "migraciones/10_archivos_servidor.sql");
   await ejecutarSql(c, "migraciones/13_preferencias_perfil.sql");
+  await ejecutarSql(c, "migraciones/15_correo_salida.sql");
 }
 export async function verificarModelo(c: pg.Pool | pg.Client) {
   const modelo = JSON.parse(
@@ -308,7 +310,7 @@ if (
     throw new Error("La base demo debe ser distinta de la normal.");
   const cliente = new pg.Client({
     ...(esDemo
-      ? { connectionString: process.env.DATABASE_URL_DEMO }
+      ? { connectionString: process.env.DATABASE_URL_DEMO, ...opcionesTlsPostgres(process.env.DATABASE_URL_DEMO) }
       : opciones()),
     ...(!esPoolerSupabase(
       esDemo ? process.env.DATABASE_URL_DEMO : process.env.DATABASE_URL,

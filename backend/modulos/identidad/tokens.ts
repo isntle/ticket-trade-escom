@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { encolarCorreo } from "../correos/servicio";
 import type { PoolClient } from "pg";
 import { huella } from "../../comun/seguridad";
 import { mostrarCodigos, fallo } from "../../comun/http";
@@ -21,6 +22,12 @@ export async function crearToken(
     CURRENT_TIMESTAMP+CASE WHEN $2='Recuperación de contraseña' THEN interval '30 minutes' ELSE interval '24 hours' END)`,
     [id, proposito, huella(token), correo],
   );
+  await encolarCorreo(c, id, "token:" + huella(token), {
+    tipo: "token",
+    token,
+    correo,
+    proposito,
+  });
   return mostrarCodigos() ? token : undefined;
 }
 export async function consumirToken(
