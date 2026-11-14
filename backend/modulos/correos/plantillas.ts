@@ -1,6 +1,6 @@
-import {fechaBoleto, estadoBoleto} from "./presentacion";
-import { escapar as e } from "./seguridad";
-import type { DatosBoleto } from "./boleto";
+import {fechaBoleto, estadoBoleto} from "./presentacion.js";
+import { escapar as e } from "./seguridad.js";
+import type { DatosBoleto } from "./boleto.js";
 type Mensaje = { subject: string; html: string; text: string };
 function marco(
   pre: string,

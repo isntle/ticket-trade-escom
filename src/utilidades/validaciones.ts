@@ -1,5 +1,5 @@
-import { TipoAfiliacion, RolUsuario, PermisosPorRol } from '../tipos';
-import { boletaIdentidadValida } from '../dominio/identidad';
+import { TipoAfiliacion, RolUsuario, PermisosPorRol } from '../tipos/index.js';
+import { boletaIdentidadValida } from '../dominio/identidad.js';
 
 /**
  * Validaciones institucionales ESCOM — IPN

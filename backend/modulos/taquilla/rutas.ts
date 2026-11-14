@@ -1,14 +1,14 @@
-import {liberarApartadosVencidos} from "../../bd/apartados";
-import { encolarAviso } from "../correos/avisos";
+import {liberarApartadosVencidos} from "../../bd/apartados.js";
+import { encolarAviso } from "../correos/avisos.js";
 import { Router } from "express";
 import crypto from "node:crypto";
-import { encolarCorreo, correoHabilitado } from "../correos/servicio";
-import { generarPdfBoleto, leerBoleto } from "../correos/boleto";
+import { encolarCorreo, correoHabilitado } from "../correos/servicio.js";
+import { generarPdfBoleto, leerBoleto } from "../correos/boleto.js";
 import type { PoolClient } from "pg";
-import { conTransaccion, pool } from "../../bd/pool";
-import { exigirSesion } from "../identidad/auth";
-import { origenSeguro } from "../../comun/seguridad";
-import { fallo, ruta, idEntero, texto } from "../../comun/http";
+import { conTransaccion, pool } from "../../bd/pool.js";
+import { exigirSesion } from "../identidad/auth.js";
+import { origenSeguro } from "../../comun/seguridad.js";
+import { fallo, ruta, idEntero, texto } from "../../comun/http.js";
 
 export const routerTaquilla = Router();
 routerTaquilla.use((req, res, next) =>

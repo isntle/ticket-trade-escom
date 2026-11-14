@@ -1,10 +1,10 @@
 import type {
   ArregloAsientos, BloqueoRecinto, BoletoDigital, EntradaListaEspera, EstadoInscripciones,
   Evento, FechaEvento, Recinto, RegistroEscaneo, RegistroIntencionAsistencia, Reservacion, Usuario
-} from '../tipos';
-import { modalidadActividad, nombreActividad } from './actividades';
-import { afectaBloqueo } from './bloqueos';
-import { inicioEnMexico, ZONA_HORARIA } from './solicitudes';
+} from '../tipos/index.js';
+import { modalidadActividad, nombreActividad } from './actividades.js';
+import { afectaBloqueo } from './bloqueos.js';
+import { inicioEnMexico, ZONA_HORARIA } from './solicitudes.js';
 
 /** Las fechas de formulario sin offset se interpretan en la hora institucional. */
 export function instanteInstitucional(valor: string): number {

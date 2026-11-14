@@ -1,5 +1,5 @@
-import type { ArregloAsientos, Evento } from '../tipos';
-import { generarAsientosAuditorio } from './datosIniciales';
+import type { ArregloAsientos, Evento } from '../tipos/index.js';
+import { generarAsientosAuditorio } from './datosIniciales.js';
 
 // Agenda de demostración con fechas fijas: no se desplazan ni se borran al terminar.
 // Se conservan los identificadores para no duplicar registros ni sobrescribir ediciones.

@@ -1,16 +1,16 @@
-import { ContextoDatos } from './almacenes';
-import { ProveedorDatosRemotos } from './DatosRemotos';
-import {apiActiva} from '../servicios/modoDatos';
-import { reservaIncompatible } from '../dominio/crucesReservas';
-import { transporteApi } from '../servicios/http';
-import { proyectarCambioRecinto, firmaCambioRecinto, type PeticionCambioRecinto, type PropuestaCambioRecinto, type EstadoCambioRecinto } from "../dominio/cambioRecinto";
-import { useListaLocal } from "./useListaLocal";
-import { accesoDelPase, codigoQrDelEvento } from "../dominio/pasesEvento";
-import { modalidadActividad, aforoActividad, validarItinerarios } from '../dominio/actividades';
-import { REGLA_INGRESO_ACTIVIDAD } from '../dominio/presentacionActividad';
-import { capacidadActividad, indicadoresActividad, limiteInscripcionesActividad, estadoInscripcionesActividad, proyectarCambioInscripciones, proyectarCierreAutomatico, puedeAdministrarTaquilla, type CambioInscripciones } from '../dominio/taquilla';
-import { impedimentoActividad, impedimentoParticipante } from '../dominio/participacionActividad';
-import { ARREGLOS_DEMOSTRACION, incorporarProgramados, cargarEventosProgramados } from '../datos/eventosDemostracion';
+import { ContextoDatos } from './almacenes.js';
+import { ProveedorDatosRemotos } from './DatosRemotos.js';
+import {apiActiva} from '../servicios/modoDatos.js';
+import { reservaIncompatible } from '../dominio/crucesReservas.js';
+import { transporteApi } from '../servicios/http.js';
+import { proyectarCambioRecinto, firmaCambioRecinto, type PeticionCambioRecinto, type PropuestaCambioRecinto, type EstadoCambioRecinto } from "../dominio/cambioRecinto.js";
+import { useListaLocal } from "./useListaLocal.js";
+import { accesoDelPase, codigoQrDelEvento } from "../dominio/pasesEvento.js";
+import { modalidadActividad, aforoActividad, validarItinerarios } from '../dominio/actividades.js';
+import { REGLA_INGRESO_ACTIVIDAD } from '../dominio/presentacionActividad.js';
+import { capacidadActividad, indicadoresActividad, limiteInscripcionesActividad, estadoInscripcionesActividad, proyectarCambioInscripciones, proyectarCierreAutomatico, puedeAdministrarTaquilla, type CambioInscripciones } from '../dominio/taquilla.js';
+import { impedimentoActividad, impedimentoParticipante } from '../dominio/participacionActividad.js';
+import { ARREGLOS_DEMOSTRACION, incorporarProgramados, cargarEventosProgramados } from '../datos/eventosDemostracion.js';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   Evento,
@@ -32,7 +32,7 @@ import {
   OcupacionAgenda,
   Usuario,
   OcupacionInterna
-} from '../tipos';
+} from '../tipos/index.js';
 import {
   EVENTOS_INICIALES,
   SOLICITUDES_INICIALES,
@@ -46,20 +46,20 @@ import {
   generarAsientosAuditorio,
   generarAsientosSala14,
   generarEstacionesLaboratorio
-} from '../datos/datosIniciales';
-import { useAutenticacion } from './AutenticacionContexto';
-import { inicioEnMexico, registrarCambioSolicitud, validarAnticipacionSolicitud, validarProgramacion, versionSolicitud } from '../dominio/solicitudes';
-import { generarIdentificadorQr } from '../utilidades/identificadores';
-import { convertirDiasSolicitud } from '../dominio/programa';
-import { guardarLoteLocal } from '../dominio/almacenamiento';
-import { restriccionIdentidadVigente, verificacionIdentidadVigente } from '../dominio/identidad';
+} from '../datos/datosIniciales.js';
+import { useAutenticacion } from './AutenticacionContexto.js';
+import { inicioEnMexico, registrarCambioSolicitud, validarAnticipacionSolicitud, validarProgramacion, versionSolicitud } from '../dominio/solicitudes.js';
+import { generarIdentificadorQr } from '../utilidades/identificadores.js';
+import { convertirDiasSolicitud } from '../dominio/programa.js';
+import { guardarLoteLocal } from '../dominio/almacenamiento.js';
+import { restriccionIdentidadVigente, verificacionIdentidadVigente } from '../dominio/identidad.js';
 
-import { modoDemostracionActivo } from '../dominio/demostracion';
-import { escenarioSuspension } from '../dominio/escenarioSuspension';
-import { duracionProgramada, validarLimitesEvento, puedeModificarEvento } from '../dominio/cambiosEvento';
-import { afectaBloqueo, revisarBloqueo, type PropuestaBloqueo } from '../dominio/bloqueos';
-import { CLAVE_CALENDARIO, validarCalendario, vencimientoRevision, motivoVencimiento, pausarRevision, reanudarRevision, type CalendarioRevision } from '../dominio/calendarioRevision';
-import { validarDistribuciones, arregloDesdeSolicitud, lugaresDelRecinto } from '../dominio/distribucionSolicitud';
+import { modoDemostracionActivo } from '../dominio/demostracion.js';
+import { escenarioSuspension } from '../dominio/escenarioSuspension.js';
+import { duracionProgramada, validarLimitesEvento, puedeModificarEvento } from '../dominio/cambiosEvento.js';
+import { afectaBloqueo, revisarBloqueo, type PropuestaBloqueo } from '../dominio/bloqueos.js';
+import { CLAVE_CALENDARIO, validarCalendario, vencimientoRevision, motivoVencimiento, pausarRevision, reanudarRevision, type CalendarioRevision } from '../dominio/calendarioRevision.js';
+import { validarDistribuciones, arregloDesdeSolicitud, lugaresDelRecinto } from '../dominio/distribucionSolicitud.js';
 export interface ContextoDatosTipo {
   prepararEventoDemostracion: () => {exito:boolean;error?:string;evento?:Evento};
   prepararSolicitudDemostracion: (estado:'borrador'|'en_revision'|'requiere_correccion', extraordinaria?:boolean) => {exito:boolean;error?:string;id?:string};

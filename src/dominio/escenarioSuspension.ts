@@ -1,5 +1,5 @@
-import type { Evento, BloqueoRecinto } from '../tipos';
-import { fechaHoyMexico } from './solicitudes';
+import type { Evento, BloqueoRecinto } from '../tipos/index.js';
+import { fechaHoyMexico } from './solicitudes.js';
 export function escenarioSuspension(ahora = Date.now()): {evento:Evento;bloqueo:BloqueoRecinto} {
   const fecha=fechaHoyMexico(new Date(ahora+14*86400000));
   const evento:Evento={id:'evt-suspension-demo',idOrganizador:'usr-silva',nombreOrganizador:'M. en C. Roberto Silva',titulo:'Demostración de reprogramación por bloqueo',descripcion:'Caso de prueba para resolver un día suspendido. No corresponde a una solicitud real.',categoria:'Académico',visibilidad:'privado',modalidadAsistencia:'libre',estado:'publicado',ponentes:[],etiquetas:['demostración'],aforoMaximo:20,limitesAprobados:{numeroFechas:1,duracionMinutos:60},fechas:[{id:'fec-suspension-demo',idEvento:'evt-suspension-demo',idRecinto:'rec-sala14',fecha,horaInicio:'15:00',horaFin:'16:00',esFinalConfirmado:true,ponentes:[],nombreDia:'Día 1',suspendida:true,idBloqueoSuspension:'bloq-suspension-demo',estadoInscripciones:'cerradas'}]};

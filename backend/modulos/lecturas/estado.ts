@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { pool, tokenPeticion, modoBaseDatos } from "../../bd/pool";
-import { usuarioSesion } from "../identidad/auth";
-import { ruta } from "../../comun/http";
-import { leerEventos, leerRecintos } from "./catalogos";
-import { estadoSolicitudDesdeCatalogo } from "../../../src/servicios/contratoOrganizacion";
+import { pool, tokenPeticion, modoBaseDatos } from "../../bd/pool.js";
+import { usuarioSesion } from "../identidad/auth.js";
+import { ruta } from "../../comun/http.js";
+import { leerEventos, leerRecintos } from "./catalogos.js";
+import { estadoSolicitudDesdeCatalogo } from "../../../src/servicios/contratoOrganizacion.js";
 
 export const routerEstado = Router();
 export async function leerEstado(u: any) {

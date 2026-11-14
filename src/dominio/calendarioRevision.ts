@@ -1,5 +1,5 @@
-import type { SolicitudEvento } from '../tipos';
-import { fechaHoyMexico, inicioEnMexico } from './solicitudes';
+import type { SolicitudEvento } from '../tipos/index.js';
+import { fechaHoyMexico, inicioEnMexico } from './solicitudes.js';
 
 export interface CalendarioRevision { diasLaborables: number[]; diasInhabiles: string[]; responsable: string; fechaConfiguracion: string }
 export const CLAVE_CALENDARIO = 'tt_calendario_revision_v1';

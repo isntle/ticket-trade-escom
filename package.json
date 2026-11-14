@@ -22,7 +22,8 @@
     "correos:procesar": "tsx backend/scripts/correos.ts",
     "correos:verificar": "tsx backend/scripts/verificar-correo.ts",
     "correos:preview": "tsx backend/scripts/preview-correos.ts",
-    "db:recintos": "tsx backend/scripts/recintos.ts"
+    "db:recintos": "tsx backend/scripts/recintos.ts",
+    "verify:api": "node scripts/verificar-api.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

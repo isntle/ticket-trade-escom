@@ -1,8 +1,8 @@
-import type { ArregloAsientos, BoletoDigital, CategoriaAsiento, EntradaListaEspera, Evento, Recinto, RegistroEscaneo, Reservacion, Usuario } from '../tipos';
-import { lugaresDelRecinto } from './distribucionSolicitud';
-import { aforoActividad, modalidadActividad } from './actividades';
-import { inicioEnMexico } from './solicitudes';
-import { puedeModificarEvento } from './cambiosEvento';
+import type { ArregloAsientos, BoletoDigital, CategoriaAsiento, EntradaListaEspera, Evento, Recinto, RegistroEscaneo, Reservacion, Usuario } from '../tipos/index.js';
+import { lugaresDelRecinto } from './distribucionSolicitud.js';
+import { aforoActividad, modalidadActividad } from './actividades.js';
+import { inicioEnMexico } from './solicitudes.js';
+import { puedeModificarEvento } from './cambiosEvento.js';
 
 export interface EstadoCambioRecinto {
   evento: Evento; recintos: Recinto[]; arreglos: ArregloAsientos[];

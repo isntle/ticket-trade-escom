@@ -3,9 +3,9 @@ import type {
   Recinto,
   SolicitudEvento,
   Usuario,
-} from "../tipos";
-import { validarPrograma } from './programa';
-import { aforoActividad, modalidadActividad, nombreActividad, mismoRecinto } from './actividades';
+} from "../tipos/index.js";
+import { validarPrograma } from './programa.js';
+import { aforoActividad, modalidadActividad, nombreActividad, mismoRecinto } from './actividades.js';
 
 export const ZONA_HORARIA = "America/Mexico_City";
 export const HORAS_ANTICIPACION = 168;
@@ -89,7 +89,7 @@ export function validarProgramacion(
       if (inicio < otroFin + 30 * 60000 && fin + 30 * 60000 > otroInicio)
         return `${etiqueta}: coincide con ${nombreActividad(otra)} en el mismo recinto. Conserva 30 minutos entre actividades.`;
     }
-    const modalidad = modalidadActividad(fecha, (opciones.modalidad || 'controlado') as import('../tipos').ModalidadAsistencia);
+    const modalidad = modalidadActividad(fecha, (opciones.modalidad || 'controlado') as import('../tipos/index.js').ModalidadAsistencia);
     const aforo = aforoActividad(fecha, opciones.aforo);
     if (!['controlado', 'libre', 'registro'].includes(modalidad)) return `${etiqueta}: elige un tipo de acceso válido.`;
     const recinto = recintos.find((item) => item.id === fecha.idRecinto);

@@ -1,9 +1,9 @@
-import {opcionesTlsPostgres} from "./tls";
+import {opcionesTlsPostgres} from "./tls.js";
 import pg from "pg";
 import "dotenv/config";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { RequestHandler, Request } from "express";
-import { destinoBaseDatos, esPoolerSupabase } from "./destino";
+import { destinoBaseDatos, esPoolerSupabase } from "./destino.js";
 pg.types.setTypeParser(20, (valor: string) => valor);
 // Una fecha académica no es un instante UTC: evitar cambios de día al serializar JSON.
 pg.types.setTypeParser(1082, (valor: string) => valor);

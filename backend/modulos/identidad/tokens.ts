@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
-import { encolarCorreo } from "../correos/servicio";
+import { encolarCorreo } from "../correos/servicio.js";
 import type { PoolClient } from "pg";
-import { huella } from "../../comun/seguridad";
-import { mostrarCodigos, fallo } from "../../comun/http";
+import { huella } from "../../comun/seguridad.js";
+import { mostrarCodigos, fallo } from "../../comun/http.js";
 
 export async function crearToken(
   c: PoolClient,

@@ -1,4 +1,4 @@
-import {fechaBoleto,estadoBoleto} from "./presentacion";
+import {fechaBoleto,estadoBoleto} from "./presentacion.js";
 import type { PoolClient } from "pg";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";

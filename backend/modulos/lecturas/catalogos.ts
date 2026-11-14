@@ -1,5 +1,5 @@
-import {SQL_VERSION_EVENTO} from "../organizacion/version";
-import { pool, modoBaseDatos } from "../../bd/pool";
+import {SQL_VERSION_EVENTO} from "../organizacion/version.js";
+import { pool, modoBaseDatos } from "../../bd/pool.js";
 export async function leerRecintos() {
   const consulta = `
       SELECT

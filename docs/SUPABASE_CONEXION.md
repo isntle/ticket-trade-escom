@@ -25,3 +25,7 @@ La base normal nueva no contiene cuentas ni eventos. Los eventos anteriores de d
 Configurar DATABASE_URL, CA, APP_ORIGIN y SMTP en el servidor definitivo; publicar API y frontend coordinados; establecer procesamiento persistente o programado de la cola; y comprobar desde dos dispositivos. En Vercel el intervalo de backend/server.ts no se ejecuta por importar api/index.ts: hace falta ejecutar `npm run correos:procesar` con un programador/worker autorizado. No confundir aceptación SMTP con recepción ni prometer que Gmail nunca clasificará un mensaje como spam.
 
 No ejecutar `test:postgres` contra Supabase: crea una base desechable local y requiere permisos que no corresponden al proyecto remoto.
+
+## Comprobar la función de Vercel
+
+Ejecutar `npm run verify:api` además de lint, build y las pruebas PostgreSQL. Compila la función como módulos Node y carga el JavaScript resultante sin tsx. Las importaciones relativas usan extensión `.js`, resuelta hacia TypeScript durante desarrollo. Esto evita publicar una API que compila con Vite pero falla al iniciar en Vercel.

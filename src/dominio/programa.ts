@@ -1,4 +1,4 @@
-import type { ActividadPrograma, ElementoFechaSolicitada, Evento, SolicitudEvento } from '../tipos';
+import type { ActividadPrograma, ElementoFechaSolicitada, Evento, SolicitudEvento } from '../tipos/index.js';
 
 export function validarPrograma(
   dia: { horaInicio: string; horaFin: string; programa?: ActividadPrograma[]; nombreDia?: string },

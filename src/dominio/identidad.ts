@@ -1,10 +1,10 @@
-import { leerPeriodosIdentidad, periodoIdentidadActual } from "./periodosIdentidad";
+import { leerPeriodosIdentidad, periodoIdentidadActual } from "./periodosIdentidad.js";
 import type {
   DocumentoIdentidad,
   Evento,
   TipoAfiliacion,
   Usuario,
-} from "../tipos";
+} from "../tipos/index.js";
 
 export const MINUTO = 60_000;
 export const MENSAJE_RECUPERACION =

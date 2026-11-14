@@ -1,4 +1,4 @@
-import type { BoletoDigital } from "../tipos";
+import type { BoletoDigital } from "../tipos/index.js";
 
 export interface PaseEvento {
   idEvento: string;
@@ -100,7 +100,7 @@ export function accesoDelPase(
 /** No altera la evidencia de emisión: una actividad pasada deja de ser un acceso pendiente. */
 export function accesoPendienteDelEvento(
   boleto: BoletoDigital,
-  evento: import("../tipos").Evento | undefined,
+  evento: import("../tipos/index.js").Evento | undefined,
   ahora = Date.now(),
 ): boolean {
   if (boleto.estado !== "valido" || !evento || evento.estado !== "publicado")

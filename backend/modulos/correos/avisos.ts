@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { encolarCorreo, correoHabilitado } from "./servicio";
+import { encolarCorreo, correoHabilitado } from "./servicio.js";
 /** Solo para comandos autorizados de servidor; jamás aceptar destinatario/ruta de una petición pública. */
 export async function encolarAviso(
   c: PoolClient,

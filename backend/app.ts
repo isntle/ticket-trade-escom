@@ -1,13 +1,13 @@
-import { routerEstado } from './modulos/lecturas/estado';
-import { leerRecintos, leerEventos } from "./modulos/lecturas/catalogos";
-import { routerArchivos } from './modulos/archivos/rutas';
-import { routerPerfil } from './modulos/identidad/perfil';
-import { routerTaquilla } from './modulos/taquilla/rutas';
+import { routerEstado } from './modulos/lecturas/estado.js';
+import { leerRecintos, leerEventos } from "./modulos/lecturas/catalogos.js";
+import { routerArchivos } from './modulos/archivos/rutas.js';
+import { routerPerfil } from './modulos/identidad/perfil.js';
+import { routerTaquilla } from './modulos/taquilla/rutas.js';
 import express, { Request, Response } from "express";
 import cookieParser from "cookie-parser";
-import { pool, seleccionarBaseDatos } from "./bd/pool";
-import { routerAuth } from "./modulos/identidad/auth";
-import { routerOrganizacion } from "./modulos/organizacion/rutas";
+import { pool, seleccionarBaseDatos } from "./bd/pool.js";
+import { routerAuth } from "./modulos/identidad/auth.js";
+import { routerOrganizacion } from "./modulos/organizacion/rutas.js";
 
 export const app = express();
 

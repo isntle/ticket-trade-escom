@@ -1,7 +1,7 @@
-import { ContextoAutenticacion } from './almacenes';
-import { ProveedorAutenticacionRemota } from './AutenticacionRemota';
-import {apiActiva} from '../servicios/modoDatos';
-import { CLAVE_PERIODOS_IDENTIDAD, leerPeriodosIdentidad, validarPeriodosIdentidad, periodoIdentidadActual, impedimentoVerificacion, type PeriodoIdentidad } from "../dominio/periodosIdentidad";
+import { ContextoAutenticacion } from './almacenes.js';
+import { ProveedorAutenticacionRemota } from './AutenticacionRemota.js';
+import {apiActiva} from '../servicios/modoDatos.js';
+import { CLAVE_PERIODOS_IDENTIDAD, leerPeriodosIdentidad, validarPeriodosIdentidad, periodoIdentidadActual, impedimentoVerificacion, type PeriodoIdentidad } from "../dominio/periodosIdentidad.js";
 import React, {
   createContext,
   useContext,
@@ -15,10 +15,10 @@ import type {
   RolUsuario,
   TipoAfiliacion,
   Usuario,
-} from "../tipos";
-import { USUARIOS_INICIALES } from "../datos/datosIniciales";
-import { modoDemostracionActivo } from "../dominio/demostracion";
-import { guardarLoteLocal } from "../dominio/almacenamiento";
+} from "../tipos/index.js";
+import { USUARIOS_INICIALES } from "../datos/datosIniciales.js";
+import { modoDemostracionActivo } from "../dominio/demostracion.js";
+import { guardarLoteLocal } from "../dominio/almacenamiento.js";
 import {
   boletaIdentidadValida,
   generarTokenIdentidad,
@@ -31,8 +31,8 @@ import {
   validarExpedienteIdentidad,
   verificacionIdentidadVigente,
   type SesionIdentidad,
-} from "../dominio/identidad";
-import { validarContrasena } from "../utilidades/validaciones";
+} from "../dominio/identidad.js";
+import { validarContrasena } from "../utilidades/validaciones.js";
 
 export interface DatosRegistroUsuario {
   nombres?: string;

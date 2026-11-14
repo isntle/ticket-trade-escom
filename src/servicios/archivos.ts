@@ -1,5 +1,5 @@
-import { cabecerasModo } from "./http";
-import { modoDemostracionActivo } from "../dominio/demostracion";
+import { cabecerasModo } from "./http.js";
+import { modoDemostracionActivo } from "../dominio/demostracion.js";
 export const urlArchivo = (id: string) =>
   `/api/archivos/${id}${modoDemostracionActivo() ? "?demo=1" : ""}`;
 export async function subirArchivo(archivo: Blob, nombre: string) {

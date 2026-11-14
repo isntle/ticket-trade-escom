@@ -1,5 +1,5 @@
-import type { FechaEvento } from '../tipos';
-import { nombreActividad } from './actividades';
+import type { FechaEvento } from '../tipos/index.js';
+import { nombreActividad } from './actividades.js';
 
 /**
  * Presentación de actividades en Check-in. Solo da formato: no modifica la regla de

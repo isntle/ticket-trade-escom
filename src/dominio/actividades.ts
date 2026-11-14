@@ -1,4 +1,4 @@
-import type { ElementoFechaSolicitada, Evento, FechaEvento, ItinerarioDia, ModalidadAsistencia, Recinto } from '../tipos';
+import type { ElementoFechaSolicitada, Evento, FechaEvento, ItinerarioDia, ModalidadAsistencia, Recinto } from '../tipos/index.js';
 
 export const CATEGORIAS_EVENTO = ['Congreso', 'Conferencia', 'Taller', 'Hackatón', 'Otro'] as const;
 export const mismoRecinto = (recintos: Recinto[], a: string, b: string) => a===b || Boolean(recintos.find(r=>r.id===a)?.codigo && recintos.find(r=>r.id===a)?.codigo===recintos.find(r=>r.id===b)?.codigo);

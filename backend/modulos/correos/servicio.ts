@@ -1,11 +1,11 @@
 import crypto from "node:crypto";
 import type { PoolClient } from "pg";
 import nodemailer from "nodemailer";
-import { configuracionSmtp } from "./configuracion";
-import { conTransaccion, modoBaseDatos } from "../../bd/pool";
-import { cifrar, descifrar, origenCorreo, escapar } from "./seguridad";
-import { leerBoleto, generarPdfBoleto } from "./boleto";
-import { plantillaToken, plantillaBoleto, plantillaAviso } from "./plantillas";
+import { configuracionSmtp } from "./configuracion.js";
+import { conTransaccion, modoBaseDatos } from "../../bd/pool.js";
+import { cifrar, descifrar, origenCorreo, escapar } from "./seguridad.js";
+import { leerBoleto, generarPdfBoleto } from "./boleto.js";
+import { plantillaToken, plantillaBoleto, plantillaAviso } from "./plantillas.js";
 export function correoHabilitado() {
   return process.env.TT_CORREO_ACTIVO === "1" && modoBaseDatos() !== "demo";
 }

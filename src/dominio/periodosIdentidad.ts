@@ -1,4 +1,4 @@
-import type { Usuario } from "../tipos";
+import type { Usuario } from "../tipos/index.js";
 
 export interface PeriodoIdentidad {
   id: string;

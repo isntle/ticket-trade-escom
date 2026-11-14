@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { guardarListaSiVigente } from "../dominio/almacenamiento";
+import { guardarListaSiVigente } from "../dominio/almacenamiento.js";
 
 /** Sincroniza pestañas y evita que una copia antigua reemplace la lista guardada. */
 export function useListaLocal<T>(clave: string, inicial: () => T[]) {

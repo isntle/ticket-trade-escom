@@ -1,6 +1,6 @@
-import type { ArregloAsientos, ConfiguracionAsiento, ElementoFechaSolicitada, Recinto, SolicitudEvento } from '../tipos';
-import { aforoActividad, modalidadActividad, nombreActividad } from './actividades';
-import { generarAsientosAuditorio, generarAsientosSala14, generarEstacionesLaboratorio } from '../datos/datosIniciales';
+import type { ArregloAsientos, ConfiguracionAsiento, ElementoFechaSolicitada, Recinto, SolicitudEvento } from '../tipos/index.js';
+import { aforoActividad, modalidadActividad, nombreActividad } from './actividades.js';
+import { generarAsientosAuditorio, generarAsientosSala14, generarEstacionesLaboratorio } from '../datos/datosIniciales.js';
 
 export function lugaresDelRecinto(r: Recinto): ConfiguracionAsiento[] {
   const lugares = r.tipo === 'auditorio' ? generarAsientosAuditorio() : r.tipo === 'laboratorio' ? generarEstacionesLaboratorio(r.codigo) : generarAsientosSala14();

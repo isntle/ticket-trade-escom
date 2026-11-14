@@ -1,12 +1,12 @@
-import {routerEventos} from "./eventos";
-import { encolarAviso } from "../correos/avisos";
-import { comprobarArchivo } from "../archivos/rutas";
+import {routerEventos} from "./eventos.js";
+import { encolarAviso } from "../correos/avisos.js";
+import { comprobarArchivo } from "../archivos/rutas.js";
 import crypto from "node:crypto";
-import { fallo, idEntero, ruta, texto } from "../../comun/http";
+import { fallo, idEntero, ruta, texto } from "../../comun/http.js";
 import { Router } from "express";
-import { pool, conTransaccion } from "../../bd/pool";
-import { exigirSesion } from "../identidad/auth";
-import { origenSeguro } from "../../comun/seguridad";
+import { pool, conTransaccion } from "../../bd/pool.js";
+import { exigirSesion } from "../identidad/auth.js";
+import { origenSeguro } from "../../comun/seguridad.js";
 export const routerOrganizacion = Router();
 routerOrganizacion.use(exigirSesion);
 routerOrganizacion.use((req, res, next) =>

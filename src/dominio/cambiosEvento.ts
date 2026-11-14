@@ -1,5 +1,5 @@
-import type { Evento, FechaEvento, Usuario } from '../tipos';
-import { inicioEnMexico } from './solicitudes';
+import type { Evento, FechaEvento, Usuario } from '../tipos/index.js';
+import { inicioEnMexico } from './solicitudes.js';
 export function duracionProgramada(fechas:FechaEvento[]):number {
   return fechas.reduce((total,d)=>total+(inicioEnMexico(d.fecha,d.horaFin)-inicioEnMexico(d.fecha,d.horaInicio))/60000,0);
 }

@@ -1,5 +1,5 @@
-import type { BloqueoRecinto, Evento, OcupacionInterna, Recinto, RegistroEscaneo } from '../tipos';
-import { inicioEnMexico } from './solicitudes';
+import type { BloqueoRecinto, Evento, OcupacionInterna, Recinto, RegistroEscaneo } from '../tipos/index.js';
+import { inicioEnMexico } from './solicitudes.js';
 export type PropuestaBloqueo = Omit<BloqueoRecinto,'id'|'fechaCreacion'>;
 export const recintosBloqueados = (b: PropuestaBloqueo, recintos: Recinto[]) => b.idRecinto==='todos'?recintos.map(r=>r.id):b.idsRecintos?.length?b.idsRecintos:[b.idRecinto];
 export function afectaBloqueo(b: PropuestaBloqueo, d: Evento['fechas'][number]): boolean {

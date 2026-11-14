@@ -1,5 +1,5 @@
 /** Transporte único: sesión por cookie, sin reintentos automáticos de escrituras. */
-import { modoDemostracionActivo } from '../dominio/demostracion';
+import { modoDemostracionActivo } from '../dominio/demostracion.js';
 export const cabecerasModo = (): Record<string,string> => modoDemostracionActivo() ? { 'X-TicketTrade-Demo': '1' } : {};
 export class ErrorApi extends Error {
   constructor(public estado: number, public codigo: string, mensaje: string, public campos?: Record<string, string>) { super(mensaje); }

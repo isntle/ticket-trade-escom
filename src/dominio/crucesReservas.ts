@@ -1,4 +1,4 @@
-import type { Reservacion, Evento } from '../tipos';
+import type { Reservacion, Evento } from '../tipos/index.js';
 
 export interface DetalleConflicto {
   actividad: string;

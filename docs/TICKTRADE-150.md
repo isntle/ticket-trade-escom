@@ -1,6 +1,6 @@
 # TICKTRADE-150 — Ciclo del evento conectado a PostgreSQL
 
-Implementación local del 13 de noviembre de 2026. No se publicó ni se cambió Jira durante este trabajo.
+Implementación revisada el 14 de noviembre de 2026 y publicada junto con la 149. No se cambió Jira durante este trabajo.
 
 ## Comportamiento
 

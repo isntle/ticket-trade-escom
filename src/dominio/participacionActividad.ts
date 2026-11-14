@@ -1,8 +1,8 @@
-import type { BloqueoRecinto, Evento, FechaEvento, Usuario } from '../tipos';
-import { afectaBloqueo } from './bloqueos';
-import { obtenerMensaje } from './mensajes';
-import { destinoInternoSeguro } from './navegacion';
-import { estadoInscripcionesActividad, limiteInscripcionesActividad } from './taquilla';
+import type { BloqueoRecinto, Evento, FechaEvento, Usuario } from '../tipos/index.js';
+import { afectaBloqueo } from './bloqueos.js';
+import { obtenerMensaje } from './mensajes.js';
+import { destinoInternoSeguro } from './navegacion.js';
+import { estadoInscripcionesActividad, limiteInscripcionesActividad } from './taquilla.js';
 
 /** Reglas compartidas por la ficha, la taquilla y la confirmación local. */
 export function impedimentoActividad(evento: Evento, actividad: FechaEvento, bloqueos: BloqueoRecinto[], ahora = Date.now()): string | undefined {

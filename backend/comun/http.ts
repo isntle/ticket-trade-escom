@@ -1,5 +1,5 @@
 import type { RequestHandler } from "express";
-import { modoBaseDatos } from "../bd/pool";
+import { modoBaseDatos } from "../bd/pool.js";
 
 export function fallo(mensaje: string, estado = 422): never {
   throw Object.assign(new Error(mensaje), { estado });

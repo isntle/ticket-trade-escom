@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { ContextoDatosTipo } from "./DatosContexto";
-import { ContextoDatos } from "./almacenes";
-import { useAutenticacion } from "./AutenticacionContexto";
-import { transporteApi } from "../servicios/http";
-import { guardarCartelRemoto } from "../servicios/archivos";
-import type { Evento, SolicitudEvento } from "../tipos";
+import type { ContextoDatosTipo } from "./DatosContexto.js";
+import { ContextoDatos } from "./almacenes.js";
+import { useAutenticacion } from "./AutenticacionContexto.js";
+import { transporteApi } from "../servicios/http.js";
+import { guardarCartelRemoto } from "../servicios/archivos.js";
+import type { Evento, SolicitudEvento } from "../tipos/index.js";
 
 const api = transporteApi();
 const vacio = {

@@ -1,9 +1,9 @@
 import { Router, raw } from "express";
 import crypto from "node:crypto";
-import { conTransaccion, pool, tokenPeticion } from "../../bd/pool";
-import { exigirSesion, usuarioSesion } from "../identidad/auth";
-import { origenSeguro } from "../../comun/seguridad";
-import { fallo, idEntero, ruta, texto } from "../../comun/http";
+import { conTransaccion, pool, tokenPeticion } from "../../bd/pool.js";
+import { exigirSesion, usuarioSesion } from "../identidad/auth.js";
+import { origenSeguro } from "../../comun/seguridad.js";
+import { fallo, idEntero, ruta, texto } from "../../comun/http.js";
 
 export const routerArchivos = Router();
 routerArchivos.post(

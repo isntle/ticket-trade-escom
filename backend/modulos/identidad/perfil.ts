@@ -1,11 +1,11 @@
 import { Router } from "express";
-import { encolarAviso } from "../correos/avisos";
-import { pool, conTransaccion } from "../../bd/pool";
-import { origenSeguro, hashContrasena, huella } from "../../comun/seguridad";
-import { fallo, ruta, texto, idEntero, demoHabilitada } from "../../comun/http";
-import { exigirSesion, proyectarUsuario } from "./auth";
-import { crearToken, consumirToken } from "./tokens";
-import { comprobarArchivo } from "../archivos/rutas";
+import { encolarAviso } from "../correos/avisos.js";
+import { pool, conTransaccion } from "../../bd/pool.js";
+import { origenSeguro, hashContrasena, huella } from "../../comun/seguridad.js";
+import { fallo, ruta, texto, idEntero, demoHabilitada } from "../../comun/http.js";
+import { exigirSesion, proyectarUsuario } from "./auth.js";
+import { crearToken, consumirToken } from "./tokens.js";
+import { comprobarArchivo } from "../archivos/rutas.js";
 
 export const routerPerfil = Router();
 routerPerfil.get(

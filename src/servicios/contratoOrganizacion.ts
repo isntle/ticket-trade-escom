@@ -1,4 +1,4 @@
-import type {useDatos} from '../contextos/DatosContexto';
+import type {useDatos} from '../contextos/DatosContexto.js';
 /** Contrato de UI: la API debe reconstruir estas proyecciones a partir del modelo ER. */
 type Datos = ReturnType<typeof useDatos>;
 export const consultasOrganizacion = ['verificarDisponibilidadRecinto','obtenerOcupacionesRecinto','obtenerAgendaMultiRecinto','obtenerListaDeVerificacion','revisarCambioRecinto','revisarBloqueoInstitucional'] as const;

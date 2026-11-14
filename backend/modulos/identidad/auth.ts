@@ -1,4 +1,4 @@
-import { crearToken } from "./tokens";
+import { crearToken } from "./tokens.js";
 // Validación de dominio recuperada del registro de Regina; comparación exacta.
 const validarDominioIdentidad = (correo: string, afiliacion: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo) &&
@@ -12,14 +12,14 @@ import {
   conTransaccion,
   tokenPeticion,
   nombreCookieSesion,
-} from "../../bd/pool";
+} from "../../bd/pool.js";
 import {
   hashContrasena,
   verificarContrasena,
   huella,
   origenSeguro,
-} from "../../comun/seguridad";
-export { hashContrasena, verificarContrasena } from "../../comun/seguridad";
+} from "../../comun/seguridad.js";
+export { hashContrasena, verificarContrasena } from "../../comun/seguridad.js";
 export const routerAuth = Router();
 const idValido = (id: unknown): id is string =>
   typeof id === "string" &&

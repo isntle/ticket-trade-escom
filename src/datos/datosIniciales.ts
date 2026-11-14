@@ -10,8 +10,8 @@ import {
   RegistroEscaneo,
   ConfiguracionAsiento,
   HorarioClaseRegular
-} from '../tipos';
-import { generarIdentificadorQr } from '../utilidades/identificadores';
+} from '../tipos/index.js';
+import { generarIdentificadorQr } from '../utilidades/identificadores.js';
 
 // Generador de asientos para el Auditorio Principal de ESCOM (Fijo, 11 filas: A-K, 3 bloques: Izq 62, Centro 118, Der 62 = 242 lugares)
 export function generarAsientosAuditorio(): ConfiguracionAsiento[] {

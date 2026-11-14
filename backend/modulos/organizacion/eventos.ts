@@ -1,10 +1,10 @@
-import { liberarApartadosVencidos } from "../../bd/apartados";
+import { liberarApartadosVencidos } from "../../bd/apartados.js";
 import { Router } from "express";
-import { conTransaccion } from "../../bd/pool";
-import { fallo, ruta, idEntero, texto } from "../../comun/http";
-import { versionEvento } from "./version";
-import { encolarAviso } from "../correos/avisos";
-import { comprobarArchivo } from "../archivos/rutas";
+import { conTransaccion } from "../../bd/pool.js";
+import { fallo, ruta, idEntero, texto } from "../../comun/http.js";
+import { versionEvento } from "./version.js";
+import { encolarAviso } from "../correos/avisos.js";
+import { comprobarArchivo } from "../archivos/rutas.js";
 import type { PoolClient } from "pg";
 export const routerEventos = Router();
 // La limpieza vence antes de la operación; un conflicto posterior no la deshace.

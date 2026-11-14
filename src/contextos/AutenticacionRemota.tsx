@@ -1,13 +1,13 @@
-import { ContextoAutenticacion } from "./almacenes";
+import { ContextoAutenticacion } from "./almacenes.js";
 import React, { useEffect, useRef, useState } from "react";
 import type {
   DatosRegistroUsuario,
   TipoAutenticacion,
-} from "./AutenticacionContexto";
-import { transporteApi, ErrorApi } from "../servicios/http";
-import { modoDemostracionActivo } from "../dominio/demostracion";
-import type { Usuario, RolUsuario } from "../tipos";
-import type { PeriodoIdentidad } from "../dominio/periodosIdentidad";
+} from "./AutenticacionContexto.js";
+import { transporteApi, ErrorApi } from "../servicios/http.js";
+import { modoDemostracionActivo } from "../dominio/demostracion.js";
+import type { Usuario, RolUsuario } from "../tipos/index.js";
+import type { PeriodoIdentidad } from "../dominio/periodosIdentidad.js";
 
 const api = transporteApi();
 const principal = (u: Usuario): RolUsuario =>
