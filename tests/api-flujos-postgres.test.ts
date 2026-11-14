@@ -558,7 +558,7 @@ test(
     assert.ok(registroHistorial, "El historial incluye la entrada aceptada");
     assert.equal(
       registroHistorial.escaneadoPor,
-      "Administrador General",
+      (await ok(await pedir("/api/auth/yo",undefined,admin))).usuario.nombre,
       "Recupera el operador real desde EntradaOrdinaria",
     );
     assert.ok(registroHistorial.fechaEscaneo);

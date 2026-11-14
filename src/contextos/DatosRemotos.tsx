@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { ContextoDatosTipo } from "./DatosContexto";
-import { ContextoDatos } from "./almacenes";
-import { useAutenticacion } from "./AutenticacionContexto";
-import { transporteApi, ErrorApi } from "../servicios/http";
-import { guardarCartelRemoto } from "../servicios/archivos";
+import type { ContextoDatosTipo } from "./DatosContexto.js";
+import { ContextoDatos } from "./almacenes.js";
+import { useAutenticacion } from "./AutenticacionContexto.js";
+import { transporteApi, ErrorApi } from "../servicios/http.js";
+import { guardarCartelRemoto } from "../servicios/archivos.js";
 import {
   obtenerConflictoReserva,
   obtenerMensajeErrorCruce,
-} from "../dominio/crucesReservas";
-import type { Evento, ResultadoEscaneo, SolicitudEvento } from "../tipos";
+} from "../dominio/crucesReservas.js";
+import type { Evento, ResultadoEscaneo, SolicitudEvento } from "../tipos/index.js";
 
 function clasificarErrorCheckIn(
   mensaje: string,
@@ -396,7 +396,10 @@ export function ProveedorDatosRemotos({
           metodo: "POST",
           datos: { codigo, idActividad },
         });
-        const nuevo = await cargar();
+        const nuevo = await cargar().catch(()=>{
+          setError('El acceso ya se registró. No se pudo actualizar la vista; consulta el historial antes de volver a escanear.');
+          return estadoRef.current;
+        });
         const boleto = nuevo.listaBoletos.find(
           (b: any) =>
             b.idReservacion === r.idReservacion ||

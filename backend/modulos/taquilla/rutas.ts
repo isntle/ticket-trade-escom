@@ -19,7 +19,7 @@ const bloquear=liberarApartadosVencidos;
 async function actividad(c: PoolClient, id: string) {
   const r = await c.query(
     `SELECT a.*,a.id_evento::text evento,ta.nombre acceso,ea.nombre estado,ee.nombre estado_evento,v.nombre visibilidad,e.token_enlace_privado,
-    EXISTS(SELECT 1 FROM ticket_trade."AfectacionActividad" af WHERE af.id_actividad=a.id_actividad AND NOT af.resuelta) afectada,
+    EXISTS(SELECT 1 FROM ticket_trade."AfectacionActividad" af WHERE af.id_actividad=a.id_actividad AND af.resuelta_en IS NULL) afectada,
     (a.fecha+a.hora_inicio) AT TIME ZONE 'America/Mexico_City' inicio,(a.fecha+a.hora_fin) AT TIME ZONE 'America/Mexico_City' fin
     FROM ticket_trade."Actividad" a JOIN ticket_trade."Evento" e USING(id_evento) JOIN ticket_trade."TipoAcceso" ta USING(id_tipo_acceso)
     JOIN ticket_trade."EstadoActividad" ea USING(id_estado_actividad) JOIN ticket_trade."EstadoEvento" ee ON ee.id_estado_evento=e.id_estado_evento

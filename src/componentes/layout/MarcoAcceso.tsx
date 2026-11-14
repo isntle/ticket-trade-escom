@@ -1,3 +1,4 @@
+import {SimboloTicketTrade} from "./SimboloTicketTrade";
 import React from "react";
 import { CheckCircle } from "lucide-react";
 
@@ -7,8 +8,8 @@ export function MarcoAcceso({ children }: { children: React.ReactNode }) {
     <section className="min-h-dvh w-full bg-white">
       <div className="grid min-h-dvh w-full grid-rows-[auto_1fr] overflow-hidden bg-white lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:grid-rows-1">
         <aside className="relative flex flex-col justify-between gap-8 overflow-hidden bg-[#651127] px-5 py-4 text-white sm:px-8 lg:px-10 lg:py-10">
-          <div className="relative flex items-center gap-4">
-            <img src="/imagenes/marca/ticket-trade.jpg" alt="Logo de Ticket Trade" className="h-20 w-20 rounded-2xl object-cover" />
+          <div className="relative flex items-center gap-2.5">
+            <SimboloTicketTrade claro className="h-7 w-8 shrink-0" />
             <p className="text-2xl font-semibold tracking-tight">Ticket Trade</p>
           </div>
           <div className="relative my-auto hidden max-w-lg py-4 lg:block">
@@ -30,7 +31,7 @@ export function MarcoAcceso({ children }: { children: React.ReactNode }) {
               ["Agenda ESCOM", "Eventos y recintos organizados"],
             ].map(([titulo, descripcion]) => (
               <div key={titulo} className="flex gap-3">
-                <CheckCircle className="h-4 w-4 shrink-0 text-white/80" />
+                <CheckCircle className="h-4 w-4 shrink-0 text-[#e6c46b]" />
                 <div>
                   <p className="text-xs font-semibold">{titulo}</p>
                   <p className="mt-1 text-xs text-white/60">{descripcion}</p>
