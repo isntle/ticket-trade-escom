@@ -358,6 +358,18 @@ test(
       "Cartel publicado es visible al público",
     );
     const actividad = evento.fechas[0].id;
+    const primeraActividad = evento.fechas[0];
+    const agenda = await ok(await pedir(
+      "/api/organizacion/disponibilidad/agenda?fecha=" + primeraActividad.fecha + "&idRecinto=" + primeraActividad.idRecinto,
+      undefined, sub,
+    ));
+    assert.equal(agenda.margenSeparacionMinutos, 30);
+    assert.ok(agenda.recintos[0].ocupaciones.some((o: any) => o.id === "actividad-" + actividad), "La agenda del servidor incluye la actividad autorizada");
+    const franja = { id: actividad, idRecinto: primeraActividad.idRecinto, fecha: primeraActividad.fecha, horaInicio: primeraActividad.horaInicio, horaFin: primeraActividad.horaFin };
+    const ocupada = await ok(await pedir("/api/organizacion/disponibilidad/revision", { actividades: [franja] }, sub));
+    assert.equal(ocupada.actividades[0].disponible, false);
+    const propia = await ok(await pedir("/api/organizacion/disponibilidad/revision", { actividades: [franja], idSolicitud: s.id }, sub));
+    assert.equal(propia.actividades[0].disponible, true, "Revisar la propia solicitud no choca consigo misma");
     const lugares = await ok(
       await pedir("/api/taquilla/actividades/" + actividad + "/lugares"),
     );
