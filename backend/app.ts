@@ -9,6 +9,7 @@ import express, { Request, Response } from "express";
 import cookieParser from "cookie-parser";
 import { pool, seleccionarBaseDatos } from "./bd/pool.js";
 import { routerAuth } from "./modulos/identidad/auth.js";
+import { routerPassword } from "./modulos/identidad/password.js";
 import { routerOrganizacion } from "./modulos/organizacion/rutas.js";
 
 export const app = express();
@@ -20,6 +21,7 @@ app.use('/api', seleccionarBaseDatos);
 
 // Módulo de Autenticación e Identidad
 app.use("/api/auth", routerAuth);
+app.use("/api/auth", routerPassword);
 app.use("/api/auth", routerPerfil);
 app.use("/api/archivos", routerArchivos);
 app.use("/api/taquilla", routerTaquilla);
