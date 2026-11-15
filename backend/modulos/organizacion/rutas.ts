@@ -179,20 +179,6 @@ routerOrganizacion.post("/solicitudes", async (req, res, next) => {
           );
         }
       }
-      const idRespaldo = b.idArchivoDocumento || b.idArchivoRespaldo;
-      if (idRespaldo) {
-        await comprobarArchivo(c, idRespaldo, u.id, [
-          "application/pdf",
-          "image/jpeg",
-          "image/png",
-        ]);
-        await c.query(
-          `UPDATE infra.archivo_contenido
-           SET metadatos = metadatos || jsonb_build_object('id_solicitud_evento', $2::text, 'id_evento', $3::text, 'tipo', 'respaldo_solicitud')
-           WHERE id_archivo = $1 AND id_cuenta_propietaria = $4`,
-          [idRespaldo, id, id, u.id],
-        );
-      }
       const enviar = b.enviar === true;
       const tiempo = await c.query(
         `SELECT bool_or((fecha+hora_inicio) AT TIME ZONE 'America/Mexico_City'<=CURRENT_TIMESTAMP) AS pasado,bool_or((fecha+hora_inicio) AT TIME ZONE 'America/Mexico_City'<CURRENT_TIMESTAMP+interval '168 hours') AS urgente FROM ticket_trade."Actividad" WHERE id_evento=$1`,
@@ -224,6 +210,20 @@ routerOrganizacion.post("/solicitudes", async (req, res, next) => {
           enviar,
         ],
       );
+      const idRespaldo = b.idArchivoDocumento || b.idArchivoRespaldo;
+      if (idRespaldo) {
+        await comprobarArchivo(c, idRespaldo, u.id, [
+          "application/pdf",
+          "image/jpeg",
+          "image/png",
+        ]);
+        await c.query(
+          `UPDATE infra.archivo_contenido
+           SET metadatos = metadatos || jsonb_build_object('id_solicitud_evento', $2::text, 'id_evento', $3::text, 'tipo', 'respaldo_solicitud')
+           WHERE id_archivo = $1 AND id_cuenta_propietaria = $4`,
+          [idRespaldo, r.rows[0].id, id, u.id],
+        );
+      }
       if (enviar)
         await encolarAviso(
           c,

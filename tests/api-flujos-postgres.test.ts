@@ -298,14 +298,21 @@ test(
         },
       ],
     };
+    // Las secuencias de evento y solicitud son independientes.
+    await pool.query(`SELECT setval(pg_get_serial_sequence('ticket_trade."SolicitudEvento"','id_solicitud_evento'), 50000, true)`);
     const s = await ok(
       await pedir(
         "/api/organizacion/solicitudes",
-        { ...solicitud, enviar: false },
+        { ...solicitud, enviar: false, idArchivoDocumento: archivo.id },
         cookie,
       ),
       201,
     );
+    assert.notEqual(s.id, s.idEvento);
+    const respaldo = (await pool.query('SELECT metadatos FROM infra.archivo_contenido WHERE id_archivo=$1', [archivo.id])).rows[0].metadatos;
+    assert.equal(respaldo.id_solicitud_evento, s.id);
+    assert.equal(respaldo.id_evento, s.idEvento);
+    assert.equal((await pedir('/api/archivos/' + archivo.id)).status, 403);
     const corregir = (version: number) =>
       fetch(base + "/api/organizacion/solicitudes/" + s.id, {
         method: "PATCH",
