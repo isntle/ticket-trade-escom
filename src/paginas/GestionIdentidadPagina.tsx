@@ -3,7 +3,6 @@ import { impedimentoVerificacion, intentosPeriodo, periodoIdentidadActual, recha
 import { volverA } from '../dominio/navegacion';
 import { apiActiva } from '../servicios/modoDatos';
 import React, { useEffect, useState } from "react";
-import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import { ArrowLeft, FileCheck2 } from "lucide-react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { useDatos } from "../contextos/DatosContexto";
@@ -24,6 +23,28 @@ const primario =
 const campo =
   "mt-1 w-full rounded-xl border border-neutral-300 bg-white p-2.5 text-sm";
 const estado = (s?: string) => (s || "sin_enviar").replaceAll("_", " ");
+const ETIQUETAS_ESTADO: Record<string, string> = {
+  sin_enviar: "Sin enviar",
+  en_revision: "En revisión",
+  requiere_correccion: "Corrección solicitada",
+  aprobado: "Aprobado",
+  rechazado: "Rechazado",
+  revocado: "Verificación revocada",
+};
+const estadoLegible = (s?: string) => ETIQUETAS_ESTADO[s || "sin_enviar"] || estado(s);
+const afiliacionLegible = (afiliacion: Usuario["afiliacion"]) => ({
+  alumno: "Estudiante",
+  profesor: "Docente",
+  administrativo: "Administrativo",
+  pae: "Personal de apoyo",
+  externo: "Externo",
+}[afiliacion]);
+const ESTADOS_RESUELTOS = new Set([
+  "aprobado",
+  "rechazado",
+  "requiere_correccion",
+  "revocado",
+]);
 
 export function GestionIdentidadPagina({
   vista,
@@ -62,6 +83,9 @@ export function GestionIdentidadPagina({
   const [accion, setAccion] = useState<"aplicar" | "levantar">("aplicar");
   const [eventoId, setEventoId] = useState("");
   const [filtro, setFiltro] = useState("");
+  const [apartado, setApartado] = useState<"pendientes" | "historial">("pendientes");
+  const [cargandoListado, setCargandoListado] = useState(false);
+  const [errorListado, setErrorListado] = useState("");
   // Documento abierto en la vista previa; el visor obtiene el PDF con la sesión vigente.
   const [documento, setDocumento] = useState<{
     archivo: DocumentoIdentidad;
@@ -81,12 +105,34 @@ export function GestionIdentidadPagina({
     setArchivos(cuenta?.archivosExpediente || []);
     setMotivoSolicitud(cuenta?.motivoSolicitudVerificacion || "");
     setRevision(null);
-    const ejemplo = vista === "revision" && (admin || subdireccion) && interfazSolicitada() === "UI-IP-10"
-      ? usuarios.find(u => (u.estadoExpediente && u.estadoExpediente !== "sin_enviar") || u.esVerificado) : undefined;
-    setSeleccion(ejemplo ? {id:ejemplo.id,version:ejemplo.versionIdentidad || 0} : null);
+    setSeleccion(null);
+    setApartado("pendientes");
     setMensaje("");
     setDocumento(null);
-  }, [cuenta?.id, vista]);
+
+    if (vista !== "revision" || (!admin && !subdireccion)) {
+      setCargandoListado(false);
+      setErrorListado("");
+      return;
+    }
+
+    let vigente = true;
+    setCargandoListado(true);
+    setErrorListado("");
+    Promise.resolve()
+      .then(() => auth.refrescarUsuarios())
+      .then(() => {
+        if (vigente) setCargandoListado(false);
+      })
+      .catch((error: unknown) => {
+        if (!vigente) return;
+        setErrorListado(error instanceof Error ? error.message : "No se pudo cargar la bandeja de expedientes.");
+        setCargandoListado(false);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [cuenta?.id, vista, rolActivo]);
   useEffect(() => {
     if (!cuenta || (!admin && !subdireccion && vista === "revision")) setDocumento(null);
   }, [cuenta?.id, rolActivo, vista]);
@@ -113,6 +159,29 @@ export function GestionIdentidadPagina({
     setMensaje("");
     setDocumento(null);
   };
+  const reintentarCargaUsuarios = async () => {
+    setCargandoListado(true);
+    setErrorListado("");
+    try {
+      await auth.refrescarUsuarios();
+    } catch (error) {
+      setErrorListado(error instanceof Error ? error.message : "No se pudo cargar la bandeja de expedientes.");
+    } finally {
+      setCargandoListado(false);
+    }
+  };
+  const usuariosUnicos = Array.from(new Map(usuarios.map((u) => [u.id, u])).values());
+  const expedientesPendientes = usuariosUnicos.filter((u) => u.estadoExpediente === "en_revision");
+  const expedientesHistorial = usuariosUnicos.filter((u) =>
+    u.estadoExpediente !== "en_revision" && (
+      ESTADOS_RESUELTOS.has(u.estadoExpediente || "") ||
+      !!u.esVerificado ||
+      !!u.historialExpediente?.some((h) => ESTADOS_RESUELTOS.has(h.estado))
+    ),
+  );
+  const expedientesVisibles = (apartado === "pendientes" ? expedientesPendientes : expedientesHistorial).filter((u) =>
+    (u.nombre + u.correo).toLocaleLowerCase().includes(filtro.trim().toLocaleLowerCase()),
+  );
   const agregar = async (files: File[]) => {
     if (!files.length) return;
     if (files.length + archivos.length > limiteDocumentos)
@@ -445,7 +514,7 @@ export function GestionIdentidadPagina({
           {cuenta.historialExpediente?.map((h, i) => (
             <div key={i} className="rounded-xl border p-3 text-sm">
               <p>
-                {estado(h.estado)} · {h.responsable} ·{" "}
+                {estadoLegible(h.estado)} · {h.responsable} ·{" "}
                 {new Date(h.fecha).toLocaleString("es-MX")} · {h.motivo}
               </p>
               {h.archivos && listadoArchivos(cuenta, h.archivos)}
@@ -463,37 +532,78 @@ export function GestionIdentidadPagina({
                 className={campo}
                 value={filtro}
                 onChange={(e) => setFiltro(e.target.value)}
+                placeholder="Nombre o correo"
               />
             </label>
-            {usuarios
-              .filter(
-                (u) =>
-                  (u.estadoExpediente && u.estadoExpediente !== "sin_enviar") ||
-                  u.esVerificado,
-              )
-              .filter((u) =>
-                (u.nombre + u.correo)
-                  .toLowerCase()
-                  .includes(filtro.toLowerCase()),
-              )
-              .map((u) => (
+            <div className="grid grid-cols-2 gap-2" aria-label="Apartados de expedientes">
+              <button
+                type="button"
+                aria-pressed={apartado === "pendientes"}
+                className={apartado === "pendientes" ? primario : boton}
+                onClick={() => {
+                  setApartado("pendientes");
+                  setSeleccion(null);
+                  setDecision(null);
+                  setDocumento(null);
+                }}
+              >
+                Pendientes ({expedientesPendientes.length})
+              </button>
+              <button
+                type="button"
+                aria-pressed={apartado === "historial"}
+                className={apartado === "historial" ? primario : boton}
+                onClick={() => {
+                  setApartado("historial");
+                  setSeleccion(null);
+                  setDecision(null);
+                  setDocumento(null);
+                }}
+              >
+                Historial ({expedientesHistorial.length})
+              </button>
+            </div>
+            {cargandoListado ? (
+              <p role="status" className="rounded-2xl border bg-white p-5 text-sm text-neutral-600">
+                Cargando expedientes de la bandeja…
+              </p>
+            ) : errorListado ? (
+              <div role="alert" className="space-y-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+                <p>No fue posible cargar los expedientes. {textoParaUsuario(errorListado)}</p>
+                <button type="button" className={boton} onClick={reintentarCargaUsuarios}>
+                  Reintentar carga
+                </button>
+              </div>
+            ) : expedientesVisibles.length ? expedientesVisibles.map((u) => (
                 <button
                   key={u.id}
-                  className="block w-full rounded-2xl border bg-white p-4 text-left"
+                  type="button"
+                  className="block w-full rounded-2xl border bg-white p-4 text-left transition hover:border-[#7a132b] hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7a132b]"
                   onClick={() => elegir(u)}
                 >
-                  <strong>{u.nombre}</strong>
-                  <p className="text-sm">
-                    {estado(u.estadoExpediente)} · Ver detalle
-                  </p>
+                  <strong className="block">{u.nombre}</strong>
+                  <span className="mt-1 block break-all text-xs text-neutral-500">{u.correo}</span>
+                  <span className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span>{afiliacionLegible(u.afiliacion)}</span>
+                    <span className="rounded-full bg-neutral-100 px-2.5 py-1 font-semibold text-neutral-700">{estadoLegible(u.estadoExpediente || (u.esVerificado ? "aprobado" : undefined))}</span>
+                  </span>
+                  <span className="mt-3 block text-sm font-semibold text-[#7a132b] underline">Ver expediente</span>
                 </button>
-              ))}
+              )) : (
+                <p className="rounded-2xl border bg-white p-5 text-sm text-neutral-600">
+                  {filtro.trim()
+                    ? "No se encontraron expedientes que coincidan con la búsqueda."
+                    : apartado === "pendientes"
+                      ? "No hay expedientes pendientes de revisión. Los expedientes resueltos se consultan en Historial."
+                      : "Todavía no hay expedientes resueltos en el historial."}
+                </p>
+            )}
           </div>
           {elegida ? (
             <article className="space-y-4 rounded-3xl border bg-white p-5">
               <h2 className="text-xl font-bold">{elegida.nombre}</h2>
               <p className="break-all text-sm">
-                {elegida.correo} · {elegida.afiliacion}
+                {elegida.correo} · {afiliacionLegible(elegida.afiliacion)}
               </p>
               <p>
                 {elegida.afiliacion === "alumno"
@@ -506,7 +616,7 @@ export function GestionIdentidadPagina({
               </p>
               <p>
                 Versión {seleccion?.version} ·{" "}
-                {estado(elegida.estadoExpediente)}
+                {estadoLegible(elegida.estadoExpediente || (elegida.esVerificado ? "aprobado" : undefined))}
               </p>
               <p><strong>Motivo de la solicitud:</strong> {elegida.motivoSolicitudVerificacion || "No registrado en el expediente anterior"}</p>
               {listadoArchivos(elegida)}
@@ -538,7 +648,7 @@ export function GestionIdentidadPagina({
               {subdireccion && <form className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={async e=>{e.preventDefault();resultado((await auth.silenciarVerificacion(elegida.id,silencioHasta,motivoSilencio,seleccion!.version)));}}><h3 className="font-bold">Pausar nuevos envíos de verificación</h3><p className="text-sm">No bloquea la cuenta, las reservas ni el inicio de sesión. Deja la fecha vacía para levantar una pausa anterior.</p>{elegida.verificacionSilenciadaHasta&&<p className="text-sm">Pausa hasta {elegida.verificacionSilenciadaHasta}: {elegida.motivoSilencioVerificacion}</p>}<label className="block text-sm">Hasta<input type="date" value={silencioHasta} onChange={e=>setSilencioHasta(e.target.value)} className={campo}/></label><label className="block text-sm">Motivo<textarea required value={motivoSilencio} onChange={e=>setMotivoSilencio(e.target.value)} className={campo}/></label><button type="submit" className={boton}>Confirmar pausa o habilitación</button></form>}
               {decision && (
                 <div className="space-y-3 rounded-xl border border-amber-200 p-4">
-                  <h3 className="font-bold">Confirmar: {estado(decision)}</h3>
+                  <h3 className="font-bold">Confirmar: {estadoLegible(decision)}</h3>
                   <label className="block text-sm">
                     Motivo o constancia de revisión
                     <textarea
@@ -589,7 +699,7 @@ export function GestionIdentidadPagina({
               {elegida.historialExpediente?.map((h, i) => (
                 <div key={i} className="border-t pt-3 text-sm">
                   <p>
-                    {estado(h.estado)} · {h.responsable} · {h.fecha} ·{" "}
+                    {estadoLegible(h.estado)} · {h.responsable} · {h.fecha} ·{" "}
                     {h.motivo}
                   </p>
                   {h.archivos && listadoArchivos(elegida, h.archivos)}
@@ -597,9 +707,8 @@ export function GestionIdentidadPagina({
               ))}
             </article>
           ) : (
-            <p className="rounded-3xl border bg-white p-6">
-              Selecciona un expediente para consultar sus documentos y
-              decisiones.
+            <p className="rounded-3xl border bg-white p-6 text-sm text-neutral-600">
+              Selecciona un expediente de {apartado === "pendientes" ? "Pendientes" : "Historial"} para consultar sus documentos y decisiones.
             </p>
           )}
         </div>
