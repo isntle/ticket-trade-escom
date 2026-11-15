@@ -1,7 +1,7 @@
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import {transporteApi} from "../servicios/http";
 import {apiActiva} from '../servicios/modoDatos';
-import { validarDominioIdentidad } from "../dominio/identidad";
+import { verificacionIdentidadVigente, validarDominioIdentidad } from "../dominio/identidad";
 import { destinoInternoSeguro } from "../dominio/navegacion";
 import { volverA } from "../dominio/navegacion";
 import React, { useEffect, useState } from "react";
@@ -12,6 +12,7 @@ import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import { USUARIOS_INICIALES } from "../datos/datosIniciales";
 import type { TipoAfiliacion } from "../tipos";
 import {
+  BadgeCheck,
   Calendar,
   ChevronDown,
   ChevronUp,
@@ -330,6 +331,7 @@ export function AutenticacionPagina({
                     <span className="block truncate text-sm font-bold text-neutral-800 group-hover:text-[#7a132b]">
                       {u.nombre}
                     </span>
+                    {verificacionIdentidadVigente(u) && <span className="flex items-center gap-1 text-xs font-semibold text-sky-700"><BadgeCheck size={14} aria-hidden="true" />Verificado</span>}
                     <span className="text-xs text-neutral-500">
                       {u.roles.includes("admin") ? "Administración" : u.roles.includes("subdireccion") ? "Subdirección" : u.roles.includes("staff") ? "Personal de acceso" : {
                         alumno: "Estudiante",

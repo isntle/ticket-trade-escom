@@ -248,6 +248,7 @@ export const BarraSuperior: React.FC<{
                               }
                             >
                               {usuario.nombre}
+                              {verificacionIdentidadVigente(usuario) && <span className="flex items-center gap-1 text-xs font-semibold text-sky-700"><BadgeCheck size={14} aria-hidden="true" />Verificado</span>}
                               <span className="block text-xs text-neutral-500">
                                 {{alumno:"Estudiante",profesor:"Docente",administrativo:"Administrativo",pae:"Personal de apoyo",externo:"Externo"}[usuario.afiliacion]}
                               </span>
