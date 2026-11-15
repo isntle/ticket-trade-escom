@@ -353,18 +353,60 @@ export function ProveedorDatosRemotos({
         await cargar();
         return { exito: true };
       }),
-    emitirBoletosEspeciales: () => {
-      const mensaje =
-        "Dependencia pendiente: la emisión de boletos especiales aún no está conectada al servidor. No se guardaron cambios.";
-      setError(mensaje);
-      return { exito: false, error: mensaje, mensaje };
-    },
-    invalidarBoletoEspecial: () => {
-      const mensaje =
-        "Dependencia pendiente: la invalidación de boletos especiales aún no está conectada al servidor. No se guardaron cambios.";
-      setError(mensaje);
-      return { exito: false, error: mensaje, mensaje };
-    },
+    emitirBoletosEspeciales: (datos: {
+      idEvento: string;
+      idFechaEvento: string;
+      tipo: string;
+      cantidad: number;
+      nombreBase: string;
+      correoDestino: string;
+      emitidoPor?: string;
+      idOrganizador?: string;
+      claveIdempotencia?: string;
+    }) =>
+      intentar(async () => {
+        const r = await api<any>("/taquilla/especiales", {
+          metodo: "POST",
+          datos: {
+            idEvento: datos.idEvento,
+            idFechaEvento: datos.idFechaEvento,
+            idActividad: datos.idFechaEvento,
+            tipo: datos.tipo,
+            cantidad: datos.cantidad,
+            nombreBase: datos.nombreBase,
+            correoDestino: datos.correoDestino,
+            claveIdempotencia: datos.claveIdempotencia,
+          },
+        });
+        const nuevo = await cargar();
+        const idsEmitidos = new Set(
+          (r.ids || []).map((id: string) =>
+            String(id).startsWith("boleto-esp-")
+              ? String(id)
+              : "boleto-esp-" + id,
+          ),
+        );
+        const boletos = nuevo.listaBoletos.filter((b: any) =>
+          idsEmitidos.has(b.id),
+        );
+        return {
+          exito: true,
+          boletos: boletos.length ? boletos : r.boletos || [],
+        };
+      }),
+    invalidarBoletoEspecial: (idBoleto: string, motivo: string) =>
+      intentar(async () => {
+        const idLimpio = String(idBoleto ?? "").replace(
+          /^(?:boleto-esp-|bol-esp-|esp-)/i,
+          "",
+        );
+        await api("/taquilla/especiales/" + idLimpio + "/invalidacion", {
+          metodo: "POST",
+          datos: { motivo },
+        });
+        await cargar();
+        return { exito: true };
+      }),
     procesarCheckIn: async (
       codigo: string,
       _operador: string,

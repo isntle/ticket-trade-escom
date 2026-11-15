@@ -1,6 +1,5 @@
 import { volverA } from '../dominio/navegacion';
 import { etiquetaActividad, impedimentoApertura, puedeAdministrarTaquilla } from '../dominio/taquilla';
-import { apiActiva } from '../servicios/modoDatos';
 import React, { useMemo, useState } from 'react';
 import {
   ArrowLeft,
@@ -84,6 +83,11 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
   const [cantidad, setCantidad] = useState(1);
   const [nombreBase, setNombreBase] = useState('Invitado VIP');
   const [correoDestino, setCorreoDestino] = useState(usuarioActual?.correo || '');
+  const [emitiendo, setEmitiendo] = useState(false);
+  const [invalidando, setInvalidando] = useState(false);
+  const [errorEmision, setErrorEmision] = useState('');
+  const [errorInvalidacion, setErrorInvalidacion] = useState('');
+  const [claveIdempotencia, setClaveIdempotencia] = useState(() => crypto.randomUUID());
 
   const boletosEspeciales = useMemo(
     () => listaBoletos.filter((boleto) => boleto.idEvento === eventId && boleto.esEspecial),
@@ -142,6 +146,8 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
     setCantidad(1);
     setNombreBase('Invitado VIP');
     setCorreoDestino(usuarioActual?.correo || '');
+    setErrorEmision('');
+    setClaveIdempotencia(crypto.randomUUID());
     setModalEmisionAbierto(true);
   };
 
@@ -153,55 +159,76 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
       vip: 'Invitado VIP'
     };
     setNombreBase(nombres[tipo]);
+    setErrorEmision('');
+    setClaveIdempotencia(crypto.randomUUID());
   };
 
-  const manejarEmision = (eventoFormulario: React.FormEvent) => {
+  const manejarEmision = async (eventoFormulario: React.FormEvent) => {
     eventoFormulario.preventDefault();
-    const resultado = emitirBoletosEspeciales({
-      idEvento: evento.id,
-      idFechaEvento,
-      tipo: tipoEspecial,
-      cantidad,
-      nombreBase,
-      correoDestino,
-      emitidoPor: usuarioActual?.nombre || 'Organizador acreditado',
-      idOrganizador: usuarioActual?.id || ''
-    });
+    if (emitiendo) return;
+    setEmitiendo(true);
+    setErrorEmision('');
+    try {
+      const resultado = await emitirBoletosEspeciales({
+        idEvento: evento.id,
+        idFechaEvento,
+        tipo: tipoEspecial,
+        cantidad,
+        nombreBase,
+        correoDestino,
+        emitidoPor: usuarioActual?.nombre || 'Organizador acreditado',
+        idOrganizador: usuarioActual?.id || '',
+        claveIdempotencia
+      });
 
-    if (!resultado.exito || !resultado.boletos) {
-      mostrarNotificacion('No fue posible emitir los boletos', resultado.error || '', 'error');
-      return;
+      if (!resultado.exito || !resultado.boletos) {
+        const mensajeError = resultado.error || 'No fue posible emitir los boletos especiales.';
+        setErrorEmision(mensajeError);
+        mostrarNotificacion('No fue posible emitir los boletos', mensajeError, 'error');
+        return;
+      }
+
+      setUltimoLote(resultado.boletos);
+      setModalEmisionAbierto(false);
+      setClaveIdempotencia(crypto.randomUUID());
+      mostrarNotificacion(
+        'Paquete de boletos generado',
+        `Se emitieron ${resultado.boletos.length} acreditación(es) ${ETIQUETAS_TIPO[tipoEspecial].toLowerCase()}.`,
+        'exito'
+      );
+    } finally {
+      setEmitiendo(false);
     }
-
-    setUltimoLote(resultado.boletos);
-    setModalEmisionAbierto(false);
-    mostrarNotificacion(
-      'Paquete de boletos generado',
-      `Se emitieron ${resultado.boletos.length} acreditación(es) ${ETIQUETAS_TIPO[tipoEspecial].toLowerCase()}.`,
-      'exito'
-    );
   };
 
-  const manejarInvalidacion = () => {
-    if (!boletoParaInvalidar) return;
-    const resultado = invalidarBoletoEspecial(
-      boletoParaInvalidar.id,
-      motivoInvalidacion,
-      usuarioActual?.nombre || 'Organizador acreditado'
-    );
+  const manejarInvalidacion = async () => {
+    if (!boletoParaInvalidar || invalidando) return;
+    setInvalidando(true);
+    setErrorInvalidacion('');
+    try {
+      const resultado = await invalidarBoletoEspecial(
+        boletoParaInvalidar.id,
+        motivoInvalidacion,
+        usuarioActual?.nombre || 'Organizador acreditado'
+      );
 
-    if (!resultado.exito) {
-      mostrarNotificacion('No fue posible invalidar el boleto', resultado.error || '', 'error');
-      return;
+      if (!resultado.exito) {
+        const mensajeError = resultado.error || 'No fue posible invalidar el boleto especial.';
+        setErrorInvalidacion(mensajeError);
+        mostrarNotificacion('No fue posible invalidar el boleto', mensajeError, 'error');
+        return;
+      }
+
+      setBoletoParaInvalidar(null);
+      setMotivoInvalidacion('');
+      mostrarNotificacion(
+        'Boleto especial invalidado',
+        'El código QR quedó cancelado y será rechazado por el módulo de acceso.',
+        'informacion'
+      );
+    } finally {
+      setInvalidando(false);
     }
-
-    setBoletoParaInvalidar(null);
-    setMotivoInvalidacion('');
-    mostrarNotificacion(
-      'Boleto especial invalidado',
-      'El código QR quedó cancelado y será rechazado por el módulo de acceso.',
-      'informacion'
-    );
   };
 
   const descargarUltimoLote = () => {
@@ -251,22 +278,13 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
         <button
           type="button"
           onClick={abrirModalEmision}
-          disabled={actividadesEmision.length === 0 || apiActiva}
+          disabled={actividadesEmision.length === 0 || emitiendo}
           className="px-5 py-3 rounded-xl bg-[#7a132b] hover:bg-[#620f23] disabled:bg-neutral-300 disabled:cursor-not-allowed text-white text-xs font-bold inline-flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Generar boletos especiales</span>
         </button>
       </div>
-
-      {apiActiva && (
-        <AlertaMensaje
-          tipo="informacion"
-          titulo="Dependencia pendiente en servidor"
-          className="mb-6"
-          mensaje="La emisión e invalidación de pases especiales desde la interfaz aún no está conectada al servidor. Los boletos especiales ya registrados en PostgreSQL se consultan y validan en el control de acceso sin simular cambios locales."
-        />
-      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs">
@@ -303,7 +321,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
           mensaje={
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <span>
-                Se generaron {ultimoLote.length} boleto(s). El prototipo conserva los códigos y simula la notificación por correo.
+                Se generaron {ultimoLote.length} boleto(s) especiales con código QR listos para consulta y descarga.
               </span>
               <button
                 type="button"
@@ -435,6 +453,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
                             onClick={() => {
                               setBoletoParaInvalidar(boleto);
                               setMotivoInvalidacion('');
+                              setErrorInvalidacion('');
                             }}
                             className="px-3 py-2 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 font-bold cursor-pointer transition-colors"
                           >
@@ -453,12 +472,24 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
 
       <VentanaModal
         estaAbierto={modalEmisionAbierto}
-        alCerrar={() => setModalEmisionAbierto(false)}
+        alCerrar={() => {
+          if (emitiendo) return;
+          setModalEmisionAbierto(false);
+          setErrorEmision('');
+        }}
         titulo="Generar paquete de boletos especiales"
         subtitulo="Cada acreditación recibirá un identificador y código QR únicos"
         anchoMaximo="2xl"
       >
         <form onSubmit={manejarEmision} className="space-y-5">
+          {errorEmision && (
+            <AlertaMensaje
+              tipo="error"
+              titulo="No fue posible emitir los boletos"
+              mensaje={errorEmision}
+            />
+          )}
+
           <div>
             <label htmlFor="actividad-especial" className="text-xs font-bold text-neutral-800 block mb-1.5">
               Actividad del evento
@@ -467,7 +498,11 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
               id="actividad-especial"
               required
               value={idFechaEvento}
-              onChange={(eventoCampo) => setIdFechaEvento(eventoCampo.target.value)}
+              onChange={(eventoCampo) => {
+                setIdFechaEvento(eventoCampo.target.value);
+                setErrorEmision('');
+                setClaveIdempotencia(crypto.randomUUID());
+              }}
               className="w-full px-3.5 py-3 rounded-xl border border-neutral-300 bg-white text-xs outline-none focus:ring-2 focus:ring-[#7a132b]/15 focus:border-[#7a132b]"
             >
               {evento.fechas.map((fecha, indice) => (
@@ -518,7 +553,11 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
               <input
                 required
                 value={nombreBase}
-                onChange={(eventoCampo) => setNombreBase(eventoCampo.target.value)}
+                onChange={(eventoCampo) => {
+                  setNombreBase(eventoCampo.target.value);
+                  setErrorEmision('');
+                  setClaveIdempotencia(crypto.randomUUID());
+                }}
                 placeholder="Ej. Invitado VIP"
                 className="mt-1.5 w-full px-3.5 py-3 rounded-xl border border-neutral-300 text-xs font-normal outline-none focus:ring-2 focus:ring-[#7a132b]/15 focus:border-[#7a132b]"
               />
@@ -531,21 +570,29 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
                 min={1}
                 max={20}
                 value={cantidad}
-                onChange={(eventoCampo) => setCantidad(Number(eventoCampo.target.value))}
+                onChange={(eventoCampo) => {
+                  setCantidad(Number(eventoCampo.target.value));
+                  setErrorEmision('');
+                  setClaveIdempotencia(crypto.randomUUID());
+                }}
                 className="mt-1.5 w-full px-3.5 py-3 rounded-xl border border-neutral-300 text-xs font-normal outline-none focus:ring-2 focus:ring-[#7a132b]/15 focus:border-[#7a132b]"
               />
             </label>
           </div>
 
           <label className="text-xs font-bold text-neutral-800 block">
-            Correo que recibirá el paquete
+            Correo de referencia del paquete
             <div className="relative mt-1.5">
               <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
               <input
                 required
                 type="email"
                 value={correoDestino}
-                onChange={(eventoCampo) => setCorreoDestino(eventoCampo.target.value)}
+                onChange={(eventoCampo) => {
+                  setCorreoDestino(eventoCampo.target.value);
+                  setErrorEmision('');
+                  setClaveIdempotencia(crypto.randomUUID());
+                }}
                 className="w-full pl-10 pr-3.5 py-3 rounded-xl border border-neutral-300 text-xs font-normal outline-none focus:ring-2 focus:ring-[#7a132b]/15 focus:border-[#7a132b]"
               />
             </div>
@@ -553,23 +600,28 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
 
           <AlertaMensaje
             tipo="informacion"
-            mensaje="En este prototipo el envío de correo se representa mediante una confirmación y un paquete descargable. No se enviarán mensajes reales."
+            mensaje="Las acreditaciones generadas quedan registradas en la actividad seleccionada y disponibles para consulta individual y descarga en paquete desde este panel."
           />
 
           <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
             <button
               type="button"
-              onClick={() => setModalEmisionAbierto(false)}
-              className="px-4 py-2.5 rounded-xl border border-neutral-300 text-neutral-700 text-xs font-bold hover:bg-neutral-50 cursor-pointer"
+              disabled={emitiendo}
+              onClick={() => {
+                setModalEmisionAbierto(false);
+                setErrorEmision('');
+              }}
+              className="px-4 py-2.5 rounded-xl border border-neutral-300 text-neutral-700 text-xs font-bold hover:bg-neutral-50 disabled:opacity-50 cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-[#7a132b] hover:bg-[#620f23] text-white text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer"
+              disabled={emitiendo}
+              className="px-5 py-2.5 rounded-xl bg-[#7a132b] hover:bg-[#620f23] disabled:bg-neutral-300 disabled:cursor-not-allowed text-white text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer"
             >
               <PackageCheck className="w-4 h-4" />
-              Generar paquete de QR
+              {emitiendo ? 'Emitiendo boletos…' : 'Generar paquete de QR'}
             </button>
           </div>
         </form>
@@ -578,8 +630,10 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
       <VentanaModal
         estaAbierto={Boolean(boletoParaInvalidar)}
         alCerrar={() => {
+          if (invalidando) return;
           setBoletoParaInvalidar(null);
           setMotivoInvalidacion('');
+          setErrorInvalidacion('');
         }}
         titulo="Invalidar boleto especial"
         subtitulo="El código QR dejará de ser válido para el control de acceso"
@@ -587,6 +641,13 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
       >
         {boletoParaInvalidar && (
           <div className="space-y-4">
+            {errorInvalidacion && (
+              <AlertaMensaje
+                tipo="error"
+                titulo="No fue posible invalidar el boleto"
+                mensaje={errorInvalidacion}
+              />
+            )}
             <AlertaMensaje
               tipo="advertencia"
               mensaje={
@@ -601,7 +662,10 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
                 required
                 rows={4}
                 value={motivoInvalidacion}
-                onChange={(eventoCampo) => setMotivoInvalidacion(eventoCampo.target.value)}
+                onChange={(eventoCampo) => {
+                  setMotivoInvalidacion(eventoCampo.target.value);
+                  setErrorInvalidacion('');
+                }}
                 placeholder="Ej. Cambio de integrante del equipo de apoyo"
                 className="mt-1.5 w-full px-3.5 py-3 rounded-xl border border-neutral-300 text-xs font-normal resize-none outline-none focus:ring-2 focus:ring-rose-100 focus:border-rose-400"
               />
@@ -609,19 +673,24 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setBoletoParaInvalidar(null)}
-                className="px-4 py-2.5 rounded-xl border border-neutral-300 text-neutral-700 text-xs font-bold hover:bg-neutral-50 cursor-pointer"
+                disabled={invalidando}
+                onClick={() => {
+                  setBoletoParaInvalidar(null);
+                  setMotivoInvalidacion('');
+                  setErrorInvalidacion('');
+                }}
+                className="px-4 py-2.5 rounded-xl border border-neutral-300 text-neutral-700 text-xs font-bold hover:bg-neutral-50 disabled:opacity-50 cursor-pointer"
               >
                 Conservar boleto
               </button>
               <button
                 type="button"
-                disabled={!motivoInvalidacion.trim()}
+                disabled={invalidando || !motivoInvalidacion.trim()}
                 onClick={manejarInvalidacion}
                 className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:bg-neutral-300 disabled:cursor-not-allowed text-white text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Ban className="w-4 h-4" />
-                Confirmar invalidación
+                {invalidando ? 'Invalidando…' : 'Confirmar invalidación'}
               </button>
             </div>
           </div>

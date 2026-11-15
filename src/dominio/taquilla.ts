@@ -39,7 +39,11 @@ export function estadoInscripcionesActividad(actividad: FechaEvento, estadoEvent
 }
 
 export function puedeAdministrarTaquilla(usuario: Usuario | null, evento: Evento): boolean {
-  return Boolean(usuario?.estaActivo && usuario.roles.includes('organizador') && usuario.id === evento.idOrganizador);
+  return Boolean(
+    usuario?.estaActivo &&
+      ((usuario.roles.includes('organizador') && usuario.id === evento.idOrganizador) ||
+        usuario.roles.includes('admin'))
+  );
 }
 
 export function impedimentoApertura(evento: Evento, actividad: FechaEvento, bloqueos: BloqueoRecinto[], ahora = Date.now()): string | undefined {

@@ -207,6 +207,7 @@ export interface ContextoDatosTipo {
     correoDestino: string;
     emitidoPor: string;
     idOrganizador: string;
+    claveIdempotencia?: string;
   }) => { exito: boolean; boletos?: BoletoDigital[]; error?: string };
 
   invalidarBoletoEspecial: (
@@ -1817,6 +1818,7 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     correoDestino: string;
     emitidoPor: string;
     idOrganizador: string;
+    claveIdempotencia?: string;
   }): { exito: boolean; boletos?: BoletoDigital[]; error?: string } => {
     const evento = listaEventos.find((e) => e.id === datos.idEvento);
     const fecha = evento?.fechas.find((f) => f.id === datos.idFechaEvento);
@@ -1826,7 +1828,10 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       return { exito: false, error: 'El evento o la actividad seleccionada no existe.' };
     }
 
-    if (!puedeAdministrarTaquilla(usuarioActual, evento) || usuarioActual?.id !== datos.idOrganizador) {
+    if (
+      !puedeAdministrarTaquilla(usuarioActual, evento) ||
+      (usuarioActual?.id !== datos.idOrganizador && !usuarioActual?.roles.includes('admin'))
+    ) {
       return { exito: false, error: 'Solo el organizador responsable puede emitir boletos especiales.' };
     }
 
@@ -1921,6 +1926,11 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
 
     if (!boleto) {
       return { exito: false, error: 'No se encontró el boleto especial seleccionado.' };
+    }
+
+    const evento = listaEventos.find((e) => e.id === boleto.idEvento);
+    if (evento && !puedeAdministrarTaquilla(usuarioActual, evento)) {
+      return { exito: false, error: 'Solo el organizador responsable puede invalidar boletos especiales.' };
     }
 
     if (boleto.estado === 'utilizado') {
