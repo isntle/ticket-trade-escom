@@ -75,10 +75,11 @@ routerPassword.post(
 
     const hash = await hashContrasena(nueva);
     await conTransaccion(async (c) => {
-      await c.query(
-        'UPDATE ticket_trade."Cuenta" SET contrasena_hash=$1 WHERE id_cuenta=$2',
-        [hash, id],
+      const cambio = await c.query(
+        'UPDATE ticket_trade."Cuenta" SET contrasena_hash=$1 WHERE id_cuenta=$2 AND contrasena_hash=$3 RETURNING id_cuenta',
+        [hash, id, rows[0].contrasena_hash],
       );
+      if (!cambio.rowCount) fallo("La contraseña cambió durante la operación. Inicia sesión de nuevo.", 409);
       await c.query("DELETE FROM infra.sesion_http WHERE id_cuenta=$1", [id]);
     });
     for (const clave of claves) fallos.delete(clave);
