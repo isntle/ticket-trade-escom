@@ -162,6 +162,37 @@ routerOrganizacion.post("/solicitudes", async (req, res, next) => {
             a.asistenciaEstimada,
           ],
         );
+      if (Array.isArray(b.itinerarios) && b.itinerarios.length > 0) {
+        if (new Set(b.itinerarios.map((i: any) => i.fecha)).size !== b.itinerarios.length) {
+          throw Object.assign(new Error("Solo se admite un itinerario por día."), { estado: 422 });
+        }
+        for (const i of b.itinerarios) {
+          if (!i || !i.fecha || !i.idArchivo) continue;
+          const fechaValida = b.fechasSolicitadas.some((f: any) => f.fecha === i.fecha);
+          if (!fechaValida) {
+            throw Object.assign(new Error("Cada itinerario debe corresponder a un día del evento."), { estado: 422 });
+          }
+          await comprobarArchivo(c, i.idArchivo, u.id, ["image/jpeg", "image/png"]);
+          await c.query(
+            'INSERT INTO ticket_trade."ItinerarioDia"(id_evento,fecha,id_archivo) VALUES($1,$2,$3)',
+            [id, i.fecha, i.idArchivo],
+          );
+        }
+      }
+      const idRespaldo = b.idArchivoDocumento || b.idArchivoRespaldo;
+      if (idRespaldo) {
+        await comprobarArchivo(c, idRespaldo, u.id, [
+          "application/pdf",
+          "image/jpeg",
+          "image/png",
+        ]);
+        await c.query(
+          `UPDATE infra.archivo_contenido
+           SET metadatos = metadatos || jsonb_build_object('id_solicitud_evento', $2::text, 'id_evento', $3::text, 'tipo', 'respaldo_solicitud')
+           WHERE id_archivo = $1 AND id_cuenta_propietaria = $4`,
+          [idRespaldo, id, id, u.id],
+        );
+      }
       const enviar = b.enviar === true;
       const tiempo = await c.query(
         `SELECT bool_or((fecha+hora_inicio) AT TIME ZONE 'America/Mexico_City'<=CURRENT_TIMESTAMP) AS pasado,bool_or((fecha+hora_inicio) AT TIME ZONE 'America/Mexico_City'<CURRENT_TIMESTAMP+interval '168 hours') AS urgente FROM ticket_trade."Actividad" WHERE id_evento=$1`,
@@ -417,6 +448,61 @@ routerOrganizacion.patch(
         'DELETE FROM ticket_trade."Actividad" WHERE id_evento=$1 AND NOT(id_actividad=ANY($2::bigint[]))',
         [s.evento, conservar],
       );
+      if (b.itinerarios !== undefined) {
+        if (
+          !Array.isArray(b.itinerarios) ||
+          new Set(b.itinerarios.map((i: any) => i.fecha)).size !==
+            b.itinerarios.length
+        ) {
+          fallo("Solo se admite un itinerario por día.");
+        }
+        for (const i of b.itinerarios) {
+          if (!i || !i.fecha || !i.idArchivo) continue;
+          const fechaValida = b.fechasSolicitadas.some((f: any) => f.fecha === i.fecha);
+          if (!fechaValida)
+            fallo("Cada itinerario debe corresponder a un día del evento.");
+          const propio = await c.query(
+            'SELECT 1 FROM ticket_trade."ItinerarioDia" WHERE id_evento=$1 AND id_archivo=$2',
+            [s.evento, i.idArchivo],
+          );
+          if (!propio.rowCount) {
+            await comprobarArchivo(c, i.idArchivo, u.id, [
+              "image/jpeg",
+              "image/png",
+            ]);
+          }
+        }
+        await c.query('DELETE FROM ticket_trade."ItinerarioDia" WHERE id_evento=$1', [s.evento]);
+        for (const i of b.itinerarios) {
+          if (!i || !i.fecha || !i.idArchivo) continue;
+          await c.query(
+            'INSERT INTO ticket_trade."ItinerarioDia"(id_evento,fecha,id_archivo) VALUES($1,$2,$3)',
+            [s.evento, i.fecha, i.idArchivo],
+          );
+        }
+      } else {
+        await c.query(
+          'DELETE FROM ticket_trade."ItinerarioDia" i WHERE id_evento=$1 AND NOT EXISTS(SELECT 1 FROM ticket_trade."Actividad" a WHERE a.id_evento=i.id_evento AND a.fecha=i.fecha)',
+          [s.evento],
+        );
+      }
+
+      const idRespaldoPatch = b.idArchivoDocumento !== undefined ? b.idArchivoDocumento : b.idArchivoRespaldo;
+      if (idRespaldoPatch !== undefined) {
+        if (idRespaldoPatch) {
+          await comprobarArchivo(c, idRespaldoPatch, u.id, [
+            "application/pdf",
+            "image/jpeg",
+            "image/png",
+          ]);
+          await c.query(
+            `UPDATE infra.archivo_contenido
+             SET metadatos = metadatos || jsonb_build_object('id_solicitud_evento', $2::text, 'id_evento', $3::text, 'tipo', 'respaldo_solicitud')
+             WHERE id_archivo = $1 AND id_cuenta_propietaria = $4`,
+            [idRespaldoPatch, id, s.evento, u.id],
+          );
+        }
+      }
       const tiempo = (
         await c.query(
           `SELECT bool_or((fecha+hora_inicio) AT TIME ZONE 'America/Mexico_City'<=CURRENT_TIMESTAMP) pasado,bool_or((fecha+hora_inicio) AT TIME ZONE 'America/Mexico_City'<CURRENT_TIMESTAMP+interval '168 hours') urgente FROM ticket_trade."Actividad" WHERE id_evento=$1`,

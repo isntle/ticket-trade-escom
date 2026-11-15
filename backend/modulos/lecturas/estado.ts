@@ -88,7 +88,9 @@ export async function leerEstado(u: any) {
     e.id_evento::text evento,ce.nombre categoria,ve.nombre visibilidad,e.id_archivo_cartel::text cartel,ar.clave_almacenamiento,
     es.nombre estado,ta.nombre anticipacion,concat_ws(' ',c.nombres,c.primer_apellido,c.segundo_apellido) nombre,c.correo,
     CASE WHEN tc2.nombre<>'Común' THEN 'administrativo' WHEN rr.nombre='Estudiante' THEN 'alumno' WHEN rr.nombre='Empleado del IPN' THEN 'profesor' ELSE 'externo' END afiliacion,
-    (SELECT mensaje FROM ticket_trade."ResolucionSolicitud" r WHERE r.id_solicitud_evento=s.id_solicitud_evento ORDER BY r.resuelta_en DESC LIMIT 1) resolucion
+    (SELECT mensaje FROM ticket_trade."ResolucionSolicitud" r WHERE r.id_solicitud_evento=s.id_solicitud_evento ORDER BY r.resuelta_en DESC LIMIT 1) resolucion,
+    (SELECT ac.id_archivo::text FROM infra.archivo_contenido ac WHERE ac.metadatos->>'id_solicitud_evento'=s.id_solicitud_evento::text OR ac.metadatos->>'id_evento'=s.id_evento::text LIMIT 1) archivo_documento,
+    (SELECT a2.nombre FROM ticket_trade."Archivo" a2 JOIN infra.archivo_contenido ac2 USING(id_archivo) WHERE ac2.metadatos->>'id_solicitud_evento'=s.id_solicitud_evento::text OR ac2.metadatos->>'id_evento'=s.id_evento::text LIMIT 1) nombre_documento
     FROM ticket_trade."SolicitudEvento" s JOIN ticket_trade."Evento" e USING(id_evento) JOIN ticket_trade."Cuenta" c ON c.id_cuenta=e.id_cuenta_organizadora
     JOIN ticket_trade."TipoCuenta" tc2 ON tc2.id_tipo_cuenta=c.id_tipo_cuenta
     LEFT JOIN ticket_trade."PerfilUsuario" pu ON pu.id_cuenta=c.id_cuenta LEFT JOIN ticket_trade."RolRegistro" rr ON rr.id_rol_registro=pu.id_rol_registro
@@ -117,6 +119,11 @@ export async function leerEstado(u: any) {
             : s.cartel
               ? `/api/archivos/${s.cartel}${modoBaseDatos() === "demo" ? "?demo=1" : ""}`
               : undefined,
+          itinerarios: e?.itinerarios || [],
+          nombreDocumento: s.nombre_documento || undefined,
+          urlDocumento: s.archivo_documento
+            ? `/api/archivos/${s.archivo_documento}${modoBaseDatos() === "demo" ? "?demo=1" : ""}`
+            : undefined,
           fechasSolicitadas: (e?.fechas || []).map((f) => ({
             ...f,
             distribucionConfirmada: true,

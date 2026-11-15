@@ -22,6 +22,19 @@ export async function subirArchivo(archivo: Blob, nombre: string) {
     tamano: number;
   };
 }
+export async function guardarArchivoRemoto(
+  url: string | undefined,
+  nombre = "documento.pdf",
+) {
+  if (!url) return null;
+  const existente = /^\/api\/archivos\/(\d+)/.exec(url);
+  if (existente) return existente[1];
+  if (!url.startsWith("data:")) return null;
+  const blob = await (await fetch(url)).blob();
+  return (
+    await subirArchivo(blob, nombre)
+  ).id;
+}
 export async function guardarCartelRemoto(
   url: string | undefined,
   nombre = "cartel.jpg",
