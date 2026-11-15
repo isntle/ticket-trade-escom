@@ -230,6 +230,7 @@ routerEspeciales.post(
             ids: idsPrevios,
             boletos: boletosPrevios,
             idempotente: true,
+            reutilizado: true,
           };
         }
       }
@@ -405,7 +406,7 @@ routerEspeciales.post(
       }
 
       const boletos = await proyectarBoletosEspecialesPorIds(c, idsEmitidos);
-      return { ids: idsEmitidos, boletos, idempotente: false };
+      return { ids: idsEmitidos, boletos, idempotente: false, reutilizado: false };
     });
 
     res.status(resultado.idempotente ? 200 : 201).json({ datos: resultado });
@@ -518,7 +519,7 @@ routerEspeciales.post(
         ],
       );
 
-      return { exito: true, id: "boleto-esp-" + b.id };
+      return { exito: true, id: "boleto-esp-" + b.id, estado: "invalidado" };
     });
 
     res.json({ datos: resultado });

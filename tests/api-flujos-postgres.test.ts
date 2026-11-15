@@ -586,19 +586,19 @@ test(
       "Los boletos especiales activos consumen cupo real de la actividad",
     );
     const estadoDueno = await ok(await pedir("/api/estado", undefined, cookie));
-    const proyectadoDueno = estadoDueno.boletosEspeciales.find(
+    const proyectadoDueno = estadoDueno.listaBoletos.find(
       (b: any) => b.id === boletoEsp1.id,
     );
     assert.equal(proyectadoDueno?.codigoQr, boletoEsp1.codigoQr);
     const estadoEstudiante = await ok(
       await pedir("/api/estado", undefined, estudiante),
     );
-    const proyectadoEstudiante = estadoEstudiante.boletosEspeciales.find(
+    const proyectadoEstudiante = estadoEstudiante.listaBoletos.find(
       (b: any) => b.id === boletoEsp1.id,
     );
     assert.equal(
-      proyectadoEstudiante?.codigoQr,
-      "",
+      proyectadoEstudiante,
+      undefined,
       "Cuentas no autorizadas no obtienen códigos de boletos especiales por lectura",
     );
     assert.equal(
@@ -708,7 +708,7 @@ test(
         admin,
       ),
     );
-    assert.equal(checkinEspecial.tipo, "especial");
+    assert.equal(String(checkinEspecial.idBoletoEspecial), boletoEsp2.id.replace("boleto-esp-", ""));
     assert.equal(
       (
         await pedir(
@@ -735,7 +735,7 @@ test(
       (
         await pool.query(
           `SELECT count(*)::int n FROM ticket_trade."EntradaEspecial" WHERE id_boleto_especial=$1`,
-          [boletoEsp2.id],
+          [boletoEsp2.id.replace("boleto-esp-", "")],
         )
       ).rows[0].n,
       1,

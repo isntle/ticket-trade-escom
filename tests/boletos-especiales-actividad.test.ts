@@ -22,8 +22,8 @@ const recintoBase: Recinto = {
   capacidad: 100,
   tipo: "auditorio",
   descripcion: "Auditorio principal",
-  imagenes: [],
   equipamiento: [],
+  codigo: "AUD-A", indicaciones: "Acceso principal", permiteEliminarAsientos: false,
 };
 
 const actividadBase: FechaEvento = {
@@ -52,11 +52,9 @@ const eventoBase: Evento = {
   visibilidad: "publico",
   idOrganizador: "org-1",
   nombreOrganizador: "Organizador Dueño",
-  correoContacto: "org@ipn.mx",
-  telefonoContacto: "5557296000",
   urlImagen: "/imagenes/eventos/simposio-ia.jpg",
   fechas: [actividadBase],
-  fechaCreacion: "2099-10-01",
+  ponentes: [], etiquetas: [],
 };
 
 test("boletos especiales por actividad: permisos de emisor, cupo real y liberación al invalidar", () => {
@@ -68,6 +66,8 @@ test("boletos especiales por actividad: permisos de emisor, cupo real y liberaci
     esVerificado: true,
     estaActivo: true,
     fechaRegistro: "2099-01-01",
+    afiliacion: "profesor",
+    rolActivo: "organizador",
   };
   const otroOrganizador: Usuario = {
     ...organizadorDueno,
@@ -137,7 +137,7 @@ test("boletos especiales por actividad: permisos de emisor, cupo real y liberaci
       horaEvento: `${actividadBase.horaInicio} - ${actividadBase.horaFin}`,
       nombreRecinto: recintoBase.nombre,
       codigoQr: "TT-0123456789ABCDEF0123456789ABCDEF",
-      codigoManual: "0123456789ABCDEF",
+
       estado: "valido",
       esEspecial: true,
       tipoEspecial: "vip",
@@ -157,13 +157,13 @@ test("boletos especiales por actividad: permisos de emisor, cupo real y liberaci
       horaEvento: `${actividadBase.horaInicio} - ${actividadBase.horaFin}`,
       nombreRecinto: recintoBase.nombre,
       codigoQr: "TT-FEDCBA9876543210FEDCBA9876543210",
-      codigoManual: "FEDCBA9876543210",
+
       estado: "utilizado",
       esEspecial: true,
       tipoEspecial: "staff",
       emitidoPor: "Organizador Dueño",
       fechaEmision: "2099-11-01T10:06:00Z",
-      fechaEscaneo: "2099-11-20T12:05:00Z",
+      fechaCheckIn: "2099-11-20T12:05:00Z",
     },
   ];
 
