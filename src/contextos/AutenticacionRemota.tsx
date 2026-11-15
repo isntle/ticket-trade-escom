@@ -222,7 +222,35 @@ export function ProveedorAutenticacionRemota({
     actualizarPerfil: (_id: string, datos: Partial<Usuario>) =>
       operacion("/auth/perfil", { ...datos }),
     solicitarCambioCorreo: noDisponible,
-    cambiarPassword: noDisponible,
+    cambiarPassword: async (
+      actual: string,
+      nueva: string,
+      confirmacion: string,
+    ) => {
+      if (nueva !== confirmacion)
+        return { exito: false, mensaje: "Las contraseñas nuevas no coinciden." };
+      try {
+        const r = await api<{ exito: boolean; mensaje: string }>(
+          "/auth/cambiar-password",
+          {
+            metodo: "POST",
+            datos: { passwordActual: actual, passwordNueva: nueva },
+          },
+        );
+        if (r.exito) {
+          setUsuario(null);
+          setRol("asistente");
+          setUsuarios([]);
+          cuentaRef.current = null;
+        }
+        return {
+          exito: !!r.exito,
+          mensaje: r.mensaje || "No se pudo completar la operación.",
+        };
+      } catch (e) {
+        return errorDe(e);
+      }
+    },
     asignarRolesAUsuario: noDisponible,
     asociarStaffAEvento: () => ({
       exito: false,

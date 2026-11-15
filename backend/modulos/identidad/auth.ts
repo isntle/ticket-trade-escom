@@ -175,7 +175,7 @@ export const exigirSesion: RequestHandler = async (req, res, next) => {
     next(e);
   }
 };
-const cookies = {
+export const cookies = {
   httpOnly: true,
   sameSite: "lax" as const,
   path: "/",
