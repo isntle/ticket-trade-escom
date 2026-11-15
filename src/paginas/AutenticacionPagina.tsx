@@ -69,7 +69,7 @@ export function AutenticacionPagina({
   const [codigoDemo, setCodigoDemo] = useState("");
 
   useEffect(() => {
-    setMensaje("");
+    setMensaje(new URLSearchParams(window.location.search).get("aviso") || "");
     setCodigoDemo("");
     setPassword("");
     setConfirmacion("");

@@ -33,6 +33,7 @@ export function PerfilUsuarioPagina({
   const [nueva, setNueva] = useState("");
   const [repetida, setRepetida] = useState("");
   const [mensaje, setMensaje] = useState("");
+  const [enviandoPassword, setEnviandoPassword] = useState(false);
   if (!u)
     return (
       <section className="mx-auto max-w-lg p-8">
@@ -303,13 +304,19 @@ export function PerfilUsuarioPagina({
           className="space-y-4"
           onSubmit={async (e) => {
             e.preventDefault();
-            const r = (await auth.cambiarPassword(actual, nueva, repetida));
-            setMensaje(r.mensaje);
-            if (r.exito) {
-              setActual("");
-              setNueva("");
-              setRepetida("");
-              navigate("/login");
+            setEnviandoPassword(true);
+            try {
+              const r = (await auth.cambiarPassword(actual, nueva, repetida));
+              if (r.exito) {
+                setActual("");
+                setNueva("");
+                setRepetida("");
+                navigate(
+                  "/login?aviso=" + encodeURIComponent(r.mensaje),
+                );
+              } else setMensaje(r.mensaje);
+            } finally {
+              setEnviandoPassword(false);
             }
           }}
         >
@@ -350,7 +357,13 @@ export function PerfilUsuarioPagina({
             Al guardar se invalidarán las sesiones anteriores y deberás iniciar
             sesión nuevamente.
           </p>
-          <button className={boton}>Guardar contraseña</button>
+          <button
+            className={boton + " disabled:cursor-not-allowed disabled:opacity-60"}
+            disabled={enviandoPassword}
+            aria-busy={enviandoPassword}
+          >
+            {enviandoPassword ? "Guardando..." : "Guardar contraseña"}
+          </button>
         </form>
       </article>
       </div>
