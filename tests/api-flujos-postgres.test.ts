@@ -505,6 +505,142 @@ test(
       "Liberado",
       "La consulta libera los apartados vencidos",
     );
+
+    const otroOrganizador = await entrar("cuenta1003@example.invalid");
+    const staffLector = await entrar("cuenta1006@example.invalid");
+    const payloadEspeciales = {
+      idEvento: s.idEvento,
+      idFechaEvento: actividad,
+      tipo: "vip",
+      cantidad: 2,
+      nombreBase: "Invitado Honorario",
+      correoDestino: "invitado.vip@alumno.ipn.mx",
+      emitidoPor: "Impostor del navegador",
+      claveIdempotencia: "lote-vip-actividad-" + actividad,
+    };
+    for (const sesionNoAutorizada of [estudiante, otroOrganizador, staffLector]) {
+      assert.equal(
+        (
+          await pedir(
+            "/api/taquilla/especiales",
+            payloadEspeciales,
+            sesionNoAutorizada,
+          )
+        ).status,
+        403,
+        "Solo el organizador dueño o administración emiten boletos especiales",
+      );
+    }
+    assert.equal(
+      (
+        await pedir(
+          "/api/taquilla/especiales",
+          {
+            ...payloadEspeciales,
+            cantidad: 3,
+            claveIdempotencia: "exceso-" + actividad,
+          },
+          cookie,
+        )
+      ).status,
+      409,
+      "Rechaza exceso de cupo en emisión especial sin aumentar capacidad",
+    );
+    const emisionEspecial = await ok(
+      await pedir("/api/taquilla/especiales", payloadEspeciales, cookie),
+      201,
+    );
+    assert.equal(emisionEspecial.boletos.length, 2);
+    const [boletoEsp1, boletoEsp2] = emisionEspecial.boletos;
+    assert.match(boletoEsp1.codigoQr, /^TT-[A-F0-9]{32}$/);
+    assert.match(boletoEsp1.codigoManual, /^[A-F0-9]{16}$/);
+    assert.notEqual(boletoEsp1.codigoQr, boletoEsp2.codigoQr);
+    assert.equal(
+      boletoEsp1.emitidoPor,
+      "José Ángel Muñoz García",
+      "El emisor proviene de la sesión y no del cuerpo del navegador",
+    );
+    const repeticionIdempotente = await ok(
+      await pedir("/api/taquilla/especiales", payloadEspeciales, cookie),
+      200,
+    );
+    assert.equal(repeticionIdempotente.reutilizado, true);
+    assert.deepEqual(
+      repeticionIdempotente.boletos.map((b: any) => b.id),
+      [boletoEsp1.id, boletoEsp2.id],
+      "Reintentar con la misma clave idempotente no duplica emisiones",
+    );
+    assert.equal(
+      (
+        await pedir(
+          "/api/taquilla/especiales",
+          {
+            ...payloadEspeciales,
+            cantidad: 1,
+            claveIdempotencia: "sin-cupo-" + actividad,
+          },
+          cookie,
+        )
+      ).status,
+      409,
+      "Los boletos especiales activos consumen cupo real de la actividad",
+    );
+    const estadoDueno = await ok(await pedir("/api/estado", undefined, cookie));
+    const proyectadoDueno = estadoDueno.boletosEspeciales.find(
+      (b: any) => b.id === boletoEsp1.id,
+    );
+    assert.equal(proyectadoDueno?.codigoQr, boletoEsp1.codigoQr);
+    const estadoEstudiante = await ok(
+      await pedir("/api/estado", undefined, estudiante),
+    );
+    const proyectadoEstudiante = estadoEstudiante.boletosEspeciales.find(
+      (b: any) => b.id === boletoEsp1.id,
+    );
+    assert.equal(
+      proyectadoEstudiante?.codigoQr,
+      "",
+      "Cuentas no autorizadas no obtienen códigos de boletos especiales por lectura",
+    );
+    assert.equal(
+      (
+        await pedir(
+          "/api/taquilla/especiales/" + boletoEsp1.id + "/invalidacion",
+          { motivo: "Intento sin permiso" },
+          estudiante,
+        )
+      ).status,
+      403,
+    );
+    assert.equal(
+      (
+        await pedir(
+          "/api/taquilla/especiales/" + boletoEsp1.id + "/invalidacion",
+          { motivo: "   " },
+          cookie,
+        )
+      ).status,
+      422,
+      "La invalidación exige motivo no vacío",
+    );
+    const invalidadoEsp1 = await ok(
+      await pedir(
+        "/api/taquilla/especiales/" + boletoEsp1.id + "/invalidacion",
+        { motivo: "Reasignación de lugar para asistente general" },
+        cookie,
+      ),
+    );
+    assert.equal(invalidadoEsp1.estado, "invalidado");
+    assert.equal(
+      (
+        await pedir(
+          "/api/taquilla/especiales/" + boletoEsp1.id + "/invalidacion",
+          { motivo: "Segunda invalidación" },
+          cookie,
+        )
+      ).status,
+      409,
+    );
+
     const paraIngreso = await ok(
       await pedir(
         "/api/taquilla/apartados",
@@ -553,6 +689,57 @@ test(
       ).status,
       409,
       "Rechaza un QR reutilizado",
+    );
+    assert.equal(
+      (
+        await pedir(
+          "/api/taquilla/checkin",
+          { idActividad: actividad, codigo: boletoEsp1.codigoQr },
+          admin,
+        )
+      ).status,
+      409,
+      "El lector rechaza un boleto especial invalidado",
+    );
+    const checkinEspecial = await ok(
+      await pedir(
+        "/api/taquilla/checkin",
+        { idActividad: actividad, codigo: boletoEsp2.codigoQr },
+        admin,
+      ),
+    );
+    assert.equal(checkinEspecial.tipo, "especial");
+    assert.equal(
+      (
+        await pedir(
+          "/api/taquilla/checkin",
+          { idActividad: actividad, codigo: boletoEsp2.codigoQr },
+          admin,
+        )
+      ).status,
+      409,
+      "Rechaza segunda lectura de boleto especial",
+    );
+    assert.equal(
+      (
+        await pedir(
+          "/api/taquilla/especiales/" + boletoEsp2.id + "/invalidacion",
+          { motivo: "Intento de invalidar después de ingresar" },
+          cookie,
+        )
+      ).status,
+      409,
+      "Un boleto especial que ya registró entrada no puede invalidarse",
+    );
+    assert.equal(
+      (
+        await pool.query(
+          `SELECT count(*)::int n FROM ticket_trade."EntradaEspecial" WHERE id_boleto_especial=$1`,
+          [boletoEsp2.id],
+        )
+      ).rows[0].n,
+      1,
+      "Conserva la entrada especial histórica",
     );
     assert.equal(
       (

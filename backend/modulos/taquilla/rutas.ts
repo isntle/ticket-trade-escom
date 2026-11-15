@@ -10,11 +10,13 @@ import { exigirSesion } from "../identidad/auth.js";
 import { origenSeguro } from "../../comun/seguridad.js";
 import { fallo, ruta, idEntero, texto } from "../../comun/http.js";
 import {obtenerMensajeErrorCruce} from "../../../src/dominio/crucesReservas.js";
+import { routerEspeciales } from "./especiales.js";
 
 export const routerTaquilla = Router();
 routerTaquilla.use((req, res, next) =>
   req.method === "GET" ? next() : origenSeguro(req, res, next),
 );
+routerTaquilla.use(routerEspeciales);
 const bloquear=liberarApartadosVencidos;
 async function actividad(c: PoolClient, id: string) {
   const r = await c.query(

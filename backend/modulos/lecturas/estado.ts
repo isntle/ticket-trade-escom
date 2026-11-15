@@ -4,6 +4,7 @@ import { usuarioSesion } from "../identidad/auth.js";
 import { ruta } from "../../comun/http.js";
 import { leerEventos, leerRecintos } from "./catalogos.js";
 import { estadoSolicitudDesdeCatalogo } from "../../../src/servicios/contratoOrganizacion.js";
+import { asegurarInfraEspeciales } from "../taquilla/especiales.js";
 
 export const routerEstado = Router();
 export async function leerEstado(u: any) {
@@ -148,6 +149,14 @@ export async function leerEstado(u: any) {
       (u?.roles.includes("staff") &&
         u?.eventosAsignadosStaff?.includes(idEvento)),
     );
+  const puedeGestionarEspeciales = (idOrganizador: string) =>
+    Boolean(
+      u &&
+        u.estaActivo !== false &&
+        (u.roles?.includes("admin") ||
+          (u.roles?.includes("organizador") && idOrganizador === u.id)),
+    );
+  await asegurarInfraEspeciales(pool);
   const filas = (
     await pool.query(
       `SELECT r.id_reservacion::text id,cp.id_compromiso_cupo::text cupo,a.id_evento::text evento,a.id_actividad::text actividad,
@@ -175,7 +184,8 @@ export async function leerEstado(u: any) {
     b.codigo_qr,b.codigo_manual,b.emitido_en,b.invalidado_en,b.motivo_invalidacion,
     en.id_entrada_especial::text id_entrada,en.registrada_en entrada,en.id_cuenta_operadora::text id_operador,
     concat_ws(' ',op.nombres,op.primer_apellido,nullif(op.segundo_apellido,'')) operador,
-    ev.id_cuenta_organizadora::text organizador
+    ev.id_cuenta_organizadora::text organizador,
+    bed.tipo_especial,bed.nombre_titular,bed.correo_destino,bed.emitido_por,bed.invalidado_por
     FROM ticket_trade."BoletoEspecial" b JOIN ticket_trade."CompromisoCupo" cp USING(id_compromiso_cupo) JOIN ticket_trade."Actividad" a USING(id_actividad)
     JOIN ticket_trade."Evento" ev USING(id_evento) LEFT JOIN ticket_trade."AsignacionAsiento" aa USING(id_compromiso_cupo)
     LEFT JOIN ticket_trade."LugarActividad" la USING(id_lugar_actividad)
@@ -183,7 +193,9 @@ export async function leerEstado(u: any) {
     LEFT JOIN ticket_trade."LugarRecinto" lr USING(id_lugar_recinto)
     LEFT JOIN ticket_trade."EntradaEspecial" en USING(id_boleto_especial)
     LEFT JOIN ticket_trade."Cuenta" op ON op.id_cuenta=en.id_cuenta_operadora
-    WHERE a.id_evento=ANY($1::bigint[])`,
+    LEFT JOIN infra.boleto_especial_detalle bed USING(id_boleto_especial)
+    WHERE a.id_evento=ANY($1::bigint[])
+    ORDER BY b.id_boleto_especial DESC`,
       [ids],
     )
   ).rows;
@@ -272,6 +284,12 @@ export async function leerEstado(u: any) {
       .map((b: any) => {
         const e = eventos.find((e: any) => e.id === b.evento),
           f = e?.fechas.find((f: any) => f.id === b.actividad);
+        const puedeVerCodigo = puedeGestionarEspeciales(b.organizador);
+        const tipoEspecial = (b.tipo_especial ||
+          (b.categoria === "Staff" ? "staff" : "vip")) as
+          | "organizador"
+          | "staff"
+          | "vip";
         return {
           id: "boleto-esp-" + b.id,
           idReservacion: "esp-" + b.id,
@@ -279,20 +297,25 @@ export async function leerEstado(u: any) {
           idFechaEvento: b.actividad,
           idUsuario: "especial-" + b.id,
           nombreUsuario:
-            b.categoria === "Staff" ? "Integrante de staff" : "Invitado VIP",
-          correoUsuario: "",
+            b.nombre_titular ||
+            (tipoEspecial === "organizador"
+              ? "Integrante del comité"
+              : tipoEspecial === "staff"
+                ? "Integrante de staff"
+                : "Invitado VIP"),
+          correoUsuario: puedeVerCodigo ? b.correo_destino || "" : "",
           tituloEvento: e?.titulo || "",
           fechaEvento: f?.fecha || "",
-          horaEvento: f?.horaInicio || "",
+          horaEvento: f ? `${f.horaInicio} - ${f.horaFin}` : "",
           nombreRecinto:
             recintos.find((x: any) => x.id === f?.idRecinto)?.nombre || "",
           etiquetaAsiento: b.lugar,
-          codigoQr: modoBaseDatos() === "demo" ? b.codigo_qr : "",
-          codigoManual: b.codigo_manual,
+          codigoQr: puedeVerCodigo ? b.codigo_qr : "",
+          codigoManual: puedeVerCodigo ? b.codigo_manual : undefined,
           esEspecial: true,
-          tipoEspecial: (b.categoria === "Staff" ? "staff" : "vip") as
-            | "staff"
-            | "vip",
+          tipoEspecial,
+          emitidoPor: b.emitido_por || undefined,
+          invalidadoPor: b.invalidado_por || undefined,
           estado: b.invalidado_en
             ? "cancelado"
             : b.entrada
@@ -332,8 +355,9 @@ export async function leerEstado(u: any) {
         idFechaEvento: b.actividad,
         idBoleto: "boleto-esp-" + b.id,
         idAsiento: b.asiento,
-        nombreAsistente:
-          b.categoria === "Staff"
+        nombreAsistente: b.nombre_titular
+          ? `${b.nombre_titular} (Especial)`
+          : b.categoria === "Staff"
             ? "Integrante de staff (Especial)"
             : "Invitado VIP (Especial)",
         etiquetaAsiento: b.lugar || undefined,
