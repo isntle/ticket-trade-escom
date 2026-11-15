@@ -163,11 +163,11 @@ routerOrganizacion.post("/solicitudes", async (req, res, next) => {
           ],
         );
       if (Array.isArray(b.itinerarios) && b.itinerarios.length > 0) {
-        if (new Set(b.itinerarios.map((i: any) => i.fecha)).size !== b.itinerarios.length) {
+        if (new Set(b.itinerarios.map((i: any) => i?.fecha)).size !== b.itinerarios.length) {
           throw Object.assign(new Error("Solo se admite un itinerario por día."), { estado: 422 });
         }
         for (const i of b.itinerarios) {
-          if (!i || !i.fecha || !i.idArchivo) continue;
+          if (!i || !i.fecha || !i.idArchivo) fallo("Revisa la fecha y el archivo de cada itinerario.");
           const fechaValida = b.fechasSolicitadas.some((f: any) => f.fecha === i.fecha);
           if (!fechaValida) {
             throw Object.assign(new Error("Cada itinerario debe corresponder a un día del evento."), { estado: 422 });
@@ -451,13 +451,13 @@ routerOrganizacion.patch(
       if (b.itinerarios !== undefined) {
         if (
           !Array.isArray(b.itinerarios) ||
-          new Set(b.itinerarios.map((i: any) => i.fecha)).size !==
+          new Set(b.itinerarios.map((i: any) => i?.fecha)).size !==
             b.itinerarios.length
         ) {
           fallo("Solo se admite un itinerario por día.");
         }
         for (const i of b.itinerarios) {
-          if (!i || !i.fecha || !i.idArchivo) continue;
+          if (!i || !i.fecha || !i.idArchivo) fallo("Revisa la fecha y el archivo de cada itinerario.");
           const fechaValida = b.fechasSolicitadas.some((f: any) => f.fecha === i.fecha);
           if (!fechaValida)
             fallo("Cada itinerario debe corresponder a un día del evento.");
@@ -474,7 +474,7 @@ routerOrganizacion.patch(
         }
         await c.query('DELETE FROM ticket_trade."ItinerarioDia" WHERE id_evento=$1', [s.evento]);
         for (const i of b.itinerarios) {
-          if (!i || !i.fecha || !i.idArchivo) continue;
+          if (!i || !i.fecha || !i.idArchivo) fallo("Revisa la fecha y el archivo de cada itinerario.");
           await c.query(
             'INSERT INTO ticket_trade."ItinerarioDia"(id_evento,fecha,id_archivo) VALUES($1,$2,$3)',
             [s.evento, i.fecha, i.idArchivo],
@@ -489,6 +489,10 @@ routerOrganizacion.patch(
 
       const idRespaldoPatch = b.idArchivoDocumento !== undefined ? b.idArchivoDocumento : b.idArchivoRespaldo;
       if (idRespaldoPatch !== undefined) {
+        // Desasociar el respaldo anterior sin borrar el archivo ni sus bytes.
+        await c.query(`UPDATE infra.archivo_contenido SET metadatos=metadatos-'id_solicitud_evento'-'id_evento'-'tipo'
+          WHERE id_cuenta_propietaria=$1 AND metadatos->>'id_solicitud_evento'=$2
+          AND metadatos->>'tipo'='respaldo_solicitud' AND ($3::bigint IS NULL OR id_archivo<>$3)`, [u.id, id, idRespaldoPatch || null]);
         if (idRespaldoPatch) {
           await comprobarArchivo(c, idRespaldoPatch, u.id, [
             "application/pdf",
