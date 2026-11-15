@@ -52,6 +52,7 @@ try {
         "--test",
         "--test-concurrency=1",
         "tests/api-auth.test.ts",
+        "tests/api-password.test.ts",
         "tests/api-correos-postgres.test.ts",
         "tests/api-flujos-postgres.test.ts",
         "tests/api-eventos-postgres.test.ts",
