@@ -1,4 +1,5 @@
 import {apiActiva} from "../servicios/modoDatos";
+import { transporteApi } from '../servicios/http';
 import {NuevaActividadEvento} from "../componentes/eventos/NuevaActividadEvento";
 import { CambioRecintoActividad } from "../componentes/recintos/CambioRecintoActividad";
 import { trasladarPrograma } from "../dominio/cambiosEvento";
@@ -82,6 +83,8 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   const [motivoCancelacion, setMotivoCancelacion] = React.useState('');
   const [idCambioRecinto,setIdCambioRecinto] = React.useState<string|null>(null);
   const [verConstancia,setVerConstancia] = React.useState(interfazSolicitada() === 'UI.22');
+  const [compartiendo, setCompartiendo] = React.useState(false);
+  const [enlacePrivado, setEnlacePrivado] = React.useState('');
 
   const evento = listaEventos.find((e) => e.id === eventId);
   const agendaRemota = useCargarAgendasRecintos((evento?.fechas || []).filter(f=>!f.cancelada).map(f=>({fecha:f.fecha,idActividadExcluir:f.id})));
@@ -357,6 +360,39 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
 
       {/* Cabecera del Evento */}
+      {puedeGestionar && evento.visibilidad === 'privado' && evento.estado === 'publicado' && <section className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-xs" aria-label="Compartir evento privado">
+        <h2 className="font-bold text-neutral-900">Compartir enlace privado</h2>
+        {apiActiva ? <p className="mt-1 text-sm text-neutral-600">Cualquier persona con el enlace puede consultar el evento. Para reservar necesita iniciar sesión.</p> : <p className="mt-1 text-sm text-amber-900">Este evento pertenece al prototipo local y solo existe en este navegador. Para compartirlo con invitados debes crearlo en la aplicación conectada a la base de datos.</p>}
+        {apiActiva && <button type="button" disabled={compartiendo} className="mt-3 rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold hover:border-[#7a132b] hover:bg-rose-50 disabled:opacity-50" onClick={async () => {
+          setCompartiendo(true);
+          try {
+            const token = apiActiva ? (await transporteApi()<{token:string}>(`/organizacion/eventos/${encodeURIComponent(eventId)}/enlace-privado`)).token : evento.claveAccesoPrivada;
+            if (!token) throw new Error('El enlace no está disponible.');
+            const url = new URL(`/eventos/${encodeURIComponent(eventId)}`, window.location.origin);
+            if (apiActiva) url.hash = new URLSearchParams({key: token}).toString(); else url.searchParams.set('key', token);
+            if (new URLSearchParams(window.location.search).get('demo') === '1') url.searchParams.set('demo', '1');
+            setEnlacePrivado(url.toString());
+            try { await navigator.clipboard.writeText(url.toString()); mostrarNotificacion('Enlace copiado', 'Puedes compartirlo con tus invitados.', 'exito'); }
+            catch { mostrarNotificacion('Enlace disponible', 'Copia el enlace mostrado.', 'advertencia'); }
+          } catch { mostrarNotificacion('Enlace no disponible', 'No fue posible obtener el enlace privado.', 'error'); }
+          finally { setCompartiendo(false); }
+        }}>{compartiendo ? 'Obteniendo enlace…' : 'Copiar enlace privado'}</button>}
+        {apiActiva && <button type="button" disabled={compartiendo} className="ml-2 mt-3 rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold hover:border-[#7a132b] hover:bg-rose-50 disabled:opacity-50" onClick={async () => {
+          if (!window.confirm('¿Renovar el enlace? El enlace anterior dejará de funcionar. Los boletos confirmados se conservarán.')) return;
+          setCompartiendo(true);
+          setEnlacePrivado('');
+          try {
+            const { token } = await transporteApi()<{token:string}>(`/organizacion/eventos/${encodeURIComponent(eventId)}/enlace-privado/renovacion`, { metodo: 'POST', datos: {} });
+            const url = new URL(`/eventos/${encodeURIComponent(eventId)}`, window.location.origin);
+            url.hash = new URLSearchParams({key: token}).toString();
+            if (new URLSearchParams(window.location.search).get('demo') === '1') url.searchParams.set('demo', '1');
+            setEnlacePrivado(url.toString());
+            mostrarNotificacion('Enlace renovado', 'El enlace anterior ya no funciona. Copia el nuevo enlace para compartirlo.', 'exito');
+          } catch { mostrarNotificacion('No se pudo renovar', 'Consulta de nuevo el enlace antes de volver a intentarlo.', 'error'); }
+          finally { setCompartiendo(false); }
+        }}>Renovar enlace</button>}
+        {enlacePrivado && <label className="mt-3 block text-sm font-semibold">Enlace para invitados<input readOnly value={enlacePrivado} onFocus={e=>e.currentTarget.select()} className="mt-1 w-full rounded-lg border border-neutral-300 bg-neutral-50 p-2 text-xs font-normal" /></label>}
+      </section>}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5 text-sm">

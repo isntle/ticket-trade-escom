@@ -210,8 +210,10 @@ test(
         (e: any) => e.urlImagen && !/prueba [0-9]/i.test(e.titulo),
       ),
     );
+    const elegibles = new Set((await admin.query(`SELECT a.id_actividad::text id FROM ticket_trade."Actividad" a JOIN ticket_trade."EstadoActividad" ea USING(id_estado_actividad) WHERE ea.nombre='Programada' AND NOT EXISTS(SELECT 1 FROM ticket_trade."AfectacionActividad" af WHERE af.id_actividad=a.id_actividad AND af.resuelta_en IS NULL)`)).rows.map(r => r.id));
     const actividadRegistro = estado.listaEventos.flatMap((e: any) => e.fechas)
-      .find((f: any) => f.modalidadAsistencia === 'registro');
+      .find((f: any) => f.modalidadAsistencia === 'registro' && elegibles.has(f.id));
+    assert.ok(actividadRegistro, 'La demo debe tener una actividad de registro habilitada');
     const apartado = await bien(await pedir('/api/taquilla/apartados', true, {
       idActividad: actividadRegistro.id,
     }, cookieDemo), 201);

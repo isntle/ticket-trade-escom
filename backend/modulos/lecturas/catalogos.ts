@@ -41,7 +41,7 @@ export async function leerRecintos() {
   return recintosAdaptados;
 }
 
-export async function leerEventos(usuario: any = null) {
+export async function leerEventos(usuario: any = null, eventoEnlace?: string) {
   // 1. Consultar eventos
   const consultaEventos = `
       SELECT
@@ -64,7 +64,7 @@ export async function leerEventos(usuario: any = null) {
       JOIN ticket_trade."EstadoEvento" ee ON ee.id_estado_evento = e.id_estado_evento
       JOIN ticket_trade."VisibilidadEvento" ve ON ve.id_visibilidad_evento = e.id_visibilidad_evento
       LEFT JOIN ticket_trade."Archivo" arc ON arc.id_archivo = e.id_archivo_cartel
-      WHERE (ee.nombre='Publicado' AND ve.nombre='Público') OR ($1::text IS NOT NULL AND (e.id_cuenta_organizadora::text=$1 OR $2::boolean OR EXISTS(SELECT 1 FROM ticket_trade."StaffEvento" se WHERE se.id_evento=e.id_evento AND se.id_cuenta::text=$1)))
+      WHERE (ee.nombre='Publicado' AND ve.nombre='Público') OR (ee.nombre='Publicado' AND e.id_evento::text=$3) OR ($1::text IS NOT NULL AND (e.id_cuenta_organizadora::text=$1 OR $2::boolean OR EXISTS(SELECT 1 FROM ticket_trade."StaffEvento" se WHERE se.id_evento=e.id_evento AND se.id_cuenta::text=$1) OR EXISTS(SELECT 1 FROM ticket_trade."BoletoEvento" be JOIN ticket_trade."Reservacion" r USING(id_boleto_evento) JOIN ticket_trade."EstadoReservacion" er USING(id_estado_reservacion) WHERE be.id_evento=e.id_evento AND be.id_cuenta::text=$1 AND er.nombre='Confirmada')))
       ORDER BY e.id_evento;
     `;
   const resEventos = await pool.query(consultaEventos, [
@@ -72,6 +72,7 @@ export async function leerEventos(usuario: any = null) {
     !!usuario?.roles?.some((r: string) =>
       ["admin", "subdireccion"].includes(r),
     ),
+    eventoEnlace || null,
   ]);
 
   // 2. Consultar actividades de todos los eventos

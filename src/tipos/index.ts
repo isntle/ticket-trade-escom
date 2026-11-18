@@ -283,6 +283,7 @@ export interface Evento {
   modalidadAsistencia: ModalidadAsistencia;
   estado: EstadoEvento;
   claveAccesoPrivada?: string;
+  accesoPorEnlace?: boolean;
   fechas: FechaEvento[];
   urlImagen?: string;
   ponentes: string[];

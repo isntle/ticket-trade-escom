@@ -6,6 +6,7 @@ import type { ContextoDatosTipo } from "./DatosContexto.js";
 import { ContextoDatos } from "./almacenes.js";
 import { useAutenticacion } from "./AutenticacionContexto.js";
 import { transporteApi, ErrorApi } from "../servicios/http.js";
+import { tokenEnlacePrivado } from '../servicios/enlacePrivado.js';
 import { guardarArchivoRemoto, guardarCartelRemoto } from "../servicios/archivos.js";
 import {
   obtenerConflictoReserva,
@@ -69,6 +70,20 @@ export function ProveedorDatosRemotos({
   const cargar = async () => {
     const orden = ++secuencia.current;
     const nuevo = await api<any>("/estado");
+    const coincidencia = window.location.pathname.match(/^\/eventos\/([^/]+)(?:\/reservar)?\/?$/);
+    const token = coincidencia ? tokenEnlacePrivado(decodeURIComponent(coincidencia[1])) : undefined;
+    if (coincidencia && token) {
+      const idEvento = decodeURIComponent(coincidencia[1]);
+      try {
+        const acceso = await api<any>('/estado/evento-privado', { metodo: 'POST', datos: { idEvento, token } });
+        nuevo.listaEventos = [...nuevo.listaEventos.filter((e: any) => e.id !== idEvento), { ...acceso.evento, accesoPorEnlace: true }];
+        nuevo.listaArreglos = [...nuevo.listaArreglos.filter((a: any) => !acceso.arreglos.some((p: any) => p.id === a.id)), ...acceso.arreglos];
+        nuevo.listaReservaciones = [...nuevo.listaReservaciones.filter((r: any) => r.idEvento !== idEvento), ...acceso.reservaciones];
+      } catch (e) {
+        if (!(e instanceof ErrorApi) || e.estado !== 404) throw e;
+        nuevo.listaEventos = nuevo.listaEventos.filter((evento: any) => evento.id !== idEvento);
+      }
+    }
     if (montado.current && orden === secuencia.current) {
       estadoRef.current = nuevo;
       setEstado(nuevo);
@@ -86,10 +101,14 @@ export function ProveedorDatosRemotos({
     refrescar();
     const t = window.setInterval(refrescar, 15000);
     window.addEventListener("tt:datos-remotos", refrescar);
+    window.addEventListener("tt:navegacion", refrescar);
+    window.addEventListener("popstate", refrescar);
     return () => {
       montado.current = false;
       window.clearInterval(t);
       window.removeEventListener("tt:datos-remotos", refrescar);
+      window.removeEventListener("tt:navegacion", refrescar);
+      window.removeEventListener("popstate", refrescar);
     };
   }, [usuarioActual?.id]);
   const intentar = async (accion: () => Promise<any>) => {
@@ -278,7 +297,7 @@ export function ProveedorDatosRemotos({
         return { exito: true };
       }),
     apartarAsiento: (
-      _evento: string,
+      idEvento: string,
       idActividad: string,
       idAsiento: string,
       _etiqueta: string,
@@ -294,6 +313,7 @@ export function ProveedorDatosRemotos({
           metodo: "POST",
           datos: {
             idActividad,
+            token: tokenEnlacePrivado(idEvento),
             idLugar:
               actividad?.modalidadAsistencia === "controlado"
                 ? idAsiento
@@ -336,7 +356,7 @@ export function ProveedorDatosRemotos({
           "/taquilla/apartados/" +
             id.replace(/^apartado-/, "") +
             "/confirmacion",
-          { metodo: "POST", datos: {} },
+          { metodo: "POST", datos: { token: apartado?.idEvento ? tokenEnlacePrivado(apartado.idEvento) : undefined } },
         );
         const nuevo = await cargar();
         return {

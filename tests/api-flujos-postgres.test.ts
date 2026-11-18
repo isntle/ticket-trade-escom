@@ -667,13 +667,13 @@ test(
     // Reloj de aplicación controlado: la prueba también debe funcionar por la
     // noche, cuando el horario permitido por el modelo ya terminó.
     await pool.query(
-      `UPDATE ticket_trade."Actividad" SET fecha=CURRENT_DATE,
+      `UPDATE ticket_trade."Actividad" SET fecha=DATE '2098-04-15',
     hora_inicio=time '12:00',hora_fin=time '13:00' WHERE id_actividad=$1`,
       [actividad],
     );
     const instanteIngreso = (
       await pool.query(
-        `SELECT (CURRENT_DATE+time '12:15') AT TIME ZONE 'America/Mexico_City' instante`,
+        `SELECT (DATE '2098-04-15'+time '12:15') AT TIME ZONE 'America/Mexico_City' instante`,
       )
     ).rows[0].instante;
     const relojIngreso = t.mock.method(Date, "now", () =>
