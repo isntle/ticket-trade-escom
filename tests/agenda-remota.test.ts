@@ -108,7 +108,7 @@ test('interfaz remota: ocupación parcial conserva bloques libres y clase selecc
   const html=renderizar(s,React.createElement(AgendaHorarioRecinto,{actividad,otras:[{...actividad,id:'otra',horaInicio:'15:00',horaFin:'16:00'}],alElegir:()=>{}}));
   const botones=[...html.matchAll(/<button\b([^>]+)>/g)].map(m=>m[1]);
   const boton=(hora:string)=>botones.find(b=>b.includes(`aria-label="${hora}–`))!;
-  assert.match(boton('10:00'),/elegir horario, clase informativa/);assert.doesNotMatch(boton('10:00'),/disabled/);
+  assert.match(boton('10:00'),/elegir bloque, actividad interna informativa/);assert.doesNotMatch(boton('10:00'),/disabled/);
   assert.match(boton('12:00'),/disabled/);assert.match(boton('11:30'),/disabled/);
   assert.match(boton('14:30'),/disabled/);assert.doesNotMatch(boton('16:30'),/disabled/);
   assert.doesNotMatch(html,/21:30/);assert.match(html,/La selección no aparta/);
@@ -133,6 +133,6 @@ test('interfaz remota: captura informa el cruce externo y la clase sin fingir au
   Object.assign(globalThis,{window:{location:{search:''}},sessionStorage:{getItem:()=>'{"paso":2}'}});
   const s=crearAlmacenDisponibilidad(servicio(async()=>agenda([ocupacion({horaInicio:'10:00',horaFin:'11:00'}),ocupacion({id:'clase',tipo:'clase',fuente:'clase',informativa:true,horaInicio:'10:00',horaFin:'11:00'})])));await s.cargar(consulta);
   const html=renderizar(s,React.createElement(DiaSolicitud,{dia:actividad,indice:0,modalidad:'registro',aforo:20,puedeEliminar:false,alCambiar:()=>{},alEliminar:()=>{}}));
-  assert.match(html,/enviar la propuesta a revisión/);assert.match(html,/También coincide con una clase informativa/);
+  assert.match(html,/enviar la propuesta a revisión/);assert.match(html,/Actividad interna \(informativa\)/);assert.doesNotMatch(html,/Coincidencia con clase|También coincide con una clase informativa/);
   assert.doesNotMatch(html,/Recinto disponible para este horario/);
 });

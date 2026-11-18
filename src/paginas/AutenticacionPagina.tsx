@@ -1,3 +1,4 @@
+import { afiliacionLegible } from "../utilidades/afiliacion";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import {transporteApi} from "../servicios/http";
 import {apiActiva} from '../servicios/modoDatos';
@@ -49,7 +50,6 @@ export function AutenticacionPagina({
 
   // Registro segmentado
   const [categoria, setCategoria] = useState<RolFormulario>("alumno");
-  const [rolEmpleado, setRolEmpleado] = useState<"profesor" | "administrativo" | "pae">("profesor");
   const [tipoExterno, setTipoExterno] = useState<"asistente" | "representante">("asistente");
   const [entidad, setEntidad] = useState("");
   const [cargo, setCargo] = useState("");
@@ -88,7 +88,7 @@ export function AutenticacionPagina({
   }, [view]);
 
   const afiliacion: TipoAfiliacion =
-    categoria === "trabajador" ? rolEmpleado : categoria;
+    categoria === "trabajador" ? "profesor" : categoria;
 
   const registrar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -333,13 +333,7 @@ export function AutenticacionPagina({
                     </span>
                     {verificacionIdentidadVigente(u) && <span className="flex items-center gap-1 text-xs font-semibold text-sky-700"><BadgeCheck size={14} aria-hidden="true" />Verificado</span>}
                     <span className="text-xs text-neutral-500">
-                      {u.roles.includes("admin") ? "Administración" : u.roles.includes("subdireccion") ? "Subdirección" : u.roles.includes("staff") ? "Personal de acceso" : {
-                        alumno: "Estudiante",
-                        profesor: "Docente",
-                        administrativo: "Administrativo",
-                        pae: "Personal de apoyo",
-                        externo: "Externo",
-                      }[u.afiliacion] || u.afiliacion}
+                      {afiliacionLegible(u.afiliacion)}
                     </span>
                   </button>
                 ))}
@@ -368,7 +362,6 @@ export function AutenticacionPagina({
             </select>
           </label>
 
-          {categoria === "trabajador" && <label className="block text-sm font-semibold text-neutral-800">Tipo de trabajador<select className={campo} value={rolEmpleado} onChange={e=>setRolEmpleado(e.target.value as typeof rolEmpleado)}><option value="profesor">Docente</option><option value="administrativo">Administrativo</option><option value="pae">Personal de apoyo</option></select></label>}
           {categoria === "externo" && <><label className="block text-sm font-semibold text-neutral-800">Tipo de participación<select className={campo} value={tipoExterno} onChange={e=>setTipoExterno(e.target.value as typeof tipoExterno)}><option value="asistente">Asistente externo</option><option value="representante">Representante de una entidad</option></select></label>{tipoExterno === "representante" && <><label className="block text-sm font-semibold text-neutral-800">Entidad que representas<input required className={campo} value={entidad} onChange={e=>setEntidad(e.target.value)}/></label><label className="block text-sm font-semibold text-neutral-800">Cargo o relación de representación<input required className={campo} value={cargo} onChange={e=>setCargo(e.target.value)}/></label></>}</>}
 
           {/* Nombre partido en nombre, apellido paterno y apellido materno */}

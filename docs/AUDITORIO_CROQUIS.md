@@ -1,0 +1,7 @@
+# Auditorio: croquis y ficha
+
+El mapa conserva los identificadores y distribución de las 242 butacas existentes. Las salidas de emergencia junto al escenario y las entradas traseras se representan según el croquis proporcionado. El escenario se dibuja con una proporción aproximada de 12,50 m de ancho por 5,1 m de profundidad. Las dimensiones de pasillos y butacas, así como la pendiente, no cuentan con medidas suficientes para dibujar un plano a escala: el mapa es orientativo y no sustituye un plano de protección civil.
+
+La ficha muestra el horario, ubicación y recursos descritos en el documento proporcionado. El documento señala 204 sillas principales y 30 sillas adicionales, mientras la distribución existente contiene 242 lugares. También menciona aforos de 250 y 100 personas, 1 y 2 bocinas, y 5 y 6 sillones. Estas discrepancias requieren confirmación; no se modifica la capacidad operativa ni se cambian los datos de PostgreSQL.
+
+Las nuevas distribuciones locales del auditorio ya no asignan asientos a comité. Las categorías heredadas de organizador en distribuciones guardadas se mantienen restringidas y se muestran como reserva interna, para evitar ofrecer un asiento que el backend todavía considera reservado. Su liberación exige actualizar explícitamente cada distribución y comprobar la disponibilidad en el backend. Las herramientas de comité siguen disponibles en otros recintos.

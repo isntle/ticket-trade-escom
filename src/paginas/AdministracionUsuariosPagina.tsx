@@ -1,3 +1,4 @@
+import { afiliacionLegible } from "../utilidades/afiliacion";
 import { volverA } from '../dominio/navegacion';
 import React, { useState } from "react";
 import {
@@ -164,6 +165,12 @@ export const AdministracionUsuariosPagina: React.FC<
 
       <nav className="mb-5 flex flex-wrap gap-3 text-sm">
         <button
+          className="rounded-xl border p-3 font-semibold hover:border-[#7a132b] hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7a132b]"
+          onClick={() => navigate("/admin/recintos")}
+        >
+          Administrar recintos y calendario de revisión
+        </button>
+        <button
           className="rounded-xl border p-3"
           onClick={() => navigate("/admin/expedientes")}
         >
@@ -245,7 +252,7 @@ export const AdministracionUsuariosPagina: React.FC<
 
                   <td className="px-5 py-3.5">
                     <span className="px-2 py-0.5 rounded-md bg-neutral-100 text-neutral-700 capitalize font-medium text-[11px]">
-                      {u.afiliacion}
+                      {afiliacionLegible(u.afiliacion)}
                     </span>
                   </td>
 
