@@ -21,3 +21,15 @@ Las mediciones locales muestran el ahorro de consultas. Las latencias y tamaños
 ## Comprobación
 
 Ejecutar `npm run lint`, `npm test`, `npm run verify:api`, `npm run build` y `npm run test:postgres` con PostgreSQL local. Esta última orden usa una base desechable. Para reproducir la recuperación en el navegador, abrir la cartelera, desconectar la red, volverla a conectar y pulsar **Volver a consultar**. Durante un guardado, distinguir una escritura confirmada de una respuesta perdida antes de intentar otra vez.
+
+## Comprobación en Vercel
+
+El 20 de noviembre se hicieron cinco solicitudes anónimas por ruta desde la misma computadora a `tickettradescom.vercel.app`. Todas devolvieron HTTP 200. Los tamaños son del cuerpo recibido tras descompresión.
+
+| Ruta | Primera muestra | Mediana de las cuatro siguientes | Bytes |
+| --- | ---: | ---: | ---: |
+| `/api/eventos` | 1831 ms | 237 ms | 14 993 |
+| `/api/estado` | 1930 ms | 410 ms | 177 185 |
+| `/api/archivos/1010` (un cartel) | 552 ms | 392 ms | 109 205 |
+
+Esta comprobación mide el tiempo total desde el cliente. No identifica por sí sola un arranque en frío ni sustituye la comparación local anterior. Falta una línea base alojada comparable y ampliar la muestra a otros carteles y a una sesión autenticada.

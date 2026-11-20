@@ -210,11 +210,20 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     .map((r) => r.idAsiento!);
 
   const cupoAgotado = disponibilidad.datos?.disponibles === 0 && !reservacionActiva;
-  const hayLugaresDisponibles = !cupoAgotado && (arregloFinal?.asientos.some((asiento) =>
+  const categoriasRemotas = disponibilidad.datos?.categorias;
+  const asientosMapa = categoriasRemotas && arregloFinal ? arregloFinal.asientos.map(asiento => {
+    const categoria = categoriasRemotas[asiento.id];
+    return { ...asiento,
+      categoria: categoria === 'vip' || categoria === 'staff' ? categoria : 'asistente' as const,
+      estaBloqueado: categoria === 'bloqueado',
+    };
+  }) : arregloFinal?.asientos;
+  const hayLugaresDisponibles = !cupoAgotado && (asientosMapa?.some((asiento) =>
     !asiento.estaBloqueado &&
     !asiento.estaEliminado &&
     asiento.categoria !== 'organizador' &&
     asiento.categoria !== 'staff' &&
+    (!apiActiva || asiento.categoria !== 'vip') &&
     !idsAsientosReservados.includes(asiento.id) &&
     !idsAsientosApartados.includes(asiento.id)
   ) ?? true);
@@ -443,7 +452,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
             alCerrar={() => setErrorColision(null)}
           />
           {/* Opción de Lista de Espera si se agotó el cupo (CU-MT-04) */}
-          {errorColision === msgCupoAgotado.descripcion && usuarioActual && (
+          {!apiActiva && errorColision === msgCupoAgotado.descripcion && usuarioActual && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
               <span className="text-xs text-amber-900 font-medium">
                 El cupo de esta actividad se ha agotado. ¿Deseas ingresar a la lista de espera por si se libera un lugar?
@@ -479,15 +488,15 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       {!esSinMapa && !hayLugaresDisponibles && usuarioActual && (
         <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span className="text-xs text-amber-900 font-medium">Todos los lugares disponibles para asistentes están ocupados o apartados.</span>
-          <button type="button" onClick={() => setModalEsperaAbierto(true)} className="px-3.5 py-2 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold cursor-pointer">
+          {!apiActiva && <button type="button" onClick={() => setModalEsperaAbierto(true)} className="px-3.5 py-2 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold cursor-pointer">
             Unirme a la lista de espera
-          </button>
+          </button>}
         </div>
       )}
 
       {/* Modal de Confirmación para Lista de Espera */}
       <ModalListaEspera
-        estaAbierto={modalEsperaAbierto}
+        estaAbierto={!apiActiva && modalEsperaAbierto}
         variante="confirmar_ingreso"
         evento={evento.titulo}
         dia={nombreActividad(fecha)}
@@ -534,7 +543,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
             </div>
           ) : (
             <MapaAsientos
-              asientos={arregloFinal!.asientos}
+              asientos={asientosMapa ?? []}
               modo="asistente"
               tipoRecinto={recinto?.tipo}
               permitirVip={!apiActiva}

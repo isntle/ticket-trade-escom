@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FileImage, Trash2 } from 'lucide-react';
 import type { ItinerarioDia } from '../../tipos';
+import { useImagenEvento } from './useImagenEvento';
 import { EditorCartel } from './EditorCartel';
 
 export function reasociarItinerario(itinerarios: ItinerarioDia[], fechas: string[], origen: string, destino: string): ItinerarioDia[] {
@@ -46,22 +47,23 @@ export function EditorItinerarios({ fechas, itinerarios, alCambiar, alCambiarEst
 }
 
 // Subcomponente nuevo: Maneja el estado de carga y error individual de cada itinerario
-function ItemVistaItinerario({ itinerario }: { itinerario: ItinerarioDia }) {
+function ItemVistaItinerario({ itinerario, eventoConEnlace }: { itinerario: ItinerarioDia; eventoConEnlace?: string }) {
   const [estado, setEstado] = useState<'cargando' | 'listo' | 'error'>('cargando');
   const [intentos, setIntentos] = useState(0);
+  const imagen = useImagenEvento(itinerario.urlImagen, eventoConEnlace, intentos);
 
   return (
       <div className="mt-4 flex flex-col gap-3">
         
         {/* ESTADO: Cargando */}
-        {estado === 'cargando' && (
+        {!imagen.error && estado === 'cargando' && (
           <div className="flex w-full items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 bg-neutral-100 py-12">
             <p className="text-sm font-medium text-neutral-500 animate-pulse">Cargando itinerario...</p>
           </div>
         )}
 
         {/* ESTADO: Error visual (No borra el archivo ni afecta BD) */}
-        {estado === 'error' && (
+        {(imagen.error || estado === 'error') && (
           <div className="flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-red-300 bg-red-50 py-8 text-center px-4">
             <p className="text-sm font-medium text-red-600">No se pudo cargar la imagen del itinerario.</p>
             <button 
@@ -78,21 +80,21 @@ function ItemVistaItinerario({ itinerario }: { itinerario: ItinerarioDia }) {
         )}
 
         {/* IMAGEN: Maneja los eventos onLoad y onError de HTML nativo */}
-        <img
+        {imagen.url && <img
           key={`${itinerario.urlImagen}-${intentos}`}
-          src={itinerario.urlImagen}
+          src={imagen.url}
           alt={`Itinerario del ${itinerario.fecha}`}
           onLoad={() => setEstado('listo')}
           onError={() => setEstado('error')}
           className={`max-h-[42rem] w-full rounded-lg object-contain ${
             estado === 'listo' ? 'block' : 'hidden'
           }`}
-        />
+        />}
 
         {/* ENLACE DE DESCARGA: Solo se muestra si el estado es 'listo' */}
-        {estado === 'listo' && (
+        {imagen.url && estado === 'listo' && (
           <a
-            href={itinerario.urlImagen}
+            href={imagen.url}
             download={itinerario.nombreArchivo}
             className="inline-block text-sm font-semibold text-[#7a132b] underline"
           >
@@ -104,7 +106,7 @@ function ItemVistaItinerario({ itinerario }: { itinerario: ItinerarioDia }) {
 }
 
 // Componente principal actualizado que delega el renderizado al subcomponente
-export function VistaItinerarios({ itinerarios }: { itinerarios?: ItinerarioDia[] }) {
+export function VistaItinerarios({ itinerarios, eventoConEnlace }: { itinerarios?: ItinerarioDia[]; eventoConEnlace?: string }) {
   if (!itinerarios?.length) return null;
   return (
     <section className="space-y-4">
@@ -114,7 +116,7 @@ export function VistaItinerarios({ itinerarios }: { itinerarios?: ItinerarioDia[
         .map((i) => (
           <details key={i.fecha} className="rounded-xl bg-neutral-50 p-4">
             <summary className="cursor-pointer font-semibold">Ver itinerario del {i.fecha}</summary>
-            <ItemVistaItinerario key={i.urlImagen} itinerario={i} />
+            <ItemVistaItinerario key={i.urlImagen} itinerario={i} eventoConEnlace={eventoConEnlace} />
           </details>
         ))}
     </section>

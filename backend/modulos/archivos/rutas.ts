@@ -66,6 +66,53 @@ routerArchivos.post(
 );
 
 routerArchivos.get(
+  "/eventos/:evento/:id",
+  ruta(async (req, res) => {
+    const evento = idEntero(req.params.evento);
+    const id = idEntero(req.params.id);
+    const token = req.get("X-TicketTrade-Enlace");
+    res.set("Cache-Control", "private, no-store");
+    if (!token || token.length > 256) fallo("Archivo no disponible.", 404);
+    const { rows: [archivo] } = await pool.query(
+      `SELECT a.nombre, m.nombre mime, b.contenido
+       FROM ticket_trade."Evento" e
+       JOIN ticket_trade."EstadoEvento" ee USING (id_estado_evento)
+       JOIN ticket_trade."VisibilidadEvento" v USING (id_visibilidad_evento)
+       JOIN ticket_trade."Archivo" a ON a.id_archivo = $2
+       JOIN ticket_trade."TipoMime" m USING (id_tipo_mime)
+       JOIN infra.archivo_contenido b ON b.id_archivo = a.id_archivo
+       WHERE e.id_evento = $1 AND ee.nombre = 'Publicado' AND v.nombre = 'Privado'
+         AND e.token_enlace_privado = $3
+         AND m.nombre IN ('image/jpeg', 'image/png')
+         AND (a.id_archivo = e.id_archivo_cartel OR EXISTS (
+           SELECT 1 FROM ticket_trade."ItinerarioDia" i
+           WHERE i.id_evento = e.id_evento AND i.id_archivo = a.id_archivo
+         ))
+         AND (b.metadatos->>'tipo') IS DISTINCT FROM 'respaldo_solicitud'
+         AND NOT EXISTS (
+           SELECT 1 FROM ticket_trade."DocumentoVerificacion" d WHERE d.id_archivo = a.id_archivo
+         )`,
+      [evento, id, token],
+    );
+    if (!archivo) fallo("Archivo no disponible.", 404);
+    enviarArchivo(res, archivo);
+  }),
+);
+
+function enviarArchivo(res: import("express").Response, archivo: {
+  mime: string; nombre: string; contenido: Buffer;
+}) {
+  res.set({
+    "Content-Type": archivo.mime,
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "private, no-store",
+    "Content-Security-Policy": "sandbox",
+    "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(archivo.nombre)}`,
+  });
+  res.send(archivo.contenido);
+}
+
+routerArchivos.get(
   "/:id",
   ruta(async (req, res) => {
     const id = idEntero(req.params.id);
@@ -119,14 +166,7 @@ routerArchivos.get(
     }
     if (!a.contenido) fallo("Archivo no disponible.", 404);
 
-    res.set({
-      "Content-Type": a.mime,
-      "X-Content-Type-Options": "nosniff",
-      "Cache-Control": "private, no-store",
-      "Content-Security-Policy": "sandbox",
-      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(a.nombre)}`,
-    });
-    res.send(a.contenido);
+    enviarArchivo(res, a);
   }),
 );
 

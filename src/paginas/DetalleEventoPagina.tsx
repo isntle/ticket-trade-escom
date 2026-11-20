@@ -3,6 +3,7 @@ import { apiActiva } from '../servicios/modoDatos';
 import { modalidadActividad, nombreActividad, accesoMixto } from '../dominio/actividades';
 import { capacidadActividad } from '../dominio/taquilla';
 import { impedimentoActividad, impedimentoParticipante, rutaAccesoConRegreso, rutaDetalleEvento, rutaReservaActividad } from '../dominio/participacionActividad';
+import { useImagenEvento } from '../componentes/eventos/useImagenEvento';
 import { VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
 import { volverA } from '../dominio/navegacion';
 import React, { useState } from 'react';
@@ -74,6 +75,9 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
   };
 
   const evento = listaEventos.find((e) => e.id === eventId);
+  const eventoConEnlace = apiActiva && evento?.accesoPorEnlace ? eventId : undefined;
+  const [intentoCartel, setIntentoCartel] = useState(0);
+  const cartel = useImagenEvento(evento?.urlImagen, eventoConEnlace, intentoCartel);
 
   // === VALIDACIÓN DE PRECONDICIONES ===
   const debeOcultarse = 
@@ -265,14 +269,18 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
       {/* Banner Principal */}
       <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden shadow-xs mb-8">
         <div className="h-60 sm:h-72 w-full bg-neutral-900 relative">
-          {evento.urlImagen && (
+          {cartel.url && (
             <img
-              src={evento.urlImagen}
+              src={cartel.url}
               alt={evento.titulo}
               className="w-full h-full object-cover opacity-70"
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/40 to-transparent" />
+          {cartel.error && <button type="button" onClick={() => setIntentoCartel(n => n + 1)}
+            className="absolute right-4 top-4 z-10 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-neutral-800">
+            Volver a cargar el cartel
+          </button>}
           <div className="absolute bottom-6 left-6 right-6 text-white">
             <div className="flex flex-wrap gap-2 mb-2">
               <span className="px-2.5 py-0.5 rounded bg-white/20 backdrop-blur-xs text-xs font-semibold uppercase tracking-wider">
@@ -380,7 +388,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
         </div>
       </div>
 
-      <VistaItinerarios itinerarios={evento.itinerarios} />
+      <VistaItinerarios itinerarios={evento.itinerarios} eventoConEnlace={eventoConEnlace} />
       {/* Programa y Fechas Detalladas */}
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200 pb-3">

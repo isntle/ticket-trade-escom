@@ -6,12 +6,13 @@ interface Disponibilidad {
   apartados: string[];
   ocupados: string[];
   disponibles: number;
+  categorias: Record<string, 'bloqueado' | 'vip' | 'staff'>;
 }
 
 const api = transporteApi();
 
 export function useDisponibilidadTaquilla(activa: boolean, idEvento: string, idActividad: string) {
-  const [datos, setDatos] = useState<Disponibilidad | null>(null);
+  const [datos, setDatos] = useState<{ actividad: string; datos: Disponibilidad } | null>(null);
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
   const reconsultar = useCallback(() => setRevision(n => n + 1), []);
@@ -32,7 +33,7 @@ export function useDisponibilidadTaquilla(activa: boolean, idEvento: string, idA
           },
         );
         if (ciclo.signal.aborted) return;
-        setDatos(resultado);
+        setDatos({ actividad: idActividad, datos: resultado });
         setError('');
       } catch (error) {
         if (ciclo.signal.aborted) return;
@@ -51,5 +52,5 @@ export function useDisponibilidadTaquilla(activa: boolean, idEvento: string, idA
     };
   }, [activa, idEvento, idActividad, revision]);
 
-  return { datos, error, reconsultar };
+  return { datos: activa && datos?.actividad === idActividad ? datos.datos : null, error, reconsultar };
 }

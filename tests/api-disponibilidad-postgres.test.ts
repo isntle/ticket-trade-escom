@@ -127,6 +127,39 @@ test('Disponibilidad PostgreSQL: dos sesiones, aprobación concurrente, bloqueos
       const acceso = await bien<any>(await detalle(enlace.token));
       assert.equal(acceso.evento.id, idEvento);
       assert.doesNotMatch(JSON.stringify(acceso), new RegExp(enlace.token));
+      const imagen = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7L8AAAAASUVORK5CYII=", "base64");
+      const subir = async (nombre: string) => bien<{ id: string }>(await fetch(
+        base + "/archivos?nombre=" + nombre,
+        { method: "POST", headers: { Cookie: propietario, "Content-Type": "image/png" }, body: imagen },
+      ), 201);
+      const cartelSubido = await subir("cartel-privado.png");
+      const itinerario = await subir("itinerario-privado.png");
+      const ajeno = await subir("imagen-ajena.png");
+      const documento = (await pool.query('SELECT id_archivo::text id FROM ticket_trade."DocumentoVerificacion" LIMIT 1')).rows[0].id;
+      await conTransaccion(async (c) => {
+        await c.query('UPDATE ticket_trade."Evento" SET id_archivo_cartel=$2 WHERE id_evento=$1', [idEvento, cartelSubido.id]);
+        await c.query('INSERT INTO ticket_trade."ItinerarioDia"(id_evento,fecha,id_archivo) VALUES($1,$2,$3)', [idEvento, franja.fecha, itinerario.id]);
+      });
+      const conArchivos = await bien(await detalle(enlace.token));
+      assert.match(conArchivos.evento.urlImagen, new RegExp('/archivos/' + cartelSubido.id));
+      assert.match(conArchivos.evento.itinerarios[0].urlImagen, new RegExp('/archivos/' + itinerario.id));
+      const archivoInvitado = (id: string, token?: string, evento = idEvento) => fetch(
+        base + `/archivos/eventos/${evento}/${id}`,
+        { headers: token ? { "X-TicketTrade-Enlace": token } : {} },
+      );
+      for (const id of [cartelSubido.id, itinerario.id]) {
+        const r = await archivoInvitado(id, enlace.token);
+        assert.equal(r.status, 200, await r.clone().text());
+        assert.equal(r.headers.get("content-type"), "image/png");
+        assert.match(r.headers.get("cache-control") ?? "", /no-store/);
+        assert.deepEqual(Buffer.from(await r.arrayBuffer()), imagen);
+        assert.equal((await archivoInvitado(id)).status, 404);
+        assert.equal((await archivoInvitado(id, "incorrecto")).status, 404);
+        assert.equal((await pedir("/archivos/" + id, invitado.cookie)).status, 403);
+      }
+      assert.equal((await archivoInvitado(ajeno.id, enlace.token)).status, 404);
+      assert.equal((await archivoInvitado(documento, enlace.token)).status, 404);
+      assert.equal((await archivoInvitado(cartelSubido.id, enlace.token, solicitudes[1-ganadora].idEvento)).status, 404);
       const idActividad = acceso.evento.fechas[0].id;
       const urlLugares = `/taquilla/actividades/${idActividad}/lugares`;
       assert.equal((await pedir(urlLugares, '')).status, 404);
@@ -145,10 +178,12 @@ test('Disponibilidad PostgreSQL: dos sesiones, aprobación concurrente, bloqueos
       const vencedor = carrera.findIndex(r => r.status === 201);
       const titular = competidores[vencedor];
       const apartado = await bien<{id:string}>(carrera[vencedor], 201);
-      assert.deepEqual(await bien(await disponibilidad(enlace.token)), { disponibles: 0, apartados: [], ocupados: [] });
+      assert.deepEqual(await bien(await disponibilidad(enlace.token)), { disponibles: 0, apartados: [], ocupados: [], categorias: {} });
       const renovado = await bien<{token:string}>(await pedir(`/organizacion/eventos/${idEvento}/enlace-privado/renovacion`, propietario, {}));
       assert.notEqual(renovado.token, enlace.token);
       assert.equal((await detalle(enlace.token)).status, 404);
+      assert.equal((await archivoInvitado(cartelSubido.id, enlace.token)).status, 404);
+      assert.equal((await archivoInvitado(itinerario.id, renovado.token)).status, 200);
       assert.equal((await disponibilidad(enlace.token)).status, 404);
       assert.equal((await pedir(`/taquilla/apartados/${apartado.id}/confirmacion`, titular, {token:enlace.token})).status, 403);
       await bien(await pedir(`/taquilla/apartados/${apartado.id}/confirmacion`, titular, {token:renovado.token}), 201);

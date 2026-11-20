@@ -31,3 +31,13 @@ Las categorías del catálogo de PostgreSQL son `asistente`, `vip`, `staff` y `b
 - Tras guardar, usa la respuesta como base del siguiente cambio. El estado de ocupación puede cambiar entre una lectura y el guardado. El servidor revalida antes de escribir y protege las reservas y los apartados vigentes.
 
 La distribución usa `LugarRecinto`, `LugarActividad` y el catálogo de categorías existente. Este bloque no requiere migración en Supabase. Para verificarlo en local, ejecuta `npm run test:postgres` con una conexión de PostgreSQL local. El script crea una base desechable y cubre permisos, recarga, aforo, ediciones concurrentes, una carrera contra taquilla y protección de reservas confirmadas.
+
+## Integración con taquilla y archivos privados
+
+La consulta de disponibilidad devuelve también `categorias`, un objeto indexado por `idLugarActividad`. Incluye solo `vip`, `staff` y `bloqueado`, incluidas estaciones fuera de servicio. El mapa abierto aplica los cambios con su consulta periódica. Un lugar omitido recupera la categoría de asistente.
+
+El invitado solicita el cartel o itinerario subido con `GET /api/archivos/eventos/:idEvento/:idArchivo`, enviando el token en `X-TicketTrade-Enlace`. La API valida publicación, privacidad y relación con el evento, excluye respaldos y expedientes, y no permite cachear la respuesta. El detalle usa la imagen autenticada para la vista previa y descarga. Los carteles de ejemplo servidos como recursos estáticos conservan su ruta.
+
+Flujos verificados en la suite PostgreSQL local: imagen de cartel e itinerario subidos, acceso antes de iniciar sesión con invitación válida, rechazo de archivo ajeno o documento de verificación, renovación que invalida el enlace anterior, y aparición y retiro de un bloqueo en la consulta de taquilla.
+
+La lista de espera todavía no aparece como acción en modo remoto. El esquema vigente solo describe un aviso de disponibilidad, sin prioridad ni apartado. La cola de ofertas requiere un modelo explícito y una migración independiente de este cambio.

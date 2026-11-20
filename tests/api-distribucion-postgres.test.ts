@@ -144,8 +144,16 @@ test("Distribución PostgreSQL: permisos, guardado, concurrencia y protección d
   const final = await leer(propietario);
   const taquilla = await solicitar(`taquilla/actividades/${fixture.actividad}/lugares`, "GET");
   assert.equal(taquilla.status, 200, await taquilla.clone().text());
+  const disponibilidad = await solicitar(`taquilla/actividades/${fixture.actividad}/disponibilidad`, "GET");
+  assert.equal(disponibilidad.status, 200, await disponibilidad.clone().text());
+  assert.equal((await disponibilidad.json()).datos.categorias[tercero.idLugarActividad], "bloqueado");
   const mapaTaquilla = (await taquilla.json()).datos.lugares;
   assert.equal(mapaTaquilla.find((l: any) => l.id === tercero.idLugarActividad).categoria, "Bloqueado");
   assert.equal(final.lugares.find((l: any) => l.idLugarRecinto === segundo.idLugarRecinto).ocupado, true);
   assert.equal(final.lugares.find((l: any) => l.idLugarRecinto === tercero.idLugarRecinto).categoria, "bloqueado");
+  const desbloquear = await guardar(propietario, final.version, [cambio(tercero.idLugarRecinto, "asistente")]);
+  assert.equal(desbloquear.status, 200, await desbloquear.clone().text());
+  const nuevoMapa = await solicitar(`taquilla/actividades/${fixture.actividad}/disponibilidad`, "GET");
+  assert.equal(nuevoMapa.status, 200);
+  assert.equal((await nuevoMapa.json()).datos.categorias[tercero.idLugarActividad], undefined);
 });

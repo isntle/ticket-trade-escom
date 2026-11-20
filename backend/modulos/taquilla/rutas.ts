@@ -110,7 +110,17 @@ routerTaquilla.get(
       )
       SELECT greatest(0, v.aforo_solicitado - count(o.id_compromiso_cupo))::int disponibles,
         coalesce(array_agg(o.lugar) FILTER (WHERE o.lugar IS NOT NULL AND o.apartado IS TRUE), '{}') apartados,
-        coalesce(array_agg(o.lugar) FILTER (WHERE o.lugar IS NOT NULL AND o.apartado IS NOT TRUE), '{}') ocupados
+        coalesce(array_agg(o.lugar) FILTER (WHERE o.lugar IS NOT NULL AND o.apartado IS NOT TRUE), '{}') ocupados,
+        coalesce((
+          SELECT jsonb_object_agg(la.id_lugar_actividad::text,
+            CASE WHEN ef.nombre = 'Fuera de servicio' THEN 'bloqueado' ELSE lower(cl.nombre) END)
+          FROM ticket_trade."LugarActividad" la
+          JOIN ticket_trade."CategoriaLugarActividad" cl USING (id_categoria_lugar_actividad)
+          LEFT JOIN ticket_trade."EstacionComputo" pc USING (id_lugar_recinto)
+          LEFT JOIN ticket_trade."EstadoFuncionamiento" ef USING (id_estado_funcionamiento)
+          WHERE la.id_actividad = v.id_actividad
+            AND (cl.nombre <> 'Asistente' OR ef.nombre = 'Fuera de servicio')
+        ), '{}'::jsonb) categorias
       FROM visible v LEFT JOIN ocupacion o ON true
       GROUP BY v.id_actividad, v.aforo_solicitado`,
       [id, token && token.length <= 256 ? token : null],
