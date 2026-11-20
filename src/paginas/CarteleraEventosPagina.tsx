@@ -251,6 +251,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
                   {eventoDestacado.urlImagen && (
                     <img
                       src={eventoDestacado.urlImagen}
+                      fetchPriority="high"
                       alt={eventoDestacado.titulo}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80"
                     />
@@ -373,6 +374,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
                             <img
                               src={evento.urlImagen}
                               loading="lazy"
+                              decoding="async"
                               alt={evento.titulo}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-85"
                             />

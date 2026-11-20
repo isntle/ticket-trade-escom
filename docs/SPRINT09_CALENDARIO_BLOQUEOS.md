@@ -1,6 +1,6 @@
 # Sprint 9: guardar calendario hábil y bloqueos de recintos
 
-La configuración y los comandos de bloqueo se guardan en PostgreSQL mediante la API. El frontend espera la confirmación de la transacción; conserva el formulario ante error y evita el doble envío. La rama parte de `origin/main` en `d8241ef`, que ya integra la disponibilidad del sprint 8.
+La configuración y los comandos de bloqueo se guardan en PostgreSQL mediante la API. El frontend espera la confirmación de la transacción; conserva el formulario ante error y evita el doble envío. La entrega incorpora `origin/main` en `c310e1e`, incluidos los cambios del sprint 8 y la mejora de Luis para reducir consultas de eventos y recuperar fallos de conexión. Esta actualización se incorporó únicamente a la rama del sprint 9.
 
 ## Permisos y reglas vigentes
 
@@ -89,7 +89,7 @@ La integración y despliegue los revisa el equipo. Este trabajo se mantiene en `
 |---|---|
 | `npm ci` tras reparar el lockfile | Correcto |
 | `npm run lint` | Correcto |
-| `npm test` | 226 aprobadas, 0 fallidas; 8 pruebas de PostgreSQL omitidas en este comando |
+| `npm test` | 227 aprobadas, 0 fallidas; 8 pruebas de PostgreSQL omitidas en este comando |
 | Runner real de PostgreSQL | 26 aprobadas, 0 fallidas, 0 omitidas; incluye las pruebas previas y los subcasos nuevos |
 | `npm run build` en modo API | Correcto; se conserva el aviso previo por tamaño del paquete |
 | `npm run verify:api` | API ESM compilada y cargada correctamente |
@@ -110,6 +110,8 @@ El error de commit de la última línea se fuerza deliberadamente en la base des
 Registros completos: [PostgreSQL](evidencias/sprint9/resultado-postgresql.txt) y [suite ordinaria](evidencias/sprint9/resultado-unitarias.txt).
 
 También se revisó el frontend compilado en modo API con una segunda base temporal aislada y datos sintéticos. Desde la interfaz se inició sesión con Administración, se envió una fecha inexistente y se conservó la captura con el error del servidor, se guardó un calendario válido y se comprobó que persistiera al recargar. Se registró un mantenimiento, se volvió a cargar para verificar su permanencia y se confirmó su cierre con motivo e historial. Las cuentas, fechas de 2099 y recintos de las pruebas son datos sintéticos.
+
+Las capturas corresponden a ese recorrido inicial. Después de incorporar `c310e1e` se repitieron la suite ordinaria, la integración con PostgreSQL, el tipado, la compilación y la carga de la API.
 
 Al terminar se eliminó la base de revisión y se detuvo PostgreSQL temporal. Los servicios locales de prueba no quedaron activos.
 

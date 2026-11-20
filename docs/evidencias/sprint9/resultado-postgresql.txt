@@ -6,7 +6,7 @@ The default text search configuration will be set to "english".
 
 Data page checksums are disabled.
 
-creating directory C:/Users/rjann/Documents/Codex/2026-11-14/hola-chat-el-dia-de-hoy/work/pg-pruebas-herramientas17/ejecuciones/e923ff051947/datos ... ok
+creating directory C:/Users/rjann/Documents/Codex/2026-11-14/hola-chat-el-dia-de-hoy/work/pg-pruebas-herramientas17/ejecuciones/b2b070dc065b/datos ... ok
 creating subdirectories ... ok
 selecting dynamic shared memory implementation ... windows
 selecting default "max_connections" ... 25
@@ -19,45 +19,45 @@ syncing data to disk ... ok
 
 Success. You can now start the database server using:
 
-    ^"C^:^\Users^\rjann^\Documents^\Codex^\2026^-11^-14^\hola^-chat^-el^-dia^-de^-hoy^\work^\pg^-pruebas^-herramientas17^\node^_modules^\^@embedded^-postgres^\windows^-x64^\native^\bin^\pg^_ctl^" -D ^"C^:^\Users^\rjann^\Documents^\Codex^\2026^-11^-14^\hola^-chat^-el^-dia^-de^-hoy^\work^\pg^-pruebas^-herramientas17^\ejecuciones^\e923ff051947^\datos^" -l logfile start
+    ^"C^:^\Users^\rjann^\Documents^\Codex^\2026^-11^-14^\hola^-chat^-el^-dia^-de^-hoy^\work^\pg^-pruebas^-herramientas17^\node^_modules^\^@embedded^-postgres^\windows^-x64^\native^\bin^\pg^_ctl^" -D ^"C^:^\Users^\rjann^\Documents^\Codex^\2026^-11^-14^\hola^-chat^-el^-dia^-de^-hoy^\work^\pg^-pruebas^-herramientas17^\ejecuciones^\b2b070dc065b^\datos^" -l logfile start
 
 PostgreSQL 17 temporal listo, solo en loopback. Se ejecutará el runner desechable del repositorio.
 Modelo ER: 73 tablas, columnas, tipos, nulabilidad, 96 relaciones e integridad correctos.
-✔ Contraseñas: hash real, rechazo de texto plano y de valores malformados (354.9386ms)
-✔ PostgreSQL aislado: sesión revocable, borrador atómico y autorización (10361.4915ms)
+✔ Contraseñas: hash real, rechazo de texto plano y de valores malformados (175.3489ms)
+✔ PostgreSQL aislado: sesión revocable, borrador atómico y autorización (6225.699ms)
 ▶ Sprint 9 PostgreSQL: calendario persistente, plazos anteriores, roles y bloqueos atómicos
-  ✔ guardar calendario conserva plazos anteriores y las solicitudes nuevas usan la configuración guardada (1697.2528ms)
-  ✔ calendario valida rol, fechas reales, versión y dos escrituras competidoras (335.4602ms)
-  ✔ bloqueos persistidos se modifican y cierran con versión e historial; cancelar antes del inicio deja la agenda libre (2457.4239ms)
-  ✔ mantenimiento no desplaza eventos; bloqueo institucional suspende y conserva las reservaciones (887.4939ms)
-  ✔ clases informativas se muestran y no impiden guardar un bloqueo autorizado (131.2351ms)
-  ✔ dos bloqueos competidores solo guardan uno y una firma antigua no omite la nueva ocupación (85.879ms)
-  ✔ una entrada registrada después de la revisión impide suspender y no modifica la actividad (414.3325ms)
+  ✔ guardar calendario conserva plazos anteriores y las solicitudes nuevas usan la configuración guardada (1171.5709ms)
+  ✔ calendario valida rol, fechas reales, versión y dos escrituras competidoras (358.9528ms)
+  ✔ bloqueos persistidos se modifican y cierran con versión e historial; cancelar antes del inicio deja la agenda libre (1301.223ms)
+  ✔ mantenimiento no desplaza eventos; bloqueo institucional suspende y conserva las reservaciones (816.8843ms)
+  ✔ clases informativas se muestran y no impiden guardar un bloqueo autorizado (130.263ms)
+  ✔ dos bloqueos competidores solo guardan uno y una firma antigua no omite la nueva ocupación (91.8533ms)
+  ✔ una entrada registrada después de la revisión impide suspender y no modifica la actividad (375.7987ms)
 Error interno API {"codigo":"P0001","punto":["    at C:\\Users\\rjann\\Documents\\Codex\\2026-11-14\\hola-chat-el-dia-de-hoy\\work\\ticket-trade-escom-sprint9-calendario\\node_modules\\pg\\lib\\client.js:694:17","    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","    at async conTransaccion (C:\\Users\\rjann\\Documents\\Codex\\2026-11-14\\hola-chat-el-dia-de-hoy\\work\\ticket-trade-escom-sprint9-calendario\\backend\\bd\\pool.ts:103:5)"]}
-  ✔ un fallo al confirmar la transacción revierte todo y el servidor no devuelve éxito (123.2354ms)
-  ✔ la misma sesión pierde el permiso institucional cuando se retira su rol (256.4024ms)
-✔ Sprint 9 PostgreSQL: calendario persistente, plazos anteriores, roles y bloqueos atómicos (17156.6942ms)
+  ✔ un fallo al confirmar la transacción revierte todo y el servidor no devuelve éxito (122.2999ms)
+  ✔ la misma sesión pierde el permiso institucional cuando se retira su rol (189.0231ms)
+✔ Sprint 9 PostgreSQL: calendario persistente, plazos anteriores, roles y bloqueos atómicos (10260.2113ms)
 ℹ {"plazoAnteriorConservado":true,"nuevasSolicitudesUsanCalendarioGuardado":true}
 ℹ {"calendarioConcurrente":[200,409]}
 ℹ {"bloqueosCompetidores":[201,409],"guardados":1}
 ℹ {"falloCommit":500,"escriturasParciales":0}
-✔ Correo PostgreSQL: rollback, cola cifrada, workers concurrentes y MIME PDF sin envío externo (7423.6716ms)
-✔ URL normal y demo: bases independientes, cuentas, sesiones y registros sin contaminación (22732.1671ms)
+✔ Correo PostgreSQL: rollback, cola cifrada, workers concurrentes y MIME PDF sin envío externo (6016.5969ms)
+✔ URL normal y demo: bases independientes, cuentas, sesiones y registros sin contaminación (46347.6297ms)
 ▶ Disponibilidad PostgreSQL: dos sesiones, aprobación concurrente, bloqueos y clases informativas
-  ✔ dos titulares consultan y envían; una propuesta pendiente no reserva el recinto (737.1041ms)
-  ✔ dos resoluciones en competencia producen un éxito y un conflicto autoritativo (782.4011ms)
-  ✔ enlace privado: acceso aislado, reserva, renovación y boleto del titular (2584.9137ms)
-  ✔ ocupación parcial y margen exacto conservan horas libres para ambas sesiones (292.8265ms)
-  ✔ una autorización conserva la ocupación aunque el evento aún no esté publicado (327.6879ms)
-  ✔ el envío repite la lectura y rechaza cruces propios sin escrituras parciales (141.5172ms)
-  ✔ bloqueo temporal: límites efectivos, medianoche, inicio futuro y previsión (437.7764ms)
-  ✔ una clase de laboratorio aparece como informativa y permite autorizar la actividad (273.7356ms)
-✔ Disponibilidad PostgreSQL: dos sesiones, aprobación concurrente, bloqueos y clases informativas (10864.9854ms)
+  ✔ dos titulares consultan y envían; una propuesta pendiente no reserva el recinto (1368.3138ms)
+  ✔ dos resoluciones en competencia producen un éxito y un conflicto autoritativo (742.4009ms)
+  ✔ enlace privado: acceso aislado, reserva, renovación y boleto del titular (1548.57ms)
+  ✔ ocupación parcial y margen exacto conservan horas libres para ambas sesiones (503.1517ms)
+  ✔ una autorización conserva la ocupación aunque el evento aún no esté publicado (95.8247ms)
+  ✔ el envío repite la lectura y rechaza cruces propios sin escrituras parciales (153.58ms)
+  ✔ bloqueo temporal: límites efectivos, medianoche, inicio futuro y previsión (616.1975ms)
+  ✔ una clase de laboratorio aparece como informativa y permite autorizar la actividad (350.7764ms)
+✔ Disponibilidad PostgreSQL: dos sesiones, aprobación concurrente, bloqueos y clases informativas (13942.1091ms)
 ℹ Dos sesiones distintas: consultas libres, dos envíos HTTP 201 y cero ocupaciones por solicitudes pendientes.
-ℹ {"contendientes":2,"estadosHTTP":[409,200],"publicados":1,"pendientes":1,"resolucionesRechazadasGuardadas":0}
-✔ Eventos PostgreSQL: edición, conflictos, cambio de recinto y cancelación parcial preservan pase y reservas (9349.2316ms)
-✔ PostgreSQL: registro, tokens, PDF privado, revisión, cartel, solicitud, cupo concurrente y persistencia (14884.3547ms)
-✔ PostgreSQL aislado: cambio de contraseña con sesiones e IDOR (6428.6481ms)
+ℹ {"contendientes":2,"estadosHTTP":[200,409],"publicados":1,"pendientes":1,"resolucionesRechazadasGuardadas":0}
+✔ Eventos PostgreSQL: edición, conflictos, cambio de recinto y cancelación parcial preservan pase y reservas (14535.4096ms)
+✔ PostgreSQL: registro, tokens, PDF privado, revisión, cartel, solicitud, cupo concurrente y persistencia (43118.169ms)
+✔ PostgreSQL aislado: cambio de contraseña con sesiones e IDOR (8149.4727ms)
 ℹ tests 26
 ℹ suites 0
 ℹ pass 26
@@ -65,6 +65,6 @@ Error interno API {"codigo":"P0001","punto":["    at C:\\Users\\rjann\\Documents
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 108922.2019
+ℹ duration_ms 158881.1653
 Base desechable eliminada; la base de desarrollo se conserva.
 PostgreSQL temporal detenido.
