@@ -146,10 +146,10 @@ export const MATRIZ_PERMISOS_ROLES: PermisosPorRol[] = [
   {
     rol: 'subdireccion',
     nombre: 'Subdirección de Servicios Educativos e Integración Social',
-    descripcion: 'Autoridad institucional que autoriza solicitudes, gestiona la agenda y bloquea recintos por mantenimiento.',
+    descripcion: 'Autoridad institucional que autoriza solicitudes, gestiona la agenda y aplica bloqueos institucionales.',
     permisos: [
       'Revisar, autorizar o rechazar solicitudes formales de eventos',
-      'Bloquear recintos por mantenimiento o actividades académicas oficiales',
+      'Registrar, modificar y cerrar bloqueos institucionales de recintos',
       'Revisar solicitudes de verificación documental y su vigencia semestral',
       'Asignar y retirar jefaturas de academia',
       'Pausar nuevos envíos de verificación con motivo y vigencia',
@@ -162,6 +162,8 @@ export const MATRIZ_PERMISOS_ROLES: PermisosPorRol[] = [
     nombre: 'Administrador de Tecnologías de la Información',
     descripcion: 'Administrador del sistema responsable del catálogo de usuarios, asignación de roles y configuraciones base.',
     permisos: [
+      'Configurar días laborables e inhábiles sin recalcular plazos anteriores',
+      'Registrar, modificar y cerrar mantenimiento y fuera de servicio de recintos',
       'Consultar y revocar verificaciones documentales con motivo',
       'Gestión de cuentas y catálogo completo de usuarios',
       'Asignar y revocar roles (Asistente, Organizador, Staff, Subdirección, Admin)',

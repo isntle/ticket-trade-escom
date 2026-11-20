@@ -54,6 +54,7 @@ export async function consultarAgendaRecintos(
     AND ($3::bigint IS NULL OR a.id_evento<>$3) AND ($4::bigint IS NULL OR a.id_actividad<>$4) ORDER BY a.hora_inicio,a.id_actividad`, [fecha, ids, excluir.evento || null, excluir.actividad || null])).rows;
   const bloqueos = (await c.query(`SELECT b.id_bloqueo_recinto::text id,b.id_recinto::text recinto,b.inicio,b.finalizado_en fin,b.fin_previsto,b.motivo
     FROM ticket_trade."BloqueoRecinto" b WHERE b.id_recinto=ANY($2::bigint[])
+    AND (b.finalizado_en IS NULL OR b.finalizado_en>b.inicio)
     AND b.inicio<($1::date+interval '1 day') AT TIME ZONE 'America/Mexico_City'
     AND coalesce(b.finalizado_en,'infinity'::timestamptz)>($1::date::timestamp) AT TIME ZONE 'America/Mexico_City' ORDER BY b.inicio`, [fecha, ids])).rows;
   const clases = (await c.query(`SELECT a.id_actividad_interna::text id,a.id_recinto::text recinto,to_char(a.hora_inicio,'HH24:MI') inicio,to_char(a.hora_fin,'HH24:MI') fin

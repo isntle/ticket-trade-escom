@@ -6,9 +6,14 @@ import { origenSeguro } from "../../comun/seguridad.js";
 import { leerEventos, leerRecintos } from "./catalogos.js";
 import { estadoSolicitudDesdeCatalogo } from "../../../src/servicios/contratoOrganizacion.js";
 import { asegurarInfraEspeciales } from "../taquilla/especiales.js";
+import { conConfiguracion, leerCalendario, leerPlazos } from '../organizacion/calendario.js';
+import { leerBloqueos } from '../organizacion/bloqueos.js';
 
 export const routerEstado = Router();
 export async function leerEstado(u: any, eventoEnlace?: string) {
+  const configuracion = await conConfiguracion(async c => ({
+    calendario: await leerCalendario(c), plazos: u ? await leerPlazos(c) : new Map(), bloqueos: await leerBloqueos(c, u),
+  }));
   const [eventos, recintos] = await Promise.all([
     leerEventos(u, eventoEnlace),
     leerRecintos(),
@@ -140,6 +145,7 @@ export async function leerEstado(u: any, eventoEnlace?: string) {
           esExcepcional: s.anticipacion === "Extraordinaria",
           justificacionExcepcional: s.motivo,
           fechaEnvioInicial: s.envio_inicial,
+          ...(configuracion.plazos.get(s.id) || {}),
           fechaCreacion: s.envio_inicial || new Date().toISOString(),
           motivoRechazo: s.estado === "Rechazada" ? s.resolucion : undefined,
           observacionesCorreccion:
@@ -386,25 +392,6 @@ export async function leerEstado(u: any, eventoEnlace?: string) {
       "SELECT clave id,to_char(inicio,'YYYY-MM-DD') inicio,to_char(fin,'YYYY-MM-DD') fin FROM ticket_trade.\"PeriodoEscolar\" ORDER BY inicio",
     )
   ).rows.map((p) => ({ ...p, fuente: "Periodo configurado en PostgreSQL" }));
-  const bloqueos = (
-    await pool.query(`SELECT b.*,b.id_bloqueo_recinto::text id,b.id_recinto::text recinto,
-    to_char(b.inicio AT TIME ZONE 'America/Mexico_City','YYYY-MM-DD') dia_inicio,to_char(b.inicio AT TIME ZONE 'America/Mexico_City','HH24:MI') hora_inicio,
-    to_char(b.fin_previsto AT TIME ZONE 'America/Mexico_City','YYYY-MM-DD') dia_fin,to_char(b.fin_previsto AT TIME ZONE 'America/Mexico_City','HH24:MI') hora_fin
-    FROM ticket_trade."BloqueoRecinto" b`)
-  ).rows.map((b) => ({
-    id: b.id,
-    idRecinto: b.recinto,
-    titulo: b.motivo,
-    motivo: b.motivo,
-    fechaInicio: b.dia_inicio,
-    horaInicio: b.hora_inicio,
-    fechaFin: b.dia_fin,
-    horaFin: b.hora_fin,
-    esIndefinido: !b.finalizado_en,
-    estado: b.finalizado_en ? "cancelado" : "activo",
-    creadoPor: "Personal autorizado",
-    fechaCreacion: b.inicio,
-  }));
   return {
     listaEventos: eventos,
     listaRecintos: recintos,
@@ -413,17 +400,12 @@ export async function leerEstado(u: any, eventoEnlace?: string) {
     listaReservaciones: [...reservaciones, ...apartados],
     listaBoletos: boletos,
     bitacoraEscaneos: escaneos,
-    listaBloqueos: bloqueos,
+    listaBloqueos: configuracion.bloqueos,
     listaEspera: [],
     listaIntencionesAsistencia: [],
     listaClasesRegulares: [],
     listaOcupacionesInternas: [],
-    calendarioRevision: {
-      diasLaborables: [1, 2, 3, 4, 5],
-      diasInhabiles: [],
-      responsable: "Calendario institucional",
-      fechaConfiguracion: new Date().toISOString(),
-    },
+    calendarioRevision: configuracion.calendario,
     periodos,
   };
 }

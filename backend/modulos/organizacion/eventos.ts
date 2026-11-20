@@ -56,7 +56,7 @@ async function comprobarBloqueo(
   fin: string,
 ) {
   const r = await c.query(
-    `SELECT 1 FROM ticket_trade."BloqueoRecinto" WHERE id_recinto=$1 AND inicio < ($2::date+$4::time) AT TIME ZONE 'America/Mexico_City' AND coalesce(finalizado_en,'infinity'::timestamptz)>($2::date+$3::time) AT TIME ZONE 'America/Mexico_City' LIMIT 1`,
+    `SELECT 1 FROM ticket_trade."BloqueoRecinto" WHERE id_recinto=$1 AND (finalizado_en IS NULL OR finalizado_en>inicio) AND inicio < ($2::date+$4::time) AT TIME ZONE 'America/Mexico_City' AND coalesce(finalizado_en,'infinity'::timestamptz)>($2::date+$3::time) AT TIME ZONE 'America/Mexico_City' LIMIT 1`,
     [recinto, fecha, inicio, fin],
   );
   if (r.rowCount)
@@ -468,7 +468,7 @@ async function propuestaRecinto(c: PoolClient, id: string, u: any, b: any) {
       409,
     );
   const bloqueado = await c.query(
-    `SELECT 1 FROM ticket_trade."BloqueoRecinto" WHERE id_recinto=$1 AND inicio < ($2::date+$4::time) AT TIME ZONE 'America/Mexico_City' AND coalesce(finalizado_en,'infinity'::timestamptz) > ($2::date+$3::time) AT TIME ZONE 'America/Mexico_City' LIMIT 1`,
+    `SELECT 1 FROM ticket_trade."BloqueoRecinto" WHERE id_recinto=$1 AND (finalizado_en IS NULL OR finalizado_en>inicio) AND inicio < ($2::date+$4::time) AT TIME ZONE 'America/Mexico_City' AND coalesce(finalizado_en,'infinity'::timestamptz) > ($2::date+$3::time) AT TIME ZONE 'America/Mexico_City' LIMIT 1`,
     [p.idRecinto, act.dia, act.inicio, act.fin],
   );
   if (bloqueado.rowCount)

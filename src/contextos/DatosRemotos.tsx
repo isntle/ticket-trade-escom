@@ -1,4 +1,5 @@
 import { crearAlmacenDisponibilidad } from "../servicios/almacenDisponibilidad.js";
+import { crearServicioConfiguracionRecintos } from '../servicios/configuracionRecintos.js';
 import { modoDemostracionActivo } from "../dominio/demostracion.js";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -218,6 +219,7 @@ export function ProveedorDatosRemotos({
     agendaRemota.leer({ fecha }).agenda?.recintos.flatMap(r => r.ocupaciones) || [];
   const operaciones: Record<string, unknown> = {
     ...estado,
+    ...crearServicioConfiguracionRecintos(api, async () => { agendaRemota.limpiar(); await cargar(); }),
     agendaRemota,
     verificarDisponibilidadRecinto,
     obtenerOcupacionesRecinto: (id: string, fecha: string) =>

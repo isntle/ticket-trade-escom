@@ -411,6 +411,10 @@ export interface HorarioClaseRegular {
 
 // Bloqueo operativo o de mantenimiento por Subdirección
 export interface BloqueoRecinto {
+  tipo?: 'Institucional' | 'Mantenimiento' | 'Fuera de servicio';
+  requiereCierre?: boolean;
+  finPrevisto?: string;
+  finalizadoEn?: string;
   estado?: 'activo' | 'cancelado';
   version?: number;
   motivoCancelacion?: string;

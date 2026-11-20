@@ -1,0 +1,70 @@
+The files belonging to this database system will be owned by user "rjann".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory C:/Users/rjann/Documents/Codex/2026-11-14/hola-chat-el-dia-de-hoy/work/pg-pruebas-herramientas17/ejecuciones/e923ff051947/datos ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... windows
+selecting default "max_connections" ... 25
+selecting default "shared_buffers" ... 400kB
+selecting default time zone ... America/Mexico_City
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    ^"C^:^\Users^\rjann^\Documents^\Codex^\2026^-11^-14^\hola^-chat^-el^-dia^-de^-hoy^\work^\pg^-pruebas^-herramientas17^\node^_modules^\^@embedded^-postgres^\windows^-x64^\native^\bin^\pg^_ctl^" -D ^"C^:^\Users^\rjann^\Documents^\Codex^\2026^-11^-14^\hola^-chat^-el^-dia^-de^-hoy^\work^\pg^-pruebas^-herramientas17^\ejecuciones^\e923ff051947^\datos^" -l logfile start
+
+PostgreSQL 17 temporal listo, solo en loopback. Se ejecutará el runner desechable del repositorio.
+Modelo ER: 73 tablas, columnas, tipos, nulabilidad, 96 relaciones e integridad correctos.
+✔ Contraseñas: hash real, rechazo de texto plano y de valores malformados (354.9386ms)
+✔ PostgreSQL aislado: sesión revocable, borrador atómico y autorización (10361.4915ms)
+▶ Sprint 9 PostgreSQL: calendario persistente, plazos anteriores, roles y bloqueos atómicos
+  ✔ guardar calendario conserva plazos anteriores y las solicitudes nuevas usan la configuración guardada (1697.2528ms)
+  ✔ calendario valida rol, fechas reales, versión y dos escrituras competidoras (335.4602ms)
+  ✔ bloqueos persistidos se modifican y cierran con versión e historial; cancelar antes del inicio deja la agenda libre (2457.4239ms)
+  ✔ mantenimiento no desplaza eventos; bloqueo institucional suspende y conserva las reservaciones (887.4939ms)
+  ✔ clases informativas se muestran y no impiden guardar un bloqueo autorizado (131.2351ms)
+  ✔ dos bloqueos competidores solo guardan uno y una firma antigua no omite la nueva ocupación (85.879ms)
+  ✔ una entrada registrada después de la revisión impide suspender y no modifica la actividad (414.3325ms)
+Error interno API {"codigo":"P0001","punto":["    at C:\\Users\\rjann\\Documents\\Codex\\2026-11-14\\hola-chat-el-dia-de-hoy\\work\\ticket-trade-escom-sprint9-calendario\\node_modules\\pg\\lib\\client.js:694:17","    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","    at async conTransaccion (C:\\Users\\rjann\\Documents\\Codex\\2026-11-14\\hola-chat-el-dia-de-hoy\\work\\ticket-trade-escom-sprint9-calendario\\backend\\bd\\pool.ts:103:5)"]}
+  ✔ un fallo al confirmar la transacción revierte todo y el servidor no devuelve éxito (123.2354ms)
+  ✔ la misma sesión pierde el permiso institucional cuando se retira su rol (256.4024ms)
+✔ Sprint 9 PostgreSQL: calendario persistente, plazos anteriores, roles y bloqueos atómicos (17156.6942ms)
+ℹ {"plazoAnteriorConservado":true,"nuevasSolicitudesUsanCalendarioGuardado":true}
+ℹ {"calendarioConcurrente":[200,409]}
+ℹ {"bloqueosCompetidores":[201,409],"guardados":1}
+ℹ {"falloCommit":500,"escriturasParciales":0}
+✔ Correo PostgreSQL: rollback, cola cifrada, workers concurrentes y MIME PDF sin envío externo (7423.6716ms)
+✔ URL normal y demo: bases independientes, cuentas, sesiones y registros sin contaminación (22732.1671ms)
+▶ Disponibilidad PostgreSQL: dos sesiones, aprobación concurrente, bloqueos y clases informativas
+  ✔ dos titulares consultan y envían; una propuesta pendiente no reserva el recinto (737.1041ms)
+  ✔ dos resoluciones en competencia producen un éxito y un conflicto autoritativo (782.4011ms)
+  ✔ enlace privado: acceso aislado, reserva, renovación y boleto del titular (2584.9137ms)
+  ✔ ocupación parcial y margen exacto conservan horas libres para ambas sesiones (292.8265ms)
+  ✔ una autorización conserva la ocupación aunque el evento aún no esté publicado (327.6879ms)
+  ✔ el envío repite la lectura y rechaza cruces propios sin escrituras parciales (141.5172ms)
+  ✔ bloqueo temporal: límites efectivos, medianoche, inicio futuro y previsión (437.7764ms)
+  ✔ una clase de laboratorio aparece como informativa y permite autorizar la actividad (273.7356ms)
+✔ Disponibilidad PostgreSQL: dos sesiones, aprobación concurrente, bloqueos y clases informativas (10864.9854ms)
+ℹ Dos sesiones distintas: consultas libres, dos envíos HTTP 201 y cero ocupaciones por solicitudes pendientes.
+ℹ {"contendientes":2,"estadosHTTP":[409,200],"publicados":1,"pendientes":1,"resolucionesRechazadasGuardadas":0}
+✔ Eventos PostgreSQL: edición, conflictos, cambio de recinto y cancelación parcial preservan pase y reservas (9349.2316ms)
+✔ PostgreSQL: registro, tokens, PDF privado, revisión, cartel, solicitud, cupo concurrente y persistencia (14884.3547ms)
+✔ PostgreSQL aislado: cambio de contraseña con sesiones e IDOR (6428.6481ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 26
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 108922.2019
+Base desechable eliminada; la base de desarrollo se conserva.
+PostgreSQL temporal detenido.

@@ -177,7 +177,7 @@ export const PanelSubdireccionPagina: React.FC<
             Organización y recintos
           </span>
           <h1 className="text-xl sm:text-2xl font-extrabold text-neutral-900 tracking-tight mt-0.5">
-            Subdirección de Servicios Educativos e Integración Social
+            {esAdministrador ? 'Administración de recintos y agenda' : 'Subdirección de Servicios Educativos e Integración Social'}
           </h1>
           <p className="text-sm text-neutral-500 mt-0.5">
             Revisa solicitudes, consulta la agenda y da seguimiento a los
@@ -213,7 +213,7 @@ export const PanelSubdireccionPagina: React.FC<
               Recintos
             </span>
             <span className="font-bold text-neutral-800 text-sm">
-              {listaRecintos.length - 1}
+              {listaRecintos.filter(r => r.activo !== false).length}
             </span>
           </div>
         </div>

@@ -7,7 +7,7 @@ export const consultasOrganizacion = ['verificarDisponibilidadRecinto','obtenerO
 export const comandosOrganizacion = ['crearSolicitud','guardarBorradorSolicitud','actualizarSolicitud','dictaminarSolicitud','devolverSolicitud','cancelarSolicitud','atenderSolicitudExtraordinaria','crearEventoInstitucionalDirecto','actualizarEvento','publicarEvento','cancelarUnidadEvento','agregarFechaEvento','eliminarFechaEvento','confirmarCambioRecinto','guardarBloqueoInstitucional','cancelarBloqueoInstitucional','guardarRecinto','crearOcupacionInterna','cancelarOcupacionInterna','crearArreglo','actualizarArreglo','confirmarVersionFinalArreglo','eliminarArreglo','guardarCalendarioRevision'] as const;
 export type NombreOperacionB = typeof consultasOrganizacion[number] | typeof comandosOrganizacion[number];
 export type OperacionesB = Pick<Datos,NombreOperacionB>;
-export type PuertoOrganizacion = {[K in NombreOperacionB]: (...args: Parameters<OperacionesB[K]>) => Promise<ReturnType<OperacionesB[K]>>};
+export type PuertoOrganizacion = {[K in NombreOperacionB]: (...args: Parameters<OperacionesB[K]>) => Promise<Awaited<ReturnType<OperacionesB[K]>>>};
 export type LecturaOrganizacion = Pick<Datos,'listaSolicitudes'|'listaEventos'|'listaRecintos'|'listaArreglos'|'listaBloqueos'|'listaOcupacionesInternas'|'listaClasesRegulares'|'calendarioRevision'>;
 export interface ServicioConsultasB { leer(signal?: AbortSignal): Promise<LecturaOrganizacion> }
 /** Recibe un lector para que cada consulta use el contexto vigente, no una captura inicial. */
