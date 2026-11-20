@@ -4,7 +4,8 @@ import { REGLA_INGRESO_ACTIVIDAD, describirActividad } from '../dominio/presenta
 import { capacidadActividad } from '../dominio/taquilla';
 import { impedimentoActividad, impedimentoParticipante, rutaAccesoConRegreso, rutaDetalleEvento, rutaReservaActividad } from '../dominio/participacionActividad';
 import { volverA } from '../dominio/navegacion';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useDisponibilidadTaquilla } from '../contextos/useDisponibilidadTaquilla';
 import { Clock, ArrowLeft, CheckCircle, AlertTriangle, ShieldCheck, Ticket, Users, Lock } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
@@ -64,6 +65,31 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   const [confirmando, setConfirmando] = useState(false);
   const [errorColision, setErrorColision] = useState<string | null>(null);
   
+  const accesoPrivado = evento?.visibilidad !== 'privado' ||
+    (apiActiva && evento.accesoPorEnlace === true) ||
+    Boolean(evento.claveAccesoPrivada && accessKey === evento.claveAccesoPrivada) ||
+    usuarioActual?.id === evento.idOrganizador || !!usuarioActual?.roles.includes('subdireccion');
+  const consultarCupo = apiActiva && !!evento && !!fecha && accesoPrivado &&
+    !impedimentoParticipante(evento, usuarioActual) &&
+    modalidadActividad(fecha, evento.modalidadAsistencia) !== 'libre' &&
+    !impedimentoActividad(evento, fecha, listaBloqueos);
+  const disponibilidad = useDisponibilidadTaquilla(consultarCupo, eventId, dateId);
+  const operacionEnCurso = useRef(false);
+  const operar = async (accion: () => Promise<void>) => {
+    if (operacionEnCurso.current) return;
+    operacionEnCurso.current = true;
+    setConfirmando(true);
+    try {
+      await accion();
+    } catch (error) {
+      setErrorColision(error instanceof Error ? error.message : 'No se pudo completar la operación.');
+    } finally {
+      operacionEnCurso.current = false;
+      setConfirmando(false);
+      disponibilidad.reconsultar();
+    }
+  };
+
   // CU-MT-04: confirmación de ingreso a la lista de espera
   const [modalEsperaAbierto, setModalEsperaAbierto] = useState(false);
 
@@ -87,7 +113,8 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     const actualizarReloj = () => {
       const msRestantes = reservacionActiva.tiempoExpiracionApartado! - Date.now();
       if (msRestantes <= 0) {
-        liberarApartadoAsiento(reservacionActiva.id);
+        if (!apiActiva) liberarApartadoAsiento(reservacionActiva.id);
+        disponibilidad.reconsultar();
         setSegundosRestantes(0);
         setReservacionActiva(null);
         setAsientoSeleccionado(null);
@@ -102,7 +129,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     actualizarReloj();
     const intervalo = setInterval(actualizarReloj, 1000);
     return () => clearInterval(intervalo);
-  }, [reservacionActiva, liberarApartadoAsiento, mostrarNotificacion]);
+  }, [reservacionActiva, liberarApartadoAsiento, mostrarNotificacion, disponibilidad.reconsultar]);
 
   if (!evento || !fecha) {
     return (
@@ -117,10 +144,6 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     );
   }
 
-  const accesoPrivado = evento.visibilidad !== 'privado' ||
-    (apiActiva && evento.accesoPorEnlace === true) ||
-    Boolean(evento.claveAccesoPrivada && accessKey === evento.claveAccesoPrivada) ||
-    usuarioActual?.id === evento.idOrganizador || usuarioActual?.roles.includes('subdireccion');
   if (!accesoPrivado) {
     return <div className="max-w-4xl mx-auto px-4 py-16"><EstadoVacio titulo="Evento privado restringido" descripcion="Verifica la clave de acceso desde la ficha del evento para continuar." textoAccion="Verificar acceso" alHacerAccion={() => navigate(rutaDetalle)} /></div>;
   }
@@ -167,12 +190,14 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   }
 
   // Lista de asientos actualmente reservados u ocupados en esta fecha
-  const idsAsientosReservados = listaReservaciones
+  const idsAsientosReservados = disponibilidad.datos?.ocupados ?? listaReservaciones
     .filter((r) => r.idFechaEvento === dateId && r.estado === 'confirmada' && r.idAsiento)
     .map((r) => r.idAsiento!);
 
   // Lista de asientos en apartado temporal por otros usuarios
-  const idsAsientosApartados = listaReservaciones
+  const idsAsientosApartados = disponibilidad.datos
+    ? disponibilidad.datos.apartados.filter(id => id !== reservacionActiva?.idAsiento)
+    : listaReservaciones
     .filter(
       (r) =>
         r.idFechaEvento === dateId &&
@@ -184,14 +209,15 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     )
     .map((r) => r.idAsiento!);
 
-  const hayLugaresDisponibles = arregloFinal?.asientos.some((asiento) =>
+  const cupoAgotado = disponibilidad.datos?.disponibles === 0 && !reservacionActiva;
+  const hayLugaresDisponibles = !cupoAgotado && (arregloFinal?.asientos.some((asiento) =>
     !asiento.estaBloqueado &&
     !asiento.estaEliminado &&
     asiento.categoria !== 'organizador' &&
     asiento.categoria !== 'staff' &&
     !idsAsientosReservados.includes(asiento.id) &&
     !idsAsientosApartados.includes(asiento.id)
-  ) ?? true;
+  ) ?? true);
 
 // Detección de cruce de horarios utilizando el dominio (ERR-MT-07)
   const obtenerConflicto = () => {
@@ -215,6 +241,10 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       return;
     }
 
+    if (cupoAgotado || disponibilidad.error) {
+      setErrorColision(disponibilidad.error || 'No quedan cupos disponibles por ahora.');
+      return;
+    }
     setErrorColision(null);
 
     const yaTieneReservacionEnElDia = listaReservaciones.some(
@@ -272,34 +302,29 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   // Confirmar reservación con mapa
   const manejarConfirmacion = async () => {
     if (!reservacionActiva) return;
-    setConfirmando(true);
-
     const resultado = (await confirmarReservacion(reservacionActiva.id));
-    setConfirmando(false);
 
     if (resultado.exito) {
       const msg = obtenerMensaje('OK-MT-01', { día: nombreActividad(fecha) });
       mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
       navigate(evento.visibilidad === 'privado' ? '/mis-reservaciones' : rutaDetalle);
     } else {
-      liberarApartadoAsiento(reservacionActiva.id);
-      setAsientoSeleccionado(null);
-      setReservacionActiva(null);
-      const msg = obtenerMensaje('MSG-BOOKING-003');
-      setErrorColision(resultado.error || msg.descripcion);
-      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+      if (!apiActiva) {
+        liberarApartadoAsiento(reservacionActiva.id);
+        setAsientoSeleccionado(null);
+        setReservacionActiva(null);
+      }
+      setErrorColision(resultado.error || 'No se pudo confirmar el apartado.');
     }
   };
 
   // Confirmar reservación directa sin mapa (Cupo General)
   const manejarConfirmacionGeneral = async () => {
     if (!usuarioActual) return;
-    setConfirmando(true);
     setErrorColision(null);
 
     const conflicto = obtenerConflicto();
     if (conflicto) {
-      setConfirmando(false);
       const mensaje = obtenerMensajeErrorCruce(conflicto);
       setErrorColision(mensaje);
       mostrarNotificacion('Conflicto de Horario', mensaje, 'error');
@@ -312,8 +337,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         reservacion.estado === 'confirmada'
     ).length;
 
-    if (lugaresOcupados >= capacidad) {
-      setConfirmando(false);
+    if (cupoAgotado || (!apiActiva && lugaresOcupados >= capacidad)) {
       const msgAgotado = obtenerMensaje('ERR-MT-03');
       setErrorColision(msgAgotado.descripcion);
       mostrarNotificacion(msgAgotado.titulo, msgAgotado.descripcion, msgAgotado.tipo);
@@ -328,7 +352,6 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     );
 
     if (yaTieneReservacionEnElDia) {
-      setConfirmando(false);
       const msg = obtenerMensaje('ERR-MT-06');
       setErrorColision(msg.descripcion);
       mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
@@ -337,7 +360,6 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
 
     if (reservacionActiva && (reservacionActiva.tiempoExpiracionApartado || 0) > Date.now()) {
       const confirmacion = await confirmarReservacion(reservacionActiva.id);
-      setConfirmando(false);
       if (confirmacion.exito) {
         const msg = obtenerMensaje('OK-MT-01', { día: nombreActividad(fecha) });
         mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
@@ -357,8 +379,8 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     ));
 
     if (resultadoApartado.exito && resultadoApartado.reservacion) {
+      setReservacionActiva(resultadoApartado.reservacion);
       const confirmacion = (await confirmarReservacion(resultadoApartado.reservacion.id));
-      setConfirmando(false);
       
       if (confirmacion.exito) {
         const msg = obtenerMensaje('OK-MT-01', { día: nombreActividad(fecha) });
@@ -368,7 +390,6 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         setErrorColision(confirmacion.error || 'Error al generar el boleto.');
       }
     } else {
-      setConfirmando(false);
       const msgAgotado = obtenerMensaje('ERR-MT-03');
       setErrorColision(msgAgotado.descripcion);
       mostrarNotificacion(msgAgotado.titulo, msgAgotado.descripcion, msgAgotado.tipo);
@@ -448,6 +469,13 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         </div>
       )}
 
+      {disponibilidad.error && (
+        <div role="status" className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+          <span>{disponibilidad.error}</span>
+          <button type="button" className="font-semibold underline" onClick={disponibilidad.reconsultar}>Consultar disponibilidad</button>
+        </div>
+      )}
+
       {!esSinMapa && !hayLugaresDisponibles && usuarioActual && (
         <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span className="text-xs text-amber-900 font-medium">Todos los lugares disponibles para asistentes están ocupados o apartados.</span>
@@ -497,6 +525,9 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
                  <Users className="w-8 h-8 text-neutral-400" />
                </div>
                <h3 className="text-lg font-bold text-neutral-900">Modalidad de Cupo General</h3>
+               {disponibilidad.datos && <p className="mt-2 font-semibold text-neutral-800">
+                 {disponibilidad.datos.disponibles === 0 ? 'Sin cupos libres por ahora' : `Cupos libres: ${disponibilidad.datos.disponibles}`}
+               </p>}
                <p className="text-sm text-neutral-500 text-center max-w-md mt-2">
                  Esta actividad tiene aforo controlado y no requiere selección de butaca en un mapa. Al confirmar, el sistema comprobará la disponibilidad del recinto para esta actividad.
                </p>
@@ -510,7 +541,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
               idAsientoSeleccionado={asientoSeleccionado?.id}
               idsAsientosApartados={idsAsientosApartados}
               idsAsientosReservados={idsAsientosReservados}
-              alSeleccionarAsiento={manejarSeleccionAsiento}
+              alSeleccionarAsiento={asiento => void operar(() => manejarSeleccionAsiento(asiento))}
               permiteEliminar={recinto?.permiteEliminarAsientos}
             />
           )}
@@ -572,8 +603,8 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
 
                 <button
                   type="button"
-                  disabled={confirmando}
-                  onClick={esSinMapa ? manejarConfirmacionGeneral : manejarConfirmacion}
+                  disabled={confirmando || (esSinMapa && !reservacionActiva && (cupoAgotado || !!disponibilidad.error))}
+                  onClick={() => void operar(esSinMapa ? manejarConfirmacionGeneral : manejarConfirmacion)}
                   className="w-full py-3 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2"
                 >
                   <CheckCircle className="w-4 h-4" />

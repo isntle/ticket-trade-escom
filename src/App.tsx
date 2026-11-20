@@ -225,6 +225,7 @@ function ContenidoApp() {
       const idFecha = parametrosUrl.get("dateId") || "";
       return (
         <SeleccionAsientoPagina
+          key={idEvento + ":" + idFecha}
           eventId={idEvento}
           dateId={idFecha}
           accessKey={parametrosUrl.get("key") || undefined}

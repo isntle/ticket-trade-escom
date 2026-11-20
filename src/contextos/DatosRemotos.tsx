@@ -8,10 +8,6 @@ import { useAutenticacion } from "./AutenticacionContexto.js";
 import { transporteApi, ErrorApi } from "../servicios/http.js";
 import { tokenEnlacePrivado } from '../servicios/enlacePrivado.js';
 import { guardarArchivoRemoto, guardarCartelRemoto } from "../servicios/archivos.js";
-import {
-  obtenerConflictoReserva,
-  obtenerMensajeErrorCruce,
-} from "../dominio/crucesReservas.js";
 import type { Evento, ResultadoEscaneo, SolicitudEvento, Usuario } from "../tipos/index.js";
 
 function clasificarErrorCheckIn(
@@ -386,16 +382,6 @@ function DatosDeSesion({ children, usuarioActual }: {
         const apartado = estadoRef.current.listaReservaciones.find(
           (x: any) => x.id === id || x.id === "apartado-" + id.replace(/^apartado-/, ""),
         );
-        if (apartado) {
-          const conflicto = obtenerConflictoReserva(
-            apartado,
-            estadoRef.current.listaReservaciones,
-            estadoRef.current.listaEventos,
-          );
-          if (conflicto) {
-            throw new Error(obtenerMensajeErrorCruce(conflicto));
-          }
-        }
         const r = await api<any>(
           "/taquilla/apartados/" +
             id.replace(/^apartado-/, "") +

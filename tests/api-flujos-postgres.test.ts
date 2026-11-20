@@ -401,6 +401,15 @@ test(
       carreras.find((r) => r.status === 201)!,
       201,
     );
+    const observador = ganador === cookie ? estudiante : cookie;
+    const rutaDisponibilidad = "/api/taquilla/actividades/" + actividad + "/disponibilidad";
+    const ocupadoTemporal = await ok(await pedir(rutaDisponibilidad, undefined, observador));
+    assert.deepEqual(ocupadoTemporal.apartados, [lugares.lugares[0].id]);
+    assert.equal(ocupadoTemporal.disponibles, 1);
+    assert.deepEqual(await ok(await pedir("/api/taquilla/apartados", {
+      idActividad: actividad, idLugar: lugares.lugares[0].id,
+    }, ganador)), { ...ap, recuperado: true });
+    assert.equal((await pedir("/api/taquilla/apartados/" + ap.id + "/confirmacion", {}, observador)).status, 409);
     const reserva = await ok(
       await pedir(
         "/api/taquilla/apartados/" + ap.id + "/confirmacion",
@@ -409,17 +418,16 @@ test(
       ),
       201,
     );
-    assert.equal(
-      (
-        await pedir(
-          "/api/taquilla/apartados/" + ap.id + "/confirmacion",
-          {},
-          ganador,
-        )
-      ).status,
-      409,
-      "No duplica la confirmación",
-    );
+    // Si la respuesta del primer POST se pierde, repetir recupera la misma reserva y no encola otro correo.
+    const recuperada = await ok(await pedir(
+      "/api/taquilla/apartados/" + ap.id + "/confirmacion", {}, ganador,
+    ));
+    assert.deepEqual(recuperada, { id: reserva.id, idPase: reserva.idPase, recuperado: true });
+    const yaConfirmada = await ok(await pedir(rutaDisponibilidad, undefined, observador));
+    assert.deepEqual(yaConfirmada.apartados, []);
+    assert.deepEqual(yaConfirmada.ocupados, [lugares.lugares[0].id]);
+    assert.equal((await pool.query('SELECT 1 FROM infra.correo_salida WHERE clave=$1', ['reserva:' + reserva.id])).rowCount, 1);
+    assert.equal((await pool.query('SELECT 1 FROM ticket_trade."Reservacion" WHERE id_compromiso_cupo=$1', [ap.id])).rowCount, 1);
     const boleto = (
       await ok(await pedir("/api/taquilla/mis-boletos", undefined, ganador))
     ).find((b: any) => b.id_reservacion === reserva.id);
@@ -489,6 +497,9 @@ test(
       `UPDATE ticket_trade."Apartado" SET creado_en=clock_timestamp()-interval '3 minutes' WHERE id_compromiso_cupo=$1`,
       [vencido.id],
     );
+    const despuesDeVencer = await ok(await pedir(rutaDisponibilidad, undefined, observador));
+    assert.deepEqual(despuesDeVencer.apartados, []);
+    assert.equal(despuesDeVencer.disponibles, 2);
     assert.equal(
       (
         await pedir(

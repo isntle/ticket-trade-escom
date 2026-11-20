@@ -6,14 +6,14 @@ export class ErrorApi extends Error {
   constructor(public estado: number, public codigo: string, mensaje: string, public campos?: Record<string, string>) { super(textoParaUsuario(mensaje)); }
 }
 export function transporteApi(base = '/api', ejecutar: typeof fetch = fetch) {
-  return async function solicitar<T>(ruta: string, opciones: { metodo?: string; datos?: unknown; signal?: AbortSignal; idPeticion?: string } = {}): Promise<T> {
+  return async function solicitar<T>(ruta: string, opciones: { metodo?: string; datos?: unknown; signal?: AbortSignal; idPeticion?: string; enlacePrivado?: string } = {}): Promise<T> {
     const metodo = opciones.metodo || 'GET';
     const body = opciones.datos === undefined ? undefined : JSON.stringify(opciones.datos);
     let respuesta: Response;
     try {
       respuesta = await ejecutar(base + ruta, {
         method: metodo, credentials: 'same-origin', signal: opciones.signal,
-        headers: { Accept: 'application/json', ...cabecerasModo(), ...(opciones.datos !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(opciones.idPeticion ? { 'Idempotency-Key': opciones.idPeticion } : {}) },
+        headers: { Accept: 'application/json', ...cabecerasModo(), ...(opciones.enlacePrivado ? { 'X-TicketTrade-Enlace': opciones.enlacePrivado } : {}), ...(opciones.datos !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(opciones.idPeticion ? { 'Idempotency-Key': opciones.idPeticion } : {}) },
         body,
       });
     } catch (error) {

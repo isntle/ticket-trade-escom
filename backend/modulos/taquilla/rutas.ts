@@ -74,6 +74,51 @@ routerTaquilla.get(
     res.set('Cache-Control', 'no-store').json({ datos: resultado });
   }),
 );
+// Lectura breve para el mapa: no toma el bloqueo de escritura ni modifica apartados.
+routerTaquilla.get(
+  "/actividades/:id/disponibilidad",
+  ruta(async (req, res) => {
+    const id = idEntero(req.params.id);
+    const token = req.get("X-TicketTrade-Enlace");
+    const resultado = await pool.query(
+      `WITH visible AS (
+        SELECT a.id_actividad, a.aforo_solicitado
+        FROM ticket_trade."Actividad" a
+        JOIN ticket_trade."Evento" e USING (id_evento)
+        JOIN ticket_trade."EstadoEvento" ee USING (id_estado_evento)
+        JOIN ticket_trade."EstadoActividad" ea USING (id_estado_actividad)
+        JOIN ticket_trade."VisibilidadEvento" v USING (id_visibilidad_evento)
+        WHERE a.id_actividad = $1 AND ee.nombre = 'Publicado' AND ea.nombre = 'Programada'
+          AND (a.fecha + a.hora_inicio) AT TIME ZONE 'America/Mexico_City' > statement_timestamp()
+          AND NOT EXISTS (
+            SELECT 1 FROM ticket_trade."AfectacionActividad" af
+            WHERE af.id_actividad = a.id_actividad AND af.resuelta_en IS NULL
+          )
+          AND (v.nombre = 'Público' OR (v.nombre = 'Privado' AND e.token_enlace_privado = $2))
+      ), ocupacion AS (
+        SELECT cp.id_compromiso_cupo, s.id_lugar_actividad::text lugar,
+               ea.nombre = 'Vigente' AS apartado
+        FROM visible v
+        JOIN ticket_trade."CompromisoCupo" cp USING (id_actividad)
+        JOIN ticket_trade."EstadoCompromisoCupo" ec USING (id_estado_compromiso_cupo)
+        LEFT JOIN ticket_trade."AsignacionAsiento" s USING (id_compromiso_cupo)
+        LEFT JOIN ticket_trade."Apartado" ap USING (id_compromiso_cupo)
+        LEFT JOIN ticket_trade."EstadoApartado" ea USING (id_estado_apartado)
+        WHERE ec.nombre = 'Activo'
+          AND (ap.id_compromiso_cupo IS NULL OR ea.nombre = 'Convertido en reservación'
+            OR (ea.nombre = 'Vigente' AND ap.creado_en + interval '2 minutes' > statement_timestamp()))
+      )
+      SELECT greatest(0, v.aforo_solicitado - count(o.id_compromiso_cupo))::int disponibles,
+        coalesce(array_agg(o.lugar) FILTER (WHERE o.lugar IS NOT NULL AND o.apartado IS TRUE), '{}') apartados,
+        coalesce(array_agg(o.lugar) FILTER (WHERE o.lugar IS NOT NULL AND o.apartado IS NOT TRUE), '{}') ocupados
+      FROM visible v LEFT JOIN ocupacion o ON true
+      GROUP BY v.id_actividad, v.aforo_solicitado`,
+      [id, token && token.length <= 256 ? token : null],
+    );
+    if (!resultado.rowCount) fallo("La actividad ya no está disponible para reservar.", 404);
+    res.set("Cache-Control", "no-store").json({ datos: resultado.rows[0] });
+  }),
+);
 routerTaquilla.post(
   "/apartados",
   exigirSesion,
@@ -95,25 +140,33 @@ routerTaquilla.post(
       );
       if (existente.rowCount)
         fallo("Ya tienes una reservación para esta actividad.", 409);
+      const idLugar = a.acceso === "Reservación con lugar asignado"
+        ? idEntero(b.idLugar)
+        : null;
+      if (!idLugar && b.idLugar) fallo("El registro sin asiento no admite selección de lugar.");
       const pendiente = await c.query(
-        `SELECT 1 FROM ticket_trade."Apartado" a JOIN ticket_trade."CompromisoCupo" cp USING(id_compromiso_cupo)
-      JOIN ticket_trade."EstadoApartado" ea USING(id_estado_apartado) WHERE a.id_cuenta=$1 AND cp.id_actividad=$2 AND ea.nombre='Vigente'`,
+        `SELECT ap.id_compromiso_cupo::text id, ap.creado_en + interval '2 minutes' vence,
+                s.id_lugar_actividad::text lugar
+         FROM ticket_trade."Apartado" ap JOIN ticket_trade."CompromisoCupo" cp USING (id_compromiso_cupo)
+         JOIN ticket_trade."EstadoApartado" ea USING (id_estado_apartado)
+         LEFT JOIN ticket_trade."AsignacionAsiento" s USING (id_compromiso_cupo)
+         WHERE ap.id_cuenta = $1 AND cp.id_actividad = $2 AND ea.nombre = 'Vigente'
+           AND ap.creado_en + interval '2 minutes' > clock_timestamp()`,
         [u.id, id],
       );
-      if (pendiente.rowCount)
-        fallo(
-          "Ya tienes un apartado vigente para esta actividad. Confírmalo o espera a que venza.",
-          409,
-        );
-      if (a.acceso === "Reservación con lugar asignado") {
+      if (pendiente.rowCount) {
+        const previo = pendiente.rows[0];
+        if (previo.lugar === idLugar) return { id: previo.id, vence: previo.vence, recuperado: true };
+        fallo("Ya tienes un apartado vigente para esta actividad. Confírmalo o espera a que venza.", 409);
+      }
+      if (idLugar) {
         const lugar = await c.query(
           `SELECT 1 FROM ticket_trade."LugarActividad" la JOIN ticket_trade."CategoriaLugarActividad" cl USING(id_categoria_lugar_actividad)
         WHERE la.id_lugar_actividad=$1 AND la.id_actividad=$2 AND cl.nombre='Asistente'`,
-          [idEntero(b.idLugar), id],
+          [idLugar, id],
         );
         if (!lugar.rowCount) fallo("Selecciona un asiento para asistentes.");
-      } else if (b.idLugar)
-        fallo("El registro sin asiento no admite selección de lugar.");
+      }
       const cp = await c.query(
         `INSERT INTO ticket_trade."CompromisoCupo"(id_actividad,id_estado_compromiso_cupo)
       VALUES($1,(SELECT id_estado_compromiso_cupo FROM ticket_trade."EstadoCompromisoCupo" WHERE nombre='Activo')) RETURNING id_compromiso_cupo::text id`,
@@ -125,14 +178,14 @@ routerTaquilla.post(
       VALUES($1,$2,clock_timestamp(),(SELECT id_estado_apartado FROM ticket_trade."EstadoApartado" WHERE nombre='Vigente')) RETURNING creado_en+interval '2 minutes' vence`,
         [idCupo, u.id],
       );
-      if (b.idLugar)
+      if (idLugar)
         await c.query(
           'INSERT INTO ticket_trade."AsignacionAsiento" VALUES($1,$2)',
-          [idCupo, b.idLugar],
+          [idCupo, idLugar],
         );
       return { id: idCupo, vence: ap.rows[0].vence };
     });
-    res.status(201).json({ datos: resultado });
+    res.status("recuperado" in resultado ? 200 : 201).json({ datos: resultado });
   }),
 );
 routerTaquilla.post(
@@ -163,6 +216,17 @@ routerTaquilla.post(
       u = res.locals.usuario;
     const resultado = await conTransaccion(async (c) => {
       await bloquear(c);
+      const previa = await c.query(
+        `SELECT r.id_reservacion::text id, b.id_boleto_evento::text "idPase"
+         FROM ticket_trade."Apartado" ap
+         JOIN ticket_trade."Reservacion" r USING (id_compromiso_cupo)
+         JOIN ticket_trade."EstadoReservacion" er USING (id_estado_reservacion)
+         JOIN ticket_trade."BoletoEvento" b USING (id_boleto_evento)
+         WHERE ap.id_compromiso_cupo = $1 AND ap.id_cuenta = $2 AND b.id_cuenta = $2
+           AND er.nombre = 'Confirmada'`,
+        [id, u.id],
+      );
+      if (previa.rowCount) return { ...previa.rows[0], recuperado: true };
       const ap = await c.query(
         `SELECT cp.id_actividad::text actividad FROM ticket_trade."Apartado" ap JOIN ticket_trade."CompromisoCupo" cp USING(id_compromiso_cupo)
       JOIN ticket_trade."EstadoApartado" ea USING(id_estado_apartado) WHERE ap.id_compromiso_cupo=$1 AND ap.id_cuenta=$2
@@ -238,7 +302,7 @@ routerTaquilla.post(
       );
       return { id: r.rows[0].id, idPase: pase.id, correoPendiente };
     });
-    res.status(201).json({ datos: resultado });
+    res.status("recuperado" in resultado ? 200 : 201).json({ datos: resultado });
   }),
 );
 routerTaquilla.get(

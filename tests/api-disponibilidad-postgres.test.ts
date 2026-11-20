@@ -132,21 +132,35 @@ test('Disponibilidad PostgreSQL: dos sesiones, aprobación concurrente, bloqueos
       assert.equal((await pedir(urlLugares, '')).status, 404);
       assert.equal((await fetch(base + urlLugares, {headers:{'X-TicketTrade-Enlace':enlace.token, Connection:'close'}})).status, 200);
       assert.equal((await pedir('/taquilla/apartados', invitado.cookie, {idActividad,token:'incorrecto'})).status, 403);
-      const apartado = await bien<{id:string}>(await pedir('/taquilla/apartados', invitado.cookie, {idActividad,token:enlace.token}), 201);
+      const urlDisponibilidad = `/taquilla/actividades/${idActividad}/disponibilidad`;
+      const disponibilidad = (token: string) => fetch(base + urlDisponibilidad, {
+        headers: { 'X-TicketTrade-Enlace': token, Connection: 'close' },
+      });
+      assert.equal((await disponibilidad('incorrecto')).status, 404);
+      await pool.query('UPDATE ticket_trade."Actividad" SET aforo_solicitado=1 WHERE id_actividad=$1', [idActividad]);
+      const competidores = [invitado.cookie, propietario];
+      const carrera = await Promise.all(competidores.map(cookie =>
+        pedir('/taquilla/apartados', cookie, {idActividad,token:enlace.token})));
+      assert.deepEqual(carrera.map(r => r.status).sort(), [201, 409]);
+      const vencedor = carrera.findIndex(r => r.status === 201);
+      const titular = competidores[vencedor];
+      const apartado = await bien<{id:string}>(carrera[vencedor], 201);
+      assert.deepEqual(await bien(await disponibilidad(enlace.token)), { disponibles: 0, apartados: [], ocupados: [] });
       const renovado = await bien<{token:string}>(await pedir(`/organizacion/eventos/${idEvento}/enlace-privado/renovacion`, propietario, {}));
       assert.notEqual(renovado.token, enlace.token);
       assert.equal((await detalle(enlace.token)).status, 404);
-      assert.equal((await pedir(`/taquilla/apartados/${apartado.id}/confirmacion`, invitado.cookie, {token:enlace.token})).status, 403);
-      await bien(await pedir(`/taquilla/apartados/${apartado.id}/confirmacion`, invitado.cookie, {token:renovado.token}), 201);
-      assert.equal((await pedir('/taquilla/apartados', invitado.cookie, {idActividad,token:renovado.token})).status, 409);
-      const estado = await bien<any>(await pedir('/estado', invitado.cookie));
+      assert.equal((await disponibilidad(enlace.token)).status, 404);
+      assert.equal((await pedir(`/taquilla/apartados/${apartado.id}/confirmacion`, titular, {token:enlace.token})).status, 403);
+      await bien(await pedir(`/taquilla/apartados/${apartado.id}/confirmacion`, titular, {token:renovado.token}), 201);
+      assert.equal((await pedir('/taquilla/apartados', titular, {idActividad,token:renovado.token})).status, 409);
+      const estado = await bien<any>(await pedir('/estado', titular));
       assert.ok(estado.listaBoletos.some((b:any)=>b.idEvento === idEvento));
       assert.ok(estado.listaEventos.some((e:any)=>e.id === idEvento));
       assert.doesNotMatch(JSON.stringify(estado), new RegExp(renovado.token));
       const puerto = (servidor.address() as import('node:net').AddressInfo).port;
       await new Promise<void>(r => servidor.close(() => r()));
       await new Promise<void>(r => servidor.listen(puerto, '127.0.0.1', r));
-      const trasReinicio = await bien<any>(await pedir('/estado', invitado.cookie));
+      const trasReinicio = await bien<any>(await pedir('/estado', titular));
       assert.ok(trasReinicio.listaBoletos.some((b:any)=>b.idEvento === idEvento));
       assert.equal((await detalle(renovado.token)).status, 200);
     });
