@@ -50,6 +50,11 @@ export async function leerEventos(usuario: any = null, eventoEnlace?: string) {
         e.id_cuenta_organizadora::text AS "idOrganizador",
         concat_ws(' ', cu.nombres, cu.primer_apellido) AS "nombreOrganizador",
         e.titulo,
+        (ee.nombre = 'Publicado' OR EXISTS (
+          SELECT 1 FROM ticket_trade."SolicitudEvento" s
+          JOIN ticket_trade."EstadoSolicitudEvento" es USING (id_estado_solicitud_evento)
+          WHERE s.id_evento = e.id_evento AND es.nombre = 'Aprobada'
+        )) AS "solicitudAutorizada",
         e.descripcion,
         e.total_senales_interes AS "totalSenalesInteres",
         ce.nombre AS categoria,
@@ -75,7 +80,14 @@ export async function leerEventos(usuario: any = null, eventoEnlace?: string) {
     eventoEnlace || null,
   ]);
 
-  // 2. Consultar actividades de todos los eventos
+  const idsEventos = resEventos.rows.map(e => e.id);
+  if (!idsEventos.length) return [];
+  const idsConHistorial = usuario
+    ? resEventos.rows.filter(e => usuario.id === e.idOrganizador || usuario.roles?.includes("subdireccion")).map(e => e.id)
+    : [];
+  const sufijoArchivo = modoBaseDatos() === "demo" ? "?demo=1" : "";
+
+  // Consultar solo las actividades y archivos de los eventos visibles.
   const consultaActividades = `
       SELECT
         a.id_actividad::text AS id,
@@ -92,9 +104,39 @@ export async function leerEventos(usuario: any = null, eventoEnlace?: string) {
       FROM ticket_trade."Actividad" a
       JOIN ticket_trade."TipoAcceso" ta ON ta.id_tipo_acceso = a.id_tipo_acceso
       JOIN ticket_trade."EstadoActividad" ea ON ea.id_estado_actividad = a.id_estado_actividad
+      WHERE a.id_evento = ANY($1::bigint[])
       ORDER BY a.fecha, a.hora_inicio;
     `;
-  const resActividades = await pool.query(consultaActividades);
+  const [resActividades, resItinerarios, resHistorial] = await Promise.all([
+    pool.query(consultaActividades, [idsEventos]),
+    pool.query(
+      `SELECT i.id_evento::text "idEvento", to_char(i.fecha,'YYYY-MM-DD') fecha,
+              i.id_archivo::text "idArchivo", a.nombre, a.clave_almacenamiento
+       FROM ticket_trade."ItinerarioDia" i
+       JOIN ticket_trade."Archivo" a USING (id_archivo)
+       WHERE i.id_evento = ANY($1::bigint[]) ORDER BY i.fecha`,
+      [idsEventos],
+    ),
+    idsConHistorial.length
+      ? pool.query(
+        `SELECT referencia_destino "idEvento", mensaje FROM ticket_trade."Notificacion"
+         WHERE tipo = 'evento_operacion' AND referencia_destino = ANY($1::text[])
+         ORDER BY id_notificacion`,
+        [idsConHistorial],
+      )
+      : { rows: [] },
+  ]);
+  const agruparPorEvento = <T extends { idEvento: string }>(filas: T[]) => {
+    const grupos = new Map<string, T[]>();
+    for (const fila of filas) {
+      const grupo = grupos.get(fila.idEvento);
+      if (grupo) grupo.push(fila);
+      else grupos.set(fila.idEvento, [fila]);
+    }
+    return grupos;
+  };
+  const itinerarios = agruparPorEvento(resItinerarios.rows);
+  const historial = agruparPorEvento(resHistorial.rows);
 
   // Agrupar actividades por evento
   const actividadesPorEvento = new Map<string, any[]>();
@@ -130,7 +172,7 @@ export async function leerEventos(usuario: any = null, eventoEnlace?: string) {
   }
 
   // Combinar evento con sus fechas
-  const eventosAdaptados = await Promise.all(resEventos.rows.map(async (e) => {
+  const eventosAdaptados = resEventos.rows.map((e) => {
     const fechas = actividadesPorEvento.get(e.id) || [];
     const visibLower = (e.visibilidad || "").toLowerCase();
     const estadoLower = (e.estado || "").toLowerCase();
@@ -138,9 +180,18 @@ export async function leerEventos(usuario: any = null, eventoEnlace?: string) {
     return {
       id: e.id,
       versionServidor: e.versionServidor,
-      solicitudAutorizada: e.estado==='Publicado' || !!(await pool.query(`SELECT 1 FROM ticket_trade."SolicitudEvento" s JOIN ticket_trade."EstadoSolicitudEvento" es USING(id_estado_solicitud_evento) WHERE id_evento=$1 AND es.nombre='Aprobada' LIMIT 1`,[e.id])).rowCount,
-      historialCambios: usuario && (usuario.id===e.idOrganizador || usuario.roles?.includes("subdireccion")) ? (await pool.query(`SELECT mensaje FROM ticket_trade."Notificacion" WHERE tipo='evento_operacion' AND referencia_destino=$1 ORDER BY id_notificacion`,[e.id])).rows.map((r,i)=>({...JSON.parse(r.mensaje),version:i+1})) : [],
-      itinerarios: (await pool.query(`SELECT to_char(i.fecha,'YYYY-MM-DD') fecha,i.id_archivo::text "idArchivo",a.nombre,a.clave_almacenamiento FROM ticket_trade."ItinerarioDia" i JOIN ticket_trade."Archivo" a USING(id_archivo) WHERE i.id_evento=$1 ORDER BY i.fecha`,[e.id])).rows.map(i=>({fecha:i.fecha,nombreArchivo:i.nombre,urlImagen:i.clave_almacenamiento?.startsWith('/imagenes/eventos/')?i.clave_almacenamiento:`/api/archivos/${i.idArchivo}${modoBaseDatos()==='demo'?'?demo=1':''}`})),
+      solicitudAutorizada: e.solicitudAutorizada,
+      historialCambios: (historial.get(e.id) || []).map((r, i) => ({
+        ...JSON.parse(r.mensaje),
+        version: i + 1,
+      })),
+      itinerarios: (itinerarios.get(e.id) || []).map(i => ({
+        fecha: i.fecha,
+        nombreArchivo: i.nombre,
+        urlImagen: i.clave_almacenamiento?.startsWith("/imagenes/eventos/")
+          ? i.clave_almacenamiento
+          : `/api/archivos/${i.idArchivo}${sufijoArchivo}`,
+      })),
       idOrganizador: e.idOrganizador,
       nombreOrganizador: e.nombreOrganizador,
       titulo: e.titulo,
@@ -167,7 +218,7 @@ export async function leerEventos(usuario: any = null, eventoEnlace?: string) {
       // El aforo es por actividad; no se inventa un aforo global sumando recintos.
       inscripcionesAbiertas: true,
     };
-  }));
+  });
 
   return eventosAdaptados;
 }

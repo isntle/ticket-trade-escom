@@ -12,7 +12,7 @@ import {
   obtenerConflictoReserva,
   obtenerMensajeErrorCruce,
 } from "../dominio/crucesReservas.js";
-import type { Evento, ResultadoEscaneo, SolicitudEvento } from "../tipos/index.js";
+import type { Evento, ResultadoEscaneo, SolicitudEvento, Usuario } from "../tipos/index.js";
 
 function clasificarErrorCheckIn(
   mensaje: string,
@@ -52,54 +52,80 @@ const vacio = {
   listaOcupacionesInternas: [],
   calendarioRevision: null,
 };
-export function ProveedorDatosRemotos({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function ProveedorDatosRemotos({ children }: { children: React.ReactNode }) {
   const { usuarioActual } = useAutenticacion();
-  const alcanceAgenda = JSON.stringify([usuarioActual?.id, usuarioActual?.roles, modoDemostracionActivo()]);
-  const agendaRemota = useMemo(() => crearAlmacenDisponibilidad(), [alcanceAgenda]);
+  const alcance = JSON.stringify([usuarioActual?.id, usuarioActual?.roles, modoDemostracionActivo()]);
+  return <DatosDeSesion key={alcance} usuarioActual={usuarioActual}>{children}</DatosDeSesion>;
+}
+
+function DatosDeSesion({ children, usuarioActual }: {
+  children: React.ReactNode;
+  usuarioActual: Usuario | null | undefined;
+}) {
+  const agendaRemota = useMemo(() => crearAlmacenDisponibilidad(), []);
   useEffect(() => () => agendaRemota.limpiar(), [agendaRemota]);
   const [estado, setEstado] = useState<any>(vacio),
     [listo, setListo] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [errorLectura, setErrorLectura] = useState("");
+  const lecturasActivas = useRef(0);
   const estadoRef = useRef<any>(estado),
     secuencia = useRef(0),
     montado = useRef(true);
-  const cargar = async () => {
+  const cargar = async (mensajeSiFalla?: string) => {
     const orden = ++secuencia.current;
-    const nuevo = await api<any>("/estado");
-    const coincidencia = window.location.pathname.match(/^\/eventos\/([^/]+)(?:\/reservar)?\/?$/);
-    const token = coincidencia ? tokenEnlacePrivado(decodeURIComponent(coincidencia[1])) : undefined;
-    if (coincidencia && token) {
-      const idEvento = decodeURIComponent(coincidencia[1]);
-      try {
-        const acceso = await api<any>('/estado/evento-privado', { metodo: 'POST', datos: { idEvento, token } });
-        nuevo.listaEventos = [...nuevo.listaEventos.filter((e: any) => e.id !== idEvento), { ...acceso.evento, accesoPorEnlace: true }];
-        nuevo.listaArreglos = [...nuevo.listaArreglos.filter((a: any) => !acceso.arreglos.some((p: any) => p.id === a.id)), ...acceso.arreglos];
-        nuevo.listaReservaciones = [...nuevo.listaReservaciones.filter((r: any) => r.idEvento !== idEvento), ...acceso.reservaciones];
-      } catch (e) {
-        if (!(e instanceof ErrorApi) || e.estado !== 404) throw e;
-        nuevo.listaEventos = nuevo.listaEventos.filter((evento: any) => evento.id !== idEvento);
+    lecturasActivas.current++;
+    try {
+      const signal = AbortSignal.timeout(15000);
+      const nuevo = await api<any>("/estado", { signal });
+      const coincidencia = window.location.pathname.match(/^\/eventos\/([^/]+)(?:\/reservar)?\/?$/);
+      const token = coincidencia ? tokenEnlacePrivado(decodeURIComponent(coincidencia[1])) : undefined;
+      if (coincidencia && token) {
+        const idEvento = decodeURIComponent(coincidencia[1]);
+        try {
+          const acceso = await api<any>('/estado/evento-privado', { metodo: 'POST', datos: { idEvento, token }, signal });
+          nuevo.listaEventos = [...nuevo.listaEventos.filter((e: any) => e.id !== idEvento), { ...acceso.evento, accesoPorEnlace: true }];
+          nuevo.listaArreglos = [...nuevo.listaArreglos.filter((a: any) => !acceso.arreglos.some((p: any) => p.id === a.id)), ...acceso.arreglos];
+          nuevo.listaReservaciones = [...nuevo.listaReservaciones.filter((r: any) => r.idEvento !== idEvento), ...acceso.reservaciones];
+        } catch (e) {
+          if (!(e instanceof ErrorApi) || e.estado !== 404) throw e;
+          nuevo.listaEventos = nuevo.listaEventos.filter((evento: any) => evento.id !== idEvento);
+        }
       }
+      if (montado.current && orden === secuencia.current) {
+        estadoRef.current = nuevo;
+        setEstado(nuevo);
+        setErrorLectura("");
+        setListo(true);
+      }
+      return nuevo;
+    } catch (error) {
+      if (montado.current && orden === secuencia.current) {
+        setErrorLectura(mensajeSiFalla || (error instanceof Error ? error.message : "No se pudo actualizar la vista."));
+      }
+      throw error;
+    } finally {
+      lecturasActivas.current--;
     }
-    if (montado.current && orden === secuencia.current) {
-      estadoRef.current = nuevo;
-      setEstado(nuevo);
-      setError("");
-    }
-    return nuevo;
+  };
+
+  const actualizarTrasGuardar = () =>
+    cargar("El cambio se guardó. Vuelve a consultar para actualizar la vista.")
+      .catch(() => estadoRef.current);
+
+  const reconsultar = () => {
+    setError("");
+    void cargar().catch(() => {});
   };
   useEffect(() => {
     montado.current = true;
-    const refrescar = () => {
-      void cargar()
-        .catch((e) => setError(e.message))
-        .finally(() => setListo(true));
+    const refrescar = () => void cargar().catch(() => {});
+    const refrescarEnSegundoPlano = () => {
+      if (!document.hidden && lecturasActivas.current === 0) refrescar();
     };
     refrescar();
-    const t = window.setInterval(refrescar, 15000);
+    const t = window.setInterval(refrescarEnSegundoPlano, 15000);
+    document.addEventListener("visibilitychange", refrescarEnSegundoPlano);
     window.addEventListener("tt:datos-remotos", refrescar);
     const refrescarEnlace = () => {
       const ruta = window.location.pathname.match(/^\/eventos\/([^/]+)(?:\/reservar)?\/?$/);
@@ -112,13 +138,16 @@ export function ProveedorDatosRemotos({
     window.addEventListener("popstate", refrescarEnlace);
     return () => {
       montado.current = false;
+      secuencia.current++;
+      document.removeEventListener("visibilitychange", refrescarEnSegundoPlano);
       window.clearInterval(t);
       window.removeEventListener("tt:datos-remotos", refrescar);
       window.removeEventListener("tt:navegacion", refrescarEnlace);
       window.removeEventListener("popstate", refrescarEnlace);
     };
-  }, [usuarioActual?.id]);
+  }, []);
   const intentar = async (accion: () => Promise<any>) => {
+    setError("");
     try {
       return await accion();
     } catch (e) {
@@ -177,13 +206,9 @@ export function ProveedorDatosRemotos({
         })),
       },
     });
-    const nuevo = await cargar();
-    const s = nuevo.listaSolicitudes.find((s: any) => s.id === r.id);
-    if (!s)
-      throw new Error(
-        "La solicitud se guardó, pero no se pudo recargar. Consulta Mis solicitudes antes de enviar de nuevo.",
-      );
-    return s;
+    const nuevo = await actualizarTrasGuardar();
+    return nuevo.listaSolicitudes.find((s: SolicitudEvento) => s.id === r.id)
+      ?? { ...d, id: r.id, idEvento: r.idEvento, fechaCreacion: new Date().toISOString(), estado: enviar ? "en_revision" : "borrador" };
   };
   const dictaminar = (
     id: string,
@@ -210,7 +235,7 @@ export function ProveedorDatosRemotos({
             1,
         },
       });
-      await cargar();
+      await actualizarTrasGuardar();
       return { exito: true };
     });
   const verificarDisponibilidadRecinto = agendaRemota.verificar;
@@ -291,7 +316,7 @@ export function ProveedorDatosRemotos({
             version,
           },
         });
-        await cargar();
+        await actualizarTrasGuardar();
         return { exito: true };
       }),
     cancelarSolicitud: (id: string, version: number) =>
@@ -300,14 +325,14 @@ export function ProveedorDatosRemotos({
           metodo: "POST",
           datos: { version },
         });
-        await cargar();
+        await actualizarTrasGuardar();
         return { exito: true };
       }),
     apartarAsiento: (
       idEvento: string,
       idActividad: string,
       idAsiento: string,
-      _etiqueta: string,
+      etiqueta: string,
       idUsuario: string,
     ) =>
       intentar(async () => {
@@ -327,12 +352,24 @@ export function ProveedorDatosRemotos({
                 : undefined,
           },
         });
-        const nuevo = await cargar();
+        const nuevo = await actualizarTrasGuardar();
         return {
           exito: true,
           reservacion: nuevo.listaReservaciones.find(
             (x: any) => x.id === "apartado-" + r.id,
-          ),
+          ) ?? {
+            id: "apartado-" + r.id,
+            idEvento,
+            idFechaEvento: idActividad,
+            idUsuario,
+            nombreUsuario: usuarioActual.nombre,
+            correoUsuario: usuarioActual.correo,
+            fechaCreacion: new Date(Date.parse(r.vence) - 120_000).toISOString(),
+            idAsiento: actividad?.modalidadAsistencia === "controlado" ? idAsiento : undefined,
+            etiquetaAsiento: etiqueta,
+            estado: "apartado_temporal",
+            tiempoExpiracionApartado: Date.parse(r.vence),
+          },
         };
       }),
     liberarApartadoAsiento: (id: string) =>
@@ -341,7 +378,7 @@ export function ProveedorDatosRemotos({
           "/taquilla/apartados/" + id.replace(/^apartado-/, "") + "/liberacion",
           { metodo: "POST", datos: {} },
         );
-        await cargar();
+        await actualizarTrasGuardar();
         return { exito: true };
       }),
     confirmarReservacion: (id: string) =>
@@ -365,7 +402,7 @@ export function ProveedorDatosRemotos({
             "/confirmacion",
           { metodo: "POST", datos: { token: apartado?.idEvento ? tokenEnlacePrivado(apartado.idEvento) : undefined } },
         );
-        const nuevo = await cargar();
+        const nuevo = await actualizarTrasGuardar();
         return {
           exito: true,
           boleto: nuevo.listaBoletos.find((b: any) => b.idReservacion === r.id),
@@ -377,7 +414,7 @@ export function ProveedorDatosRemotos({
           metodo: "POST",
           datos: {},
         });
-        await cargar();
+        await actualizarTrasGuardar();
         return { exito: true };
       }),
     emitirBoletosEspeciales: (datos: {
@@ -405,7 +442,7 @@ export function ProveedorDatosRemotos({
             claveIdempotencia: datos.claveIdempotencia,
           },
         });
-        const nuevo = await cargar();
+        const nuevo = await actualizarTrasGuardar();
         const idsEmitidos = new Set(
           (r.ids || []).map((id: string) =>
             String(id).startsWith("boleto-esp-")
@@ -431,7 +468,7 @@ export function ProveedorDatosRemotos({
           metodo: "POST",
           datos: { motivo },
         });
-        await cargar();
+        await actualizarTrasGuardar();
         return { exito: true };
       }),
     procesarCheckIn: async (
@@ -452,10 +489,8 @@ export function ProveedorDatosRemotos({
           metodo: "POST",
           datos: { codigo, idActividad },
         });
-        const nuevo = await cargar().catch(()=>{
-          setError('El acceso ya se registró. No se pudo actualizar la vista; consulta el historial antes de volver a escanear.');
-          return estadoRef.current;
-        });
+        const nuevo = await cargar("El acceso ya se registró. Vuelve a consultar el historial antes de escanear otra vez.")
+          .catch(() => estadoRef.current);
         const boleto = nuevo.listaBoletos.find(
           (b: any) =>
             b.idReservacion === r.idReservacion ||
@@ -501,12 +536,12 @@ export function ProveedorDatosRemotos({
     }),
     confirmarCambioRecinto: (propuesta:any,aceptarReduccion:boolean) => intentar(async()=>{
       await api('/organizacion/eventos/'+propuesta.peticion.idEvento+'/recinto',{metodo:'POST',datos:{peticion:propuesta.peticion,version:propuesta.firma,aceptarReduccion}});
-      await cargar();return {exito:true};
+      await actualizarTrasGuardar();return {exito:true};
     }),
     agregarFechaEvento: (id:string,actividad:any) => intentar(async()=>{
       const e=estadoRef.current.listaEventos.find((e:any)=>e.id===id);
       await api('/organizacion/eventos/'+id+'/actividades',{metodo:'POST',datos:{actividad,version:e?.versionServidor,motivo:actividad.motivo}});
-      await cargar();return {exito:true};
+      await actualizarTrasGuardar();return {exito:true};
     }),
     actualizarEvento: (id: string, parcial: any, versionEsperada: string) => intentar(async () => {
       const original=JSON.parse(versionEsperada);
@@ -514,16 +549,16 @@ export function ProveedorDatosRemotos({
       if(parcial.itinerarios)datos.itinerarios=await Promise.all(parcial.itinerarios.map(async(i:any)=>({...i,idArchivo:await guardarCartelRemoto(i.urlImagen,i.nombreArchivo)})));
       if(Object.prototype.hasOwnProperty.call(parcial,'urlImagen') && parcial.urlImagen!==original.urlImagen) datos.idArchivoCartel=await guardarCartelRemoto(parcial.urlImagen);
       await api('/organizacion/eventos/'+id,{metodo:'PATCH',datos:{parcial:datos,version:original.versionServidor,motivo:parcial.historialCambios?.at(-1)?.motivo}});
-      await cargar(); return {exito:true};
+      await actualizarTrasGuardar(); return {exito:true};
     }),
     cancelarUnidadEvento: (id:string,idActividad:string|undefined,motivo:string,retirar:boolean,version:string) => intentar(async()=>{
       await api('/organizacion/eventos/'+id+'/cancelacion',{metodo:'POST',datos:{idActividad,motivo,retirar,version:JSON.parse(version).versionServidor}});
-      await cargar();return {exito:true};
+      await actualizarTrasGuardar();return {exito:true};
     }),
     publicarEvento: (id:string) => intentar(async()=>{
       const e=estadoRef.current.listaEventos.find((e:any)=>e.id===id);
       await api('/organizacion/eventos/'+id+'/publicacion',{metodo:'POST',datos:{version:e?.versionServidor}});
-      await cargar();return {exito:true};
+      await actualizarTrasGuardar();return {exito:true};
     }),
     reiniciarDatosIniciales: () => {
       setError(
@@ -536,28 +571,27 @@ export function ProveedorDatosRemotos({
       return clave in obj ? obj[clave as string] : noDisponible;
     },
   }) as unknown as ContextoDatosTipo;
-  if (!listo)
-    return (
+  const aviso = (errorLectura || error) && (
+    <div
+      role="alert"
+      className="m-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
+    >
+      <p>{textoParaUsuario(errorLectura || error)}</p>
+      <button type="button" className="font-semibold underline" onClick={reconsultar}>
+        Volver a consultar
+      </button>
+    </div>
+  );
+  if (!listo) {
+    return aviso || (
       <p role="status" className="p-10 text-center text-sm text-neutral-500">
         Cargando Ticket Trade…
       </p>
     );
+  }
   return (
     <ContextoDatos.Provider value={puente}>
-      {error && (
-        <div
-          role="alert"
-          className="m-4 flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
-        >
-          <p>{textoParaUsuario(error)}</p>
-          <button
-            className="font-semibold underline"
-            onClick={() => void cargar().catch((e) => setError(e.message))}
-          >
-            Volver a consultar
-          </button>
-        </div>
-      )}
+      {aviso}
       {children}
     </ContextoDatos.Provider>
   );
