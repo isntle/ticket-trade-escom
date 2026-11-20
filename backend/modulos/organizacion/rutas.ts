@@ -1,4 +1,5 @@
 import { identidadHabilitadaParaOrganizar } from "../../../src/dominio/facultadOrganizar.js";
+import { routerDistribucion } from "./distribucion.js";
 import {routerEventos} from "./eventos.js";
 import { routerConfiguracionRecintos } from './configuracion.js';
 import { prepararConfiguracion, conservarPlazos } from './calendario.js';
@@ -16,6 +17,7 @@ routerOrganizacion.use(exigirSesion);
 routerOrganizacion.use((req, res, next) =>
   req.method === "GET" ? next() : origenSeguro(req, res, next),
 );
+routerOrganizacion.use(routerDistribucion);
 routerOrganizacion.use(routerEventos);
 routerOrganizacion.use(routerConfiguracionRecintos);
 const esRevision = (u: any) =>

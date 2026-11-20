@@ -59,6 +59,7 @@ try {
         "tests/api-demo-aislamiento.test.ts",
         "tests/api-disponibilidad-postgres.test.ts",
         "tests/api-calendario-bloqueos-postgres.test.ts",
+        "tests/api-distribucion-postgres.test.ts",
       ],
       { env, stdio: "inherit", windowsHide: true },
     );
