@@ -12,7 +12,7 @@ const inicial: EstadoAgenda = { estado: 'inicial' };
 const clave = (q: ConsultaAgenda) => JSON.stringify([q.fecha, q.idActividadExcluir || '']);
 
 /** Caché de lecturas por sesión. La revisión previa a una escritura siempre va al servidor. */
-export function crearAlmacenDisponibilidad(servicio = crearServicioDisponibilidad(), ahora = Date.now) {
+export function crearAlmacenDisponibilidad(servicio: Pick<ReturnType<typeof crearServicioDisponibilidad>, 'consultarAgenda' | 'revisar'> = crearServicioDisponibilidad(), ahora = Date.now) {
   const estados = new Map<string, EstadoAgenda>();
   const pendientes = new Map<string, { controlador: AbortController; promesa: Promise<void> }>();
   const vigencias = new Map<string, number>();

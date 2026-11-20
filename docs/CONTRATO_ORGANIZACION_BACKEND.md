@@ -1,15 +1,17 @@
-# Conexión futura de Organización y recintos
+# Contrato de Organización y recintos
 
 ## Estado de esta entrega
 
-SolicitudEventoPagina usa ServicioOrganizacion para crear, editar y guardar borradores mediante Promises. El adaptador local ejecuta las operaciones actuales del contexto, conservando sus validaciones y control de versión. La pantalla evita doble envío, indica guardado y conserva datos ante error. Esto prepara esos comandos; todavía no reemplaza toda la persistencia ni implementa una API.
+SolicitudEventoPagina usa ServicioOrganizacion para crear, editar y guardar borradores mediante Promises. En modo API, DatosRemotos conecta los comandos al backend y PostgreSQL; el adaptador local se conserva para demostración. La pantalla evita doble envío, indica guardado y conserva datos ante error. La consulta real de disponibilidad requiere el modo API y no se sustituye por un resultado local cuando falla el servidor.
+
+Contratos específicos: [disponibilidad del sprint 8](SPRINT08_DISPONIBILIDAD.md), [calendario y bloqueos del sprint 9](SPRINT09_CALENDARIO_BLOQUEOS.md) y [revisión con alternativas](SPRINT09_DICTAMEN_DISPONIBILIDAD.md).
 
 ## Contratos que deben conservarse
 
 - crearSolicitud recibe los datos tipados actuales y devuelve SolicitudEvento con ID y estado efectivamente guardados.
 - guardarBorradorSolicitud conserva captura sin comenzar revisión ni reservar recinto.
 - actualizarSolicitud recibe ID, cambios, decisión de enviar y versión esperada. Devuelve resultado y error si la versión cambió.
-- Las consultas remotas de recintos, disponibilidad, solicitudes y eventos necesitan sus propios estados cargando/error/vacío, y cancelación de consultas al cambiar parámetros. No se presentan como terminadas en esta entrega.
+- Las consultas remotas conservan estados de carga/error/vacío y cancelan respuestas obsoletas al cambiar parámetros. La revisión de disponibilidad consulta las actividades persistidas y devuelve su versión, conflictos, clases informativas y alternativas.
 - Las decisiones de Subdirección, cambio de recinto y reprogramación deben ser comandos del servidor; no permitir que el cliente actualice sueltas las tablas derivadas.
 
 ## Modelo y reglas para PostgreSQL
@@ -30,4 +32,4 @@ La cuenta necesita correo. El contacto adicional del evento sigue siendo opciona
 
 Definir autenticación, respuestas de error de validación, permiso, conflicto y fallo temporal; devolver ID y versión guardados. Añadir clave de idempotencia para operaciones críticas antes de habilitar reintentos automáticos en la red. El puerto actual no implementa esa garantía.
 
-Pendientes de producto: confirmar el aforo operativo de Sala 14 y croquis; decidir si existe desplazamiento excepcional de clases y quién lo autoriza. Hasta esa decisión, la solicitud conserva el bloqueo de clases y ofrece corregir fecha, horario o recinto.
+Las clases de laboratorio son informativas para la decisión de Subdirección: se muestran y no impiden automáticamente seleccionar o autorizar un horario. La autorización no elimina ni modifica la clase. Pendientes de producto: confirmar aforos operativos, equipamiento y croquis cuando el catálogo no los refleje; cualquier cambio al acuerdo académico debe coordinarse con el equipo.

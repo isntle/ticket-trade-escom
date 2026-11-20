@@ -27,7 +27,7 @@ export function AgendaHorarioRecinto({ actividad, otras, alElegir }: {
     !propias.some(a=>inicio<minutos(a.horaFin)+consulta.margen && fin>minutos(a.horaInicio)-consulta.margen) &&
     verificarDisponibilidadRecinto(actividad.idRecinto,actividad.fecha,hora(inicio),hora(fin)).disponible;
   return <section className="overflow-hidden rounded-xl border border-neutral-200" aria-label="Agenda horaria del recinto">
-    <div className="flex flex-wrap items-center justify-between gap-2 bg-neutral-50 px-4 py-3 text-sm"><strong>{actividad.fecha}</strong><span className="text-neutral-600" aria-live="polite">{inicioPendiente === null ? 'Selecciona el bloque de inicio y luego el bloque final' : `Inicio: ${hora(inicioPendiente)}. Ahora selecciona el último bloque`}</span></div>
+    <div className="space-y-1 bg-neutral-50 px-4 py-3 text-sm"><strong className="block">{nombreActividad(actividad)} · {listaRecintos.find(r => r.id === actividad.idRecinto)?.nombre}</strong><p>{actividad.fecha} · Horario seleccionado: {actividad.horaInicio}–{actividad.horaFin}</p><p className="text-neutral-600" aria-live="polite">{inicioPendiente === null ? 'Selecciona el bloque de inicio y luego el bloque final' : `Inicio: ${hora(inicioPendiente)}. Ahora selecciona el último bloque`}</p></div>
     {errorRango && <p role="alert" className="bg-rose-50 px-4 py-2 text-sm text-rose-900">{errorRango}</p>}
     <EstadoConsultaAgenda {...consulta}/>
     <div className="max-h-80 overflow-y-auto overscroll-contain">

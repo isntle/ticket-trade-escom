@@ -3,6 +3,7 @@ import { routerDistribucion } from "./distribucion.js";
 import {routerEventos} from "./eventos.js";
 import { routerConfiguracionRecintos } from './configuracion.js';
 import { prepararConfiguracion, conservarPlazos } from './calendario.js';
+import { revisarSolicitudServidor } from './revisionSolicitud.js';
 import { encolarAviso } from "../correos/avisos.js";
 import { comprobarArchivo } from "../archivos/rutas.js";
 import crypto from "node:crypto";
@@ -58,6 +59,14 @@ routerOrganizacion.post("/disponibilidad/revision", ruta(async (req, res) => {
     return revisarDisponibilidadServidor(c, res.locals.usuario, actividades, contexto);
   });
   res.set("Cache-Control", "no-store").json({ datos });
+}));
+routerOrganizacion.get('/solicitudes/:id/disponibilidad', ruta(async (req, res) => {
+  const id = idEntero(req.params.id);
+  const datos = await conTransaccion(async c => {
+    await prepararConfiguracion(c);
+    return revisarSolicitudServidor(c, res.locals.usuario, id);
+  });
+  res.set('Cache-Control', 'no-store').json({ datos });
 }));
 routerOrganizacion.get("/solicitudes", async (_req, res, next) => {
   try {

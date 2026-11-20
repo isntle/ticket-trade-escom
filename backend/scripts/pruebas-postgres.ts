@@ -60,6 +60,7 @@ try {
         "tests/api-disponibilidad-postgres.test.ts",
         "tests/api-calendario-bloqueos-postgres.test.ts",
         "tests/api-distribucion-postgres.test.ts",
+        "tests/api-dictamen-disponibilidad-postgres.test.ts",
       ],
       { env, stdio: "inherit", windowsHide: true },
     );
