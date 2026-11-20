@@ -101,14 +101,21 @@ export function ProveedorDatosRemotos({
     refrescar();
     const t = window.setInterval(refrescar, 15000);
     window.addEventListener("tt:datos-remotos", refrescar);
-    window.addEventListener("tt:navegacion", refrescar);
-    window.addEventListener("popstate", refrescar);
+    const refrescarEnlace = () => {
+      const ruta = window.location.pathname.match(/^\/eventos\/([^/]+)(?:\/reservar)?\/?$/);
+      const tieneEnlace = ruta && tokenEnlacePrivado(ruta[1]);
+      if (tieneEnlace || estadoRef.current.listaEventos.some((evento: any) => evento.accesoPorEnlace)) {
+        refrescar();
+      }
+    };
+    window.addEventListener("tt:navegacion", refrescarEnlace);
+    window.addEventListener("popstate", refrescarEnlace);
     return () => {
       montado.current = false;
       window.clearInterval(t);
       window.removeEventListener("tt:datos-remotos", refrescar);
-      window.removeEventListener("tt:navegacion", refrescar);
-      window.removeEventListener("popstate", refrescar);
+      window.removeEventListener("tt:navegacion", refrescarEnlace);
+      window.removeEventListener("popstate", refrescarEnlace);
     };
   }, [usuarioActual?.id]);
   const intentar = async (accion: () => Promise<any>) => {
