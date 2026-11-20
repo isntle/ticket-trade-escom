@@ -186,8 +186,8 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
         textoAyuda = `${lugar.etiqueta} — ${permitirVip ? 'Lugar VIP / Invitado de Honor' : 'Reservado para invitados'}`;
       } else if (lugar.categoria === 'organizador' || lugar.categoria === 'staff') {
         estiloBoton =
-          'bg-indigo-50/70 border-indigo-200 text-indigo-300 cursor-not-allowed';
-        textoAyuda = `${lugar.etiqueta} — Reservado para comité técnico o docente`;
+          esAuditorio ? 'bg-neutral-100 border-neutral-300 text-neutral-400 cursor-not-allowed' : 'bg-indigo-50/70 border-indigo-200 text-indigo-300 cursor-not-allowed';
+        textoAyuda = `${lugar.etiqueta} — ${esAuditorio ? 'Reservado para uso interno' : 'Reservado para comité técnico o docente'}`;
       }
 
       return (
@@ -265,8 +265,8 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
       textoAyuda = `${lugar.etiqueta} — Asignada VIP / Directivo`;
     } else if (lugar.categoria === 'organizador') {
       estiloEditor =
-        'bg-indigo-100 border-indigo-400 text-indigo-900 font-bold shadow-2xs ring-1 ring-indigo-300';
-      textoAyuda = `${lugar.etiqueta} — Comité Organizador / Docente`;
+        esAuditorio ? 'bg-neutral-100 border-neutral-400 text-neutral-700 font-bold' : 'bg-indigo-100 border-indigo-400 text-indigo-900 font-bold shadow-2xs ring-1 ring-indigo-300';
+      textoAyuda = `${lugar.etiqueta} — ${esAuditorio ? 'Reserva interna anterior' : 'Comité Organizador / Docente'}`;
     } else if (lugar.categoria === 'staff') {
       estiloEditor =
         'bg-purple-100 border-purple-400 text-purple-900 font-bold shadow-2xs ring-1 ring-purple-300';
@@ -285,7 +285,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
         )}
 
         {lugar.estaBloqueado ? (
-          <Ban className="w-3 h-3 text-neutral-400" />
+          <Ban className="w-3 h-3 text-red-600" />
         ) : (
           <span className="font-bold leading-none">
             {esLaboratorio ? `PC${String(lugar.numero).padStart(2, '0')}` : lugar.numero}
@@ -296,7 +296,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
         {lugar.categoria === 'vip' && !lugar.estaBloqueado && (
           <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500 border border-white" />
         )}
-        {lugar.categoria === 'organizador' && !lugar.estaBloqueado && (
+        {!esAuditorio && lugar.categoria === 'organizador' && !lugar.estaBloqueado && (
           <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-indigo-600 border border-white" />
         )}
         {lugar.categoria === 'staff' && !lugar.estaBloqueado && (
@@ -346,22 +346,20 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
       ];
 
   return (
-    <div className="w-full bg-[#fdfdfc] rounded-2xl border border-neutral-200/80 p-3 sm:p-5 shadow-xs overflow-hidden select-none">
+    <div className={`w-full ${esAuditorio ? 'bg-[#f1eeeb]' : 'bg-[#fdfdfc]'} rounded-2xl border border-neutral-200/80 p-3 sm:p-5 shadow-xs overflow-hidden select-none`}>
       {/* ========================================================================= */}
       {/* 1. CABECERA ESPACIAL SEGÚN EL RECINTO (Auditorio, Sala 14 o Laboratorio) */}
       {/* ========================================================================= */}
       {esAuditorio && (
         <div className="max-w-3xl mx-auto mb-5 text-center">
           {/* Escenario Físico del Auditorio con Curvatura y Presídium */}
-          <div className="relative mx-auto w-4/5 max-w-xl mb-2">
-            <div className="h-9 sm:h-10 bg-linear-to-b from-neutral-800 to-neutral-900 rounded-t-3xl border-t border-x border-neutral-700 shadow-md flex items-center justify-center px-4">
-              <span className="text-[10px] font-mono tracking-widest text-neutral-300 font-bold uppercase flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                ESCENARIO PRINCIPAL / PANTALLA PANORÁMICA AUDITORIO ESCOM
-              </span>
-            </div>
-            {/* Tarima de presídium */}
-            <div className="h-1.5 sm:h-2 w-3/5 mx-auto bg-[#7a132b] rounded-b-md shadow-xs opacity-90" />
+          <div className="relative mx-auto flex items-start justify-center gap-1 sm:gap-3 mb-3">
+            <span aria-label="Salida de emergencia hacia la izquierda" className="shrink-0 mt-1 text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg px-1.5 py-1 text-[8px] sm:text-[9px] font-bold leading-tight flex items-center gap-1"><span aria-hidden="true" className="text-base">←</span><span>SALIDA DE<br />EMERGENCIA</span></span>
+            <svg viewBox="0 0 1250 300" role="img" aria-label="Escenario del auditorio" className="w-3/5 max-w-xl h-auto">
+              <path d="M 6 6 H 1244 Q 1070 286 625 290 Q 180 286 6 6 Z" fill="#f7f4f3" stroke="#7a132b" strokeWidth="12" />
+              <text x="625" y="115" textAnchor="middle" fill="#7a132b" fontSize="48" fontWeight="700" letterSpacing="12">ESCENARIO</text>
+            </svg>
+            <span aria-label="Salida de emergencia hacia la derecha" className="shrink-0 mt-1 text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg px-1.5 py-1 text-[8px] sm:text-[9px] font-bold leading-tight flex items-center gap-1"><span>SALIDA DE<br />EMERGENCIA</span><span aria-hidden="true" className="text-base">→</span></span>
           </div>
           <span className="text-[10px] font-semibold text-neutral-400 tracking-wider uppercase block">
             {asientos.length} Butacas · {clavesFilasOrdenadas.length} Filas ({clavesFilasOrdenadas[0]} - {clavesFilasOrdenadas.at(-1)}) · 3 Bloques con 2 Pasillos
@@ -757,7 +755,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                   return (
                     <div
                       key={claveFila}
-                      className="flex items-center gap-1 sm:gap-2 transition-transform duration-150 py-0.5"
+                      className="flex items-center gap-1 sm:gap-2 transition-transform duration-150 py-0.5 border-b border-neutral-200/80"
                     >
                       {/* Identificador izquierdo de Fila */}
                       <div className="w-8 sm:w-10 shrink-0 text-right pr-1">
@@ -855,6 +853,21 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                   </div>
                 );
               })}
+              {esAuditorio && (
+                <div className="flex items-stretch gap-1 sm:gap-2 mt-1" aria-label="Entradas y equipo técnico">
+                  <div className="w-8 sm:w-10 shrink-0" />
+                  <div className={`${anchoBloqueLateralAuditorio} shrink-0 border-t border-neutral-200`} />
+                  <div className="relative w-2.5 sm:w-3.5 shrink-0 bg-neutral-100/70 rounded-b-sm">
+                    <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 rounded border border-neutral-200 bg-white px-1 py-0.5 text-[8px] font-bold text-neutral-500">ENTRADA</span>
+                  </div>
+                  <div className={`${anchoBloqueCentralAuditorio} shrink-0 min-h-12 rounded-b-lg border border-neutral-200 bg-neutral-50 flex items-center justify-center px-1 text-[9px] sm:text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-500`}>Equipo técnico</div>
+                  <div className="relative w-2.5 sm:w-3.5 shrink-0 bg-neutral-100/70 rounded-b-sm">
+                    <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 rounded border border-neutral-200 bg-white px-1 py-0.5 text-[8px] font-bold text-neutral-500">ENTRADA</span>
+                  </div>
+                  <div className={`${anchoBloqueLateralAuditorio} shrink-0 border-t border-neutral-200`} />
+                  <div className="w-8 sm:w-10 shrink-0" />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -863,7 +876,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
       {/* ========================================================================= */}
       {/* 3. SIMBOLOGÍA VISUAL INSTITUCIONAL SIN PILLS RECARGADAS                  */}
       {/* ========================================================================= */}
-      <div className="mt-4 pt-3.5 border-t border-neutral-100 flex flex-wrap items-center justify-center gap-4 sm:gap-5 text-xs text-neutral-600">
+      <div className={`${esAuditorio ? 'mt-8' : 'mt-4'} pt-3.5 border-t border-neutral-200 flex flex-wrap items-center justify-center gap-4 sm:gap-5 text-xs text-neutral-600`}>
         {modo === 'asistente' && (
           <>
             <div className="flex items-center gap-1.5">
@@ -901,10 +914,10 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
               <span className="w-3 h-3 rounded border border-amber-400 bg-amber-100" />
               <span className="font-semibold text-amber-900">★ VIP</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            {!esAuditorio && <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded border border-indigo-400 bg-indigo-100" />
               <span className="font-semibold text-indigo-900">Comité / Docente</span>
-            </div>
+            </div>}
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded border border-purple-400 bg-purple-100" />
               <span className="font-semibold text-purple-900">Staff Técnico</span>

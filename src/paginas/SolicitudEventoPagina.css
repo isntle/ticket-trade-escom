@@ -1,0 +1,24 @@
+/* Señales comunes para las acciones del formulario y sus ventanas. */
+.solicitud-evento button:not(:disabled) {
+  cursor: pointer;
+  transition: box-shadow 150ms ease, outline-color 150ms ease, filter 150ms ease, background-color 150ms ease;
+}
+
+.solicitud-evento button:not(:disabled):hover {
+  outline: 2px solid #a34b5f;
+  outline-offset: 2px;
+  box-shadow: 0 2px 7px rgb(72 16 31 / 18%);
+}
+
+.solicitud-evento button:not(:disabled):active {
+  filter: brightness(0.88);
+}
+
+.solicitud-evento button:focus-visible {
+  outline: 3px solid #7a132b;
+  outline-offset: 3px;
+}
+
+.solicitud-evento button:disabled {
+  cursor: not-allowed;
+}

@@ -1,3 +1,4 @@
+import { afiliacionLegible } from "../utilidades/afiliacion";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { aforoActividad, modalidadActividad, nombreActividad } from '../dominio/actividades';
 import { VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
@@ -404,7 +405,7 @@ export const DetalleSolicitudPagina: React.FC<{
             <h2 className="text-lg font-bold">Solicitante y contacto</h2>
             <p className="mt-3 font-semibold">{solicitud.nombreSolicitante}</p>
             <p className="mt-1 text-sm capitalize text-neutral-600">
-              {solicitud.afiliacionSolicitante}
+              {afiliacionLegible(solicitud.afiliacionSolicitante)}
               {titular?.nombreOrganizacion
                 ? " · " + titular.nombreOrganizacion
                 : ""}

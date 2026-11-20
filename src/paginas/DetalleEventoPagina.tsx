@@ -100,6 +100,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
   const esPrivado = evento.visibilidad === 'privado';
   const accesoConcedido =
     !esPrivado ||
+    (apiActiva && evento.accesoPorEnlace === true) ||
     claveVerificada ||
     (evento.claveAccesoPrivada && accessKey === evento.claveAccesoPrivada) ||
     usuarioActual?.id === evento.idOrganizador ||
@@ -160,7 +161,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
     return r ? r.nombre : 'Recinto ESCOM';
   };
 
-  const claveAcceso = esPrivado && accesoConcedido ? evento.claveAccesoPrivada : undefined;
+  const claveAcceso = esPrivado && accesoConcedido && !apiActiva ? evento.claveAccesoPrivada : undefined;
   const rutaDetalle = rutaDetalleEvento(evento.id, claveAcceso);
 
   // Inicia el registro de intención para la actividad, nunca para un renglón del programa.

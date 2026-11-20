@@ -449,7 +449,7 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
             ★ Asignar VIP
           </button>
 
-          <button
+          {recintoActivo.tipo !== 'auditorio' && <button
             type="button"
             onClick={() => setHerramientaActiva('organizador')}
             className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer transition-all ${
@@ -459,7 +459,7 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
             }`}
           >
             Comité Organizador
-          </button>
+          </button>}
 
           <button
             type="button"
@@ -516,13 +516,13 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
           >
             Fila A → Toda VIP
           </button>
-          <button
+          {recintoActivo.tipo !== 'auditorio' && <button
             type="button"
             onClick={() => asignarFilaCompleta('B', 'organizador')}
             className="px-2.5 py-1 bg-white border border-neutral-200 hover:border-indigo-300 text-indigo-900 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
           >
             Fila B → Todo Comité
-          </button>
+          </button>}
           <button
             type="button"
             onClick={() => asignarFilaCompleta('K', 'bloquear')}

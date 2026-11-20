@@ -1,3 +1,4 @@
+import { afiliacionLegible } from "../utilidades/afiliacion";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { impedimentoVerificacion, intentosPeriodo, periodoIdentidadActual, rechazosPeriodo } from "../dominio/periodosIdentidad";
 import { volverA } from '../dominio/navegacion';
@@ -32,13 +33,6 @@ const ETIQUETAS_ESTADO: Record<string, string> = {
   revocado: "Verificación revocada",
 };
 const estadoLegible = (s?: string) => ETIQUETAS_ESTADO[s || "sin_enviar"] || estado(s);
-const afiliacionLegible = (afiliacion: Usuario["afiliacion"]) => ({
-  alumno: "Estudiante",
-  profesor: "Docente",
-  administrativo: "Administrativo",
-  pae: "Personal de apoyo",
-  externo: "Externo",
-}[afiliacion]);
 const ESTADOS_RESUELTOS = new Set([
   "aprobado",
   "rechazado",
@@ -307,7 +301,7 @@ export function GestionIdentidadPagina({
             {cuenta.verificacionHasta &&
               " · Válido hasta " + cuenta.verificacionHasta}
           </p>
-          <div className="rounded-xl bg-neutral-50 p-4 text-sm"><strong>{cuenta.nombre}</strong><p>{cuenta.correo} · {cuenta.afiliacion}</p><p>{cuenta.boleta ? 'Boleta: '+cuenta.boleta : cuenta.afiliacion==='externo' ? [cuenta.nombreOrganizacion,cuenta.puestoContacto].filter(Boolean).join(' · ') : 'Número de empleado: '+(cuenta.numeroEmpleado||'Pendiente')}</p><button className="mt-2 font-semibold text-[#7a132b] underline" onClick={()=>navigate('/perfil')}>Revisar datos de mi perfil</button>{periodoIdentidadActual(auth.periodosIdentidad)&&<p className="mt-2">Periodo {periodoIdentidadActual(auth.periodosIdentidad)!.id} · Envíos: {intentosPeriodo(cuenta,periodoIdentidadActual(auth.periodosIdentidad)!)} de 3 · Rechazos: {rechazosPeriodo(cuenta,periodoIdentidadActual(auth.periodosIdentidad)!)}</p>}</div>
+          <div className="rounded-xl bg-neutral-50 p-4 text-sm"><strong>{cuenta.nombre}</strong><p>{cuenta.correo} · {afiliacionLegible(cuenta.afiliacion)}</p><p>{cuenta.boleta ? 'Boleta: '+cuenta.boleta : cuenta.afiliacion==='externo' ? [cuenta.nombreOrganizacion,cuenta.puestoContacto].filter(Boolean).join(' · ') : 'Número de empleado: '+(cuenta.numeroEmpleado||'Pendiente')}</p><button className="mt-2 font-semibold text-[#7a132b] underline" onClick={()=>navigate('/perfil')}>Revisar datos de mi perfil</button>{periodoIdentidadActual(auth.periodosIdentidad)&&<p className="mt-2">Periodo {periodoIdentidadActual(auth.periodosIdentidad)!.id} · Envíos: {intentosPeriodo(cuenta,periodoIdentidadActual(auth.periodosIdentidad)!)} de 3 · Rechazos: {rechazosPeriodo(cuenta,periodoIdentidadActual(auth.periodosIdentidad)!)}</p>}</div>
           {cuenta.afiliacion==='profesor' && <form className="rounded-xl bg-neutral-50 p-4" onSubmit={async e=>{e.preventDefault();const datos=new FormData(e.currentTarget);resultado((await auth.actualizarPerfil(cuenta.id,{numeroEmpleado:String(datos.get('numeroEmpleado')||'').trim()},cuenta.versionIdentidad||0)));}}><label className="block text-sm font-semibold">Número de empleado<input name="numeroEmpleado" required defaultValue={cuenta.numeroEmpleado||''} className={campo}/></label><button type="submit" className={boton+" mt-3"}>Guardar número de empleado</button></form>}
           {cuenta.afiliacion==='externo' && <form className="rounded-xl bg-neutral-50 p-4" onSubmit={async e=>{e.preventDefault();const datos=new FormData(e.currentTarget);resultado((await auth.actualizarPerfil(cuenta.id,{nombreOrganizacion:String(datos.get('nombreOrganizacion')||'').trim(),puestoContacto:String(datos.get('puestoContacto')||'').trim()},cuenta.versionIdentidad||0)));}}><label className="block text-sm font-semibold">Entidad<input name="nombreOrganizacion" required defaultValue={cuenta.nombreOrganizacion||''} className={campo}/></label><label className="mt-3 block text-sm font-semibold">Cargo o relación de representación<input name="puestoContacto" required defaultValue={cuenta.puestoContacto||''} className={campo}/></label><button type="submit" className={boton+" mt-3"}>Guardar datos de la entidad</button></form>}
           {cuenta.estadoExpediente === "requiere_correccion" && (

@@ -19,7 +19,7 @@ test('Disponibilidad PostgreSQL: dos sesiones, aprobación concurrente, bloqueos
     const base = `http://127.0.0.1:${(servidor.address() as import('node:net').AddressInfo).port}/api`;
     const pedir = (ruta: string, cookie: string, datos?: unknown) => fetch(base + ruta, {
       method: datos === undefined ? 'GET' : 'POST',
-      headers: { Cookie: cookie, ...(datos === undefined ? {} : { 'Content-Type': 'application/json' }) },
+      headers: { Cookie: cookie, Connection: 'close', ...(datos === undefined ? {} : { 'Content-Type': 'application/json' }) },
       body: datos === undefined ? undefined : JSON.stringify(datos),
     });
     async function bien<T = any>(respuesta: Response, estado = 200): Promise<T> {
@@ -109,6 +109,46 @@ test('Disponibilidad PostgreSQL: dos sesiones, aprobación concurrente, bloqueos
       assert.equal(agendas[1-ganadora].recintos[0].ocupaciones[0].titulo,'Actividad autorizada','El otro titular no recibe el título privado.');
       assert.ok((await consultar(revisores[0])).recintos[0].ocupaciones[0].titulo.startsWith('Propuesta privada'));
       t.diagnostic(JSON.stringify({contendientes,estadosHTTP:resultados.map(r=>r.status),publicados:1,pendientes:1,resolucionesRechazadasGuardadas:0}));
+    });
+
+    await t.test('enlace privado: acceso aislado, reserva, renovación y boleto del titular', async () => {
+      const idEvento = solicitudes[ganadora].idEvento;
+      const propietario = propietarios[ganadora];
+      const invitado = await entrar(1004);
+      const enlace = await bien<{token:string}>(await pedir(`/organizacion/eventos/${idEvento}/enlace-privado`, propietario));
+      assert.ok(enlace.token);
+      assert.equal((await pedir(`/organizacion/eventos/${idEvento}/enlace-privado`, invitado.cookie)).status, 404);
+      const publico = await bien<any[]>(await pedir('/eventos', ''));
+      assert.ok(!publico.some(e => e.id === idEvento));
+      const detalle = async (token: unknown, id = idEvento, cookie = '') => pedir('/estado/evento-privado', cookie, { idEvento: id, token });
+      assert.equal((await detalle('incorrecto')).status, 404);
+      assert.equal((await detalle(null)).status, 404);
+      assert.equal((await detalle(enlace.token, solicitudes[1-ganadora].idEvento)).status, 404);
+      const acceso = await bien<any>(await detalle(enlace.token));
+      assert.equal(acceso.evento.id, idEvento);
+      assert.doesNotMatch(JSON.stringify(acceso), new RegExp(enlace.token));
+      const idActividad = acceso.evento.fechas[0].id;
+      const urlLugares = `/taquilla/actividades/${idActividad}/lugares`;
+      assert.equal((await pedir(urlLugares, '')).status, 404);
+      assert.equal((await fetch(base + urlLugares, {headers:{'X-TicketTrade-Enlace':enlace.token, Connection:'close'}})).status, 200);
+      assert.equal((await pedir('/taquilla/apartados', invitado.cookie, {idActividad,token:'incorrecto'})).status, 403);
+      const apartado = await bien<{id:string}>(await pedir('/taquilla/apartados', invitado.cookie, {idActividad,token:enlace.token}), 201);
+      const renovado = await bien<{token:string}>(await pedir(`/organizacion/eventos/${idEvento}/enlace-privado/renovacion`, propietario, {}));
+      assert.notEqual(renovado.token, enlace.token);
+      assert.equal((await detalle(enlace.token)).status, 404);
+      assert.equal((await pedir(`/taquilla/apartados/${apartado.id}/confirmacion`, invitado.cookie, {token:enlace.token})).status, 403);
+      await bien(await pedir(`/taquilla/apartados/${apartado.id}/confirmacion`, invitado.cookie, {token:renovado.token}), 201);
+      assert.equal((await pedir('/taquilla/apartados', invitado.cookie, {idActividad,token:renovado.token})).status, 409);
+      const estado = await bien<any>(await pedir('/estado', invitado.cookie));
+      assert.ok(estado.listaBoletos.some((b:any)=>b.idEvento === idEvento));
+      assert.ok(estado.listaEventos.some((e:any)=>e.id === idEvento));
+      assert.doesNotMatch(JSON.stringify(estado), new RegExp(renovado.token));
+      const puerto = (servidor.address() as import('node:net').AddressInfo).port;
+      await new Promise<void>(r => servidor.close(() => r()));
+      await new Promise<void>(r => servidor.listen(puerto, '127.0.0.1', r));
+      const trasReinicio = await bien<any>(await pedir('/estado', invitado.cookie));
+      assert.ok(trasReinicio.listaBoletos.some((b:any)=>b.idEvento === idEvento));
+      assert.equal((await detalle(renovado.token)).status, 200);
     });
 
     await t.test('ocupación parcial y margen exacto conservan horas libres para ambas sesiones', async () => {

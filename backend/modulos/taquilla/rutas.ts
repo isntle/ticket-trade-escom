@@ -11,6 +11,7 @@ import { origenSeguro } from "../../comun/seguridad.js";
 import { fallo, ruta, idEntero, texto } from "../../comun/http.js";
 import {obtenerMensajeErrorCruce} from "../../../src/dominio/crucesReservas.js";
 import { routerEspeciales } from "./especiales.js";
+import { tokenPrivadoValido } from '../../comun/enlacePrivado.js';
 
 export const routerTaquilla = Router();
 routerTaquilla.use((req, res, next) =>
@@ -32,9 +33,9 @@ async function actividad(c: PoolClient, id: string) {
   return r.rows[0];
 }
 function reservable(a: any, token?: unknown) {
-  if (a.estado !== "Programada" || a.estado_evento !== "Publicado")
+  if (a.estado !== "Programada" || a.estado_evento !== "Publicado" || a.afectada)
     fallo("La actividad no está disponible.", 409);
-  if (a.visibilidad === "Privado" && token !== a.token_enlace_privado)
+  if (a.visibilidad === "Privado" && !tokenPrivadoValido(token, a.token_enlace_privado))
     fallo("Se requiere el enlace privado.", 403);
   if (new Date(a.inicio).getTime() <= Date.now())
     fallo("La actividad ya comenzó.", 409);
@@ -48,7 +49,7 @@ routerTaquilla.get(
     const resultado = await conTransaccion(async (c) => {
       await bloquear(c);
       const a = await actividad(c, id);
-      if (a.estado_evento !== "Publicado" || a.visibilidad !== "Público")
+      if (a.estado_evento !== "Publicado" || a.estado !== "Programada" || a.afectada || (a.visibilidad === "Privado" && !tokenPrivadoValido(req.get('X-TicketTrade-Enlace'), a.token_enlace_privado)))
         fallo("Actividad no disponible.", 404);
       const r = await c.query(
         `SELECT la.id_lugar_actividad::text id,lr.codigo,lr.fila,lr.posicion_x x,lr.posicion_y y,cl.nombre categoria,
@@ -70,7 +71,7 @@ routerTaquilla.get(
         disponibles: Math.max(0, a.aforo_solicitado - cupos.rows[0].n),
       };
     });
-    res.json({ datos: resultado });
+    res.set('Cache-Control', 'no-store').json({ datos: resultado });
   }),
 );
 routerTaquilla.post(

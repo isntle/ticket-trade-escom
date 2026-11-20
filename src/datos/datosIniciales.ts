@@ -79,11 +79,6 @@ export function generarAsientosAuditorio(): ConfiguracionAsiento[] {
       if (fila === 'A') {
         categoria = 'vip';
       }
-      // Fila B: Asientos 10 y 11 para comité organizador
-      if (fila === 'B' && (i === 5 || i === 6)) {
-        categoria = 'organizador';
-      }
-
       asientos.push({
         id,
         fila,

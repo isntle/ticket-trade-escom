@@ -1,3 +1,5 @@
+import { afiliacionLegible } from "../utilidades/afiliacion";
+import './SolicitudEventoPagina.css';
 import { identidadHabilitadaParaOrganizar } from "../dominio/facultadOrganizar.js";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { servicioOrganizacionLocal } from '../servicios/organizacion';
@@ -620,11 +622,11 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     const enRevision = usuarioActual?.estadoExpediente === 'en_revision';
     const restringida = usuarioActual && restriccionIdentidadVigente(usuarioActual);
     const destino = !usuarioActual ? '/login?continuar='+encodeURIComponent(rutaRetorno) : correoPendiente ? '/confirmar-correo?continuar='+encodeURIComponent(rutaRetorno) : '/identidad/expediente?continuar='+encodeURIComponent(rutaRetorno);
-    return <section className="mx-auto max-w-2xl px-5 py-12"><button className="mb-6 inline-flex items-center gap-2 text-sm text-neutral-500" onClick={()=>navigate(volverA('/eventos'))}><ArrowLeft size={16}/><span>Regresar</span></button><div className="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-9"><h1 className="text-2xl font-bold">Solicitar nuevo evento</h1><p className="mt-4 text-neutral-600">{!usuarioActual?'Inicia sesión para preparar tu solicitud.':correoPendiente?'Primero confirma tu correo con el enlace o código de confirmación. Este paso es distinto de la revisión de tus documentos.':restringida?`Tu cuenta tiene una restricción vigente hasta ${usuarioActual.restriccionSolicitudesHasta}. ${usuarioActual.motivoRestriccion||''}`:enRevision?'Tu expediente de identidad está en revisión. Cuando se apruebe, podrás volver aquí y preparar la solicitud.':'Necesitas verificar tu identidad para solicitar un evento. Consulta los documentos que corresponden a tu perfil y envía tu expediente.'}</p><button onClick={()=>navigate(destino)} className="boton-primario mt-6 px-5 py-3">{!usuarioActual?'Iniciar sesión':correoPendiente?'Confirmar mi correo':enRevision?'Consultar mi verificación':'Ir a mi expediente'}</button><p className="mt-4 text-sm text-neutral-500">Encontrarás este acceso en la cartelera. La revisión documental y la aprobación del evento son trámites separados.</p></div></section>;
+    return <section className="solicitud-evento mx-auto max-w-2xl px-5 py-12"><button className="mb-6 inline-flex items-center gap-2 text-sm text-neutral-500" onClick={()=>navigate(volverA('/eventos'))}><ArrowLeft size={16}/><span>Regresar</span></button><div className="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-9"><h1 className="text-2xl font-bold">Solicitar nuevo evento</h1><p className="mt-4 text-neutral-600">{!usuarioActual?'Inicia sesión para preparar tu solicitud.':correoPendiente?'Primero confirma tu correo con el enlace o código de confirmación. Este paso es distinto de la revisión de tus documentos.':restringida?`Tu cuenta tiene una restricción vigente hasta ${usuarioActual.restriccionSolicitudesHasta}. ${usuarioActual.motivoRestriccion||''}`:enRevision?'Tu expediente de identidad está en revisión. Cuando se apruebe, podrás volver aquí y preparar la solicitud.':'Necesitas verificar tu identidad para solicitar un evento. Consulta los documentos que corresponden a tu perfil y envía tu expediente.'}</p><button onClick={()=>navigate(destino)} className="boton-primario mt-6 px-5 py-3">{!usuarioActual?'Iniciar sesión':correoPendiente?'Confirmar mi correo':enRevision?'Consultar mi verificación':'Ir a mi expediente'}</button><p className="mt-4 text-sm text-neutral-500">Encontrarás este acceso en la cartelera. La revisión documental y la aprobación del evento son trámites separados.</p></div></section>;
   }
 
   return (
-    <div data-interfaz={requestId?"UI.04":"UI.03"} tabIndex={-1} className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <div data-interfaz={requestId?"UI.04":"UI.03"} tabIndex={-1} className="solicitud-evento max-w-6xl mx-auto px-4 sm:px-6 py-8">
       {/* Botón Volver */}
       <button
         type="button"
@@ -683,7 +685,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
                 Afiliación Institucional
               </span>
               <span className="font-semibold text-neutral-900 capitalize text-sm sm:text-sm">
-                {usuarioActual?.afiliacion || "Comunidad IPN"}
+                {usuarioActual ? afiliacionLegible(usuarioActual.afiliacion) : "Comunidad IPN"}
               </span>
             </div>
             <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200">

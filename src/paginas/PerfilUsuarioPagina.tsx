@@ -1,3 +1,4 @@
+import { afiliacionLegible } from "../utilidades/afiliacion";
 import { cuentaInstitucional } from "../dominio/facultadOrganizar.js";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { volverA } from '../dominio/navegacion';
@@ -70,7 +71,7 @@ export function PerfilUsuarioPagina({
         <div className="flex flex-wrap items-center gap-5 bg-[#651127] px-6 py-7 text-white sm:px-8">
           <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl font-bold" aria-hidden="true">{u.nombre.replace(/^(M\. en C\.|Dra?\.|Ing\.|Lic\.)\s*/i, '').split(' ').filter(Boolean).slice(0, 2).map(parte => parte[0]).join('')}</div>
           <div className="min-w-0 flex-1"><h2 className="text-2xl font-bold tracking-tight">{u.nombre}</h2><p className="mt-2 flex items-center gap-2 break-all text-sm text-white/75"><Mail className="h-4 w-4 shrink-0" aria-hidden="true" />{u.correo}</p></div>
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm"><GraduationCap className="h-4 w-4" aria-hidden="true" />{u.afiliacion === 'alumno' ? 'Estudiante' : u.afiliacion === 'profesor' ? 'Docente' : u.afiliacion === 'externo' ? 'Comunidad externa' : 'Comunidad IPN'}</span>
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm"><GraduationCap className="h-4 w-4" aria-hidden="true" />{afiliacionLegible(u.afiliacion)}</span>
         </div>
         <div className="space-y-5 p-6 sm:p-8">
         <div className="grid gap-4 sm:grid-cols-2"><div className="rounded-2xl bg-neutral-50 p-4"><p className="mb-2 flex items-center gap-2 text-sm font-semibold text-neutral-500"><Mail className="h-4 w-4 text-[#7a132b]" aria-hidden="true" />Correo de la cuenta</p>

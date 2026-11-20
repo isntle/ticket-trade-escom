@@ -1,15 +1,16 @@
 import { Router } from "express";
 import { pool, tokenPeticion, modoBaseDatos } from "../../bd/pool.js";
 import { usuarioSesion } from "../identidad/auth.js";
-import { ruta } from "../../comun/http.js";
+import { ruta, idEntero, fallo } from "../../comun/http.js";
+import { origenSeguro } from "../../comun/seguridad.js";
 import { leerEventos, leerRecintos } from "./catalogos.js";
 import { estadoSolicitudDesdeCatalogo } from "../../../src/servicios/contratoOrganizacion.js";
 import { asegurarInfraEspeciales } from "../taquilla/especiales.js";
 
 export const routerEstado = Router();
-export async function leerEstado(u: any) {
+export async function leerEstado(u: any, eventoEnlace?: string) {
   const [eventos, recintos] = await Promise.all([
-    leerEventos(u),
+    leerEventos(u, eventoEnlace),
     leerRecintos(),
   ]);
   const ids = eventos.map((e) => e.id);
@@ -426,6 +427,22 @@ export async function leerEstado(u: any) {
     periodos,
   };
 }
+routerEstado.post('/evento-privado', origenSeguro, ruta(async (req, res) => {
+  const id = idEntero(req.body?.idEvento);
+  const token = req.body?.token;
+  if (typeof token !== 'string' || !token || token.length > 256) fallo('Evento no disponible.', 404);
+  const acceso = await pool.query(`SELECT 1 FROM ticket_trade."Evento" e JOIN ticket_trade."EstadoEvento" ee USING(id_estado_evento) JOIN ticket_trade."VisibilidadEvento" v USING(id_visibilidad_evento) WHERE e.id_evento=$1 AND ee.nombre='Publicado' AND v.nombre='Privado' AND e.token_enlace_privado IS NOT NULL AND e.token_enlace_privado<>'' AND e.token_enlace_privado=$2`, [id, token]);
+  if (!acceso.rowCount) fallo('Evento no disponible.', 404);
+  const estado = await leerEstado(await usuarioSesion(tokenPeticion(req)), id);
+  const evento = estado.listaEventos.find(e => e.id === id);
+  if (!evento) fallo('Evento no disponible.', 404);
+  const actividades = new Set(evento.fechas.map(f => f.id));
+  res.set('Cache-Control', 'no-store').json({ datos: {
+    evento,
+    arreglos: estado.listaArreglos.filter(a => actividades.has(a.idFechaEvento)),
+    reservaciones: estado.listaReservaciones.filter(r => r.idEvento === id),
+  } });
+}));
 routerEstado.get(
   "/",
   ruta(async (req, res) =>

@@ -118,6 +118,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   }
 
   const accesoPrivado = evento.visibilidad !== 'privado' ||
+    (apiActiva && evento.accesoPorEnlace === true) ||
     Boolean(evento.claveAccesoPrivada && accessKey === evento.claveAccesoPrivada) ||
     usuarioActual?.id === evento.idOrganizador || usuarioActual?.roles.includes('subdireccion');
   if (!accesoPrivado) {
@@ -279,7 +280,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     if (resultado.exito) {
       const msg = obtenerMensaje('OK-MT-01', { día: nombreActividad(fecha) });
       mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
-      navigate(rutaDetalle);
+      navigate(evento.visibilidad === 'privado' ? '/mis-reservaciones' : rutaDetalle);
     } else {
       liberarApartadoAsiento(reservacionActiva.id);
       setAsientoSeleccionado(null);
@@ -340,7 +341,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       if (confirmacion.exito) {
         const msg = obtenerMensaje('OK-MT-01', { día: nombreActividad(fecha) });
         mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
-        navigate(rutaDetalle);
+        navigate(evento.visibilidad === 'privado' ? '/mis-reservaciones' : rutaDetalle);
       } else setErrorColision(confirmacion.error || 'No se pudo confirmar tu apartado.');
       return;
     }
@@ -362,7 +363,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       if (confirmacion.exito) {
         const msg = obtenerMensaje('OK-MT-01', { día: nombreActividad(fecha) });
         mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
-        navigate(rutaDetalle);
+        navigate(evento.visibilidad === 'privado' ? '/mis-reservaciones' : rutaDetalle);
       } else {
         setErrorColision(confirmacion.error || 'Error al generar el boleto.');
       }

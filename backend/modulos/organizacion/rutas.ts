@@ -19,6 +19,19 @@ const esRevision = (u: any) =>
   u.roles.includes("subdireccion") || u.roles.includes("admin");
 const error = (res: any, codigo: string, mensaje: string, estado = 422) =>
   res.status(estado).json({ error: { codigo, mensaje } });
+routerOrganizacion.get('/eventos/:id/enlace-privado', ruta(async (req, res) => {
+  const id = idEntero(req.params.id), u = res.locals.usuario;
+  const r = await pool.query(`SELECT e.token_enlace_privado FROM ticket_trade."Evento" e JOIN ticket_trade."EstadoEvento" ee USING(id_estado_evento) JOIN ticket_trade."VisibilidadEvento" v USING(id_visibilidad_evento) WHERE e.id_evento=$1 AND ee.nombre='Publicado' AND v.nombre='Privado' AND (e.id_cuenta_organizadora::text=$2 OR $3::boolean)`, [id, u.id, u.roles.includes('subdireccion')]);
+  if (!r.rowCount || typeof r.rows[0].token_enlace_privado !== 'string' || !r.rows[0].token_enlace_privado) fallo('Enlace no disponible.', 404);
+  res.set('Cache-Control', 'no-store').json({ datos: { token: r.rows[0].token_enlace_privado } });
+}));
+routerOrganizacion.post('/eventos/:id/enlace-privado/renovacion', ruta(async (req, res) => {
+  const id = idEntero(req.params.id), u = res.locals.usuario;
+  const token = crypto.randomBytes(24).toString('hex');
+  const r = await pool.query(`UPDATE ticket_trade."Evento" e SET token_enlace_privado=$4 FROM ticket_trade."EstadoEvento" ee, ticket_trade."VisibilidadEvento" v WHERE e.id_evento=$1 AND e.id_estado_evento=ee.id_estado_evento AND e.id_visibilidad_evento=v.id_visibilidad_evento AND ee.nombre='Publicado' AND v.nombre='Privado' AND (e.id_cuenta_organizadora::text=$2 OR $3::boolean) RETURNING e.id_evento`, [id, u.id, u.roles.includes('subdireccion'), token]);
+  if (!r.rowCount) fallo('Enlace no disponible.', 404);
+  res.set('Cache-Control', 'no-store').json({ datos: { token } });
+}));
 routerOrganizacion.get("/disponibilidad/agenda", ruta(async (req, res) => {
   const fecha = typeof req.query.fecha === "string" ? req.query.fecha : "";
   const idRecinto = req.query.idRecinto === undefined ? undefined : idEntero(req.query.idRecinto);

@@ -48,7 +48,7 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
   useEffect(()=>{if(primerFiltro.current){primerFiltro.current=false;return;}setCantidadVisible(6);},[periodo,terminoBusqueda,categoriaSeleccionada,modalidadSeleccionada]);
   useEffect(()=>{try{sessionStorage.setItem('tt_cartelera_filtros',JSON.stringify({busqueda:terminoBusqueda,categoria:categoriaSeleccionada,modalidad:modalidadSeleccionada,periodo,cantidad:cantidadVisible}));}catch{}},[terminoBusqueda,categoriaSeleccionada,modalidadSeleccionada,periodo,cantidadVisible]);
 
-  const categorias: ("todos" | CategoriaEvento)[] = ['todos',...CATEGORIAS_EVENTO,...new Set(listaEventos.map(e=>e.categoria).filter(c=>!CATEGORIAS_EVENTO.some(n=>n===c)))];
+  const categorias: ("todos" | CategoriaEvento)[] = ['todos',...CATEGORIAS_EVENTO,...new Set(listaEventos.filter(e=>e.visibilidad!=='privado').map(e=>e.categoria).filter(c=>!CATEGORIAS_EVENTO.some(n=>n===c)))];
 
   // Filtrado de eventos visibles (públicos e internos si es de la comunidad, excluyendo privados sin enlace directo)
   const eventosFiltrados = useMemo(() => {

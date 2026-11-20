@@ -295,6 +295,7 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
                         </span>
                         <InsigniaEstado estado={evento.estado} />
                         <InsigniaEstado estado={evento.modalidadAsistencia} />
+                        {evento.visibilidad === "privado" && <span className="rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-800">Privado</span>}
                       </div>
                       <p className="text-sm text-neutral-500 line-clamp-1">
                         {evento.descripcion}
@@ -484,6 +485,7 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
                         {sol.tituloEvento}
                       </span>
                       <InsigniaEstado estado={sol.estado} />
+                      {sol.visibilidad === "privado" && <span className="rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-800">Privado</span>}
                       {sol.esExcepcional && (
                         <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-sm font-bold">
                           Excepcional

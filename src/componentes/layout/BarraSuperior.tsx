@@ -1,3 +1,4 @@
+import { afiliacionLegible } from "../../utilidades/afiliacion";
 import { verificacionIdentidadVigente } from '../../dominio/identidad';
 import { modoDemostracionActivo } from "../../dominio/demostracion";
 import React, { useEffect, useRef, useState } from "react";
@@ -171,7 +172,7 @@ export const BarraSuperior: React.FC<{
                     </span>
                     {verificacionIdentidadVigente(usuarioActual)&&<span className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-sky-700" title="Identidad verificada vigente"><BadgeCheck size={15} aria-hidden="true"/>Verificado</span>}
                     <span className="block text-xs text-neutral-500">
-                      {usuarioActual.roles.includes("admin") ? "Administración" : usuarioActual.roles.includes("subdireccion") ? "Subdirección" : {alumno:"Estudiante",profesor:"Docente",administrativo:"Administrativo",pae:"Personal de apoyo",externo:"Externo"}[usuarioActual.afiliacion]}
+                      {usuarioActual.roles.includes("admin") ? "Administración" : usuarioActual.roles.includes("subdireccion") ? "Subdirección" : afiliacionLegible(usuarioActual.afiliacion)}
                     </span>
                   </span>
                   <ChevronDown size={15} className="shrink-0" />
@@ -250,7 +251,7 @@ export const BarraSuperior: React.FC<{
                               {usuario.nombre}
                               {verificacionIdentidadVigente(usuario) && <span className="flex items-center gap-1 text-xs font-semibold text-sky-700"><BadgeCheck size={14} aria-hidden="true" />Verificado</span>}
                               <span className="block text-xs text-neutral-500">
-                                {{alumno:"Estudiante",profesor:"Docente",administrativo:"Administrativo",pae:"Personal de apoyo",externo:"Externo"}[usuario.afiliacion]}
+                                {afiliacionLegible(usuario.afiliacion)}
                               </span>
                             </button>
                           ))}

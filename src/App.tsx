@@ -88,6 +88,7 @@ function ContenidoApp() {
     else window.history.pushState(estado, '', rutaConParametros);
     setRutaActual(url.pathname);
     setParametrosBusqueda(url.search);
+    window.dispatchEvent(new Event('tt:navegacion'));
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
