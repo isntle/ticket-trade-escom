@@ -5,7 +5,7 @@ export const recintosBloqueados = (b: PropuestaBloqueo, recintos: Recinto[]) => 
 export function afectaBloqueo(b: PropuestaBloqueo, d: Evento['fechas'][number]): boolean {
   if(b.estado==='cancelado' || !(b.idRecinto==='todos'||b.idRecinto===d.idRecinto||b.idsRecintos?.includes(d.idRecinto))) return false;
   const inicio=inicioEnMexico(b.fechaInicio,b.horaInicio);
-  const fin=b.esIndefinido?Infinity:inicioEnMexico(b.fechaFin||b.fechaInicio,b.horaFin||'23:59');
+  const fin=b.requiereCierre&&!b.finalizadoEn||b.esIndefinido?Infinity:b.finalizadoEn?Date.parse(b.finalizadoEn):inicioEnMexico(b.fechaFin||b.fechaInicio,b.horaFin||'23:59');
   return inicio < inicioEnMexico(d.fecha,d.horaFin) && fin > inicioEnMexico(d.fecha,d.horaInicio);
 }
 export function revisarBloqueo(b:PropuestaBloqueo, eventos:Evento[], recintos:Recinto[], ocupaciones:OcupacionInterna[], bloqueos:BloqueoRecinto[], escaneos:RegistroEscaneo[], id?:string, ahora=Date.now()) {

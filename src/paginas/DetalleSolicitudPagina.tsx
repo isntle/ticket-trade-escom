@@ -15,7 +15,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useDatos } from "../contextos/DatosContexto";
-import { useCargarAgendasRecintos } from '../contextos/useDisponibilidadRecintos';
+import { RevisionDisponibilidadSolicitud } from '../componentes/recintos/RevisionDisponibilidadSolicitud';
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { useNotificaciones } from "../contextos/NotificacionesContexto";
 import { InsigniaEstado } from "../componentes/ui/InsigniaEstado";
@@ -82,21 +82,18 @@ export const DetalleSolicitudPagina: React.FC<{
     atenderSolicitudExtraordinaria,
     devolverSolicitud,
     cancelarSolicitud,
-    verificarDisponibilidadRecinto,
+    agendaRemota,
   } = useDatos();
   const { usuarioActual, rolActivo, todosLosUsuarios } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
   const [accion, setAccion] = useState<Accion | null>(null);
   const [motivo, setMotivo] = useState("");
   const [error, setError] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [actualizarDisponibilidad, setActualizarDisponibilidad] = useState(0);
   const [versionConsultada, setVersionConsultada] = useState(1);
   const solicitud = listaSolicitudes.find((s) => s.id === requestId);
   const evento = listaEventos.find((e) => e.idSolicitud === solicitud?.id);
-  const consultasAgenda = (solicitud?.fechasSolicitadas || []).flatMap(d => {
-    const idActividadExcluir = evento?.fechas.find(f => f.id === d.id)?.id;
-    return [{fecha:d.fecha}, {fecha:d.fecha, ...(idActividadExcluir?{idActividadExcluir}:{})}];
-  });
-  const agendaRemota = useCargarAgendasRecintos(consultasAgenda);
   useEffect(() => {
     if (interfazSolicitada() === "UI.05" && solicitud && solicitud.idSolicitante === usuarioActual?.id && ["borrador","en_revision","requiere_correccion"].includes(solicitud.estado)) {
       setVersionConsultada(versionSolicitud(solicitud));
@@ -139,50 +136,61 @@ export const DetalleSolicitudPagina: React.FC<{
   const correo = solicitud.correoContacto || solicitud.correoSolicitante;
   const nombreRecinto = (id: string) =>
     listaRecintos.find((r) => r.id === id)?.nombre || "Recinto no disponible";
-  const abrir = (tipo: Accion) => {
+  const abrir = (tipo: Accion, observaciones = '') => {
     setAccion(tipo);
-    setMotivo("");
+    setMotivo(observaciones);
     setError("");
     setVersionConsultada(version);
   };
   const ejecutar = async () => {
-    const resultado =
-      accion === "cancelar"
-        ? (await cancelarSolicitud(solicitud.id, versionConsultada))
-        : accion === "devolver"
-          ? (await devolverSolicitud(
-              solicitud.id,
-              motivo,
-              usuarioActual?.nombre,
-              versionConsultada,
-            ))
-          : accion === "rechazar"
-            ? (await dictaminarSolicitud(
+    if (guardando) return;
+    setGuardando(true);
+    setError('');
+    try {
+      const resultado =
+        accion === "cancelar"
+          ? (await cancelarSolicitud(solicitud.id, versionConsultada))
+          : accion === "devolver"
+            ? (await devolverSolicitud(
                 solicitud.id,
-                "rechazada",
                 motivo,
                 usuarioActual?.nombre,
                 versionConsultada,
               ))
-            : solicitud.esExcepcional
-              ? (await atenderSolicitudExtraordinaria(solicitud.id, versionConsultada))
-              : (await dictaminarSolicitud(
+            : accion === "rechazar"
+              ? (await dictaminarSolicitud(
                   solicitud.id,
-                  "autorizada",
-                  undefined,
+                  "rechazada",
+                  motivo,
                   usuarioActual?.nombre,
                   versionConsultada,
-                ));
-    if (!resultado.exito) {
-      setError(resultado.error || "No se pudo completar la operación.");
-      return;
+                ))
+              : solicitud.esExcepcional
+                ? (await atenderSolicitudExtraordinaria(solicitud.id, versionConsultada))
+                : (await dictaminarSolicitud(
+                    solicitud.id,
+                    "autorizada",
+                    undefined,
+                    usuarioActual?.nombre,
+                    versionConsultada,
+                  ));
+      if (!resultado.exito) {
+        setError(resultado.error || "No se pudo completar la operación.");
+        if (accion === 'autorizar') setActualizarDisponibilidad(n => n + 1);
+        return;
+      }
+      mostrarNotificacion(
+        "Solicitud actualizada",
+        "La operación y la versión revisada quedaron registradas.",
+        "exito",
+      );
+      setAccion(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo completar la operación. Consulta el estado antes de reintentar.');
+      if (accion === 'autorizar') setActualizarDisponibilidad(n => n + 1);
+    } finally {
+      setGuardando(false);
     }
-    mostrarNotificacion(
-      "Solicitud actualizada",
-      "La operación y la versión revisada quedaron registradas.",
-      "exito",
-    );
-    setAccion(null);
   };
   const mostrarValor = (campo: string, valor: unknown): string => {
     if (valor === null || valor === undefined || valor === "")
@@ -225,16 +233,9 @@ export const DetalleSolicitudPagina: React.FC<{
         .join("\n");
     return typeof valor === "boolean" ? (valor ? "Sí" : "No") : String(valor);
   };
-  const itinerario = (comprobar: boolean) => (
+  const itinerario = () => (
     <ol className="mt-4 space-y-5">
       {solicitud.fechasSolicitadas.map((d, i) => {
-        const disp = verificarDisponibilidadRecinto(
-          d.idRecinto,
-          d.fecha,
-          d.horaInicio,
-          d.horaFin,
-          evento?.fechas.find(f => f.id === d.id)?.id,
-        );
         return (
           <li key={d.id} className="border-l-2 border-[#7a132b]/25 pl-4">
             <h3 className="font-bold">
@@ -257,18 +258,6 @@ export const DetalleSolicitudPagina: React.FC<{
                 {d.actividadOPrograma}
               </p>
             )}
-            {comprobar && solicitud.estado === "en_revision" && (
-              <p
-                className={
-                  "mt-2 text-sm " +
-                  (disp.estadoConsulta && disp.estadoConsulta !== 'listo' ? 'text-neutral-600' : disp.disponible ? "text-emerald-700" : "text-rose-700")
-                }
-              >
-                {disp.estadoConsulta && disp.estadoConsulta !== 'listo' ? disp.motivo : disp.tipoConflicto === 'clase' ? disp.motivo : disp.disponible
-                  ? "Recinto disponible en el horario solicitado"
-                  : disp.motivo}
-              </p>
-            )}
           </li>
         );
       })}
@@ -282,11 +271,6 @@ export const DetalleSolicitudPagina: React.FC<{
         className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-neutral-600"
       >
         <ArrowLeft size={17} /><span>Regresar</span></button>
-      {solicitud.fechasSolicitadas.map((f, indice) => {
-        const disponibilidad = verificarDisponibilidadRecinto(f.idRecinto, f.fecha, f.horaInicio, f.horaFin);
-        return disponibilidad.tipoConflicto === 'clase' || disponibilidad.advertencias?.length ? <div key={indice} role="note" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950"><strong>Coincidencia con horario de clase · {f.fecha}</strong><p>El horario académico es informativo. Subdirección debe revisar la coincidencia; no se elimina ni modifica la clase.</p></div> : null;
-      })}
-      {agendaRemota && <button type="button" onClick={()=>consultasAgenda.forEach(q=>{void agendaRemota.cargar(q,true);})} className="mb-4 rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold">Actualizar disponibilidad de las actividades</button>}
       <header className="mb-7 flex flex-wrap justify-between gap-4">
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap gap-2 items-center">
@@ -384,7 +368,7 @@ export const DetalleSolicitudPagina: React.FC<{
             <p className="mt-1 text-sm text-neutral-500">
               Horarios de Ciudad de México.
             </p>
-            {itinerario(true)}
+            {itinerario()}
             <VistaItinerarios itinerarios={solicitud.itinerarios} />
             {pendientes.length > 0 && (
               <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
@@ -595,9 +579,14 @@ export const DetalleSolicitudPagina: React.FC<{
               <p className="mt-3 whitespace-pre-line text-sm leading-6 text-neutral-600">
                 {solicitud.descripcionEvento}
               </p>
-              {itinerario(false)}
+              {itinerario()}
             </div>
           </section>
+          {['en_revision','requiere_correccion','autorizada'].includes(solicitud.estado) && <RevisionDisponibilidadSolicitud
+            idSolicitud={solicitud.id} version={version} remota={Boolean(agendaRemota)}
+            puedeCorregir={Boolean(esRevisor && solicitud.estado === 'en_revision')}
+            actualizar={actualizarDisponibilidad} alPedirCorreccion={motivo => abrir('devolver', motivo)}
+          />}
           <section className={seccion}>
             <h2 className="text-lg font-bold">Revisión de la solicitud</h2>
             {solicitud.observacionesCorreccion && (
@@ -693,7 +682,7 @@ export const DetalleSolicitudPagina: React.FC<{
       {accion && (
         <VentanaModal
           estaAbierto
-          alCerrar={() => setAccion(null)}
+          alCerrar={() => { if (!guardando) setAccion(null); }}
           titulo={
             accion === "autorizar"
               ? solicitud.esExcepcional
@@ -755,19 +744,20 @@ export const DetalleSolicitudPagina: React.FC<{
                 {textoParaUsuario(error)}
               </p>
             )}
+            {error && accion === 'autorizar' && <button type="button" className={boton} onClick={() => setAccion(null)}>Revisar disponibilidad y alternativas</button>}
             <div className="flex flex-wrap justify-end gap-3">
-              <button className={boton} onClick={() => setAccion(null)}>
+              <button className={boton} disabled={guardando} onClick={() => setAccion(null)}>
                 Volver al detalle
               </button>
               <button
                 className={primario}
                 onClick={ejecutar}
                 disabled={
-                  (accion === "rechazar" || accion === "devolver") &&
-                  !motivo.trim()
+                  guardando || ((accion === "rechazar" || accion === "devolver") &&
+                  !motivo.trim())
                 }
               >
-                {accion === "autorizar"
+                {guardando ? 'Guardando decisión…' : accion === "autorizar"
                   ? solicitud.esExcepcional
                     ? "Crear evento vinculado"
                     : "Autorizar solicitud"

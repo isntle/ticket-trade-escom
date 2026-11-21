@@ -60,22 +60,24 @@ import { duracionProgramada, validarLimitesEvento, puedeModificarEvento } from '
 import { afectaBloqueo, revisarBloqueo, type PropuestaBloqueo } from '../dominio/bloqueos.js';
 import { CLAVE_CALENDARIO, validarCalendario, vencimientoRevision, motivoVencimiento, pausarRevision, reanudarRevision, type CalendarioRevision } from '../dominio/calendarioRevision.js';
 import { validarDistribuciones, arregloDesdeSolicitud, lugaresDelRecinto } from '../dominio/distribucionSolicitud.js';
+export interface RevisionBloqueo { afectados?: ReturnType<typeof revisarBloqueo>['afectados']; firma?: string; error?: string; advertencias?: string[] }
+export interface ResultadoBloqueo { exito: boolean; error?: string; advertencia?: string; id?: string; version?: number }
 export interface ContextoDatosTipo {
   agendaRemota?: import('../servicios/almacenDisponibilidad.js').AlmacenDisponibilidad;
   prepararEventoDemostracion: () => {exito:boolean;error?:string;evento?:Evento};
   prepararSolicitudDemostracion: (estado:'borrador'|'en_revision'|'requiere_correccion', extraordinaria?:boolean) => {exito:boolean;error?:string;id?:string};
   prepararSuspensionDemostracion: () => {exito:boolean;error?:string;id?:string};
   calendarioRevision: CalendarioRevision | null;
-  guardarCalendarioRevision: (datos: CalendarioRevision) => {exito:boolean;error?:string};
+  guardarCalendarioRevision: (datos: CalendarioRevision) => {exito:boolean;error?:string;advertencia?:string} | Promise<{exito:boolean;error?:string;advertencia?:string}>;
   listaEventos: Evento[];
   listaSolicitudes: SolicitudEvento[];
   listaRecintos: Recinto[];
   listaOcupacionesInternas: OcupacionInterna[];
   listaArreglos: ArregloAsientos[];
   listaBloqueos: BloqueoRecinto[];
-  revisarBloqueoInstitucional: (datos: PropuestaBloqueo, id?:string) => {afectados?: ReturnType<typeof revisarBloqueo>['afectados']; firma?:string; error?:string};
-  guardarBloqueoInstitucional: (datos:PropuestaBloqueo,id?:string,version?:number,firma?:string) => {exito:boolean;error?:string;id?:string;version?:number};
-  cancelarBloqueoInstitucional: (id:string,motivo:string,version?:number) => {exito:boolean;error?:string};
+  revisarBloqueoInstitucional: (datos: PropuestaBloqueo, id?:string) => RevisionBloqueo | Promise<RevisionBloqueo>;
+  guardarBloqueoInstitucional: (datos:PropuestaBloqueo,id?:string,version?:number,firma?:string) => ResultadoBloqueo | Promise<ResultadoBloqueo>;
+  cancelarBloqueoInstitucional: (id:string,motivo:string,version?:number) => ResultadoBloqueo | Promise<ResultadoBloqueo>;
   listaReservaciones: Reservacion[];
   listaBoletos: BoletoDigital[];
   listaEspera: EntradaListaEspera[];
@@ -2369,13 +2371,15 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
     const leer=<T,>(clave:string,actual:T):T=>JSON.parse(localStorage.getItem(`${prefijoLocal()}_${clave}`) || 'null') || actual;
     return {eventos:leer('eventos',listaEventos),bloqueos:leer('bloqueos',listaBloqueos),ocupaciones:leer('ocupaciones_internas',listaOcupacionesInternas),escaneos:leer('escaneos',bitacoraEscaneos),reservas:leer('reservaciones',listaReservaciones),espera:leer('espera',listaEspera)};
   };
-  const revisarBloqueoInstitucional:ContextoDatosTipo['revisarBloqueoInstitucional']=(datos,id)=>{
-    if(!usuarioActual?.roles.includes('admin')) return {error:'Solo Administración gestiona bloqueos.'};
+  const revisarBloqueoInstitucional = (datos: PropuestaBloqueo, id?: string): RevisionBloqueo => {
+    const rol = datos.tipo === 'Institucional' ? 'subdireccion' : 'admin';
+    if(!usuarioActual?.roles.includes(rol)) return {error: datos.tipo === 'Institucional' ? 'Los bloqueos institucionales corresponden a Subdirección.' : 'El mantenimiento y fuera de servicio corresponden a Administración.'};
     try {const a=leerEstadoBloqueos();const revision=revisarBloqueo(datos,a.eventos,listaRecintos,a.ocupaciones,a.bloqueos,a.escaneos,id);
+      if(datos.tipo==='Mantenimiento' && revision.afectados.length) return {error:'El mantenimiento no puede desplazar actividades autorizadas.'};
       return {...revision,firma:JSON.stringify([revision.firma,a.reservas,a.espera])};
     } catch(e){return {error:e instanceof Error?e.message:'No se pudieron consultar las afectaciones.'};}
   };
-  const guardarBloqueoInstitucional:ContextoDatosTipo['guardarBloqueoInstitucional']=(datos,id,version,firma)=>{
+  const guardarBloqueoInstitucional = (datos: PropuestaBloqueo, id?: string, version?: number, firma?: string): ResultadoBloqueo => {
     const revision=revisarBloqueoInstitucional(datos,id);
     if(revision.error)return {exito:false,error:revision.error};
     if(!firma||firma!==revision.firma)return {exito:false,error:'ERR-TR-08 · Las afectaciones cambiaron. Revisa el resumen actualizado.'};
@@ -2395,8 +2399,10 @@ export const ProveedorDatos: React.FC<{ children: React.ReactNode }> = ({ childr
       return {exito:true,id:identificador,version:nuevo.version};
     } catch {return {exito:false,error:'No se guardó el bloqueo. Conserva el formulario e inténtalo de nuevo.'};}
   };
-  const cancelarBloqueoInstitucional:ContextoDatosTipo['cancelarBloqueoInstitucional']=(id,motivo,version)=>{
-    if(!usuarioActual?.roles.includes('admin')||!motivo.trim()) return {exito:false,error:'Se requiere Administración y un motivo de cancelación.'};
+  const cancelarBloqueoInstitucional = (id: string, motivo: string, version?: number): ResultadoBloqueo => {
+    const original = leerEstadoBloqueos().bloqueos.find(b=>b.id===id);
+    const rol = original?.tipo === 'Institucional' ? 'subdireccion' : 'admin';
+    if(!usuarioActual?.roles.includes(rol)||!motivo.trim()) return {exito:false,error:'Se requiere el rol autorizado y un motivo de cancelación.'};
     try {const actuales=leerEstadoBloqueos();const b=actuales.bloqueos.find(b=>b.id===id);
       if(!b||b.estado==='cancelado'||(b.version||1)!==version||(!b.esIndefinido&&inicioEnMexico(b.fechaFin||b.fechaInicio,b.horaFin||'23:59')<=Date.now())) return {exito:false,error:'El bloqueo cambió, ya terminó o está cancelado.'};
       const nuevos=actuales.bloqueos.map(item=>item.id===id?{...item,estado:'cancelado' as const,motivoCancelacion:motivo.trim(),version:(item.version||1)+1,historial:[...(item.historial||[]),{fecha:new Date().toISOString(),responsable:usuarioActual.nombre,accion:'Cancelación',motivo:motivo.trim()}]}:item);

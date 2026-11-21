@@ -82,14 +82,14 @@ function contexto(id='usr-fernando',eventos=[evento],reservas?:unknown[],cuentas
   renderToString(React.createElement(ProveedorAutenticacion,null,React.createElement(ProveedorDatos,null,React.createElement(Capturar))));
   return {local,prefijo,datos:datos!,leer:(clave:string)=>JSON.parse(local.getItem(prefijo+clave)||'null')};
 }
-test('registro, revisión de versión y cancelación de bloqueo conservan suspensión sin destruir historial',()=>{
+test('registro, revisión de versión y cancelación de bloqueo conservan suspensión sin destruir historial',async()=>{
   const c=contexto();
-  const r=c.datos.revisarBloqueoInstitucional(propuesta);assert.equal(r.error,undefined);
-  assert.equal(c.datos.guardarBloqueoInstitucional(propuesta,undefined,undefined,'firma-incorrecta').exito,false);
-  const guardado=c.datos.guardarBloqueoInstitucional(propuesta,undefined,undefined,r.firma);assert.equal(guardado.exito,true,guardado.error);
+  const r=await c.datos.revisarBloqueoInstitucional(propuesta);assert.equal(r.error,undefined);
+  assert.equal((await c.datos.guardarBloqueoInstitucional(propuesta,undefined,undefined,'firma-incorrecta')).exito,false);
+  const guardado=await c.datos.guardarBloqueoInstitucional(propuesta,undefined,undefined,r.firma);assert.equal(guardado.exito,true,guardado.error);
   assert.equal(c.leer('eventos')[0].fechas[0].suspendida,true);
-  assert.equal(c.datos.cancelarBloqueoInstitucional(guardado.id!,'',guardado.version).exito,false);
-  assert.equal(c.datos.cancelarBloqueoInstitucional(guardado.id!,'Finalizó mantenimiento',guardado.version).exito,true);
+  assert.equal((await c.datos.cancelarBloqueoInstitucional(guardado.id!,'',guardado.version)).exito,false);
+  assert.equal((await c.datos.cancelarBloqueoInstitucional(guardado.id!,'Finalizó mantenimiento',guardado.version)).exito,true);
   assert.equal(c.leer('bloqueos')[0].estado,'cancelado');assert.equal(c.leer('bloqueos')[0].historial.length,2);
   assert.equal(c.leer('eventos')[0].fechas[0].suspendida,true);
 });
@@ -117,10 +117,10 @@ test('formulario por pasos conserva el acceso directo a programa y distribución
   assert.match(html,/Ir al paso 4: Acceso y detalles/);
   assert.match(html,/Tipo de acceso/);
 });
-test('solicitante sin permiso administrativo no registra bloqueos ni configura calendario',()=>{
+test('solicitante sin permiso administrativo no registra bloqueos ni configura calendario',async()=>{
   const c=contexto('usr-silva');
-  assert.ok(c.datos.revisarBloqueoInstitucional(propuesta).error);
-  assert.equal(c.datos.guardarCalendarioRevision(calendario).exito,false);
+  assert.ok((await c.datos.revisarBloqueoInstitucional(propuesta)).error);
+  assert.equal((await c.datos.guardarCalendarioRevision(calendario)).exito,false);
 });
 test('aprobar publica conjuntamente el evento y la distribución capturada, sin perder el cartel',()=>{
   const c=contexto('usr-subdireccion');

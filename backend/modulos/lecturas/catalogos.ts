@@ -100,7 +100,9 @@ export async function leerEventos(usuario: any = null, eventoEnlace?: string) {
         a.id_recinto::text AS "idRecinto",
         a.aforo_solicitado AS "aforoMaximo",
         ta.nombre AS "tipoAcceso",
-        ea.nombre AS "estadoActividad"
+        ea.nombre AS "estadoActividad",
+        (SELECT af.id_bloqueo_recinto::text FROM ticket_trade."AfectacionActividad" af
+          WHERE af.id_actividad=a.id_actividad AND af.resuelta_en IS NULL ORDER BY af.id_bloqueo_recinto DESC LIMIT 1) AS "idBloqueoSuspension"
       FROM ticket_trade."Actividad" a
       JOIN ticket_trade."TipoAcceso" ta ON ta.id_tipo_acceso = a.id_tipo_acceso
       JOIN ticket_trade."EstadoActividad" ea ON ea.id_estado_actividad = a.id_estado_actividad
@@ -161,6 +163,7 @@ export async function leerEventos(usuario: any = null, eventoEnlace?: string) {
       asistenciaEstimada: act.aforoMaximo,
       esFinalConfirmado: false,
       suspendida: act.estadoActividad === "Suspendida",
+      idBloqueoSuspension: act.idBloqueoSuspension || undefined,
       cancelada: act.estadoActividad === "Cancelada",
       ponentes: [],
       estadoInscripciones: "abiertas",

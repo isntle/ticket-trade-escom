@@ -170,6 +170,9 @@ export const AdministracionUsuariosPagina: React.FC<
         >
           Administrar recintos y calendario de revisión
         </button>
+        <button className="rounded-xl border p-3" onClick={() => navigate('/subdireccion?tab=bloqueos')}>
+          Bloqueos y mantenimiento de recintos
+        </button>
         <button
           className="rounded-xl border p-3"
           onClick={() => navigate("/admin/expedientes")}

@@ -1,6 +1,9 @@
 import { identidadHabilitadaParaOrganizar } from "../../../src/dominio/facultadOrganizar.js";
 import { routerDistribucion } from "./distribucion.js";
 import {routerEventos} from "./eventos.js";
+import { routerConfiguracionRecintos } from './configuracion.js';
+import { prepararConfiguracion, conservarPlazos } from './calendario.js';
+import { revisarSolicitudServidor } from './revisionSolicitud.js';
 import { encolarAviso } from "../correos/avisos.js";
 import { comprobarArchivo } from "../archivos/rutas.js";
 import crypto from "node:crypto";
@@ -17,6 +20,7 @@ routerOrganizacion.use((req, res, next) =>
 );
 routerOrganizacion.use(routerDistribucion);
 routerOrganizacion.use(routerEventos);
+routerOrganizacion.use(routerConfiguracionRecintos);
 const esRevision = (u: any) =>
   u.roles.includes("subdireccion") || u.roles.includes("admin");
 const error = (res: any, codigo: string, mensaje: string, estado = 422) =>
@@ -55,6 +59,14 @@ routerOrganizacion.post("/disponibilidad/revision", ruta(async (req, res) => {
     return revisarDisponibilidadServidor(c, res.locals.usuario, actividades, contexto);
   });
   res.set("Cache-Control", "no-store").json({ datos });
+}));
+routerOrganizacion.get('/solicitudes/:id/disponibilidad', ruta(async (req, res) => {
+  const id = idEntero(req.params.id);
+  const datos = await conTransaccion(async c => {
+    await prepararConfiguracion(c);
+    return revisarSolicitudServidor(c, res.locals.usuario, id);
+  });
+  res.set('Cache-Control', 'no-store').json({ datos });
 }));
 routerOrganizacion.get("/solicitudes", async (_req, res, next) => {
   try {
@@ -226,6 +238,10 @@ routerOrganizacion.post("/solicitudes", async (req, res, next) => {
         ],
       );
       const idRespaldo = b.idArchivoDocumento || b.idArchivoRespaldo;
+      if (enviar) {
+        await prepararConfiguracion(c);
+        await conservarPlazos(c);
+      }
       if (idRespaldo) {
         await comprobarArchivo(c, idRespaldo, u.id, [
           "application/pdf",
@@ -536,7 +552,8 @@ routerOrganizacion.patch(
         `UPDATE ticket_trade."SolicitudEvento" SET version_edicion=version_edicion+1,motivo=$2,
    id_tipo_anticipacion=(SELECT id_tipo_anticipacion FROM ticket_trade."TipoAnticipacion" WHERE nombre=$3),
    id_estado_solicitud_evento=CASE WHEN $4 THEN (SELECT id_estado_solicitud_evento FROM ticket_trade."EstadoSolicitudEvento" WHERE nombre='En revisión') ELSE id_estado_solicitud_evento END,
-   envio_inicial=CASE WHEN $4 THEN coalesce(envio_inicial,CURRENT_TIMESTAMP) ELSE envio_inicial END,inicio_revision=CASE WHEN $4 THEN CURRENT_TIMESTAMP ELSE inicio_revision END WHERE id_solicitud_evento=$1`,
+   envio_inicial=CASE WHEN $4 THEN coalesce(envio_inicial,CURRENT_TIMESTAMP) ELSE envio_inicial END,
+   inicio_revision=CASE WHEN $4 AND (inicio_revision IS NULL OR id_estado_solicitud_evento<>(SELECT id_estado_solicitud_evento FROM ticket_trade."EstadoSolicitudEvento" WHERE nombre='En revisión')) THEN CURRENT_TIMESTAMP ELSE inicio_revision END WHERE id_solicitud_evento=$1`,
         [
           id,
           b.justificacionExcepcional || null,
@@ -544,6 +561,10 @@ routerOrganizacion.patch(
           b.enviar === true,
         ],
       );
+      if (b.enviar) {
+        await prepararConfiguracion(c);
+        await conservarPlazos(c);
+      }
       if (b.enviar)
         await encolarAviso(
           c,

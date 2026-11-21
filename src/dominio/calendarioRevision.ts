@@ -1,7 +1,7 @@
 import type { SolicitudEvento } from '../tipos/index.js';
 import { fechaHoyMexico, inicioEnMexico } from './solicitudes.js';
 
-export interface CalendarioRevision { diasLaborables: number[]; diasInhabiles: string[]; responsable: string; fechaConfiguracion: string }
+export interface CalendarioRevision { diasLaborables: number[]; diasInhabiles: string[]; responsable: string; fechaConfiguracion: string; version?: number }
 export const CLAVE_CALENDARIO = 'tt_calendario_revision_v1';
 export function validarCalendario(calendario: CalendarioRevision): string | undefined {
   if (!calendario.diasLaborables.length || calendario.diasLaborables.some(d => !Number.isInteger(d) || d < 0 || d > 6)) return 'Selecciona al menos un día laborable válido.';
