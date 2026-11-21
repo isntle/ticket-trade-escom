@@ -1,8 +1,12 @@
 import { afiliacionLegible } from "../utilidades/afiliacion";
-import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
-import { aforoActividad, modalidadActividad, nombreActividad } from '../dominio/actividades';
-import { VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
-import { volverA } from '../dominio/navegacion';
+import { textoParaUsuario } from "../utilidades/textoParaUsuario.js";
+import {
+  aforoActividad,
+  modalidadActividad,
+  nombreActividad,
+} from "../dominio/actividades";
+import { VistaItinerarios } from "../componentes/eventos/EditorItinerarios";
+import { volverA } from "../dominio/navegacion";
 import React, { useState, useEffect } from "react";
 import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import { ProgramaDia } from "../componentes/eventos/EditorPrograma";
@@ -15,7 +19,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useDatos } from "../contextos/DatosContexto";
-import { RevisionDisponibilidadSolicitud } from '../componentes/recintos/RevisionDisponibilidadSolicitud';
+import { RevisionDisponibilidadSolicitud } from "../componentes/recintos/RevisionDisponibilidadSolicitud";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { useNotificaciones } from "../contextos/NotificacionesContexto";
 import { InsigniaEstado } from "../componentes/ui/InsigniaEstado";
@@ -34,6 +38,7 @@ const formatoFecha = (valor: string) =>
     dateStyle: "medium",
     timeStyle: "short",
   });
+
 const archivoSeguro = (url?: string) =>
   Boolean(
     url &&
@@ -41,6 +46,7 @@ const archivoSeguro = (url?: string) =>
       url,
     ),
   );
+
 const etiquetas: Record<string, string> = {
   categoria: "Categoría",
   itinerarios: "Itinerarios por fecha",
@@ -62,11 +68,13 @@ const etiquetas: Record<string, string> = {
   observacionesCorreccion: "Correcciones solicitadas",
   motivoRechazo: "Motivo del rechazo",
 };
+
 const seccion = "rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6";
 const boton =
   "rounded-xl border px-4 py-2.5 text-sm font-semibold hover:bg-neutral-50";
 const primario =
   "rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40";
+
 type Accion = "autorizar" | "rechazar" | "devolver" | "cancelar";
 
 export const DetalleSolicitudPagina: React.FC<{
@@ -92,21 +100,32 @@ export const DetalleSolicitudPagina: React.FC<{
   const [guardando, setGuardando] = useState(false);
   const [actualizarDisponibilidad, setActualizarDisponibilidad] = useState(0);
   const [versionConsultada, setVersionConsultada] = useState(1);
+
   const solicitud = listaSolicitudes.find((s) => s.id === requestId);
   const evento = listaEventos.find((e) => e.idSolicitud === solicitud?.id);
+
   useEffect(() => {
-    if (interfazSolicitada() === "UI.05" && solicitud && solicitud.idSolicitante === usuarioActual?.id && ["borrador","en_revision","requiere_correccion"].includes(solicitud.estado)) {
+    if (
+      interfazSolicitada() === "UI.05" &&
+      solicitud &&
+      solicitud.idSolicitante === usuarioActual?.id &&
+      ["borrador", "en_revision", "requiere_correccion"].includes(
+        solicitud.estado,
+      )
+    ) {
       setVersionConsultada(versionSolicitud(solicitud));
       setAccion("cancelar");
     }
-  }, [requestId,usuarioActual?.id]);
+  }, [requestId, usuarioActual?.id]);
+
   const regreso =
     usuarioActual?.roles.some(
       (rol) => rol === "subdireccion" || rol === "admin",
     ) && rolActivo !== "organizador"
       ? "/subdireccion"
       : "/organizador";
-  if (!solicitud || !puedeConsultarSolicitud(usuarioActual, solicitud))
+
+  if (!solicitud || !puedeConsultarSolicitud(usuarioActual, solicitud)) {
     return (
       <div className="max-w-4xl mx-auto p-8">
         <EstadoVacio
@@ -117,10 +136,12 @@ export const DetalleSolicitudPagina: React.FC<{
         />
       </div>
     );
+  }
+
   const titular = todosLosUsuarios.find(
     (u) => u.id === solicitud.idSolicitante,
   );
-  const imagenVistaPrevia = solicitud.urlImagen || evento?.urlImagen;
+  const imagenCartel = solicitud.urlImagen || evento?.urlImagen;
   const esTitular = usuarioActual?.id === solicitud.idSolicitante;
   const esRevisor =
     rolActivo === "subdireccion" &&
@@ -134,51 +155,61 @@ export const DetalleSolicitudPagina: React.FC<{
   const version = versionSolicitud(solicitud);
   const documento = solicitud.urlDocumento || titular?.urlDocumento;
   const correo = solicitud.correoContacto || solicitud.correoSolicitante;
+
   const nombreRecinto = (id: string) =>
     listaRecintos.find((r) => r.id === id)?.nombre || "Recinto no disponible";
-  const abrir = (tipo: Accion, observaciones = '') => {
+
+  const abrir = (tipo: Accion, observaciones = "") => {
     setAccion(tipo);
     setMotivo(observaciones);
     setError("");
     setVersionConsultada(version);
   };
+
   const ejecutar = async () => {
     if (guardando) return;
     setGuardando(true);
-    setError('');
+    setError("");
     try {
       const resultado =
         accion === "cancelar"
-          ? (await cancelarSolicitud(solicitud.id, versionConsultada))
+          ? await cancelarSolicitud(solicitud.id, versionConsultada)
           : accion === "devolver"
-            ? (await devolverSolicitud(
+            ? await devolverSolicitud(
                 solicitud.id,
                 motivo,
                 usuarioActual?.nombre,
                 versionConsultada,
-              ))
+              )
             : accion === "rechazar"
-              ? (await dictaminarSolicitud(
+              ? await dictaminarSolicitud(
                   solicitud.id,
                   "rechazada",
                   motivo,
                   usuarioActual?.nombre,
                   versionConsultada,
-                ))
+                )
               : solicitud.esExcepcional
-                ? (await atenderSolicitudExtraordinaria(solicitud.id, versionConsultada))
-                : (await dictaminarSolicitud(
+                ? await atenderSolicitudExtraordinaria(
+                    solicitud.id,
+                    versionConsultada,
+                  )
+                : await dictaminarSolicitud(
                     solicitud.id,
                     "autorizada",
                     undefined,
                     usuarioActual?.nombre,
                     versionConsultada,
-                  ));
+                  );
+
       if (!resultado.exito) {
         setError(resultado.error || "No se pudo completar la operación.");
-        if (accion === 'autorizar') setActualizarDisponibilidad(n => n + 1);
+        if (accion === "autorizar") {
+          setActualizarDisponibilidad((n) => n + 1);
+        }
         return;
       }
+
       mostrarNotificacion(
         "Solicitud actualizada",
         "La operación y la versión revisada quedaron registradas.",
@@ -186,18 +217,27 @@ export const DetalleSolicitudPagina: React.FC<{
       );
       setAccion(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo completar la operación. Consulta el estado antes de reintentar.');
-      if (accion === 'autorizar') setActualizarDisponibilidad(n => n + 1);
+      setError(
+        e instanceof Error
+          ? e.message
+          : "No se pudo completar la operación. Consulta el estado antes de reintentar.",
+      );
+      if (accion === "autorizar") {
+        setActualizarDisponibilidad((n) => n + 1);
+      }
     } finally {
       setGuardando(false);
     }
   };
+
   const mostrarValor = (campo: string, valor: unknown): string => {
-    if (valor === null || valor === undefined || valor === "")
+    if (valor === null || valor === undefined || valor === "") {
       return "Sin registrar";
-    if (campo === "urlDocumento" || campo === "urlImagen")
+    }
+    if (campo === "urlDocumento" || campo === "urlImagen") {
       return "Archivo adjunto";
-    if (campo === "fechasSolicitadas" && Array.isArray(valor))
+    }
+    if (campo === "fechasSolicitadas" && Array.isArray(valor)) {
       return valor
         .map((d) =>
           [
@@ -231,36 +271,46 @@ export const DetalleSolicitudPagina: React.FC<{
             .join(" · "),
         )
         .join("\n");
+    }
     return typeof valor === "boolean" ? (valor ? "Sí" : "No") : String(valor);
   };
-  const itinerario = () => (
+
+  const renderItinerario = () => (
     <ol className="mt-4 space-y-5">
-      {solicitud.fechasSolicitadas.map((d, i) => {
-        return (
-          <li key={d.id} className="border-l-2 border-[#7a132b]/25 pl-4">
-            <h3 className="font-bold">
-              {nombreActividad(d,i)} ·{" "}
-              {d.fecha || "Fecha por completar"}
-            </h3>
-            <p className="mt-2 flex items-center gap-2 text-sm">
-              <CalendarDays size={15} />
-              {d.horaInicio}–{d.horaFin} h
+      {solicitud.fechasSolicitadas.map((d, i) => (
+        <li key={d.id} className="border-l-2 border-[#7a132b]/25 pl-4">
+          <h3 className="font-bold">
+            {nombreActividad(d, i)} · {d.fecha || "Fecha por completar"}
+          </h3>
+          <p className="mt-2 flex items-center gap-2 text-sm">
+            <CalendarDays size={15} />
+            {d.horaInicio}–{d.horaFin} h
+          </p>
+          <p className="mt-1 flex items-center gap-2 text-sm text-neutral-600">
+            <MapPin size={15} />
+            {nombreRecinto(d.idRecinto)}
+          </p>
+          {d.descripcionActividad && (
+            <p className="mt-2 text-sm text-neutral-600">
+              {d.descripcionActividad}
             </p>
-            <p className="mt-1 flex items-center gap-2 text-sm text-neutral-600">
-              <MapPin size={15} />
-              {nombreRecinto(d.idRecinto)}
+          )}
+          <p className="mt-2 text-sm text-neutral-600">
+            {aforoActividad(d, solicitud.asistenciaEstimada)} personas ·{" "}
+            {modalidadActividad(d, solicitud.modalidadAsistencia) === "controlado"
+              ? "Con reservación"
+              : modalidadActividad(d, solicitud.modalidadAsistencia) === "registro"
+                ? "Registro de asistencia"
+                : "Entrada libre"}
+          </p>
+          <ProgramaDia programa={d.programa} />
+          {!d.programa?.length && d.actividadOPrograma && (
+            <p className="mt-2 whitespace-pre-line text-sm leading-6">
+              {d.actividadOPrograma}
             </p>
-            {d.descripcionActividad&&<p className="mt-2 text-sm text-neutral-600">{d.descripcionActividad}</p>}
-            <p className="mt-2 text-sm text-neutral-600">{aforoActividad(d,solicitud.asistenciaEstimada)} personas · {modalidadActividad(d,solicitud.modalidadAsistencia)==='controlado'?'Con reservación':modalidadActividad(d,solicitud.modalidadAsistencia)==='registro'?'Registro de asistencia':'Entrada libre'}</p>
-            <ProgramaDia programa={d.programa} />
-            {!d.programa?.length && d.actividadOPrograma && (
-              <p className="mt-2 whitespace-pre-line text-sm leading-6">
-                {d.actividadOPrograma}
-              </p>
-            )}
-          </li>
-        );
-      })}
+          )}
+        </li>
+      ))}
     </ol>
   );
 
@@ -270,7 +320,10 @@ export const DetalleSolicitudPagina: React.FC<{
         onClick={() => navigate(volverA(regreso))}
         className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-neutral-600"
       >
-        <ArrowLeft size={17} /><span>Regresar</span></button>
+        <ArrowLeft size={17} />
+        <span>Regresar</span>
+      </button>
+
       <header className="mb-7 flex flex-wrap justify-between gap-4">
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap gap-2 items-center">
@@ -296,15 +349,17 @@ export const DetalleSolicitudPagina: React.FC<{
               : ""}
           </p>
         </div>
+
         {evento && (
           <button
             className={boton}
             onClick={() => navigate("/organizador/eventos/" + evento.id)}
           >
-            Ver evento asociado
+            Ver evento publicado
           </button>
         )}
       </header>
+
       <div className="grid items-start gap-7 md:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
         <div className="min-w-0 space-y-6">
           <section className={seccion}>
@@ -317,15 +372,23 @@ export const DetalleSolicitudPagina: React.FC<{
               {[
                 [
                   "Aforo solicitado",
-                  solicitud.fechasSolicitadas.some(a=>a.asistenciaEstimada!==undefined) ? 'Definido por actividad' : solicitud.asistenciaEstimada + ' personas',
+                  solicitud.fechasSolicitadas.some(
+                    (a) => a.asistenciaEstimada !== undefined,
+                  )
+                    ? "Definido por actividad"
+                    : solicitud.asistenciaEstimada + " personas",
                 ],
                 [
                   "Modalidad",
-                  solicitud.fechasSolicitadas.some(a=>a.modalidadAsistencia!==undefined) ? "Definida por actividad" : solicitud.modalidadAsistencia === "libre"
-                    ? "Entrada libre"
-                    : solicitud.modalidadAsistencia === "registro"
-                      ? "Registro de asistencia"
-                      : "Aforo controlado",
+                  solicitud.fechasSolicitadas.some(
+                    (a) => a.modalidadAsistencia !== undefined,
+                  )
+                    ? "Definida por actividad"
+                    : solicitud.modalidadAsistencia === "libre"
+                      ? "Entrada libre"
+                      : solicitud.modalidadAsistencia === "registro"
+                        ? "Registro de asistencia"
+                        : "Aforo controlado",
                 ],
                 [
                   "Visibilidad",
@@ -362,14 +425,78 @@ export const DetalleSolicitudPagina: React.FC<{
               </div>
             )}
           </section>
-          {solicitud.estado==='borrador' ? <section className={seccion}><h2 className="text-lg font-bold">Solicitud sin enviar</h2><p className="mt-3 text-sm">Este borrador todavía no está en revisión. Puedes continuar su captura; el plazo de Subdirección comienza cuando lo envíes.</p></section> : <section className={seccion}><h2 className="text-lg font-bold">Plazos de revisión</h2><p className="mt-3 text-sm">Envío inicial: {formatoFecha(solicitud.fechaEnvioInicial || solicitud.fechaCreacion)}</p>{solicitud.estado==='requiere_correccion'?<><p className="mt-2">Revisión pausada. Tiempo restante: {solicitud.tiempoRevisionRestanteMs===undefined?'Sin plazo calculado':Math.ceil(solicitud.tiempoRevisionRestanteMs/3600000)+' horas'}.</p><p>Corrección hasta: {solicitud.fechaLimiteCorreccion?formatoFecha(solicitud.fechaLimiteCorreccion):'Sin registrar'}.</p></>:<p className="mt-2">Vencimiento de revisión: {solicitud.fechaVencimientoRevision?formatoFecha(solicitud.fechaVencimientoRevision):'Sin plazo calculado para este registro anterior'}.</p>}{!calendarioRevision&&<p className="mt-3 text-amber-800">Administración debe configurar el calendario hábil antes de recibir solicitudes nuevas.</p>}<p className="mt-2 text-sm text-neutral-500">Hora de Ciudad de México. Consulta aquí el plazo y las observaciones de Subdirección.</p></section>}
+
+          {solicitud.estado === "borrador" ? (
+            <section className={seccion}>
+              <h2 className="text-lg font-bold">Solicitud sin enviar</h2>
+              <p className="mt-3 text-sm">
+                Este borrador todavía no está en revisión. Puedes continuar su
+                captura; el plazo de Subdirección comienza cuando lo envíes.
+              </p>
+            </section>
+          ) : (
+            <section className={seccion}>
+              <h2 className="text-lg font-bold">Plazos de revisión</h2>
+              <p className="mt-3 text-sm">
+                Envío inicial:{" "}
+                {formatoFecha(
+                  solicitud.fechaEnvioInicial || solicitud.fechaCreacion,
+                )}
+              </p>
+              {solicitud.estado === "requiere_correccion" ? (
+                <>
+                  <p className="mt-2">
+                    Revisión pausada. Tiempo restante:{" "}
+                    {solicitud.tiempoRevisionRestanteMs === undefined
+                      ? "Sin plazo calculado"
+                      : Math.ceil(solicitud.tiempoRevisionRestanteMs / 3600000) +
+                        " horas"}
+                    .
+                  </p>
+                  <p>
+                    Corrección hasta:{" "}
+                    {solicitud.fechaLimiteCorreccion
+                      ? formatoFecha(solicitud.fechaLimiteCorreccion)
+                      : "Sin registrar"}
+                    .
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2">
+                  Vencimiento de revisión:{" "}
+                  {solicitud.fechaVencimientoRevision
+                    ? formatoFecha(solicitud.fechaVencimientoRevision)
+                    : "Sin plazo calculado para este registro anterior"}
+                  .
+                </p>
+              )}
+              {!calendarioRevision && (
+                <p className="mt-3 text-amber-800">
+                  Administración debe configurar el calendario hábil antes de
+                  recibir solicitudes nuevas.
+                </p>
+              )}
+              <p className="mt-2 text-sm text-neutral-500">
+                Hora de Ciudad de México. Consulta aquí el plazo y las
+                observaciones de Subdirección.
+              </p>
+            </section>
+          )}
+
           <section className={seccion}>
-            <h2 className="text-lg font-bold">Actividades, horarios y recintos</h2>
+            <h2 className="text-lg font-bold">Itinerario y actividades</h2>
             <p className="mt-1 text-sm text-neutral-500">
-              Horarios de Ciudad de México.
+              Horarios de Ciudad de México, recintos y programas por día.
             </p>
-            {itinerario()}
-            <VistaItinerarios itinerarios={solicitud.itinerarios} />
+            {renderItinerario()}
+            {Boolean(solicitud.itinerarios?.length) && (
+              <div className="mt-6 border-t pt-5">
+                <h3 className="text-sm font-bold text-neutral-800">
+                  Itinerarios registrados por fecha
+                </h3>
+                <VistaItinerarios itinerarios={solicitud.itinerarios} />
+              </div>
+            )}
             {pendientes.length > 0 && (
               <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
                 <h3 className="font-bold">Solicitudes coincidentes</h3>
@@ -385,6 +512,7 @@ export const DetalleSolicitudPagina: React.FC<{
               </div>
             )}
           </section>
+
           <section className={seccion}>
             <h2 className="text-lg font-bold">Solicitante y contacto</h2>
             <p className="mt-3 font-semibold">{solicitud.nombreSolicitante}</p>
@@ -462,6 +590,7 @@ export const DetalleSolicitudPagina: React.FC<{
               </div>
             )}
           </section>
+
           <section className={seccion}>
             <h2 className="flex items-center gap-2 text-lg font-bold">
               <History size={19} />
@@ -529,6 +658,7 @@ export const DetalleSolicitudPagina: React.FC<{
               </li>
             </ol>
           </section>
+
           {!!evento?.historialCambios?.length && (
             <section className={seccion}>
               <h2 className="text-lg font-bold">Cambios del evento asociado</h2>
@@ -550,19 +680,20 @@ export const DetalleSolicitudPagina: React.FC<{
             </section>
           )}
         </div>
+
         <aside className="min-w-0 space-y-5 md:sticky md:top-24">
           <section className="overflow-hidden rounded-2xl border bg-white">
             <div className="border-b p-5">
-              <h2 className="text-lg font-bold">Vista previa del evento</h2>
+              <h2 className="text-lg font-bold">Cartel del evento</h2>
               <p className="mt-1 text-sm text-neutral-500">
                 {evento
-                  ? "Vista del evento asociado; su cartel puede haberse actualizado después de la solicitud."
-                  : "Información capturada; esta vista no publica el evento."}
+                  ? "Imagen promocional vigente; el detalle de actividades se consulta en el itinerario."
+                  : "Vista previa del cartel capturado; no publica el evento."}
               </p>
             </div>
-            {archivoSeguro(imagenVistaPrevia) ? (
+            {archivoSeguro(imagenCartel) ? (
               <img
-                src={imagenVistaPrevia}
+                src={imagenCartel}
                 alt={"Cartel de " + solicitud.tituloEvento}
                 className="max-h-80 w-full bg-neutral-100 object-contain"
               />
@@ -573,20 +704,32 @@ export const DetalleSolicitudPagina: React.FC<{
               </div>
             )}
             <div className="p-5 sm:p-6">
-              <h3 className="text-xl font-extrabold">
+              <h3 className="text-lg font-extrabold">
                 {solicitud.tituloEvento || "Título por completar"}
               </h3>
-              <p className="mt-3 whitespace-pre-line text-sm leading-6 text-neutral-600">
-                {solicitud.descripcionEvento}
-              </p>
-              {itinerario()}
+              {solicitud.nombreBanner && (
+                <p className="mt-2 text-xs text-neutral-500">
+                  Archivo de cartel: {solicitud.nombreBanner}
+                </p>
+              )}
             </div>
           </section>
-          {['en_revision','requiere_correccion','autorizada'].includes(solicitud.estado) && <RevisionDisponibilidadSolicitud
-            idSolicitud={solicitud.id} version={version} remota={Boolean(agendaRemota)}
-            puedeCorregir={Boolean(esRevisor && solicitud.estado === 'en_revision')}
-            actualizar={actualizarDisponibilidad} alPedirCorreccion={motivo => abrir('devolver', motivo)}
-          />}
+
+          {["en_revision", "requiere_correccion", "autorizada"].includes(
+            solicitud.estado,
+          ) && (
+            <RevisionDisponibilidadSolicitud
+              idSolicitud={solicitud.id}
+              version={version}
+              remota={Boolean(agendaRemota)}
+              puedeCorregir={Boolean(
+                esRevisor && solicitud.estado === "en_revision",
+              )}
+              actualizar={actualizarDisponibilidad}
+              alPedirCorreccion={(motivoCorr) => abrir("devolver", motivoCorr)}
+            />
+          )}
+
           <section className={seccion}>
             <h2 className="text-lg font-bold">Revisión de la solicitud</h2>
             {solicitud.observacionesCorreccion && (
@@ -679,10 +822,13 @@ export const DetalleSolicitudPagina: React.FC<{
           </section>
         </aside>
       </div>
+
       {accion && (
         <VentanaModal
           estaAbierto
-          alCerrar={() => { if (!guardando) setAccion(null); }}
+          alCerrar={() => {
+            if (!guardando) setAccion(null);
+          }}
           titulo={
             accion === "autorizar"
               ? solicitud.esExcepcional
@@ -744,28 +890,43 @@ export const DetalleSolicitudPagina: React.FC<{
                 {textoParaUsuario(error)}
               </p>
             )}
-            {error && accion === 'autorizar' && <button type="button" className={boton} onClick={() => setAccion(null)}>Revisar disponibilidad y alternativas</button>}
+            {error && accion === "autorizar" && (
+              <button
+                type="button"
+                className={boton}
+                onClick={() => setAccion(null)}
+              >
+                Revisar disponibilidad y alternativas
+              </button>
+            )}
             <div className="flex flex-wrap justify-end gap-3">
-              <button className={boton} disabled={guardando} onClick={() => setAccion(null)}>
+              <button
+                className={boton}
+                disabled={guardando}
+                onClick={() => setAccion(null)}
+              >
                 Volver al detalle
               </button>
               <button
                 className={primario}
                 onClick={ejecutar}
                 disabled={
-                  guardando || ((accion === "rechazar" || accion === "devolver") &&
-                  !motivo.trim())
+                  guardando ||
+                  ((accion === "rechazar" || accion === "devolver") &&
+                    !motivo.trim())
                 }
               >
-                {guardando ? 'Guardando decisión…' : accion === "autorizar"
-                  ? solicitud.esExcepcional
-                    ? "Crear evento vinculado"
-                    : "Autorizar solicitud"
-                  : accion === "devolver"
-                    ? "Enviar correcciones"
-                    : accion === "rechazar"
-                      ? "Confirmar rechazo"
-                      : "Confirmar cancelación"}
+                {guardando
+                  ? "Guardando decisión…"
+                  : accion === "autorizar"
+                    ? solicitud.esExcepcional
+                      ? "Crear evento vinculado"
+                      : "Autorizar solicitud"
+                    : accion === "devolver"
+                      ? "Enviar correcciones"
+                      : accion === "rechazar"
+                        ? "Confirmar rechazo"
+                        : "Confirmar cancelación"}
               </button>
             </div>
           </div>
