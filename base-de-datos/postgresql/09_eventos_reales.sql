@@ -10,7 +10,7 @@ BEGIN;
 -- 1. Registrar archivos de carteles ilustrativos en ticket_trade."Archivo"
 INSERT INTO ticket_trade."Archivo" ("id_archivo", "clave_almacenamiento", "nombre", "id_tipo_mime", "tamano_bytes")
 OVERRIDING SYSTEM VALUE VALUES
-  (1010, '/imagenes/eventos/simposio-ia.jpg', 'simposio-ia.jpg', 3, 109205),
+  (1010, '/imagenes/eventos/simposio-ia.jpg', 'simposio-ia.jpg', 3, 80800),
   (1011, '/imagenes/eventos/expo-escom.jpg', 'expo-escom.jpg', 3, 163024),
   (1012, '/imagenes/eventos/hackathon-escom.jpg', 'hackathon-escom.jpg', 3, 206962),
   (1013, '/imagenes/eventos/ciberseguridad-congreso.jpg', 'ciberseguridad-congreso.jpg', 3, 237890),
