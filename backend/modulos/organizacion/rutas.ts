@@ -4,7 +4,7 @@ import {routerEventos} from "./eventos.js";
 import { routerConfiguracionRecintos } from './configuracion.js';
 import { prepararConfiguracion, conservarPlazos } from './calendario.js';
 import { revisarSolicitudServidor } from './revisionSolicitud.js';
-import { encolarAviso } from "../correos/avisos.js";
+import { encolarAviso, registrarAvisoBandeja } from "../correos/avisos.js";
 import { comprobarArchivo } from "../archivos/rutas.js";
 import crypto from "node:crypto";
 import { fallo, idEntero, ruta, texto } from "../../comun/http.js";
@@ -357,6 +357,23 @@ routerOrganizacion.post(
             [s.id_evento],
           )
         ).rows[0];
+        const motivoDictamen =
+          typeof mensaje === "string" && mensaje.trim()
+            ? mensaje.trim()
+            : "Sin observaciones.";
+        const siguientePaso =
+          decision === "Aprobada"
+            ? "Revisa la configuración del evento para continuar con la publicación y la logística."
+            : decision === "Devuelta"
+              ? "Corrige las observaciones y vuelve a enviar tu solicitud."
+              : "Revisa el motivo y, si corresponde, envía una nueva solicitud.";
+        await registrarAvisoBandeja(c, {
+          destinatario: e.titular,
+          tipo: "evento_resolucion:" + req.params.id + ":" + version,
+          titulo: "Solicitud de evento: " + estados[decision],
+          mensaje: `Motivo: ${motivoDictamen}\nSiguiente paso: ${siguientePaso}`,
+          referencia: "/organizador/solicitudes/" + req.params.id,
+        });
         await encolarAviso(
           c,
           e.titular,
