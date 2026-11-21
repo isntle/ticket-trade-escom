@@ -456,6 +456,16 @@ export interface Reservacion {
   motivoCancelacion?: string;
 }
 
+// Aviso persistente de la campana, ligado al trámite correspondiente
+export interface Notificacion {
+  id: string;
+  titulo: string;
+  mensaje: string;
+  enlace?: string;
+  fecha: string;
+  leida: boolean;
+}
+
 // Estados del boleto emitido
 export type EstadoBoleto = "valido" | "utilizado" | "cancelado";
 
