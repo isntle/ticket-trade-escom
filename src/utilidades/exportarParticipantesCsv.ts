@@ -43,7 +43,7 @@ export const CONTRATO_BASE_PARTICIPANTES_CSV: ContratoParticipantesCsv = {
   ]
 };
 
-const INICIO_FORMULA = /^[\t\r ]*[=+\-@]|^[\t\r]/;
+const INICIO_FORMULA = /^(?:[\t\r ]*[=+\-@]|[\t\r])/;
 
 export function protegerValorFormulaCsv(valor: unknown): string {
   const texto = String(valor ?? '');

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONTRATO_BASE_PARTICIPANTES_CSV,
+  escaparCeldaCsv,
   filtrarParticipantesAutorizados,
   generarCsvParticipantesAutorizados,
   puedeExponerDescargaCsv,
@@ -61,9 +62,11 @@ describe('exportarParticipantesCsv', () => {
     ).toBe(true);
   });
 
-  it('respeta los filtros de actividad, búsqueda y excluye no autorizados', () => {
+  it('respeta los filtros de actividad, categoría, estado, búsqueda y excluye no autorizados', () => {
     const filtrados = filtrarParticipantesAutorizados(MUESTRA, {
       idActividad: 'act-2',
+      categoria: 'especiales',
+      estado: 'activo',
       busqueda: 'núñez'
     });
     expect(filtrados).toHaveLength(1);
@@ -78,5 +81,12 @@ describe('exportarParticipantesCsv', () => {
     expect(csv).toContain('"Trae laptop; ""equipo 1"""');
     expect(csv).toContain("'=SUMA(A1:A2)");
     expect(csv).not.toContain('Usuario No Autorizado');
+  });
+
+  it('conserva guiones intermedios en fechas/folios pero protege fórmulas con espacios o saltos y saltos de línea en celdas', () => {
+    expect(escaparCeldaCsv('2026-11-21')).toBe('2026-11-21');
+    expect(escaparCeldaCsv('BOL-101')).toBe('BOL-101');
+    expect(escaparCeldaCsv(' =CMD()')).toBe("' =CMD()");
+    expect(escaparCeldaCsv('Línea 1\nLínea 2')).toBe('"Línea 1\nLínea 2"');
   });
 });
