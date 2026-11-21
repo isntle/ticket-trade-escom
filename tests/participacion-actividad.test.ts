@@ -58,37 +58,37 @@ test('dos actividades del mismo día reservan IDs distintos y conservan el QR po
   assert.equal(c.leer('boletos')[0].codigoQr, c.leer('boletos')[1].codigoQr);
   assert.equal(c.datos.apartarAsiento(evento.id, '0', 'gen-falso', 'Cupo General', usuario.id, usuario.nombre, usuario.correo).exito, false);
 });
-test('el registro libre no consume cupo ni boleto y permite cancelación propia después del cierre', () => {
+test('el registro libre no consume cupo ni boleto y permite cancelación propia después del cierre', async () => {
   const c = preparar();
-  const r = c.datos.registrarIntencionAsistencia(evento.id, libre.id, usuario.id, usuario.nombre, usuario.correo);
+  const r = await c.datos.registrarIntencionAsistencia(evento.id, libre.id, usuario.id, usuario.nombre, usuario.correo);
   assert.equal(r.exito, true, r.error);
   assert.equal(c.leer('intenciones_asistencia')[0].idFechaEvento, libre.id);
   assert.equal(c.leer('boletos').length, 0); assert.equal(c.leer('reservaciones').length, 0);
   c.local.setItem(prefijo + 'eventos', JSON.stringify([{ ...evento, fechas: [{ ...libre, estadoInscripciones: 'cerradas' }] }]));
   const html = c.render(React.createElement(DetalleEventoPagina, { eventId: evento.id, navigate: () => {} }));
   assert.match(html, /Cancelar registro/);
-  assert.equal(c.datos.cancelarIntencionAsistencia(r.registro!.id).exito, true);
+  assert.equal((await c.datos.cancelarIntencionAsistencia(r.registro!.id)).exito, true);
   assert.equal(c.leer('intenciones_asistencia').length, 0);
 });
-test('se revalida el cierre, la cancelación y la suspensión al confirmar o registrar', () => {
+test('se revalida el cierre, la cancelación y la suspensión al confirmar o registrar', async () => {
   for (const cambio of [{ cancelada: true }, { suspendida: true }, { estadoInscripciones: 'cerradas' as const }]) {
     const c = preparar();
     const r = c.datos.apartarAsiento(evento.id, a.id, 'gen-a', 'Cupo General', usuario.id, usuario.nombre, usuario.correo);
     c.local.setItem(prefijo + 'eventos', JSON.stringify([{ ...evento, fechas: evento.fechas.map(d => ({ ...d, ...cambio })) }]));
     assert.equal(c.datos.confirmarReservacion(r.reservacion!.id).exito, false);
-    assert.equal(c.datos.registrarIntencionAsistencia(evento.id, libre.id, usuario.id, usuario.nombre, usuario.correo).exito, false);
+    assert.equal((await c.datos.registrarIntencionAsistencia(evento.id, libre.id, usuario.id, usuario.nombre, usuario.correo)).exito, false);
     assert.equal(c.leer('boletos').length, 0);
   }
 });
-test('correo pendiente, público restringido y cuenta desactivada impiden reservar y registrar', () => {
+test('correo pendiente, público restringido y cuenta desactivada impiden reservar y registrar', async () => {
   for (const cuenta of [{ ...usuario, correoConfirmado: false }, { ...usuario, estaActivo: false }]) {
     const c = preparar(evento, cuenta);
     assert.equal(c.datos.apartarAsiento(evento.id, a.id, 'gen-a', 'Cupo General', usuario.id, usuario.nombre, usuario.correo).exito, false);
-    assert.equal(c.datos.registrarIntencionAsistencia(evento.id, libre.id, usuario.id, usuario.nombre, usuario.correo).exito, false);
+    assert.equal((await c.datos.registrarIntencionAsistencia(evento.id, libre.id, usuario.id, usuario.nombre, usuario.correo)).exito, false);
   }
   const c = preparar({ ...evento, publicoPermitido: ['admin'] });
   assert.equal(c.datos.apartarAsiento(evento.id, a.id, 'gen-a', 'Cupo General', usuario.id, usuario.nombre, usuario.correo).exito, false);
-  assert.equal(c.datos.registrarIntencionAsistencia(evento.id, libre.id, usuario.id, usuario.nombre, usuario.correo).exito, false);
+  assert.equal((await c.datos.registrarIntencionAsistencia(evento.id, libre.id, usuario.id, usuario.nombre, usuario.correo)).exito, false);
 });
 test('la taquilla usa la identidad de FechaEvento y el horario propio, y rechaza la modalidad libre', () => {
   const c = preparar();

@@ -1,3 +1,4 @@
+import { leerIntenciones } from "../taquilla/intenciones.js";
 import { Router } from "express";
 import { pool, tokenPeticion, modoBaseDatos } from "../../bd/pool.js";
 import { usuarioSesion } from "../identidad/auth.js";
@@ -402,7 +403,7 @@ export async function leerEstado(u: any, eventoEnlace?: string) {
     bitacoraEscaneos: escaneos,
     listaBloqueos: configuracion.bloqueos,
     listaEspera: [],
-    listaIntencionesAsistencia: [],
+    listaIntencionesAsistencia: await leerIntenciones(u?.id),
     listaClasesRegulares: [],
     listaOcupacionesInternas: [],
     calendarioRevision: configuracion.calendario,

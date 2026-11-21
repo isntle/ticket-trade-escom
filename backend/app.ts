@@ -1,3 +1,4 @@
+import { procesarAvisosCupo } from "./modulos/taquilla/avisosCupo.js";
 import {procesarCorreos} from "./modulos/correos/servicio.js";
 import {huella} from "./comun/seguridad.js";
 import { routerEstado } from './modulos/lecturas/estado.js';
@@ -34,6 +35,7 @@ app.get('/api/correos/procesar', async(req,res,next)=>{
   const secreto=process.env.CRON_SECRET;
   if(!secreto||secreto.length<32)return void res.status(503).json({error:{codigo:'PROGRAMADOR_NO_CONFIGURADO',mensaje:'Procesamiento programado no disponible.'}});
   if(huella(req.get('authorization')||'')!==huella('Bearer '+secreto))return void res.status(401).json({error:{codigo:'NO_AUTORIZADO',mensaje:'Acceso no autorizado.'}});
+  await procesarAvisosCupo();
   res.json({datos:await procesarCorreos(20)});
  }catch(e){next(e);}
 });

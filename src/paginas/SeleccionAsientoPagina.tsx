@@ -1,3 +1,4 @@
+import { AvisoCupo } from "../componentes/taquilla/AvisoCupo";
 import { eventoParaActividad, nombreActividad, modalidadActividad } from '../dominio/actividades';
 import { apiActiva } from '../servicios/modoDatos';
 import { REGLA_INGRESO_ACTIVIDAD, describirActividad } from '../dominio/presentacionActividad';
@@ -492,6 +493,11 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
             Unirme a la lista de espera
           </button>}
         </div>
+      )}
+
+      {apiActiva && evento.visibilidad === 'publico' && usuarioActual?.correoConfirmado && (
+        <AvisoCupo key={usuarioActual.id + ':' + dateId} actividad={dateId}
+          agotado={cupoAgotado || (!esSinMapa && !hayLugaresDisponibles)} />
       )}
 
       {/* Modal de Confirmación para Lista de Espera */}

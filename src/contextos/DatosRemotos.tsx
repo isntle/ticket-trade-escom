@@ -531,6 +531,18 @@ function DatosDeSesion({ children, usuarioActual }: {
       await api('/organizacion/eventos/'+id+'/actividades',{metodo:'POST',datos:{actividad,version:e?.versionServidor,motivo:actividad.motivo}});
       await actualizarTrasGuardar();return {exito:true};
     }),
+    registrarIntencionAsistencia: (evento: string, actividad: string) => intentar(async () => {
+      await api('/taquilla/actividades/' + encodeURIComponent(actividad) + '/intencion', {
+        metodo: 'POST', enlacePrivado: tokenEnlacePrivado(evento)
+      });
+      await actualizarTrasGuardar();
+      return { exito: true };
+    }),
+    cancelarIntencionAsistencia: (actividad: string) => intentar(async () => {
+      await api('/taquilla/actividades/' + encodeURIComponent(actividad) + '/intencion', { metodo: 'DELETE' });
+      await actualizarTrasGuardar();
+      return { exito: true };
+    }),
     actualizarEvento: (id: string, parcial: any, versionEsperada: string) => intentar(async () => {
       const original=JSON.parse(versionEsperada);
       const datos={...parcial};

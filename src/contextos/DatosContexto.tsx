@@ -60,6 +60,8 @@ import { duracionProgramada, validarLimitesEvento, puedeModificarEvento } from '
 import { afectaBloqueo, revisarBloqueo, type PropuestaBloqueo } from '../dominio/bloqueos.js';
 import { CLAVE_CALENDARIO, validarCalendario, vencimientoRevision, motivoVencimiento, pausarRevision, reanudarRevision, type CalendarioRevision } from '../dominio/calendarioRevision.js';
 import { validarDistribuciones, arregloDesdeSolicitud, lugaresDelRecinto } from '../dominio/distribucionSolicitud.js';
+type ResultadoIntencion = { exito: boolean; registro?: RegistroIntencionAsistencia; error?: string };
+
 export interface RevisionBloqueo { afectados?: ReturnType<typeof revisarBloqueo>['afectados']; firma?: string; error?: string; advertencias?: string[] }
 export interface ResultadoBloqueo { exito: boolean; error?: string; advertencia?: string; id?: string; version?: number }
 export interface ContextoDatosTipo {
@@ -197,8 +199,8 @@ export interface ContextoDatosTipo {
     idUsuario: string,
     nombreUsuario: string,
     correoUsuario: string
-  ) => { exito: boolean; registro?: RegistroIntencionAsistencia; error?: string };
-  cancelarIntencionAsistencia: (idRegistro: string) => { exito: boolean; error?: string };
+  ) => ResultadoIntencion | Promise<ResultadoIntencion>;
+  cancelarIntencionAsistencia: (idRegistro: string) => ResultadoIntencion | Promise<ResultadoIntencion>;
 
   emitirBoletosEspeciales: (datos: {
     idEvento: string;

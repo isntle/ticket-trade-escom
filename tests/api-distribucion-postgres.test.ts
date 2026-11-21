@@ -156,4 +156,38 @@ test("Distribución PostgreSQL: permisos, guardado, concurrencia y protección d
   const nuevoMapa = await solicitar(`taquilla/actividades/${fixture.actividad}/disponibilidad`, "GET");
   assert.equal(nuevoMapa.status, 200);
   assert.equal((await nuevoMapa.json()).datos.categorias[tercero.idLugarActividad], undefined);
+  const { datos: reserva } = await confirmar.json();
+  await pool.query('UPDATE ticket_trade."Actividad" SET aforo_solicitado=1 WHERE id_actividad=$1',[fixture.actividad]);
+  const aviso = `taquilla/actividades/${fixture.actividad}/aviso-cupo`;
+  for (const cookie of [propietario, segundaSesion]) {
+    const alta = await solicitar(aviso, "POST", cookie, {});
+    assert.equal(alta.status, 200, await alta.clone().text());
+    assert.equal((await alta.json()).datos.activo, true);
+  }
+  const cancela = await solicitar(`taquilla/reservaciones/${reserva.id}/cancelacion`, "POST", alumno, {});
+  assert.equal(cancela.status, 200, await cancela.clone().text());
+  assert.equal((await (await solicitar(aviso, "GET", propietario)).json()).datos.activo, false);
+  assert.equal((await pool.query('SELECT count(*)::int n FROM ticket_trade."Notificacion" WHERE tipo=$1 AND referencia_destino=$2',
+    ["disponibilidad",fixture.evento])).rows[0].n, 1);
+
+  const {rows:[actividadLibre]} = await pool.query(`INSERT INTO ticket_trade."Actividad"
+    (id_evento,nombre,descripcion,fecha,hora_inicio,hora_fin,id_recinto,id_tipo_acceso,aforo_solicitado,id_estado_actividad)
+    SELECT id_evento,'Entrada libre','Prueba',fecha+1,hora_inicio,hora_fin,id_recinto,
+      (SELECT id_tipo_acceso FROM ticket_trade."TipoAcceso" WHERE nombre='Entrada libre'),aforo_solicitado,id_estado_actividad
+    FROM ticket_trade."Actividad" WHERE id_actividad=$1 RETURNING id_actividad::text id`,[fixture.actividad]);
+  const intencion = `taquilla/actividades/${actividadLibre.id}/intencion`;
+  for (const cookie of [propietario, segundaSesion]) {
+    const alta = await solicitar(intencion, "POST", cookie, {});
+    assert.equal(alta.status, 200, await alta.clone().text());
+  }
+  const intenciones = async (cookie: string) => (await (await solicitar("estado","GET",cookie)).json()).datos.listaIntencionesAsistencia;
+  assert.equal((await intenciones(propietario)).filter((r: any) => r.id === actividadLibre.id).length, 1);
+  assert.equal((await intenciones(alumno)).some((r: any) => r.id === actividadLibre.id), false);
+  assert.equal((await solicitar(intencion,"DELETE",alumno)).status, 200);
+  assert.equal((await intenciones(propietario)).length, 1);
+  assert.equal((await solicitar(intencion,"DELETE",propietario)).status, 200);
+  assert.equal((await intenciones(propietario)).length, 0);
+  assert.equal((await pool.query('SELECT count(*)::int n FROM ticket_trade."CompromisoCupo" WHERE id_actividad=$1',
+    [actividadLibre.id])).rows[0].n, 0);
+
 });

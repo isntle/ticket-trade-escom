@@ -205,12 +205,12 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
   };
 
   // Guarda la intención de asistencia
-  const confirmarRegistroDirecto = () => {
+  const confirmarRegistroDirecto = async () => {
     if (!usuarioActual || !fechaSeleccionadaParaLibre) return;
     
     setProcesandoRegistro(true);
 
-    const resultado = registrarIntencionAsistencia(
+    const resultado = await registrarIntencionAsistencia(
       evento!.id,
       fechaSeleccionadaParaLibre.id,
       usuarioActual.id,
@@ -237,7 +237,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
   };
 
   // Cancela un registro de asistencia directa (OK-MT-02)
-  const cancelarRegistroLibre = (idFecha: string) => {
+  const cancelarRegistroLibre = async (idFecha: string) => {
     const registro = listaIntencionesAsistencia.find(
       (intencion) =>
         intencion.idEvento === evento.id &&
@@ -247,7 +247,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
 
     if (!registro) return;
 
-    const resultado = cancelarIntencionAsistencia(registro.id);
+    const resultado = await cancelarIntencionAsistencia(registro.id);
     if (!resultado.exito) {
       mostrarNotificacion('No fue posible cancelar el registro', resultado.error || 'Inténtalo de nuevo.', 'error');
       return;
@@ -474,9 +474,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
 
                   {/* Acciones de Registro */}
                   <div className="flex items-center gap-3 shrink-0">
-                    {apiActiva && modalidad === 'libre' ? (
-                      <span className="text-sm font-semibold text-neutral-600">Entrada libre · Sin registro</span>
-                    ) : yaRegistrado && modalidad !== 'controlado' ? (
+                    {yaRegistrado && modalidad !== 'controlado' ? (
                       <button type="button" onClick={() => cancelarRegistroLibre(fecha.id)} className="px-5 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4" /><span>Cancelar registro</span>
                       </button>
@@ -506,7 +504,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
                             className="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs inline-flex items-center gap-2 transition-colors"
                           >
                             <UserCheck className="w-4 h-4" />
-                            <span>{procesandoRegistro ? 'Registrando...' : etiquetaRegistro}</span>
+                            <span>{procesandoRegistro ? 'Registrando...' : apiActiva && modalidad === 'libre' ? 'Registrar intención de asistir' : etiquetaRegistro}</span>
                           </button>
                       )
                     )}

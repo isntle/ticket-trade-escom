@@ -1,3 +1,5 @@
+import { routerAvisosCupo, despacharAvisosCupo, procesarAvisosCupo } from "./avisosCupo.js";
+import { routerIntenciones } from "./intenciones.js";
 import {liberarApartadosVencidos} from "../../bd/apartados.js";
 import { encolarAviso } from "../correos/avisos.js";
 import { Router } from "express";
@@ -18,6 +20,8 @@ routerTaquilla.use((req, res, next) =>
   req.method === "GET" ? next() : origenSeguro(req, res, next),
 );
 routerTaquilla.use(routerEspeciales);
+routerTaquilla.use(routerIntenciones);
+routerTaquilla.use(routerAvisosCupo);
 const bloquear=liberarApartadosVencidos;
 async function actividad(c: PoolClient, id: string) {
   const r = await c.query(
@@ -126,6 +130,8 @@ routerTaquilla.get(
       [id, token && token.length <= 256 ? token : null],
     );
     if (!resultado.rowCount) fallo("La actividad ya no está disponible para reservar.", 404);
+    if (resultado.rows[0].disponibles > 0)
+      await procesarAvisosCupo(id).catch(() => console.error("No se pudo procesar el aviso de cupo. Se conserva la solicitud."));
     res.set("Cache-Control", "no-store").json({ datos: resultado.rows[0] });
   }),
 );
@@ -214,6 +220,7 @@ routerTaquilla.post(
           `UPDATE ticket_trade."CompromisoCupo" SET id_estado_compromiso_cupo=(SELECT id_estado_compromiso_cupo FROM ticket_trade."EstadoCompromisoCupo" WHERE nombre='Liberado') WHERE id_compromiso_cupo=$1`,
           [req.params.id],
         );
+      await despacharAvisosCupo(c);
     });
     res.json({ datos: { exito: true } });
   }),
@@ -360,6 +367,7 @@ routerTaquilla.post(
         `Cancelaste tu reservación para ${a.nombre} (${a.fecha}). Las demás actividades de tu pase conservan su estado. Consulta el detalle y el boleto actualizado.`,
         "/mis-reservaciones",
       );
+      await despacharAvisosCupo(c);
     });
     res.json({ datos: { exito: true } });
   }),
