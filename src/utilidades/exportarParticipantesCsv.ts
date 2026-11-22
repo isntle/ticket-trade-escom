@@ -1,4 +1,7 @@
-export interface ParticipanteActividadCsv {
+export type CategoriaParticipanteCsv = 'General' | 'VIP' | 'Staff';
+export type EstadoParticipanteCsv = 'Confirmado' | 'Vigente' | 'Acceso registrado';
+
+export interface ParticipanteAutorizadoCsv {
   id: string;
   idActividad: string;
   actividad: string;
@@ -6,41 +9,38 @@ export interface ParticipanteActividadCsv {
   recinto: string;
   participante: string;
   referencia: string;
-  categoria: string;
-  estado: string;
+  categoria: CategoriaParticipanteCsv;
+  estado: EstadoParticipanteCsv;
   autorizado: boolean;
-  observaciones?: string;
 }
 
-export interface FiltrosExportacionCsv {
+export interface FiltrosParticipantesCsv {
   idActividad?: string;
-  categoria?: string;
-  estado?: string;
+  categoria?: 'todas' | CategoriaParticipanteCsv | string;
+  estado?: 'todos' | EstadoParticipanteCsv | string;
   busqueda?: string;
 }
 
-export interface ContratoParticipantesCsv {
-  acordado: boolean;
-  fuenteCompleta: boolean;
-  columnas: ReadonlyArray<{
-    clave: keyof Omit<ParticipanteActividadCsv, 'id' | 'idActividad' | 'autorizado'>;
-    encabezado: string;
-  }>;
+export const ENCABEZADOS_PARTICIPANTES_CSV = [
+  'Actividad',
+  'Fecha y horario',
+  'Recinto',
+  'Participante',
+  'Referencia',
+  'Categoría',
+  'Estado'
+] as const;
+
+export interface EstadoContratoCsv {
+  contratoAcordado: boolean;
+  conjuntoValidadoPorRolYActividad: boolean;
+  botonHabilitado: boolean;
 }
 
-export const CONTRATO_BASE_PARTICIPANTES_CSV: ContratoParticipantesCsv = {
-  acordado: false,
-  fuenteCompleta: false,
-  columnas: [
-    { clave: 'actividad', encabezado: 'Actividad' },
-    { clave: 'fechaHorario', encabezado: 'Fecha y horario' },
-    { clave: 'recinto', encabezado: 'Recinto' },
-    { clave: 'participante', encabezado: 'Participante' },
-    { clave: 'referencia', encabezado: 'Referencia' },
-    { clave: 'categoria', encabezado: 'Categoría' },
-    { clave: 'estado', encabezado: 'Estado' },
-    { clave: 'observaciones', encabezado: 'Observaciones' }
-  ]
+export const ESTADO_CONTRATO_CSV_ACTUAL: EstadoContratoCsv = {
+  contratoAcordado: true,
+  conjuntoValidadoPorRolYActividad: false,
+  botonHabilitado: false
 };
 
 const INICIO_FORMULA = /^(?:[\t\r ]*[=+\-@]|[\t\r])/;
@@ -52,19 +52,21 @@ export function protegerValorFormulaCsv(valor: unknown): string {
 
 export function escaparCeldaCsv(valor: unknown): string {
   const protegido = protegerValorFormulaCsv(valor);
-  const conComillasDobles = protegido.replace(/"/g, '""');
-  return /[",\r\n]/.test(conComillasDobles) ? `"${conComillasDobles}"` : conComillasDobles;
+  const escapado = protegido.replace(/"/g, '""');
+  return /[",\r\n]/.test(escapado) ? `"${escapado}"` : escapado;
 }
 
-export function puedeExponerDescargaCsv(contrato: ContratoParticipantesCsv): boolean {
-  return contrato.acordado && contrato.fuenteCompleta && contrato.columnas.length > 0;
+export function formatearReferenciaInternaSegura(idInterno: string): string {
+  const limpio = String(idInterno ?? '').trim() || 'sin-ref';
+  return limpio.startsWith('ref-') ? limpio : `ref-${limpio}`;
 }
 
-export function filtrarParticipantesAutorizados(
-  registros: readonly ParticipanteActividadCsv[],
-  filtros: FiltrosExportacionCsv = {}
-): ParticipanteActividadCsv[] {
+export function filtrarParticipantesAutorizadosCsv(
+  registros: readonly ParticipanteAutorizadoCsv[],
+  filtros: FiltrosParticipantesCsv = {}
+): ParticipanteAutorizadoCsv[] {
   const termino = (filtros.busqueda ?? '').trim().toLowerCase();
+
   return registros.filter((registro) => {
     if (!registro.autorizado) return false;
     if (filtros.idActividad && filtros.idActividad !== 'todas' && registro.idActividad !== filtros.idActividad) {
@@ -80,7 +82,8 @@ export function filtrarParticipantesAutorizados(
       const coincide =
         registro.participante.toLowerCase().includes(termino) ||
         registro.referencia.toLowerCase().includes(termino) ||
-        registro.actividad.toLowerCase().includes(termino);
+        registro.actividad.toLowerCase().includes(termino) ||
+        registro.recinto.toLowerCase().includes(termino);
       if (!coincide) return false;
     }
     return true;
@@ -88,14 +91,24 @@ export function filtrarParticipantesAutorizados(
 }
 
 export function generarCsvParticipantesAutorizados(
-  registros: readonly ParticipanteActividadCsv[],
-  filtros: FiltrosExportacionCsv = {},
-  contrato: ContratoParticipantesCsv = CONTRATO_BASE_PARTICIPANTES_CSV
+  registros: readonly ParticipanteAutorizadoCsv[],
+  filtros: FiltrosParticipantesCsv = {}
 ): string {
-  const filtrados = filtrarParticipantesAutorizados(registros, filtros);
-  const encabezados = contrato.columnas.map((col) => escaparCeldaCsv(col.encabezado)).join(',');
-  const filas = filtrados.map((registro) =>
-    contrato.columnas.map((col) => escaparCeldaCsv(registro[col.clave] ?? '')).join(',')
+  const filtrados = filtrarParticipantesAutorizadosCsv(registros, filtros);
+  const filaEncabezados = ENCABEZADOS_PARTICIPANTES_CSV.map((col) => escaparCeldaCsv(col)).join(',');
+  const filas = filtrados.map((item) =>
+    [
+      item.actividad,
+      item.fechaHorario,
+      item.recinto,
+      item.participante,
+      formatearReferenciaInternaSegura(item.referencia),
+      item.categoria,
+      item.estado
+    ]
+      .map((celda) => escaparCeldaCsv(celda))
+      .join(',')
   );
-  return `\uFEFF${[encabezados, ...filas].join('\r\n')}`;
+
+  return `\uFEFF${[filaEncabezados, ...filas].join('\r\n')}`;
 }

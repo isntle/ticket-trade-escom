@@ -3,6 +3,7 @@ import { volverA } from '../dominio/navegacion';
 import { afectaBloqueo } from '../dominio/bloqueos';
 import { inicioEnMexico } from '../dominio/solicitudes';
 import { etiquetaActividad, formatearFechaHoraInstitucional, indicadoresActividad, puedeAdministrarTaquilla, registrosDeActividad } from '../dominio/taquilla';
+import { ESTADO_CONTRATO_CSV_ACTUAL } from '../utilidades/exportarParticipantesCsv';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
@@ -10,6 +11,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
+  Download,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -392,6 +394,8 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
     { etiqueta: 'Participación registrada', valor: totales.asistencias, ayuda: 'Entradas verificadas en puerta', icono: BarChart3, color: 'text-[#7a132b] bg-[#7a132b]/10' }
   ];
 
+  const exportacionHabilitada = ESTADO_CONTRATO_CSV_ACTUAL.botonHabilitado;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
@@ -447,6 +451,16 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              disabled={!exportacionHabilitada}
+              aria-disabled={!exportacionHabilitada}
+              title="Exportación CSV deshabilitada mientras se valida el conjunto completo por actividad y rol"
+              className="px-4 py-2.5 bg-neutral-100 border border-neutral-200 text-neutral-400 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 cursor-not-allowed"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Exportar CSV
+            </button>
             <button
               type="button"
               onClick={() => { setUltimaActualizacion(new Date()); setAhora(Date.now()); }}
