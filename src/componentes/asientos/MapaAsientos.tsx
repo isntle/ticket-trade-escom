@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import {
   Ban,
   Check,
@@ -19,6 +19,17 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { ConfiguracionAsiento, CategoriaAsiento, TipoRecinto } from '../../tipos';
+import {
+  ZOOM_MAXIMO,
+  acercarZoom,
+  alejarZoom,
+  calcularEscalaAjuste,
+  zoomEfectivo,
+  zoomMinimo
+} from '../../utilidades/zoomMapa';
+
+// En el servidor (pruebas SSR) no hay diseño que medir.
+const useEfectoDiseno = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 interface PropiedadesMapaAsientos {
   asientos: ConfiguracionAsiento[];
@@ -50,8 +61,56 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
 }) => {
   // Modalidad de escala: 'ajustar' (ajuste compacto para caber en desktop sin scroll) o 'amplio' (tamaño táctil espacioso)
   const [modoAjuste, setModoAjuste] = useState<'ajustar' | 'amplio'>('ajustar');
-  const [nivelZoom, setNivelZoom] = useState<number>(1);
+  // null = ajustar al ancho disponible; un número = zoom elegido por la persona, que se conserva
+  // aunque cambie la selección, lleguen datos nuevos o cambie el tamaño de la ventana.
+  const [zoomManual, setZoomManual] = useState<number | null>(null);
+  const [medidas, setMedidas] = useState({ disponible: 0, ancho: 0, alto: 0 });
   const contenedorScrollRef = useRef<HTMLDivElement>(null);
+  const contenidoRef = useRef<HTMLDivElement>(null);
+  // Punto horizontal (proporción 0-1) que debe seguir visible al cambiar el zoom.
+  const centroPendienteRef = useRef<number | null>(null);
+
+  // Mide el ancho disponible y el tamaño natural del mapa (sin escala).
+  useEfectoDiseno(() => {
+    const contenedor = contenedorScrollRef.current;
+    const contenido = contenidoRef.current;
+    if (!contenedor || !contenido) return;
+    const medir = () => {
+      const nuevas = {
+        disponible: contenedor.clientWidth,
+        ancho: contenido.offsetWidth,
+        alto: contenido.offsetHeight
+      };
+      setMedidas((previas) =>
+        previas.disponible === nuevas.disponible && previas.ancho === nuevas.ancho && previas.alto === nuevas.alto
+          ? previas
+          : nuevas
+      );
+    };
+    medir();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', medir);
+      return () => window.removeEventListener('resize', medir);
+    }
+    const observador = new ResizeObserver(medir);
+    observador.observe(contenedor);
+    observador.observe(contenido);
+    return () => observador.disconnect();
+  }, []);
+
+  const medido = medidas.ancho > 0 && medidas.disponible > 0;
+  const escalaAjuste = calcularEscalaAjuste(medidas.disponible, medidas.ancho);
+  const nivelZoom = zoomEfectivo(zoomManual, escalaAjuste);
+  const hayDesbordeHorizontal = medido && Math.round(medidas.ancho * nivelZoom) > medidas.disponible + 1;
+
+  // Tras cambiar el zoom, mantiene a la vista la misma zona del mapa en lugar de saltar al inicio.
+  useEfectoDiseno(() => {
+    const contenedor = contenedorScrollRef.current;
+    const centro = centroPendienteRef.current;
+    if (!contenedor || centro === null) return;
+    centroPendienteRef.current = null;
+    contenedor.scrollLeft = Math.max(0, centro * contenedor.scrollWidth - contenedor.clientWidth / 2);
+  }, [nivelZoom, medidas.ancho]);
 
   // Detectar tipología espacial del recinto
   const esLaboratorio =
@@ -113,20 +172,79 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
       ? 'w-[435px]'
       : 'w-[242px] sm:w-[260px] md:w-[275px]';
 
-  const manejarAumentarZoom = () => {
-    setNivelZoom((prev) => Math.min(Number((prev + 0.15).toFixed(2)), 1.35));
+  const cambiarZoom = (nuevo: number | null) => {
+    const contenedor = contenedorScrollRef.current;
+    if (contenedor && contenedor.scrollWidth > 0) {
+      centroPendienteRef.current = (contenedor.scrollLeft + contenedor.clientWidth / 2) / contenedor.scrollWidth;
+    }
+    setZoomManual(nuevo);
   };
 
-  const manejarDisminuirZoom = () => {
-    setNivelZoom((prev) => Math.max(Number((prev - 0.15).toFixed(2)), 0.7));
+  const manejarAumentarZoom = () => cambiarZoom(acercarZoom(nivelZoom));
+
+  const manejarDisminuirZoom = () => cambiarZoom(alejarZoom(nivelZoom, escalaAjuste));
+
+  /** Vuelve a mostrar el mapa completo en el ancho disponible. */
+  const manejarAjustarAncho = () => {
+    setModoAjuste('ajustar');
+    cambiarZoom(null);
   };
 
-  const manejarRestablecerZoom = () => {
-    setNivelZoom(1);
-    if (contenedorScrollRef.current) {
-      contenedorScrollRef.current.scrollLeft = 0;
+  /** El modo amplio usa lugares grandes a tamaño real; volver a "ajustar" encaja el mapa. */
+  const manejarAlternarModo = () => {
+    if (modoAjuste === 'ajustar') {
+      setModoAjuste('amplio');
+      cambiarZoom(1);
+    } else {
+      manejarAjustarAncho();
     }
   };
+
+  const claseControl =
+    'p-1 hover:bg-neutral-100 rounded text-neutral-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a132b]';
+
+  const controlesZoom = (
+    <>
+      <button
+        type="button"
+        onClick={manejarDisminuirZoom}
+        disabled={nivelZoom <= zoomMinimo(escalaAjuste)}
+        title="Alejar vista"
+        aria-label="Alejar vista del mapa"
+        className={claseControl}
+      >
+        <ZoomOut className="w-3 h-3" aria-hidden="true" />
+      </button>
+      <span
+        aria-live="polite"
+        aria-label={`Escala del mapa ${Math.round(nivelZoom * 100)}%${zoomManual === null ? ', ajustada al ancho' : ''}`}
+        className="text-[9px] font-mono font-bold text-neutral-500 px-1 min-w-[28px] text-center"
+      >
+        {Math.round(nivelZoom * 100)}%
+      </span>
+      <button
+        type="button"
+        onClick={manejarAumentarZoom}
+        disabled={nivelZoom >= ZOOM_MAXIMO}
+        title="Acercar vista"
+        aria-label="Acercar vista del mapa"
+        className={claseControl}
+      >
+        <ZoomIn className="w-3 h-3" aria-hidden="true" />
+      </button>
+      {zoomManual !== null && modoAjuste === 'ajustar' && (
+        <button
+          type="button"
+          onClick={manejarAjustarAncho}
+          title="Ajustar el mapa al ancho"
+          aria-label="Ajustar el mapa al ancho de la pantalla"
+          className={`${claseControl} text-[#7a132b]`}
+        >
+          <RotateCcw className="w-3 h-3" aria-hidden="true" />
+        </button>
+      )}
+    </>
+  );
 
   // Renderizador unitario de lugar según el modo operativo
   const renderizarElementoLugar = (lugar: ConfiguracionAsiento) => {
@@ -390,22 +508,22 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
             <div className="flex items-center gap-1 bg-white border border-neutral-200 rounded-lg p-0.5 shadow-2xs ml-1 sm:ml-2">
               <button
                 type="button"
-                onClick={() => setModoAjuste(modoAjuste === 'ajustar' ? 'amplio' : 'ajustar')}
+                onClick={manejarAlternarModo}
                 title={
                   modoAjuste === 'ajustar'
                     ? 'Cambiar a tamaño amplio táctil'
                     : 'Ajustar al ancho de la pantalla'
                 }
-                className="px-2 py-1 rounded text-[9px] font-bold transition-colors flex items-center gap-1 cursor-pointer hover:bg-neutral-100 text-neutral-700"
+                className="px-2 py-1 rounded text-[9px] font-bold transition-colors flex items-center gap-1 cursor-pointer hover:bg-neutral-100 text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a132b]"
               >
                 {modoAjuste === 'ajustar' ? (
                   <>
-                    <Maximize2 className="w-3 h-3 text-[#7a132b]" />
+                    <Maximize2 className="w-3 h-3 text-[#7a132b]" aria-hidden="true" />
                     <span>Modo Amplio</span>
                   </>
                 ) : (
                   <>
-                    <Minimize2 className="w-3 h-3 text-[#7a132b]" />
+                    <Minimize2 className="w-3 h-3 text-[#7a132b]" aria-hidden="true" />
                     <span>Ajustar al Ancho</span>
                   </>
                 )}
@@ -413,38 +531,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
 
               <div className="h-3.5 w-px bg-neutral-200 mx-0.5" />
 
-              <button
-                type="button"
-                onClick={manejarDisminuirZoom}
-                title="Alejar vista"
-                className="p-1 hover:bg-neutral-100 rounded text-neutral-600 cursor-pointer"
-              >
-                <ZoomOut className="w-3 h-3" />
-              </button>
-
-              <span className="text-[9px] font-mono font-bold text-neutral-500 px-1 min-w-[28px] text-center">
-                {Math.round(nivelZoom * 100)}%
-              </span>
-
-              <button
-                type="button"
-                onClick={manejarAumentarZoom}
-                title="Acercar vista"
-                className="p-1 hover:bg-neutral-100 rounded text-neutral-600 cursor-pointer"
-              >
-                <ZoomIn className="w-3 h-3" />
-              </button>
-
-              {nivelZoom !== 1 && (
-                <button
-                  type="button"
-                  onClick={manejarRestablecerZoom}
-                  title="Restablecer escala al 100%"
-                  className="p-1 hover:bg-neutral-100 rounded text-[#7a132b] cursor-pointer"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                </button>
-              )}
+              {controlesZoom}
             </div>
           </div>
         </div>
@@ -463,6 +550,11 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
           <span className="text-[10px] font-semibold text-neutral-400 tracking-wider uppercase">
             Configuración Modular Flexible · Las mesas y plazas pueden reconfigurarse o suprimirse
           </span>
+          <div className="mt-3 flex justify-center">
+            <div className="flex items-center gap-1 bg-white border border-neutral-200 rounded-lg p-0.5 shadow-2xs">
+              {controlesZoom}
+            </div>
+          </div>
         </div>
       )}
 
@@ -492,63 +584,40 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
 
               {/* Controles de Zoom para Laboratorio */}
               <div className="flex items-center gap-1 bg-white border border-neutral-200 rounded-lg p-0.5 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={manejarDisminuirZoom}
-                  title="Alejar vista"
-                  className="p-1 hover:bg-neutral-100 rounded text-neutral-600 cursor-pointer"
-                >
-                  <ZoomOut className="w-3 h-3" />
-                </button>
-                <span className="text-[9px] font-mono font-bold text-neutral-500 px-1">
-                  {Math.round(nivelZoom * 100)}%
-                </span>
-                <button
-                  type="button"
-                  onClick={manejarAumentarZoom}
-                  title="Acercar vista"
-                  className="p-1 hover:bg-neutral-100 rounded text-neutral-600 cursor-pointer"
-                >
-                  <ZoomIn className="w-3 h-3" />
-                </button>
-                {nivelZoom !== 1 && (
-                  <button
-                    type="button"
-                    onClick={manejarRestablecerZoom}
-                    title="Restablecer escala al 100%"
-                    className="p-1 hover:bg-neutral-100 rounded text-[#7a132b] cursor-pointer"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                  </button>
-                )}
+                {controlesZoom}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Indicador de desplazamiento horizontal en pantallas móviles */}
-      <div className="sm:hidden text-[9px] text-neutral-400 font-medium text-center mb-2 flex items-center justify-center gap-1">
-        <span>↔ Desliza horizontalmente para explorar el recinto completo</span>
-      </div>
+      {/* Indicador de desplazamiento: solo cuando el mapa es más ancho que la pantalla */}
+      {hayDesbordeHorizontal && (
+        <div className="text-[9px] text-neutral-500 font-medium text-center mb-2 flex items-center justify-center gap-1">
+          <span>↔ Desliza para recorrer el mapa · usa ↺ o «Ajustar al Ancho» para verlo completo</span>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 2. MATRIZ ESPACIAL INTERACTIVA DE LUGARES                                */}
       {/* ========================================================================= */}
-      {/* REGLA ARQUITECTÓNICA CLAVE:
-          El contenedor exterior utiliza overflow-x-auto.
-          El contenedor interior usa 'min-w-max w-fit mx-auto':
-          1. En pantallas grandes (PC): mx-auto centra perfectamente el recinto si el contenedor es más amplio.
-          2. En pantallas pequeñas (Móvil): los márgenes automáticos colapsan a 0 en desbordamiento,
-             asegurando que el contenido comience EXACTAMENTE en X=0.
-             ¡Esto elimina de raíz el corte izquierdo y permite desplazarse fluidamente en ambas direcciones! */}
+      {/* El mapa se mide a tamaño natural y se escala con transform. El marco recibe el
+          tamaño ya escalado para que el área desplazable coincida con lo que se ve:
+          al acercar no se corta el lado izquierdo y al alejar no queda espacio vacío.
+          mx-auto centra el marco cuando cabe y se anula cuando desborda (inicio en X=0). */}
       <div
         ref={contenedorScrollRef}
-        className="w-full overflow-x-auto pb-4 overscroll-x-contain scroll-smooth"
+        className="w-full overflow-x-auto pb-4 overscroll-x-contain"
       >
         <div
-          className="min-w-max w-fit mx-auto px-2 sm:px-4 transition-transform duration-150 origin-top"
-          style={{ transform: nivelZoom !== 1 ? `scale(${nivelZoom})` : undefined }}
+          className="relative mx-auto"
+          style={medido ? { width: Math.ceil(medidas.ancho * nivelZoom), height: Math.ceil(medidas.alto * nivelZoom) } : undefined}
+        >
+        <div
+          ref={contenidoRef}
+          data-escala-mapa={nivelZoom}
+          className={`w-max px-2 sm:px-4 ${esAuditorio ? 'pb-7' : ''} ${medido ? 'absolute left-0 top-0 origin-top-left' : 'mx-auto'}`}
+          style={medido && nivelZoom !== 1 ? { transform: `scale(${nivelZoom})` } : undefined}
         >
           {/* CASO A: LABORATORIO DE CÓMPUTO SEGÚN BOCETO CON PIZARRÓN A LA DERECHA DE PC-28 */}
           {esLaboratorio ? (
@@ -870,6 +939,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
               )}
             </div>
           )}
+        </div>
         </div>
       </div>
 
