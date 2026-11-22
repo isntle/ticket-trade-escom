@@ -397,7 +397,7 @@ export async function leerEstado(u: any, eventoEnlace?: string) {
     ? []
     : (
         await pool.query(
-          `SELECT id_notificacion::text id,titulo,mensaje,referencia_destino enlace,creada_en fecha,(leida_en IS NOT NULL) leida
+          `SELECT id_notificacion::text id,titulo,mensaje,CASE WHEN tipo='disponibilidad' THEN '/eventos/' || referencia_destino ELSE referencia_destino END enlace,creada_en fecha,(leida_en IS NOT NULL) leida
            FROM ticket_trade."Notificacion"
            WHERE id_cuenta_destinataria=$1 AND tipo<>'evento_operacion'
            ORDER BY creada_en DESC,id_notificacion DESC`,

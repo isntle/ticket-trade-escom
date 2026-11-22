@@ -52,7 +52,7 @@ const butacas: ConfiguracionAsiento[] = ["A", "B", "C"].flatMap((fila) =>
     fila,
     numero: i + 1,
     etiqueta: `${fila}${i + 1}`,
-    categoria: "general",
+    categoria: "asistente",
     estaBloqueado: false,
   }) as ConfiguracionAsiento),
 );

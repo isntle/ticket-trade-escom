@@ -8,7 +8,7 @@ import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { useDatos } from "../contextos/DatosContexto";
 import type { DocumentoIdentidad, Usuario } from "../tipos";
 import {
-  validarExpedienteIdentidEad,
+  validarExpedienteIdentidad,
   restriccionIdentidadVigente,
 } from "../dominio/identidad";
 import { guardarDocumentoIdentidad } from "../utilidades/documentosIdentidad";
@@ -233,7 +233,7 @@ export function GestionIdentidadPagina({
     u: Usuario,
     lista = u.archivosExpediente || [],
     titulo = "Documentos actuales",
-    estadoVersion = u.estadoExpediente,
+    estadoVersion: string | undefined = u.estadoExpediente,
     fechaVersion?: string,
   ) => (
     <section className="space-y-3">
