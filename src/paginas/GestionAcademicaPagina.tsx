@@ -26,27 +26,31 @@ export function GestionAcademicaPagina({
     version: number;
   } | null>(null);
   const [motivo, setMotivo] = React.useState("");
-  if (
-    auth.rolActivo !== "subdireccion" ||
-    !auth.usuarioActual?.roles.includes("subdireccion")
-  )
+  const puedeOperar =
+    ["admin", "subdireccion"].includes(auth.rolActivo) &&
+    auth.usuarioActual?.roles.some((r) => ["admin", "subdireccion"].includes(r));
+  if (!puedeOperar)
     return (
       <section className="p-8">
-        Esta gestión corresponde a Subdirección.
+        Esta gestión corresponde a Administración o Subdirección.
       </section>
     );
   const elegida = auth.todosLosUsuarios.find((u) => u.id === propuesta?.id);
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6">
       <button
-        onClick={() => navigate(volverA("/subdireccion"))}
+        onClick={() =>
+          navigate(volverA(auth.rolActivo === "admin" ? "/admin" : "/subdireccion"))
+        }
         className="flex items-center gap-2 text-sm"
       >
         <ArrowLeft size={16} />
         Regresar
       </button>
       <header>
-        <p className="font-semibold text-[#7a132b]">Subdirección</p>
+        <p className="font-semibold text-[#7a132b]">
+          {auth.rolActivo === "admin" ? "Administración" : "Subdirección"}
+        </p>
         <h1 className="text-3xl font-bold">
           Jefes de academia y periodos escolares
         </h1>

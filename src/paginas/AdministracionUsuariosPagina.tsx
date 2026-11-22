@@ -103,6 +103,28 @@ export const AdministracionUsuariosPagina: React.FC<
     }
   };
 
+  const alternarEstado = async (u: Usuario) => {
+    let motivo: string | undefined = undefined;
+    if (u.estaActivo) {
+      const input = window.prompt(
+        `Indica el motivo para suspender la cuenta de ${u.nombre}:`,
+        "Suspensión administrativa",
+      );
+      if (input === null) return;
+      motivo = input.trim() || "Suspensión administrativa";
+    }
+    const res = await alternarEstadoUsuario(u.id, motivo);
+    if (res.exito) {
+      mostrarNotificacion(
+        "Estado de Cuenta Actualizado",
+        res.mensaje || (u.estaActivo ? "Cuenta suspendida." : "Cuenta activada."),
+        "exito",
+      );
+    } else {
+      mostrarNotificacion("Error", res.mensaje, "error");
+    }
+  };
+
   const abrirModalStaff = (u: Usuario) => {
     setUsuarioEditandoStaff(u);
   };
@@ -184,6 +206,12 @@ export const AdministracionUsuariosPagina: React.FC<
           onClick={() => navigate("/admin/restricciones")}
         >
           Resolver restricciones
+        </button>
+        <button
+          className="rounded-xl border p-3"
+          onClick={() => navigate("/admin/jefaturas")}
+        >
+          Jefaturas de academia y periodos
         </button>
         <button
           className="rounded-xl border p-3"
@@ -301,7 +329,7 @@ export const AdministracionUsuariosPagina: React.FC<
                   <td className="px-5 py-3.5">
                     <button
                       type="button"
-                      onClick={async () => (await alternarEstadoUsuario(u.id))}
+                      onClick={() => void alternarEstado(u)}
                       className={`inline-flex items-center gap-1 font-bold text-[11px] cursor-pointer ${
                         u.estaActivo
                           ? "text-emerald-700"

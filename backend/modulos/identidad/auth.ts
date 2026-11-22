@@ -147,7 +147,7 @@ export async function proyectarUsuario(id: string) {
     boleta: r.boleta || undefined,
     rfc: r.rfc || undefined,
     eventosAsignadosStaff: r.eventos,
-    puedeAutoaprobar: false, // La autorización automática aún no forma parte del comando remoto.
+    puedeAutoaprobar: Boolean(r.jefatura),
   };
 }
 export async function usuarioSesion(token: unknown) {

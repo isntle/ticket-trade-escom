@@ -897,14 +897,14 @@ function usarIdentidad() {
   };
   const cambiarAutoaprobacion = (id:string,valor:boolean,motivo="",version?:number) => {
     const actor=activa(),u=cuentasRef.current.find(c=>c.id===id);
-    if(!actor?.roles.includes('subdireccion')||rolActivo!=='subdireccion')return mal('Solo Subdirección gestiona a los jefes de academia.');
+    if(!actor?.roles.some(r=>['admin','subdireccion'].includes(r))||!['admin','subdireccion'].includes(rolActivo))return mal('Esta gestión corresponde a Administración o Subdirección.');
     if(!u||!motivo.trim())return mal('Selecciona la cuenta e indica el motivo.');
     if(version!==u.versionIdentidad && !(version===0&&!u.versionIdentidad))return mal('La cuenta cambió. Revisa su versión actual.');
     if(valor&&(!u.estaActivo||u.afiliacion!=='profesor'||u.correoConfirmado!==true||!verificacionIdentidadVigente(u)))return mal('La jefatura requiere un docente activo con correo e identidad verificados.');
     return guardar(cuentasRef.current.map(c=>c.id===id?movimiento({...c,puedeAutoaprobar:valor},actor.nombre,valor?'Jefatura de academia asignada':'Jefatura de academia retirada',motivo.trim()):c));
   };
   const configurarPeriodosIdentidad = (periodos:PeriodoIdentidad[],versionEsperada?:string) => {
-    if(!activa()?.roles.includes('subdireccion')||rolActivo!=='subdireccion')return mal('Solo Subdirección configura los periodos de verificación.');
+    if(!activa()?.roles.some(r=>['admin','subdireccion'].includes(r))||!['admin','subdireccion'].includes(rolActivo))return mal('Esta gestión corresponde a Administración o Subdirección.');
     const error=validarPeriodosIdentidad(periodos);if(error)return mal(error);
     const usados=cuentasRef.current.filter(u=>u.periodoVerificado).map(u=>u.periodoVerificado);
     const anteriores=leerPeriodosIdentidad();
@@ -969,21 +969,27 @@ function usarIdentidad() {
       ),
     );
   };
-  const alternarEstadoUsuario = (id: string) => {
+  const alternarEstadoUsuario = (id: string, motivo?: string) => {
     if (!puedeAdmin() || id === activa()!.id)
       return mal("Operación administrativa no permitida.");
+    const u = cuentasRef.current.find((c) => c.id === id);
+    if (!u) return mal("Cuenta no encontrada.");
+    const seraActivo = !u.estaActivo;
+    const motivoTexto =
+      motivo?.trim() ||
+      (seraActivo ? "Activada por Administración." : "Suspendida por Administración.");
     return guardar(
       cuentasRef.current.map((c) =>
         c.id === id
           ? movimiento(
               {
                 ...c,
-                estaActivo: !c.estaActivo,
+                estaActivo: seraActivo,
                 versionCredenciales: (c.versionCredenciales || 0) + 1,
               },
               activa()!.nombre,
               "Estado de cuenta modificado",
-              c.estaActivo ? "Suspendida." : "Activada.",
+              motivoTexto,
             )
           : c,
       ),

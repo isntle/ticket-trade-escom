@@ -455,6 +455,13 @@ function ContenidoApp() {
       return (
         <GestionIdentidadPagina vista="restricciones" navigate={navegarA} />
       );
+    if (
+      rutaActual === "/admin/jefaturas" ||
+      rutaActual === "/admin/jefes-academia" ||
+      rutaActual === "/admin/periodos"
+    ) {
+      return <GestionAcademicaPagina navigate={navegarA} />;
+    }
     if (rutaActual.startsWith("/admin")) {
       return <AdministracionUsuariosPagina navigate={navegarA} />;
     }

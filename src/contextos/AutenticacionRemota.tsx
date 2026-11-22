@@ -257,13 +257,61 @@ export function ProveedorAutenticacionRemota({
       mensaje:
         "Dependencia pendiente: el alta y retiro de Staff aún no está conectado a PostgreSQL. No se guardaron cambios.",
     }),
-    alternarEstadoUsuario: noDisponible,
+    alternarEstadoUsuario: async (id: string, motivo?: string) => {
+      if (!usuario?.roles.includes("admin") || rol !== "admin") {
+        return {
+          exito: false,
+          mensaje: "Solo Administración puede modificar el estado de una cuenta.",
+        };
+      }
+      if (id === usuario.id) {
+        return {
+          exito: false,
+          mensaje: "No puedes suspender tu propia cuenta.",
+        };
+      }
+      return operacion(`/auth/usuarios/${encodeURIComponent(id)}/estado`, { motivo });
+    },
     reiniciarConfirmacionPrueba: noDisponible,
     solicitarRestriccion: noDisponible,
     actualizarRestriccionSolicitudes: noDisponible,
-    cambiarAutoaprobacion: noDisponible,
-    configurarPeriodosIdentidad: noDisponible,
-    silenciarVerificacion: noDisponible,
+    cambiarAutoaprobacion: async (
+      id: string,
+      valor: boolean,
+      motivo = "",
+      _version?: number,
+    ) => {
+      if (!usuario?.roles.some((r) => ["admin", "subdireccion"].includes(r))) {
+        return {
+          exito: false,
+          mensaje: "No tienes permiso para gestionar jefaturas de academia.",
+        };
+      }
+      return operacion(`/auth/usuarios/${encodeURIComponent(id)}/jefatura`, {
+        valor,
+        motivo,
+      });
+    },
+    configurarPeriodosIdentidad: async (
+      periodos: PeriodoIdentidad[],
+      versionEsperada?: string,
+    ) => {
+      if (!usuario?.roles.some((r) => ["admin", "subdireccion"].includes(r))) {
+        return {
+          exito: false,
+          mensaje: "No tienes permiso para configurar periodos escolares.",
+        };
+      }
+      return operacion("/auth/periodos", {
+        periodos,
+        versionEsperada,
+      });
+    },
+    silenciarVerificacion: () => ({
+      exito: false,
+      mensaje:
+        "La pausa de envíos de verificación no tiene persistencia en la base de datos remota. Función no disponible en modo conectado.",
+    }),
   };
   if (!listo)
     return (

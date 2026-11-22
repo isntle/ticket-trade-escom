@@ -185,5 +185,95 @@ test(
       !publico.datos.some((e: any) => privados.some((p) => p.id === e.id)),
       "No publica borradores",
     );
+
+    // =========================================================================
+    // PRUEBAS DE JEFATURAS DE ACADEMIA Y PERIODOS (TT012, ATRIBUCIÓN INSTITUCIONAL)
+    // =========================================================================
+    const estudiante = await entrar(1004);
+
+    // 1. Rechazo si la sesión no tiene permiso
+    const sinPermiso = await pedir(
+      "/api/auth/usuarios/1003/jefatura",
+      { valor: false },
+      estudiante,
+    );
+    assert.equal(sinPermiso.status, 403, "Estudiante no puede gestionar jefaturas");
+
+    // 2. Retiro de jefatura por Administración y consulta desde otra sesión
+    const retiroAdmin = await pedir(
+      "/api/auth/usuarios/1003/jefatura",
+      { valor: false, motivo: "Fin de nombramiento" },
+      cookie, // cookie de cuenta 1001 (Administración)
+    );
+    assert.equal(retiroAdmin.status, 200, "Administración retira jefatura");
+    // Consulta desde la sesión del docente (otra sesión)
+    const yoDocenteSinJefatura = await (await pedir("/api/auth/yo", undefined, docente)).json();
+    assert.equal(
+      yoDocenteSinJefatura.datos.usuario.puedeAutoaprobar,
+      false,
+      "Docente ya no tiene autoaprobación tras retiro consultado desde su sesión",
+    );
+
+    // 3. Rechazo si la verificación fue retirada
+    await pool.query(
+      `UPDATE ticket_trade."Verificacion" SET retirada_en = CURRENT_TIMESTAMP WHERE id_verificacion = 1001`,
+    );
+    const intentoVerifRetirada = await pedir(
+      "/api/auth/usuarios/1003/jefatura",
+      { valor: true, motivo: "Intento con verificación retirada", idOtorgante: "1002" },
+      cookie,
+    );
+    assert.equal(intentoVerifRetirada.status, 422, "Rechaza si la verificación fue retirada");
+    const jsonRetirada = await intentoVerifRetirada.json();
+    assert.match(jsonRetirada.error.mensaje, /retirada/);
+
+    // Restaurar verificación no retirada
+    await pool.query(
+      `UPDATE ticket_trade."Verificacion" SET retirada_en = NULL WHERE id_verificacion = 1001`,
+    );
+
+    // 4. Rechazo si el otorgante no corresponde (cuenta que no es de Subdirección)
+    const otorganteInvalido = await pedir(
+      "/api/auth/usuarios/1003/jefatura",
+      { valor: true, motivo: "Alta inválida", idOtorgante: "1004" }, // 1004 es estudiante
+      cookie,
+    );
+    assert.equal(otorganteInvalido.status, 422, "Rechaza si el otorgante no es Subdirección");
+    const jsonOtorgante = await otorganteInvalido.json();
+    assert.match(jsonOtorgante.error.mensaje, /Subdirección/);
+
+    // 5. Alta con persona verificada y otorgante elegible (Subdirección 1002, operado desde Administración)
+    const altaExitosa = await pedir(
+      "/api/auth/usuarios/1003/jefatura",
+      { valor: true, motivo: "Nombramiento institucional vigente", idOtorgante: "1002" },
+      cookie,
+    );
+    assert.equal(altaExitosa.status, 200, "Alta exitosa de jefatura");
+
+    // Consulta desde la sesión de Docente (otra sesión)
+    const yoDocenteConJefatura = await (await pedir("/api/auth/yo", undefined, docente)).json();
+    assert.equal(
+      yoDocenteConJefatura.datos.usuario.puedeAutoaprobar,
+      true,
+      "Docente refleja autoaprobación activa consultada desde su sesión",
+    );
+
+    // 6. Configuración de periodos escolares desde Administración
+    const periodosResp = await pedir(
+      "/api/auth/periodos",
+      {
+        periodos: [
+          { id: "1001", inicio: "2026-08-01", fin: "2027-01-31" },
+          { id: "2027-1", inicio: "2027-02-01", fin: "2027-07-31" },
+        ],
+      },
+      cookie,
+    );
+    assert.equal(periodosResp.status, 200, "Periodos guardados desde Administración");
+    const periodosJson = await periodosResp.json();
+    assert.ok(
+      periodosJson.datos.periodos.some((p: any) => p.id === "2027-1"),
+      "Nuevo periodo agregado a PostgreSQL",
+    );
   },
 );
