@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   BadgeCheck,
+  Bell,
   LogIn,
   LogOut,
   Menu,
@@ -52,24 +53,34 @@ export const BarraSuperior: React.FC<{
     cambiarUsuario,
     cerrarSesion,
   } = useAutenticacion();
-  const { reiniciarDatosIniciales } = useDatos();
+  const {
+    reiniciarDatosIniciales,
+    listaNotificaciones = [],
+    marcarNotificacionLeida,
+  } = useDatos();
   const { mostrarNotificacion } = useNotificaciones();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [movilAbierto, setMovilAbierto] = useState(false);
+  const [panelNotificaciones, setPanelNotificaciones] = useState(false);
   const contenedor = useRef<HTMLDivElement>(null);
+  const contenedorNotificaciones = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setMenuAbierto(false);
     setMovilAbierto(false);
+    setPanelNotificaciones(false);
   }, [rutaActual]);
   useEffect(() => {
     const cerrar = (evento: PointerEvent) => {
       if (!contenedor.current?.contains(evento.target as Node))
         setMenuAbierto(false);
+      if (!contenedorNotificaciones.current?.contains(evento.target as Node))
+        setPanelNotificaciones(false);
     };
     const tecla = (evento: KeyboardEvent) => {
       if (evento.key === "Escape") {
         setMenuAbierto(false);
         setMovilAbierto(false);
+        setPanelNotificaciones(false);
       }
     };
     document.addEventListener("pointerdown", cerrar);
@@ -82,6 +93,7 @@ export const BarraSuperior: React.FC<{
   const ir = (ruta: string) => {
     setMenuAbierto(false);
     setMovilAbierto(false);
+    setPanelNotificaciones(false);
     navegarA(ruta);
   };
   const elegirRol = (rol: RolUsuario) => {
@@ -107,6 +119,7 @@ export const BarraSuperior: React.FC<{
   const puedeOrganizar = usuarioActual?.roles.some((rol) =>
     ["organizador", "subdireccion", "admin"].includes(rol),
   );
+  const noLeidas = listaNotificaciones.filter((n) => !n.leida).length;
   const claseEnlace = (ruta: string) =>
     "rounded-lg px-3 py-2 text-sm font-semibold transition-colors " +
     (activo(ruta)
@@ -157,6 +170,96 @@ export const BarraSuperior: React.FC<{
             >
               {movilAbierto ? <X size={19} /> : <Menu size={19} />}
             </button>
+            {estaAutenticado && usuarioActual && (
+              <div ref={contenedorNotificaciones} className="relative">
+                <button
+                  onClick={() => setPanelNotificaciones(!panelNotificaciones)}
+                  aria-label={
+                    noLeidas
+                      ? `Notificaciones, ${noLeidas} sin leer`
+                      : "Notificaciones"
+                  }
+                  aria-expanded={panelNotificaciones}
+                  aria-controls="panel-notificaciones"
+                  className="relative rounded-lg border p-2.5 hover:bg-neutral-50"
+                >
+                  <Bell size={19} />
+                  {noLeidas > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#7a132b] px-1 text-[11px] font-bold text-white">
+                      {noLeidas > 99 ? "99+" : noLeidas}
+                    </span>
+                  )}
+                </button>
+                {panelNotificaciones && (
+                  <div
+                    id="panel-notificaciones"
+                    className="absolute right-0 top-full mt-2 max-h-[75vh] w-[min(24rem,calc(100vw-2rem))] overflow-auto rounded-2xl border border-neutral-200 bg-white p-3 shadow-xl"
+                  >
+                    <div className="flex items-center justify-between px-2 pb-2">
+                      <h2 className="text-sm font-bold">Notificaciones</h2>
+                      <span className="text-xs text-neutral-500">
+                        {noLeidas} sin leer
+                      </span>
+                    </div>
+                    {listaNotificaciones.length === 0 ? (
+                      <p className="px-2 py-4 text-sm text-neutral-500">
+                        No tienes notificaciones.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {listaNotificaciones.map((n) => (
+                          <li
+                            key={n.id}
+                            className={
+                              "rounded-xl border p-3 " +
+                              (n.leida
+                                ? "border-neutral-200 bg-white"
+                                : "border-[#7a132b]/25 bg-[#7a132b]/5")
+                            }
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-semibold">{n.titulo}</p>
+                              {!n.leida && (
+                                <span
+                                  className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#7a132b]"
+                                  aria-label="Sin leer"
+                                />
+                              )}
+                            </div>
+                            <p className="mt-1 whitespace-pre-line text-xs text-neutral-600">
+                              {n.mensaje}
+                            </p>
+                            <p className="mt-1 text-[11px] text-neutral-400">
+                              {new Date(n.fecha).toLocaleString("es-MX")}
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {n.enlace && (
+                                <button
+                                  onClick={() => n.enlace && ir(n.enlace)}
+                                  className="rounded-lg bg-[#7a132b] px-3 py-1.5 text-xs font-semibold text-white"
+                                >
+                                  Ir al trámite
+                                </button>
+                              )}
+                              {!n.leida && marcarNotificacionLeida && (
+                                <button
+                                  onClick={() =>
+                                    void marcarNotificacionLeida(n.id)
+                                  }
+                                  className="rounded-lg border px-3 py-1.5 text-xs font-semibold hover:bg-neutral-50"
+                                >
+                                  Marcar como leída
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             {estaAutenticado && usuarioActual ? (
               <div ref={contenedor} className="relative">
                 <button

@@ -20,6 +20,7 @@ import {
   BloqueoRecinto,
   Reservacion,
   BoletoDigital,
+  Notificacion,
   TipoBoletoEspecial,
   EstadoInscripciones,
   EntradaListaEspera,
@@ -82,6 +83,8 @@ export interface ContextoDatosTipo {
   cancelarBloqueoInstitucional: (id:string,motivo:string,version?:number) => ResultadoBloqueo | Promise<ResultadoBloqueo>;
   listaReservaciones: Reservacion[];
   listaBoletos: BoletoDigital[];
+  listaNotificaciones?: Notificacion[];
+  marcarNotificacionLeida?: (id: string) => { exito: boolean; error?: string } | Promise<{ exito: boolean; error?: string }>;
   listaEspera: EntradaListaEspera[];
   listaIntencionesAsistencia: RegistroIntencionAsistencia[];
   bitacoraEscaneos: RegistroEscaneo[];

@@ -9,7 +9,7 @@ import { useAutenticacion } from "./AutenticacionContexto.js";
 import { transporteApi, ErrorApi } from "../servicios/http.js";
 import { tokenEnlacePrivado } from '../servicios/enlacePrivado.js';
 import { guardarArchivoRemoto, guardarCartelRemoto } from "../servicios/archivos.js";
-import type { Evento, ResultadoEscaneo, SolicitudEvento, Usuario } from "../tipos/index.js";
+import type { Evento, Notificacion, ResultadoEscaneo, SolicitudEvento, Usuario } from "../tipos/index.js";
 
 function clasificarErrorCheckIn(
   mensaje: string,
@@ -42,6 +42,7 @@ const vacio = {
   listaBloqueos: [],
   listaReservaciones: [],
   listaBoletos: [],
+  listaNotificaciones: [],
   listaEspera: [],
   listaIntencionesAsistencia: [],
   bitacoraEscaneos: [],
@@ -236,6 +237,25 @@ function DatosDeSesion({ children, usuarioActual }: {
       return { exito: true };
     });
   const verificarDisponibilidadRecinto = agendaRemota.verificar;
+  const marcarNotificacionLeida = async (id: string) => {
+    try {
+      await api("/estado/notificaciones/" + id + "/leida", { metodo: "PATCH" });
+      const actual = estadoRef.current;
+      const actualizado = {
+        ...actual,
+        listaNotificaciones: (actual.listaNotificaciones || []).map(
+          (n: Notificacion) => (n.id === id ? { ...n, leida: true } : n),
+        ),
+      };
+      estadoRef.current = actualizado;
+      setEstado(actualizado);
+      return { exito: true };
+    } catch (e) {
+      const mensaje =
+        e instanceof Error ? e.message : "No se pudo marcar el aviso.";
+      return { exito: false, error: mensaje };
+    }
+  };
   const agenda = (fecha: string) =>
     agendaRemota.leer({ fecha }).agenda?.recintos.flatMap(r => r.ocupaciones) || [];
   const operaciones: Record<string, unknown> = {
@@ -243,6 +263,7 @@ function DatosDeSesion({ children, usuarioActual }: {
     ...crearServicioConfiguracionRecintos(api, async () => { agendaRemota.limpiar(); await cargar(); }),
     agendaRemota,
     verificarDisponibilidadRecinto,
+    marcarNotificacionLeida,
     obtenerOcupacionesRecinto: (id: string, fecha: string) =>
       agenda(fecha).filter((a: any) => a.idRecinto === id),
     obtenerAgendaMultiRecinto: agenda,

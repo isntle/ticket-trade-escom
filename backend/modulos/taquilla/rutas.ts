@@ -1,7 +1,7 @@
 import { routerAvisosCupo, despacharAvisosCupo, procesarAvisosCupo } from "./avisosCupo.js";
 import { routerIntenciones } from "./intenciones.js";
 import {liberarApartadosVencidos} from "../../bd/apartados.js";
-import { encolarAviso } from "../correos/avisos.js";
+import { encolarAviso, registrarAvisoBandeja } from "../correos/avisos.js";
 import { Router } from "express";
 import crypto from "node:crypto";
 import { encolarCorreo, correoHabilitado } from "../correos/servicio.js";
@@ -311,6 +311,34 @@ routerTaquilla.post(
       VALUES($1,$2,clock_timestamp(),(SELECT id_estado_reservacion FROM ticket_trade."EstadoReservacion" WHERE nombre='Confirmada')) RETURNING id_reservacion::text id`,
         [pase.id, id],
       );
+      const ocupacion = await c.query(
+        `SELECT count(*)::int confirmadas FROM ticket_trade."Reservacion" r
+         JOIN ticket_trade."CompromisoCupo" cp USING(id_compromiso_cupo)
+         JOIN ticket_trade."EstadoReservacion" er USING(id_estado_reservacion)
+         WHERE cp.id_actividad=$1 AND er.nombre='Confirmada'`,
+        [a.id_actividad],
+      );
+      const capacidad = Number(a.aforo_solicitado),
+        confirmadas = ocupacion.rows[0].confirmadas;
+      if (capacidad > 0 && confirmadas * 10 >= capacidad * 9 && (confirmadas - 1) * 10 < capacidad * 9) {
+        await c.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)", [
+          "actividad90:" + a.id_actividad,
+        ]);
+        const organizador = await c.query(
+          'SELECT id_cuenta_organizadora::text organizador FROM ticket_trade."Evento" WHERE id_evento=$1',
+          [a.evento],
+        );
+        await registrarAvisoBandeja(c, {
+          destinatario: organizador.rows[0].organizador,
+          tipo: "actividad_90:" + a.id_actividad,
+          titulo: "Actividad con 90% de reservas confirmadas",
+          mensaje:
+            `Motivo: La actividad "${a.nombre}" alcanzó ${confirmadas} de ${capacidad} reservas confirmadas ` +
+            `(${Math.round((confirmadas / capacidad) * 100)}%).\n` +
+            "Siguiente paso: Monitorea el cupo restante y prepara la logística.",
+          referencia: "/organizador/eventos/" + a.evento,
+        });
+      }
       const correoPendiente = await encolarCorreo(
         c,
         u.id,

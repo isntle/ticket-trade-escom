@@ -1,6 +1,6 @@
 import {presentacionCompartida,presentacionAutorizada,clavePresentacionValida,crearCookiePresentacion,nombreCookiePresentacion} from "./presentacion.js";
 import { Router } from "express";
-import { encolarAviso } from "../correos/avisos.js";
+import { encolarAviso, registrarAvisoBandeja } from "../correos/avisos.js";
 import { pool, conTransaccion } from "../../bd/pool.js";
 import { origenSeguro, hashContrasena, huella } from "../../comun/seguridad.js";
 import { fallo, ruta, texto, idEntero, demoHabilitada } from "../../comun/http.js";
@@ -385,6 +385,25 @@ routerPerfil.post(
           [id],
         );
       // Los documentos resueltos se conservan para el historial y la revisión.
+      const tituloBandeja =
+        b.decision === "Requiere corrección"
+          ? "Tu expediente requiere corrección"
+          : b.decision === "Aprobada"
+            ? "Tu expediente fue aprobado"
+            : "Tu expediente fue rechazado";
+      const siguientePaso =
+        b.decision === "Aprobada"
+          ? "Ya puedes registrar solicitudes de eventos."
+          : b.decision === "Requiere corrección"
+            ? "Corrige los documentos observados y vuelve a enviar tu expediente."
+            : "Revisa el motivo y verifica tus intentos disponibles en el periodo.";
+      await registrarAvisoBandeja(c, {
+        destinatario: s.rows[0].titular,
+        tipo: "expediente_resolucion:" + id,
+        titulo: tituloBandeja,
+        mensaje: `Motivo: ${motivo}\nSiguiente paso: ${siguientePaso}`,
+        referencia: "/mi-expediente",
+      });
       await encolarAviso(
         c,
         s.rows[0].titular,

@@ -1,7 +1,7 @@
 import { leerIntenciones } from "../taquilla/intenciones.js";
 import { Router } from "express";
 import { pool, tokenPeticion, modoBaseDatos } from "../../bd/pool.js";
-import { usuarioSesion } from "../identidad/auth.js";
+import { exigirSesion, usuarioSesion } from "../identidad/auth.js";
 import { ruta, idEntero, fallo } from "../../comun/http.js";
 import { origenSeguro } from "../../comun/seguridad.js";
 import { leerEventos, leerRecintos } from "./catalogos.js";
@@ -393,6 +393,17 @@ export async function leerEstado(u: any, eventoEnlace?: string) {
       "SELECT clave id,to_char(inicio,'YYYY-MM-DD') inicio,to_char(fin,'YYYY-MM-DD') fin FROM ticket_trade.\"PeriodoEscolar\" ORDER BY inicio",
     )
   ).rows.map((p) => ({ ...p, fuente: "Periodo configurado en PostgreSQL" }));
+  const notificaciones = !u
+    ? []
+    : (
+        await pool.query(
+          `SELECT id_notificacion::text id,titulo,mensaje,referencia_destino enlace,creada_en fecha,(leida_en IS NOT NULL) leida
+           FROM ticket_trade."Notificacion"
+           WHERE id_cuenta_destinataria=$1 AND tipo<>'evento_operacion'
+           ORDER BY creada_en DESC,id_notificacion DESC`,
+          [u.id],
+        )
+      ).rows;
   return {
     listaEventos: eventos,
     listaRecintos: recintos,
@@ -402,6 +413,7 @@ export async function leerEstado(u: any, eventoEnlace?: string) {
     listaBoletos: boletos,
     bitacoraEscaneos: escaneos,
     listaBloqueos: configuracion.bloqueos,
+    listaNotificaciones: notificaciones,
     listaEspera: [],
     listaIntencionesAsistencia: await leerIntenciones(u?.id),
     listaClasesRegulares: [],
@@ -410,6 +422,21 @@ export async function leerEstado(u: any, eventoEnlace?: string) {
     periodos,
   };
 }
+routerEstado.patch(
+  "/notificaciones/:id/leida",
+  origenSeguro,
+  exigirSesion,
+  ruta(async (req, res) => {
+    const id = idEntero(req.params.id);
+    const r = await pool.query(
+      `UPDATE ticket_trade."Notificacion" SET leida_en=COALESCE(leida_en,clock_timestamp())
+       WHERE id_notificacion=$1 AND id_cuenta_destinataria=$2`,
+      [id, res.locals.usuario.id],
+    );
+    if (!r.rowCount) fallo("Notificación no encontrada.", 404);
+    res.json({ datos: { exito: true } });
+  }),
+);
 routerEstado.post('/evento-privado', origenSeguro, ruta(async (req, res) => {
   const id = idEntero(req.body?.idEvento);
   const token = req.body?.token;
