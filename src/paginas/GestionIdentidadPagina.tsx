@@ -3,7 +3,10 @@ import { impedimentoVerificacion, intentosPeriodo, periodoIdentidadActual, recha
 import { volverA } from '../dominio/navegacion';
 import { apiActiva } from '../servicios/modoDatos';
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, FileCheck2 } from "lucide-react";
+import {
+  ArrowLeft, FileCheck2, CircleCheck, Clock3, AlertTriangle,
+  XCircle, ShieldOff, CircleHelp
+} from "lucide-react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { useDatos } from "../contextos/DatosContexto";
 import type { DocumentoIdentidad, Usuario } from "../tipos";
@@ -32,6 +35,24 @@ const ETIQUETAS_ESTADO: Record<string, string> = {
   revocado: "Verificación revocada",
 };
 const estadoLegible = (s?: string) => ETIQUETAS_ESTADO[s || "sin_enviar"] || estado(s);
+const PRESENTACION_ESTADO = {
+  sin_enviar: { clase: "border-neutral-300 bg-neutral-100 text-neutral-700", Icono: CircleHelp },
+  en_revision: { clase: "border-sky-200 bg-sky-50 text-sky-800", Icono: Clock3 },
+  requiere_correccion: { clase: "border-amber-300 bg-amber-50 text-amber-900", Icono: AlertTriangle },
+  aprobado: { clase: "border-emerald-200 bg-emerald-50 text-emerald-800", Icono: CircleCheck },
+  rechazado: { clase: "border-rose-200 bg-rose-50 text-rose-800", Icono: XCircle },
+  revocado: { clase: "border-orange-200 bg-orange-50 text-orange-800", Icono: ShieldOff },
+} as const;
+const InsigniaEstado = ({ valor }: { valor?: string }) => {
+  const { clase, Icono } = PRESENTACION_ESTADO[valor as keyof typeof PRESENTACION_ESTADO]
+    || PRESENTACION_ESTADO.sin_enviar;
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${clase}`}>
+      <Icono size={14} aria-hidden />
+      {estadoLegible(valor)}
+    </span>
+  );
+};
 const afiliacionLegible = (afiliacion: Usuario["afiliacion"]) => ({
   alumno: "Estudiante",
   profesor: "Docente",
@@ -229,9 +250,12 @@ export function GestionIdentidadPagina({
   const fechaLegible = (valor?: string) => {
     if (!valor) return "Fecha no registrada";
     const fecha = new Date(valor);
-    return Number.isNaN(fecha.getTime())
-      ? valor
-      : fecha.toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" });
+    if (Number.isNaN(fecha.getTime())) return valor;
+    const soloFecha = /^\d{4}-\d{2}-\d{2}$/.test(valor);
+    return fecha.toLocaleDateString("es-MX", {
+      day: "2-digit", month: "long", year: "numeric",
+      timeZone: soloFecha ? "UTC" : "America/Mexico_City",
+    });
   };
 
   const listadoArchivos = (
@@ -301,6 +325,7 @@ export function GestionIdentidadPagina({
         </button>
       </section>
     );
+  const impedimentoEnvio = impedimentoVerificacion(cuenta, auth.periodosIdentidad);
   const titulo =
     vista === "expediente"
       ? "Mi expediente"
@@ -334,25 +359,35 @@ export function GestionIdentidadPagina({
       )}
       {vista === "expediente" && (
         <article className="space-y-5 rounded-3xl border bg-white p-5 sm:p-8">
-          <p>
-            Estado:{" "}
-            <strong className="capitalize">
-              {estado(cuenta.estadoExpediente)}
-            </strong>{" "}
-            · Versión {cuenta.versionIdentidad || 0}
-            {cuenta.verificacionHasta &&
-              " · Válido hasta " + cuenta.verificacionHasta}
-          </p>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-semibold">Estado:</span>
+            <InsigniaEstado valor={cuenta.estadoExpediente || (cuenta.esVerificado ? "aprobado" : undefined)} />
+            <span className="text-neutral-600">Versión {cuenta.versionIdentidad || 0}</span>
+            {cuenta.verificacionHasta && <span className="text-neutral-600">Válido hasta {fechaLegible(cuenta.verificacionHasta)}</span>}
+          </div>
           <div className="rounded-xl bg-neutral-50 p-4 text-sm"><strong>{cuenta.nombre}</strong><p>{cuenta.correo} · {cuenta.afiliacion}</p><p>{cuenta.boleta ? 'Boleta: '+cuenta.boleta : cuenta.afiliacion==='externo' ? [cuenta.nombreOrganizacion,cuenta.puestoContacto].filter(Boolean).join(' · ') : 'Número de empleado: '+(cuenta.numeroEmpleado||'Pendiente')}</p><button className="mt-2 font-semibold text-[#7a132b] underline" onClick={()=>navigate('/perfil')}>Revisar datos de mi perfil</button>{periodoIdentidadActual(auth.periodosIdentidad)&&<p className="mt-2">Periodo {periodoIdentidadActual(auth.periodosIdentidad)!.id} · Envíos: {intentosPeriodo(cuenta,periodoIdentidadActual(auth.periodosIdentidad)!)} de 3 · Rechazos: {rechazosPeriodo(cuenta,periodoIdentidadActual(auth.periodosIdentidad)!)}</p>}</div>
           {cuenta.afiliacion==='profesor' && <form className="rounded-xl bg-neutral-50 p-4" onSubmit={async e=>{e.preventDefault();const datos=new FormData(e.currentTarget);resultado((await auth.actualizarPerfil(cuenta.id,{numeroEmpleado:String(datos.get('numeroEmpleado')||'').trim()},cuenta.versionIdentidad||0)));}}><label className="block text-sm font-semibold">Número de empleado<input name="numeroEmpleado" required defaultValue={cuenta.numeroEmpleado||''} className={campo}/></label><button type="submit" className={boton+" mt-3"}>Guardar número de empleado</button></form>}
           {cuenta.afiliacion==='externo' && <form className="rounded-xl bg-neutral-50 p-4" onSubmit={async e=>{e.preventDefault();const datos=new FormData(e.currentTarget);resultado((await auth.actualizarPerfil(cuenta.id,{nombreOrganizacion:String(datos.get('nombreOrganizacion')||'').trim(),puestoContacto:String(datos.get('puestoContacto')||'').trim()},cuenta.versionIdentidad||0)));}}><label className="block text-sm font-semibold">Entidad<input name="nombreOrganizacion" required defaultValue={cuenta.nombreOrganizacion||''} className={campo}/></label><label className="mt-3 block text-sm font-semibold">Cargo o relación de representación<input name="puestoContacto" required defaultValue={cuenta.puestoContacto||''} className={campo}/></label><button type="submit" className={boton+" mt-3"}>Guardar datos de la entidad</button></form>}
-          {cuenta.estadoExpediente === "requiere_correccion" && (
-            <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm">
-              Subdirección solicitó una corrección. Retira el documento rechazado, adjunta el nuevo PDF y reenvía el expediente.
-            </p>
+          {(cuenta.estadoExpediente === "requiere_correccion" || cuenta.estadoExpediente === "rechazado") && (
+            <section role="status" className={`space-y-2 rounded-xl border p-4 text-sm ${cuenta.estadoExpediente === "rechazado" ? "border-rose-200 bg-rose-50 text-rose-900" : "border-amber-300 bg-amber-50 text-amber-950"}`}>
+              <div className="flex items-center gap-2 font-bold">
+                <InsigniaEstado valor={cuenta.estadoExpediente} />
+                <span>{cuenta.estadoExpediente === "rechazado" ? "Motivo del rechazo" : "Motivo de la corrección"}</span>
+              </div>
+              <p>{cuenta.motivoExpediente || "El servidor no registró un motivo para esta decisión."}</p>
+              {!impedimentoEnvio && (
+                <p><strong>Siguiente paso:</strong>{" "}
+                  {cuenta.correoConfirmado !== true
+                    ? "Confirma tu correo para poder enviar el expediente."
+                    : cuenta.estadoExpediente === "requiere_correccion"
+                      ? "Revisa la observación, reemplaza el documento indicado y vuelve a enviar el expediente completo."
+                      : "Revisa la observación y prepara una nueva solicitud con la documentación corregida."}
+                </p>
+              )}
+            </section>
           )}
-          {cuenta.motivoExpediente && (
-            <p>Observaciones: {cuenta.motivoExpediente}</p>
+          {cuenta.motivoExpediente && !["requiere_correccion", "rechazado"].includes(cuenta.estadoExpediente || "") && (
+            <p className="text-sm"><strong>Observaciones:</strong> {cuenta.motivoExpediente}</p>
           )}
           <p className="text-sm">
             Aviso de datos: solo el titular, Subdirección y Administración pueden consultar
@@ -386,7 +421,7 @@ export function GestionIdentidadPagina({
                 expresa.
               </p>
               <label className="block text-sm font-bold">¿Por qué solicitas la verificación?<textarea required className={campo} value={motivoSolicitud} onChange={e=>{setMotivoSolicitud(e.target.value);setRevision(null);}}/></label>
-              {impedimentoVerificacion(cuenta,auth.periodosIdentidad)&&<p role="status" className="rounded-xl bg-amber-50 p-4 text-sm">{impedimentoVerificacion(cuenta,auth.periodosIdentidad)}</p>}
+              {impedimentoEnvio && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm">{impedimentoEnvio}</p>}
               <label className="block text-sm font-bold">
                 Adjuntar documentos PDF ({limiteDocumentos} por expediente; 10 MiB por archivo)
                 <input
@@ -621,7 +656,7 @@ export function GestionIdentidadPagina({
                   <span className="mt-1 block break-all text-xs text-neutral-500">{u.correo}</span>
                   <span className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
                     <span>{afiliacionLegible(u.afiliacion)}</span>
-                    <span className="rounded-full bg-neutral-100 px-2.5 py-1 font-semibold text-neutral-700">{estadoLegible(u.estadoExpediente || (u.esVerificado ? "aprobado" : undefined))}</span>
+                    <InsigniaEstado valor={u.estadoExpediente || (u.esVerificado ? "aprobado" : undefined)} />
                   </span>
                   <span className="mt-3 block text-sm font-semibold text-[#7a132b] underline">Ver expediente</span>
                 </button>
@@ -650,10 +685,17 @@ export function GestionIdentidadPagina({
                       ? "Entidad: " + (elegida.nombreOrganizacion || "No registrada") + " · Cargo: " + (elegida.puestoContacto || "No registrado")
                       : "RFC: " + (elegida.rfc || "No registrado")}
               </p>
-              <p>
-                Versión {seleccion?.version} ·{" "}
-                {estadoLegible(elegida.estadoExpediente || (elegida.esVerificado ? "aprobado" : undefined))}
-              </p>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-neutral-600">Versión {seleccion?.version}</span>
+                <InsigniaEstado valor={elegida.estadoExpediente || (elegida.esVerificado ? "aprobado" : undefined)} />
+              </div>
+              {["requiere_correccion", "rechazado"].includes(elegida.estadoExpediente || "") && (
+                <div className={`space-y-1 rounded-xl border p-3 text-sm ${elegida.estadoExpediente === "rechazado" ? "border-rose-200 bg-rose-50 text-rose-900" : "border-amber-200 bg-amber-50 text-amber-950"}`}>
+                  <p className="font-semibold">{elegida.estadoExpediente === "rechazado" ? "Motivo del rechazo" : "Motivo de la corrección solicitada"}</p>
+                  <p>{elegida.motivoExpediente || "No se registró un motivo en los datos recibidos del servidor."}</p>
+                  <p><strong>Acción:</strong> {elegida.estadoExpediente === "requiere_correccion" ? "El titular puede corregir los documentos y reenviar cuando la validación del servidor lo permita." : "El titular debe consultar las condiciones del periodo para saber si puede presentar una nueva solicitud."}</p>
+                </div>
+              )}
               <p><strong>Motivo de la solicitud:</strong> {elegida.motivoSolicitudVerificacion || "No registrado en el expediente anterior"}</p>
               {listadoArchivos(elegida, elegida.archivosExpediente || [], "Documentos actuales", elegida.estadoExpediente)}
               <p className="text-sm">
@@ -734,10 +776,11 @@ export function GestionIdentidadPagina({
               <h3 className="font-bold">Historial y versiones revisadas</h3>
               {elegida.historialExpediente?.map((h, i) => (
                 <div key={i} className="border-t pt-3 text-sm">
-                  <p>
-                    {estadoLegible(h.estado)} · {h.responsable} · {h.fecha} ·{" "}
-                    {h.motivo}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <InsigniaEstado valor={h.estado} />
+                    <span className="text-neutral-600">{h.responsable} · {fechaLegible(h.fecha)}</span>
+                  </div>
+                  <p className="mt-1"><strong>Motivo:</strong> {h.motivo || "Sin motivo registrado"}</p>
                   {h.archivos && listadoArchivos(elegida, h.archivos, "Documentos anteriores", h.estado, h.fecha)}
                 </div>
               ))}
