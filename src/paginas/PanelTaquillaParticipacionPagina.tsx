@@ -3,6 +3,7 @@ import { volverA } from '../dominio/navegacion';
 import { afectaBloqueo } from '../dominio/bloqueos';
 import { inicioEnMexico } from '../dominio/solicitudes';
 import { etiquetaActividad, formatearFechaHoraInstitucional, indicadoresActividad, puedeAdministrarTaquilla, registrosDeActividad } from '../dominio/taquilla';
+import { generarCsvParticipantesAutorizados, participantesAutorizadosDeEvento } from '../utilidades/exportarParticipantesCsv';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
@@ -10,6 +11,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
+  Download,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -392,6 +394,18 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
     { etiqueta: 'Participación registrada', valor: totales.asistencias, ayuda: 'Entradas verificadas en puerta', icono: BarChart3, color: 'text-[#7a132b] bg-[#7a132b]/10' }
   ];
 
+  const exportarParticipantes = () => {
+    const participantes = participantesAutorizadosDeEvento(
+      usuarioActual, evento, idsFechasFiltradas, listaRecintos, listaReservaciones, listaBoletos
+    );
+    const archivo = new Blob([generarCsvParticipantesAutorizados(participantes)], { type: 'text/csv;charset=utf-8' });
+    const enlace = document.createElement('a');
+    enlace.href = URL.createObjectURL(archivo);
+    enlace.download = 'participantes-evento-' + evento.id + '.csv';
+    enlace.click();
+    window.setTimeout(() => URL.revokeObjectURL(enlace.href), 1000);
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
@@ -447,6 +461,16 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={exportarParticipantes}
+              disabled={sesionesFiltradas.length === 0}
+              aria-describedby="filtros-exportacion-csv"
+              className="px-4 py-2.5 bg-white border border-neutral-300 hover:border-[#7a132b] text-[#7a132b] rounded-xl text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Exportar participantes (CSV)
+            </button>
             <button
               type="button"
               onClick={() => { setUltimaActualizacion(new Date()); setAhora(Date.now()); }}
@@ -509,6 +533,9 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
             </span>
           </div>
         </div>
+        <p id="filtros-exportacion-csv" className="mt-2 text-xs text-neutral-600">
+          La descarga incluye participantes autorizados según los filtros de actividad, periodo y modalidad.
+        </p>
       </header>
 
       {evento.estado === 'cancelado' && (

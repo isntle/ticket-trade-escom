@@ -1,4 +1,11 @@
-export interface ParticipanteActividadCsv {
+import { nombreActividad } from '../dominio/actividades.js';
+import { puedeAdministrarTaquilla } from '../dominio/taquilla.js';
+import type { BoletoDigital, Evento, Recinto, Reservacion, Usuario } from '../tipos/index.js';
+
+export type CategoriaParticipanteCsv = 'General' | 'VIP' | 'Staff';
+export type EstadoParticipanteCsv = 'Confirmado' | 'Vigente' | 'Acceso registrado';
+
+export interface ParticipanteAutorizadoCsv {
   id: string;
   idActividad: string;
   actividad: string;
@@ -6,44 +13,72 @@ export interface ParticipanteActividadCsv {
   recinto: string;
   participante: string;
   referencia: string;
-  categoria: string;
-  estado: string;
+  categoria: CategoriaParticipanteCsv;
+  estado: EstadoParticipanteCsv;
   autorizado: boolean;
-  observaciones?: string;
 }
 
-export interface FiltrosExportacionCsv {
+export interface FiltrosParticipantesCsv {
   idActividad?: string;
-  categoria?: string;
-  estado?: string;
+  categoria?: 'todas' | CategoriaParticipanteCsv;
+  estado?: 'todos' | EstadoParticipanteCsv;
   busqueda?: string;
 }
 
-export interface ContratoParticipantesCsv {
-  acordado: boolean;
-  fuenteCompleta: boolean;
-  columnas: ReadonlyArray<{
-    clave: keyof Omit<ParticipanteActividadCsv, 'id' | 'idActividad' | 'autorizado'>;
-    encabezado: string;
-  }>;
+export const ENCABEZADOS_PARTICIPANTES_CSV = [
+  'Actividad',
+  'Fecha y horario',
+  'Recinto',
+  'Participante',
+  'Referencia',
+  'Categoría',
+  'Estado'
+] as const;
+
+const INICIO_FORMULA = /^(?:\s*[=+\-@＝＋－＠]|[\t\r\n])/;
+const REFERENCIA_INTERNA = /^ref-(?:res|esp)-[1-9]\d*$/;
+
+export function participantesAutorizadosDeEvento(
+  usuario: Usuario | null,
+  evento: Evento,
+  idsActividad: ReadonlySet<string>,
+  recintos: readonly Recinto[],
+  reservas: readonly Reservacion[],
+  boletos: readonly BoletoDigital[],
+): ParticipanteAutorizadoCsv[] {
+  if (!puedeAdministrarTaquilla(usuario, evento) || evento.estado === 'cancelado') return [];
+  const actividades = new Map(evento.fechas
+    .filter(actividad => idsActividad.has(actividad.id) && !actividad.cancelada)
+    .map(actividad => [actividad.id, actividad]));
+  const nombresRecintos = new Map(recintos.map(recinto => [recinto.id, recinto.nombre]));
+  const reservaciones = new Map(reservas
+    .filter(reserva => reserva.idEvento === evento.id && reserva.estado === 'confirmada')
+    .map(reserva => [reserva.id, reserva]));
+  const registros: ParticipanteAutorizadoCsv[] = [];
+  for (const boleto of boletos) {
+    const actividad = actividades.get(boleto.idFechaEvento);
+    if (!actividad || boleto.idEvento !== evento.id || boleto.estado === 'cancelado') continue;
+    const reserva = reservaciones.get(boleto.idReservacion);
+    if (!boleto.esEspecial && reserva?.idFechaEvento !== actividad.id) continue;
+    // En el demo local el identificador de un boleto especial puede incluir su código de acceso.
+    const referencia = boleto.esEspecial
+      ? 'ref-' + boleto.idReservacion
+      : 'ref-res-' + boleto.idReservacion;
+    registros.push({
+      id: boleto.id,
+      idActividad: actividad.id,
+      actividad: nombreActividad(actividad),
+      fechaHorario: actividad.fecha + ' ' + actividad.horaInicio + '–' + actividad.horaFin,
+      recinto: nombresRecintos.get(actividad.idRecinto) || 'Recinto no disponible',
+      participante: boleto.nombreUsuario,
+      referencia: formatearReferenciaInternaSegura(referencia),
+      categoria: !boleto.esEspecial ? 'General' : boleto.tipoEspecial === 'vip' ? 'VIP' : 'Staff',
+      estado: boleto.estado === 'utilizado' ? 'Acceso registrado' : boleto.esEspecial ? 'Vigente' : 'Confirmado',
+      autorizado: true,
+    });
+  }
+  return registros;
 }
-
-export const CONTRATO_BASE_PARTICIPANTES_CSV: ContratoParticipantesCsv = {
-  acordado: false,
-  fuenteCompleta: false,
-  columnas: [
-    { clave: 'actividad', encabezado: 'Actividad' },
-    { clave: 'fechaHorario', encabezado: 'Fecha y horario' },
-    { clave: 'recinto', encabezado: 'Recinto' },
-    { clave: 'participante', encabezado: 'Participante' },
-    { clave: 'referencia', encabezado: 'Referencia' },
-    { clave: 'categoria', encabezado: 'Categoría' },
-    { clave: 'estado', encabezado: 'Estado' },
-    { clave: 'observaciones', encabezado: 'Observaciones' }
-  ]
-};
-
-const INICIO_FORMULA = /^(?:[\t\r ]*[=+\-@]|[\t\r])/;
 
 export function protegerValorFormulaCsv(valor: unknown): string {
   const texto = String(valor ?? '');
@@ -52,19 +87,20 @@ export function protegerValorFormulaCsv(valor: unknown): string {
 
 export function escaparCeldaCsv(valor: unknown): string {
   const protegido = protegerValorFormulaCsv(valor);
-  const conComillasDobles = protegido.replace(/"/g, '""');
-  return /[",\r\n]/.test(conComillasDobles) ? `"${conComillasDobles}"` : conComillasDobles;
+  const escapado = protegido.replace(/"/g, '""');
+  return /[",\r\n]/.test(escapado) ? `"${escapado}"` : escapado;
 }
 
-export function puedeExponerDescargaCsv(contrato: ContratoParticipantesCsv): boolean {
-  return contrato.acordado && contrato.fuenteCompleta && contrato.columnas.length > 0;
+export function formatearReferenciaInternaSegura(idInterno: string): string {
+  return REFERENCIA_INTERNA.test(idInterno) ? idInterno : 'Sin referencia';
 }
 
-export function filtrarParticipantesAutorizados(
-  registros: readonly ParticipanteActividadCsv[],
-  filtros: FiltrosExportacionCsv = {}
-): ParticipanteActividadCsv[] {
+export function filtrarParticipantesAutorizadosCsv(
+  registros: readonly ParticipanteAutorizadoCsv[],
+  filtros: FiltrosParticipantesCsv = {}
+): ParticipanteAutorizadoCsv[] {
   const termino = (filtros.busqueda ?? '').trim().toLowerCase();
+
   return registros.filter((registro) => {
     if (!registro.autorizado) return false;
     if (filtros.idActividad && filtros.idActividad !== 'todas' && registro.idActividad !== filtros.idActividad) {
@@ -80,7 +116,8 @@ export function filtrarParticipantesAutorizados(
       const coincide =
         registro.participante.toLowerCase().includes(termino) ||
         registro.referencia.toLowerCase().includes(termino) ||
-        registro.actividad.toLowerCase().includes(termino);
+        registro.actividad.toLowerCase().includes(termino) ||
+        registro.recinto.toLowerCase().includes(termino);
       if (!coincide) return false;
     }
     return true;
@@ -88,14 +125,24 @@ export function filtrarParticipantesAutorizados(
 }
 
 export function generarCsvParticipantesAutorizados(
-  registros: readonly ParticipanteActividadCsv[],
-  filtros: FiltrosExportacionCsv = {},
-  contrato: ContratoParticipantesCsv = CONTRATO_BASE_PARTICIPANTES_CSV
+  registros: readonly ParticipanteAutorizadoCsv[],
+  filtros: FiltrosParticipantesCsv = {}
 ): string {
-  const filtrados = filtrarParticipantesAutorizados(registros, filtros);
-  const encabezados = contrato.columnas.map((col) => escaparCeldaCsv(col.encabezado)).join(',');
-  const filas = filtrados.map((registro) =>
-    contrato.columnas.map((col) => escaparCeldaCsv(registro[col.clave] ?? '')).join(',')
+  const filtrados = filtrarParticipantesAutorizadosCsv(registros, filtros);
+  const filaEncabezados = ENCABEZADOS_PARTICIPANTES_CSV.map((col) => escaparCeldaCsv(col)).join(',');
+  const filas = filtrados.map((item) =>
+    [
+      item.actividad,
+      item.fechaHorario,
+      item.recinto,
+      item.participante,
+      formatearReferenciaInternaSegura(item.referencia),
+      item.categoria,
+      item.estado
+    ]
+      .map((celda) => escaparCeldaCsv(celda))
+      .join(',')
   );
-  return `\uFEFF${[encabezados, ...filas].join('\r\n')}`;
+
+  return `\uFEFF${[filaEncabezados, ...filas].join('\r\n')}`;
 }

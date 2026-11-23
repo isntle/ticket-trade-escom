@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { readFile } from "node:fs/promises";
+import { generarCsvParticipantesAutorizados, participantesAutorizadosDeEvento } from "../src/utilidades/exportarParticipantesCsv";
 
 test(
   "PostgreSQL: registro, tokens, PDF privado, revisión, cartel, solicitud, cupo concurrente y persistencia",
@@ -604,6 +605,17 @@ test(
       "Los boletos especiales activos consumen cupo real de la actividad",
     );
     const estadoDueno = await ok(await pedir("/api/estado", undefined, cookie));
+    const organizadorCsv = (await ok(await pedir("/api/auth/yo", undefined, cookie))).usuario;
+    const eventoCsv = estadoDueno.listaEventos.find((evento: any) => evento.id === s.idEvento);
+    assert.ok(eventoCsv);
+    const exportar = (usuario: typeof organizadorCsv, estadoApi: typeof estadoDueno, ids = [actividad]) =>
+      participantesAutorizadosDeEvento(
+        usuario, eventoCsv, new Set(ids), estadoApi.listaRecintos,
+        estadoApi.listaReservaciones, estadoApi.listaBoletos,
+      );
+    const emitidos = exportar(organizadorCsv, estadoDueno);
+    assert.ok(emitidos.some(registro => registro.id === boletoEsp1.id && registro.estado === "Vigente"));
+    assert.deepEqual(exportar(organizadorCsv, estadoDueno, []), []);
     const proyectadoDueno = estadoDueno.listaBoletos.find(
       (b: any) => b.id === boletoEsp1.id,
     );
@@ -611,6 +623,8 @@ test(
     const estadoEstudiante = await ok(
       await pedir("/api/estado", undefined, estudiante),
     );
+    const estudianteCsv = (await ok(await pedir("/api/auth/yo", undefined, estudiante))).usuario;
+    assert.deepEqual(exportar(estudianteCsv, estadoEstudiante), [], "Un asistente no exporta el padrón del evento");
     const proyectadoEstudiante = estadoEstudiante.listaBoletos.find(
       (b: any) => b.id === boletoEsp1.id,
     );
@@ -667,7 +681,7 @@ test(
       ),
       201,
     );
-    await ok(
+    const confirmadaParaIngreso = await ok(
       await pedir(
         "/api/taquilla/apartados/" + paraIngreso.id + "/confirmacion",
         {},
@@ -769,6 +783,21 @@ test(
       1,
     );
     const estadoAdmin = await ok(await pedir("/api/estado", undefined, admin));
+    const adminCsv = (await ok(await pedir("/api/auth/yo", undefined, admin))).usuario;
+    const participantes = exportar(adminCsv, estadoAdmin);
+    assert.deepEqual(
+      participantes.map(registro => [registro.categoria, registro.estado]).sort(),
+      [["General", "Acceso registrado"], ["VIP", "Acceso registrado"]],
+      "El export conserva una fila por acceso válido y excluye el boleto invalidado y la reservación cancelada",
+    );
+    assert.deepEqual(
+      participantes.map(registro => registro.referencia).sort(),
+      ["ref-esp-" + boletoEsp2.id.replace("boleto-esp-", ""), "ref-res-" + confirmadaParaIngreso.id].sort(),
+    );
+    const csv = generarCsvParticipantesAutorizados(participantes);
+    for (const datoPrivado of [boleto.codigo_qr, boletoEsp2.codigoQr, boletoEsp2.codigoManual, cuerpo.correo]) {
+      assert.ok(!csv.includes(datoPrivado), "La descarga omite correos y credenciales del boleto");
+    }
     const registroHistorial = estadoAdmin.bitacoraEscaneos.find(
       (x: any) => x.idFechaEvento === actividad,
     );

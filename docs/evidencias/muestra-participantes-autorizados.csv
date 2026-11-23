@@ -1,4 +1,4 @@
-﻿Actividad,Fecha y horario,Recinto,Participante,Referencia,Categoría,Estado,Observaciones
-Taller de Ciberseguridad,2026-11-21 09:00–11:00,Laboratorio 3,Ángel Ramírez,BOL-101,Reservación confirmada,Autorizado,"Trae laptop; ""equipo 1"""
-Simposio Internacional de IA,2026-11-21 11:30–13:30,Auditorio Principal,María José Núñez,VIP-004,Boleto especial,Autorizado,'=SUMA(A2:A3)
-Hackathon ESCOM,2026-11-22 10:00–14:00,Sala 14,Óscar Peña,STF-012,Staff autorizado,Autorizado,'+52-55-1234-5678
+﻿Actividad,Fecha y horario,Recinto,Participante,Referencia,Categoría,Estado
+Taller de Ciberseguridad,2026-11-21 09:00–11:00,Laboratorio 3,"Ángel ""Gato"" Ramírez",ref-res-101,General,Acceso registrado
+Simposio Internacional de IA,2026-11-21 11:30–13:30,Auditorio Principal,María José Núñez,ref-esp-204,VIP,Vigente
+Hackathon ESCOM,2026-11-22 10:00–14:00,Sala 14,"Óscar Peña, Jr.",ref-esp-309,Staff,Vigente
