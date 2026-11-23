@@ -299,6 +299,33 @@ test(
         },
       ],
     };
+    const admin = await entrar("cuenta1001@example.invalid");
+    const titular = (await ok(await pedir("/api/auth/yo", undefined, cookie))).usuario.id;
+    const restricciones = "/api/auth/usuarios/" + titular + "/restricciones";
+    const motivo = "Incidencia de prueba con seguimiento institucional";
+    const nuevaPeticion = { accion: "aplicar", motivo, solicitudes: "Solicitud de referencia de la prueba" };
+    assert.equal((await pedir(restricciones + "/peticiones", nuevaPeticion, cookie)).status, 403);
+    await ok(await pedir(restricciones + "/peticiones", nuevaPeticion, sub));
+    assert.equal((await pedir(restricciones + "/peticiones", nuevaPeticion, sub)).status, 409);
+    const directorio = await ok(await pedir("/api/auth/usuarios", undefined, admin));
+    const peticionId = directorio.find((u: any) => u.id === titular).peticionesRestriccion[0].id;
+    const decision = {
+      peticionId, motivo, aceptar: true,
+      desde: new Date(Date.now() - 60_000).toISOString(),
+      hasta: new Date(Date.now() + 60 * 60_000).toISOString(),
+    };
+    assert.equal((await pedir(restricciones + "/resolucion", decision, sub)).status, 403);
+    const resoluciones = await Promise.all([1, 2].map(() => pedir(restricciones + "/resolucion", decision, admin)));
+    assert.deepEqual(resoluciones.map(r => r.status).sort(), [200, 409]);
+    const cuentaRestringida = (await ok(await pedir("/api/auth/yo", undefined, cookie))).usuario;
+    assert.equal(cuentaRestringida.restriccionSolicitudesHasta, decision.hasta);
+    assert.equal(cuentaRestringida.peticionesRestriccion, undefined);
+    const envioRestringido = await pedir("/api/organizacion/solicitudes", solicitud, cookie);
+    assert.equal(envioRestringido.status, 403);
+    assert.match(await envioRestringido.text(), /restricción vigente/);
+    await ok(await pedir(restricciones + "/resolucion", { motivo: "Restricción levantada en la prueba", hasta: "", aceptar: true }, admin));
+    assert.equal((await ok(await pedir("/api/auth/yo", undefined, cookie))).usuario.restriccionSolicitudesHasta, undefined);
+
     // Las secuencias de evento y solicitud son independientes.
     await pool.query(`SELECT setval(pg_get_serial_sequence('ticket_trade."SolicitudEvento"','id_solicitud_evento'), 50000, true)`);
     const s = await ok(
@@ -438,7 +465,6 @@ test(
       /^\d{4}-\d{2}-\d{2}$/,
       "La fecha académica no se transforma en un instante UTC",
     );
-    const admin = await entrar("cuenta1001@example.invalid");
     const personal = await ok(await pedir("/api/auth/staff/1001", undefined, admin));
     assert.ok(personal.some((u: any) => u.id === "1006" && u.eventosAsignadosStaff.includes("1001")));
     assert.equal((await pedir("/api/auth/staff/1001", undefined, estudiante)).status, 403);

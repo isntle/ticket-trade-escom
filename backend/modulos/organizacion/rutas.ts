@@ -1,3 +1,4 @@
+import { comprobarEnvioSinRestriccion } from "../identidad/restricciones.js";
 import { identidadHabilitadaParaOrganizar } from "../../../src/dominio/facultadOrganizar.js";
 import { routerDistribucion } from "./distribucion.js";
 import {routerEventos} from "./eventos.js";
@@ -140,8 +141,9 @@ routerOrganizacion.post("/solicitudes", async (req, res, next) => {
   try {
     const resultado = await conTransaccion(async (c) => {
       let disponibilidad;
+      await c.query("SELECT pg_advisory_xact_lock(744220261107::bigint)");
+      await comprobarEnvioSinRestriccion(c, u.id);
       if (b.enviar === true) {
-        await c.query("SELECT pg_advisory_xact_lock(744220261107::bigint)");
         disponibilidad = await revisarDisponibilidadServidor(c, u, actividadesParaDisponibilidad(b.fechasSolicitadas));
         // Enviar a revisión no reserva: las coincidencias externas se informan.
         exigirPropuestaSinCruces(disponibilidad);
@@ -424,6 +426,7 @@ routerOrganizacion.patch(
         fallo("La solicitud cambió o ya no admite edición.", 409);
       if (b.enviar && (!u.correoConfirmado || !identidadHabilitadaParaOrganizar(u)))
         fallo("Necesitas una cuenta confirmada y verificada.", 403);
+      if (b.enviar === true && s.estado === "Borrador") await comprobarEnvioSinRestriccion(c, u.id);
       const revision = b.enviar === true ? await revisarDisponibilidadServidor(c, u, actividadesParaDisponibilidad(b.fechasSolicitadas), { idEventoExcluir: s.evento }) : undefined;
       if (revision) exigirPropuestaSinCruces(revision);
       if (!["publico", "privado"].includes(b.visibilidad))

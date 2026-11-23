@@ -1,3 +1,4 @@
+import { pedirRestriccion, resolverRestriccion } from "./restricciones.js";
 import { validarPeriodosIdentidad } from "../../../src/dominio/periodosIdentidad.js";
 import {presentacionCompartida,presentacionAutorizada,clavePresentacionValida,crearCookiePresentacion,nombreCookiePresentacion} from "./presentacion.js";
 import { Router } from "express";
@@ -163,7 +164,7 @@ routerPerfil.get(
       'SELECT id_cuenta::text id FROM ticket_trade."Cuenta" ORDER BY id_cuenta',
     );
     res.json({
-      datos: await Promise.all(ids.rows.map((r) => proyectarUsuario(r.id))),
+      datos: await Promise.all(ids.rows.map((r) => proyectarUsuario(r.id, true))),
     });
   }),
 );
@@ -769,4 +770,14 @@ routerPerfil.post("/staff/:evento/:cuenta", exigirSesion, ruta(async (req, res) 
     )).rowCount) fallo("Se requiere una cuenta activa con correo confirmado e invitación aceptada para este evento.", 409);
   });
   res.json({ datos: { mensaje: asociar ? "Permiso de acceso asignado." : "Permiso de acceso retirado." } });
+}));
+
+routerPerfil.post("/usuarios/:id/restricciones/peticiones", exigirSesion, ruta(async (req, res) => {
+  await pedirRestriccion(res.locals.usuario, idEntero(req.params.id), req.body || {});
+  res.json({ datos: { mensaje: "Petición enviada a Administración." } });
+}));
+
+routerPerfil.post("/usuarios/:id/restricciones/resolucion", exigirSesion, ruta(async (req, res) => {
+  await resolverRestriccion(res.locals.usuario, idEntero(req.params.id), req.body || {});
+  res.json({ datos: { mensaje: "Decisión de restricción guardada." } });
 }));

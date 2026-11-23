@@ -269,8 +269,10 @@ export function ProveedorAutenticacionRemota({
       return operacion(`/auth/usuarios/${encodeURIComponent(id)}/estado`, { motivo, activo: !objetivo.estaActivo });
     },
     reiniciarConfirmacionPrueba: noDisponible,
-    solicitarRestriccion: noDisponible,
-    actualizarRestriccionSolicitudes: noDisponible,
+    solicitarRestriccion: (id: string, accion: "aplicar" | "levantar", motivo: string, solicitudes: string) =>
+      operacion(`/auth/usuarios/${encodeURIComponent(id)}/restricciones/peticiones`, { accion, motivo, solicitudes }),
+    actualizarRestriccionSolicitudes: (id: string, hasta: string, motivo: string, desde?: string, peticionId?: string, aceptar = true) =>
+      operacion(`/auth/usuarios/${encodeURIComponent(id)}/restricciones/resolucion`, { desde, hasta, motivo, peticionId, aceptar }),
     cambiarAutoaprobacion: async (
       id: string,
       valor: boolean,

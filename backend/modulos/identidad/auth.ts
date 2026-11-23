@@ -1,3 +1,4 @@
+import { consultarRestriccion } from "./restricciones.js";
 import { crearToken } from "./tokens.js";
 // Validación de dominio recuperada del registro de Regina; comparación exacta.
 const validarDominioIdentidad = (correo: string, afiliacion: string) =>
@@ -25,7 +26,7 @@ const idValido = (id: unknown): id is string =>
   typeof id === "string" &&
   /^[1-9][0-9]{0,18}$/.test(id) &&
   BigInt(id) <= 9223372036854775807n;
-export async function proyectarUsuario(id: string) {
+export async function proyectarUsuario(id: string, incluirPeticiones = false) {
   if (!idValido(id)) return null;
   const { rows } = await pool.query(
     `SELECT c.id_cuenta::text AS id,concat_ws(' ',c.nombres,c.primer_apellido,nullif(c.segundo_apellido,'')) AS nombre,c.correo,
@@ -96,6 +97,7 @@ export async function proyectarUsuario(id: string) {
   if (r.eventos.length) roles.push("staff");
   return {
     id: r.id,
+    ...await consultarRestriccion(id, incluirPeticiones),
     estadoExpediente: r.verificado
       ? "aprobado"
       : ex?.estado === "Pendiente de revisión"
