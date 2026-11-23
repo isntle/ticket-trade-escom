@@ -249,11 +249,8 @@ export function ProveedorAutenticacionRemota({
       }
     },
     asignarRolesAUsuario: noDisponible,
-    asociarStaffAEvento: () => ({
-      exito: false,
-      mensaje:
-        "Dependencia pendiente: el alta y retiro de Staff aún no está conectado a PostgreSQL. No se guardaron cambios.",
-    }),
+    asociarStaffAEvento: (id: string, evento: string, asociar: boolean) =>
+      operacion(`/auth/staff/${encodeURIComponent(evento)}/${encodeURIComponent(id)}`, { asociar }),
     alternarEstadoUsuario: async (id: string, motivo?: string) => {
       if (!usuario?.roles.includes("admin") || rol !== "admin") {
         return {

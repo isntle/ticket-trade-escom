@@ -1,3 +1,4 @@
+import { transporteApi } from "../servicios/http.js";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { impedimentoVerificacion, intentosPeriodo, periodoIdentidadActual, rechazosPeriodo } from "../dominio/periodosIdentidad";
 import { volverA } from '../dominio/navegacion';
@@ -16,6 +17,9 @@ import {
 } from "../dominio/identidad";
 import { guardarDocumentoIdentidad } from "../utilidades/documentosIdentidad";
 import { BotonVerDocumento, VisorDocumentoIdentidad, etiquetaTipoDocumento } from "../componentes/identidad/VisorDocumentoIdentidad";
+
+const apiStaff = transporteApi();
+type CuentaStaff = Pick<Usuario, "id" | "nombre" | "correo" | "estaActivo" | "correoConfirmado" | "eventosAsignadosStaff">;
 
 type Vista = "expediente" | "revision" | "restricciones" | "staff";
 type Decision = "aprobado" | "rechazado" | "requiere_correccion" | "revocado";
@@ -127,6 +131,22 @@ export function GestionIdentidadPagina({
     (e) => admin || e.idOrganizador === cuenta?.id,
   );
   const evento = eventos.find((e) => e.id === eventoId);
+  const [staffRemoto, setStaffRemoto] = useState<{ evento: string; cuentas: CuentaStaff[] }>();
+  const [revisionStaff, setRevisionStaff] = useState(0);
+  const [errorStaff, setErrorStaff] = useState("");
+  const [ocupadoStaff, setOcupadoStaff] = useState(false);
+  useEffect(() => {
+    if (!apiActiva || vista !== "staff" || !eventoId || (!admin && !organizador)) return;
+    const abortar = new AbortController();
+    setErrorStaff("");
+    void apiStaff<CuentaStaff[]>(`/auth/staff/${encodeURIComponent(eventoId)}`, { signal: abortar.signal })
+      .then(cuentas => { if (!abortar.signal.aborted) setStaffRemoto({ evento: eventoId, cuentas }); })
+      .catch(error => { if (!abortar.signal.aborted) setErrorStaff(textoParaUsuario(error.message)); });
+    return () => abortar.abort();
+  }, [vista, eventoId, admin, organizador, revisionStaff, cuenta?.id]);
+  const cuentasStaff = apiActiva
+    ? (staffRemoto?.evento === eventoId ? staffRemoto.cuentas : [])
+    : usuarios;
   useEffect(() => {
     setArchivos(cuenta?.archivosExpediente || []);
     setMotivoSolicitud(cuenta?.motivoSolicitudVerificacion || "");
@@ -992,17 +1012,7 @@ export function GestionIdentidadPagina({
       )}
       {vista === "staff" && (
         <article className="space-y-4 rounded-3xl border bg-white p-5">
-          {apiActiva && (
-            <p
-              role="note"
-              className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"
-            >
-              <strong>Dependencia pendiente:</strong> el alta y retiro de Staff
-              desde la interfaz aún no está conectado a PostgreSQL. Las
-              asignaciones vigentes en <code>StaffEvento</code> se respetan en
-              el servidor sin simular cambios locales.
-            </p>
-          )}
+          {apiActiva && <p>Solo puedes asignar cuentas que ya aceptaron la invitación para este evento.</p>}
           <p>
             Asigna cuentas activas con correo confirmado a tus eventos. Retirar
             una asignación impide nuevas operaciones sobre ese evento y conserva
@@ -1032,12 +1042,15 @@ export function GestionIdentidadPagina({
               onChange={(e) => setFiltro(e.target.value)}
             />
           </label>
+          {errorStaff && <p role="alert">{errorStaff}</p>}
+          {evento && apiActiva && !errorStaff && staffRemoto?.evento !== evento.id && <p role="status">Consultando personal de acceso…</p>}
+          {evento && apiActiva && staffRemoto?.evento === evento.id && cuentasStaff.length === 0 &&
+            <p>No hay invitaciones aceptadas ni permisos asignados para este evento.</p>}
           {evento &&
-            usuarios
+            cuentasStaff
               .filter(
                 (u) =>
-                  u.estaActivo &&
-                  u.correoConfirmado &&
+                  (u.eventosAsignadosStaff?.includes(evento.id) || (u.estaActivo && u.correoConfirmado)) &&
                   (u.nombre + u.correo)
                     .toLowerCase()
                     .includes(filtro.toLowerCase()),
@@ -1053,15 +1066,20 @@ export function GestionIdentidadPagina({
                   </div>
                   <button
                     className={boton}
-                    onClick={async () =>
-                      resultado(
-                        (await auth.asociarStaffAEvento(
-                          u.id,
-                          evento.id,
-                          !u.eventosAsignadosStaff?.includes(evento.id),
-                        )),
-                      )
-                    }
+                    disabled={ocupadoStaff || Boolean(errorStaff)}
+                    onClick={async () => {
+                      setOcupadoStaff(true);
+                      try {
+                        const res = await auth.asociarStaffAEvento(u.id, evento.id, !u.eventosAsignadosStaff?.includes(evento.id));
+                        resultado(res);
+                        if (apiActiva) {
+                          setStaffRemoto(undefined);
+                          setRevisionStaff(n => n + 1);
+                        }
+                      } finally {
+                        setOcupadoStaff(false);
+                      }
+                    }}
                   >
                     {u.eventosAsignadosStaff?.includes(evento.id)
                       ? "Retirar Staff"

@@ -99,6 +99,7 @@ export async function leerEventos(usuario: any = null, eventoEnlace?: string) {
         to_char(a.hora_fin, 'HH24:MI') AS "horaFin",
         a.id_recinto::text AS "idRecinto",
         a.aforo_solicitado AS "aforoMaximo",
+        (a.fecha + a.hora_inicio) AT TIME ZONE 'America/Mexico_City' AS "limiteInscripciones",
         ta.nombre AS "tipoAcceso",
         ea.nombre AS "estadoActividad",
         (SELECT af.id_bloqueo_recinto::text FROM ticket_trade."AfectacionActividad" af
@@ -166,7 +167,9 @@ export async function leerEventos(usuario: any = null, eventoEnlace?: string) {
       idBloqueoSuspension: act.idBloqueoSuspension || undefined,
       cancelada: act.estadoActividad === "Cancelada",
       ponentes: [],
-      estadoInscripciones: "abiertas",
+      fechaLimiteInscripciones: new Date(act.limiteInscripciones).toISOString(),
+      estadoInscripciones: act.estadoActividad === "Programada" && !act.idBloqueoSuspension &&
+        new Date(act.limiteInscripciones).getTime() > Date.now() ? "abiertas" : "cerradas",
     };
 
     const lista = actividadesPorEvento.get(act.idEvento) || [];
@@ -219,7 +222,7 @@ export async function leerEventos(usuario: any = null, eventoEnlace?: string) {
       ponentes: [],
       etiquetas: [e.categoria].filter(Boolean),
       // El aforo es por actividad; no se inventa un aforo global sumando recintos.
-      inscripcionesAbiertas: true,
+      inscripcionesAbiertas: estadoLower === "publicado" && fechas.some(f => f.estadoInscripciones === "abiertas"),
     };
   });
 

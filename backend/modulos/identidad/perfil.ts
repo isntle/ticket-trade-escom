@@ -712,3 +712,61 @@ routerPerfil.post(
     res.json({ datos: { exito: true } });
   }),
 );
+
+async function comprobarGestionStaff(c: Pick<typeof pool, "query">, actor: { id: string; roles: string[] }, evento: string) {
+  const { rows: [fila] } = await c.query(
+    'SELECT id_cuenta_organizadora::text titular FROM ticket_trade."Evento" WHERE id_evento=$1',
+    [evento],
+  );
+  if (!fila) fallo("Evento no encontrado.", 404);
+  if (!actor.roles.includes("admin") && !(actor.roles.includes("organizador") && fila.titular === actor.id))
+    fallo("Solo Administración o el organizador responsable puede gestionar el personal de acceso.", 403);
+}
+
+routerPerfil.get("/staff/:evento", exigirSesion, ruta(async (req, res) => {
+  const evento = idEntero(req.params.evento);
+  await comprobarGestionStaff(pool, res.locals.usuario, evento);
+  const { rows } = await pool.query(
+    `SELECT c.id_cuenta::text id, concat_ws(' ', c.nombres,c.primer_apellido,c.segundo_apellido) nombre,
+       c.correo, e.nombre='Activa' "estaActivo", c.correo_confirmado_en IS NOT NULL "correoConfirmado",
+       CASE WHEN s.id_cuenta IS NULL THEN ARRAY[]::text[] ELSE ARRAY[$1::text] END "eventosAsignadosStaff"
+     FROM ticket_trade."Cuenta" c JOIN ticket_trade."EstadoCuenta" e USING (id_estado_cuenta)
+     LEFT JOIN ticket_trade."StaffEvento" s ON s.id_cuenta=c.id_cuenta AND s.id_evento=$1
+     WHERE s.id_cuenta IS NOT NULL OR (e.nombre='Activa' AND c.correo_confirmado_en IS NOT NULL AND EXISTS (
+       SELECT 1 FROM ticket_trade."InvitacionStaff" i JOIN ticket_trade."EstadoInvitacionStaff" ei USING (id_estado_invitacion_staff)
+       WHERE i.id_evento=$1 AND i.id_cuenta_invitada=c.id_cuenta AND ei.nombre='Aceptada'
+     )) ORDER BY nombre, id`,
+    [evento],
+  );
+  res.json({ datos: rows });
+}));
+
+routerPerfil.post("/staff/:evento/:cuenta", exigirSesion, ruta(async (req, res) => {
+  const evento = idEntero(req.params.evento);
+  const cuenta = idEntero(req.params.cuenta);
+  const asociar = req.body?.asociar;
+  if (typeof asociar !== "boolean") fallo("Indica si deseas asignar o retirar el permiso.", 422);
+  await conTransaccion(async c => {
+    await comprobarGestionStaff(c, res.locals.usuario, evento);
+    if (!asociar) {
+      await c.query('DELETE FROM ticket_trade."StaffEvento" WHERE id_evento=$1 AND id_cuenta=$2', [evento, cuenta]);
+      return;
+    }
+    const resultado = await c.query(
+      `INSERT INTO ticket_trade."StaffEvento"(id_evento,id_cuenta)
+       SELECT i.id_evento,i.id_cuenta_invitada FROM ticket_trade."InvitacionStaff" i
+       JOIN ticket_trade."EstadoInvitacionStaff" ei USING(id_estado_invitacion_staff)
+       JOIN ticket_trade."PerfilUsuario" p ON p.id_cuenta=i.id_cuenta_invitada
+       JOIN ticket_trade."Cuenta" c USING(id_cuenta)
+       JOIN ticket_trade."EstadoCuenta" ec USING(id_estado_cuenta)
+       WHERE i.id_evento=$1 AND i.id_cuenta_invitada=$2 AND ei.nombre='Aceptada'
+         AND ec.nombre='Activa' AND c.correo_confirmado_en IS NOT NULL
+       LIMIT 1 ON CONFLICT DO NOTHING`,
+      [evento, cuenta],
+    );
+    if (!resultado.rowCount && !(await c.query(
+      'SELECT 1 FROM ticket_trade."StaffEvento" WHERE id_evento=$1 AND id_cuenta=$2', [evento, cuenta],
+    )).rowCount) fallo("Se requiere una cuenta activa con correo confirmado e invitación aceptada para este evento.", 409);
+  });
+  res.json({ datos: { mensaje: asociar ? "Permiso de acceso asignado." : "Permiso de acceso retirado." } });
+}));

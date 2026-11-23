@@ -1,3 +1,4 @@
+import { apiActiva } from '../servicios/modoDatos';
 import { nombreActividad } from '../dominio/actividades';
 import { volverA } from '../dominio/navegacion';
 import { afectaBloqueo } from '../dominio/bloqueos';
@@ -66,7 +67,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
   useEffect(() => { setIdsSeleccionadas([]); setAccionPendiente(null); setIdsOperacion([]); }, [eventId]);
 
   const obtenerEstado = (fecha: FechaEvento): EstadoInscripciones =>
-    obtenerBloqueo(fecha) ? 'cerradas' : estadoInscripcionesActividad(fecha, evento?.estado || 'borrador');
+    (obtenerBloqueo(fecha) || (apiActiva && limiteInscripcionesActividad(fecha) <= ahora)) ? 'cerradas' : estadoInscripcionesActividad(fecha, evento?.estado || 'borrador');
 
   const obtenerFechaLimite = (fecha: FechaEvento): Date => {
     return new Date(limiteInscripcionesActividad(fecha));
@@ -217,11 +218,11 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
             Apertura y cierre de inscripciones
           </h1>
           <p className="text-sm text-neutral-500 mt-1 max-w-3xl">
-            Administra las actividades de <strong className="text-neutral-700">{evento.titulo}</strong> y conserva la trazabilidad de cada cambio. Horarios en hora institucional de Ciudad de México.
+            {apiActiva ? 'Consulta las inscripciones de ' : 'Administra las actividades de '}<strong className="text-neutral-700">{evento.titulo}</strong>. Horarios en hora institucional de Ciudad de México.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        {!apiActiva && <div className="flex flex-wrap gap-2">
           <button
             type="button"
             disabled={idsSeleccionadas.length === 0}
@@ -240,7 +241,8 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
             <Lock className="w-4 h-4" />
             Cerrar seleccionadas
           </button>
-        </div>
+        </div>}
+        {apiActiva && <p className="max-w-sm text-sm text-neutral-600">Las reservas dependen del cupo y del estado de cada actividad. El registro se cierra cuando comienza la actividad.</p>}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-7">
@@ -284,10 +286,10 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
           <div>
             <h2 className="text-sm font-extrabold text-neutral-900">Actividades del evento</h2>
             <p className="text-xs text-neutral-500 mt-0.5">
-              Selecciona una o varias actividades para realizar una operación conjunta.
+              {apiActiva ? 'Consulta el estado y el cupo de cada actividad.' : 'Selecciona una o varias actividades para realizar una operación conjunta.'}
             </p>
           </div>
-          <label className="inline-flex items-center gap-2 text-xs font-semibold text-neutral-600 cursor-pointer">
+          {!apiActiva && <label className="inline-flex items-center gap-2 text-xs font-semibold text-neutral-600 cursor-pointer">
             <input
               type="checkbox"
               checked={actividadesSeleccionables.length > 0 && actividadesSeleccionables.every(a => idsSeleccionadas.includes(a.id))}
@@ -298,7 +300,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
               className="w-4 h-4 accent-[#7a132b]"
             />
             Seleccionar todas
-          </label>
+          </label>}
         </div>
 
         <div className="divide-y divide-neutral-100">
@@ -320,6 +322,8 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
                 item.idEvento === evento.id && item.idFechaEvento === fecha.id &&
                 (item.estado === 'esperando' || item.estado === 'notificado')
             ).length;
+            const especiales = listaBoletos.filter(b => b.idEvento === evento.id && b.idFechaEvento === fecha.id && b.esEspecial && b.estado !== 'cancelado').length;
+            const cupoRestante = Math.max(0, (fecha.asistenciaEstimada ?? 0) - reservaciones - apartados - especiales);
             const ultimoCambio = [...(fecha.historialInscripciones || [])].sort(
               (primero, segundo) =>
                 new Date(segundo.fechaCambio).getTime() - new Date(primero.fechaCambio).getTime()
@@ -331,14 +335,14 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
               <article className="p-5 sm:p-6">
                 <div className="flex flex-col xl:flex-row xl:items-center gap-5">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <input
+                    {!apiActiva && <input
                       type="checkbox"
                       aria-label={`Seleccionar ${etiquetaActividad(fecha, listaRecintos, evento.fechas.indexOf(fecha))}`}
                       disabled={!seleccionable}
                       checked={idsSeleccionadas.includes(fecha.id)}
                       onChange={() => alternarSeleccion(fecha.id)}
                       className="w-4 h-4 mt-1 accent-[#7a132b] shrink-0"
-                    />
+                    />}
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-extrabold text-neutral-900">
@@ -351,7 +355,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
                               : 'bg-neutral-100 border-neutral-300 text-neutral-700'
                           }`}
                         >
-                          INSCRIPCIONES {estado.toUpperCase()}
+                          {apiActiva && fecha.modalidadAsistencia === 'libre' ? 'ENTRADA LIBRE' : apiActiva && estado === 'abiertas' && cupoRestante === 0 ? 'SIN CUPO DISPONIBLE' : 'INSCRIPCIONES ' + estado.toUpperCase()}
                         </span>
                         {fecha.cancelada && <span className="text-xs font-bold text-rose-800">CANCELADA</span>}
                         {(bloqueo || fecha.suspendida) && (
@@ -377,6 +381,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
                       </div>
 
                       <div className="flex flex-wrap gap-2 mt-3 text-[11px]">
+                        {apiActiva && fecha.modalidadAsistencia !== 'libre' && <span className="px-2 py-1 bg-neutral-100 rounded">{cupoRestante} lugares disponibles</span>}
                         <span className="px-2 py-1 bg-sky-50 text-sky-800 rounded border border-sky-100">
                           {reservaciones} reservaciones
                         </span>
@@ -401,7 +406,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 xl:justify-end">
+                  {!apiActiva && <div className="flex flex-wrap gap-2 xl:justify-end">
                     <button
                       type="button"
                       disabled={
@@ -423,7 +428,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
                       <Lock className="w-3.5 h-3.5" />
                       Cerrar
                     </button>
-                  </div>
+                  </div>}
                 </div>
               </article>
               </React.Fragment>

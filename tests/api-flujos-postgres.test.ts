@@ -439,6 +439,15 @@ test(
       "La fecha académica no se transforma en un instante UTC",
     );
     const admin = await entrar("cuenta1001@example.invalid");
+    const personal = await ok(await pedir("/api/auth/staff/1001", undefined, admin));
+    assert.ok(personal.some((u: any) => u.id === "1006" && u.eventosAsignadosStaff.includes("1001")));
+    assert.equal((await pedir("/api/auth/staff/1001", undefined, estudiante)).status, 403);
+    assert.equal((await pedir("/api/auth/staff/1001/1004", { asociar: true }, admin)).status, 409);
+    await ok(await pedir("/api/auth/staff/1001/1006", { asociar: false }, admin));
+    const sinPermiso = await ok(await pedir("/api/auth/staff/1001", undefined, admin));
+    assert.deepEqual(sinPermiso.find((u: any) => u.id === "1006")?.eventosAsignadosStaff, []);
+    await ok(await pedir("/api/auth/staff/1001/1006", { asociar: true }, admin));
+    await ok(await pedir("/api/auth/staff/1001/1006", { asociar: true }, admin));
     assert.equal(
       (
         await pedir(
@@ -783,6 +792,10 @@ test(
       1,
     );
     const estadoAdmin = await ok(await pedir("/api/estado", undefined, admin));
+    const actividadTrasInicio = estadoAdmin.listaEventos.find((e: any) => e.id === s.idEvento)
+      ?.fechas.find((f: any) => f.id === actividad);
+    assert.equal(actividadTrasInicio?.fechaLimiteInscripciones, "2098-04-15T18:00:00.000Z");
+    assert.equal(actividadTrasInicio?.estadoInscripciones, "cerradas");
     const adminCsv = (await ok(await pedir("/api/auth/yo", undefined, admin))).usuario;
     const participantes = exportar(adminCsv, estadoAdmin);
     assert.deepEqual(
