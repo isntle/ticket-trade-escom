@@ -1,3 +1,5 @@
+import { transporteApi } from "../servicios/http";
+import { apiActiva } from "../servicios/modoDatos";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import React from "react";
 import { ArrowLeft, GraduationCap, CalendarDays } from "lucide-react";
@@ -6,6 +8,9 @@ import { verificacionIdentidadVigente } from "../dominio/identidad";
 import { volverA } from "../dominio/navegacion";
 import type { PeriodoIdentidad } from "../dominio/periodosIdentidad";
 
+const api = transporteApi();
+type Opcion = { id: string; nombre: string };
+type Catalogo = { academias: (Opcion & { titular?: string })[]; otorgantes: Opcion[] };
 const campo = "mt-1 w-full rounded-xl border border-neutral-200 bg-white p-3";
 export function GestionAcademicaPagina({
   navigate,
@@ -26,27 +31,45 @@ export function GestionAcademicaPagina({
     version: number;
   } | null>(null);
   const [motivo, setMotivo] = React.useState("");
-  if (
-    auth.rolActivo !== "subdireccion" ||
-    !auth.usuarioActual?.roles.includes("subdireccion")
-  )
+  const puedeOperar = auth.rolActivo === "admin" && auth.usuarioActual?.roles.includes("admin");
+  const [catalogo, setCatalogo] = React.useState<Catalogo>();
+  const [idAcademia, setAcademia] = React.useState("");
+  const [nombreAcademia, setNombreAcademia] = React.useState("");
+  const [idOtorgante, setOtorgante] = React.useState("");
+  const [guardando, setGuardando] = React.useState(false);
+  React.useEffect(() => {
+    if (!apiActiva || !puedeOperar) return;
+    const control = new AbortController();
+    void api<Catalogo>("/auth/jefaturas/catalogo", {signal: control.signal})
+      .then(setCatalogo).catch((error: Error) => {
+        if (!control.signal.aborted) setMensaje(error.message);
+      });
+    return () => control.abort();
+  }, [puedeOperar]);
+  const tieneJefatura = (u: (typeof auth.todosLosUsuarios)[number]) =>
+    apiActiva ? Boolean(u.tieneJefaturaAcademica) : Boolean(u.puedeAutoaprobar);
+  if (!puedeOperar)
     return (
       <section className="p-8">
-        Esta gestión corresponde a Subdirección.
+        Esta gestión corresponde a Administración.
       </section>
     );
   const elegida = auth.todosLosUsuarios.find((u) => u.id === propuesta?.id);
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6">
       <button
-        onClick={() => navigate(volverA("/subdireccion"))}
+        onClick={() =>
+          navigate(volverA("/admin"))
+        }
         className="flex items-center gap-2 text-sm"
       >
         <ArrowLeft size={16} />
         Regresar
       </button>
       <header>
-        <p className="font-semibold text-[#7a132b]">Subdirección</p>
+        <p className="font-semibold text-[#7a132b]">
+          Administración
+        </p>
         <h1 className="text-3xl font-bold">
           Jefes de academia y periodos escolares
         </h1>
@@ -66,14 +89,11 @@ export function GestionAcademicaPagina({
           Jefes de academia
         </h2>
         <p className="text-sm text-neutral-600">
-          Las solicitudes ordinarias de un jefe de academia se autorizan al
-          enviarse si cumplen disponibilidad, capacidad, distribución y
-          anticipación. Las urgentes siguen requiriendo revisión de
-          Subdirección.
+          Selecciona una academia y registra a la persona de Subdirección que otorgó el nombramiento. El dictamen de eventos sigue su flujo habitual.
         </p>
         <div className="grid gap-3 md:grid-cols-2">
           {auth.todosLosUsuarios
-            .filter((u) => u.afiliacion === "profesor" || u.puedeAutoaprobar)
+            .filter((u) => u.afiliacion === "profesor" || tieneJefatura(u))
             .map((u) => (
               <article
                 key={u.id}
@@ -82,14 +102,14 @@ export function GestionAcademicaPagina({
                 <h3 className="font-bold">{u.nombre}</h3>
                 <p className="break-all text-sm text-neutral-500">{u.correo}</p>
                 <p className="my-3 text-sm">
-                  {u.puedeAutoaprobar ? "Jefe de academia" : "Sin jefatura"} ·{" "}
+                  {tieneJefatura(u) ? "Jefe de academia" : "Sin jefatura"} ·{" "}
                   {verificacionIdentidadVigente(u)
                     ? "Identidad verificada"
                     : "Identidad pendiente o vencida"}
                 </p>
                 <button
                   disabled={
-                    !u.puedeAutoaprobar &&
+                    !tieneJefatura(u) &&
                     (!u.estaActivo ||
                       u.afiliacion !== "profesor" ||
                       !verificacionIdentidadVigente(u) ||
@@ -99,13 +119,16 @@ export function GestionAcademicaPagina({
                   onClick={() => {
                     setPropuesta({
                       id: u.id,
-                      valor: !u.puedeAutoaprobar,
+                      valor: !tieneJefatura(u),
                       version: u.versionIdentidad || 0,
                     });
                     setMotivo("");
+                    setAcademia("");
+                    setNombreAcademia("");
+                    setOtorgante("");
                   }}
                 >
-                  {u.puedeAutoaprobar ? "Retirar jefatura" : "Asignar jefatura"}
+                  {tieneJefatura(u) ? "Retirar jefatura" : "Asignar jefatura"}
                 </button>
               </article>
             ))}
@@ -115,20 +138,50 @@ export function GestionAcademicaPagina({
             className="space-y-3 rounded-xl bg-amber-50 p-4"
             onSubmit={async (e) => {
               e.preventDefault();
-              const r = (await auth.cambiarAutoaprobacion(
-                propuesta.id,
-                propuesta.valor,
-                motivo,
-                propuesta.version,
-              ));
-              setMensaje(r.mensaje);
-              if (r.exito) setPropuesta(null);
+              if (guardando) return;
+              setGuardando(true);
+              try {
+                const r = (await auth.cambiarAutoaprobacion(
+                  propuesta.id,
+                  propuesta.valor,
+                  motivo,
+                  propuesta.version,
+                  apiActiva && propuesta.valor ? { idOtorgante, ...(idAcademia === "nueva" ? { nombreAcademia } : { idAcademia }) } : undefined,
+                ));
+                setMensaje(r.mensaje);
+                if (r.exito) {
+                  setPropuesta(null);
+                  if (apiActiva) setCatalogo(await api<Catalogo>("/auth/jefaturas/catalogo"));
+                }
+              } catch (error) {
+                setMensaje(error instanceof Error ? error.message : "No se pudo actualizar la jefatura.");
+              } finally {
+                setGuardando(false);
+              }
             }}
           >
             <h3 className="font-bold">
               {propuesta.valor ? "Asignar" : "Retirar"} jefatura:{" "}
               {elegida.nombre}
             </h3>
+            {apiActiva && propuesta.valor && <>
+              <label className="block text-sm">Academia
+                <select required className={campo} value={idAcademia} onChange={e => setAcademia(e.target.value)}>
+                  <option value="">Selecciona una academia</option>
+                  {catalogo && <option value="nueva">Registrar una academia</option>}
+                  {catalogo?.academias.map(a => <option key={a.id} value={a.id} disabled={Boolean(a.titular)}>{a.nombre}{a.titular ? " · Ocupada" : ""}</option>)}
+                </select>
+              </label>
+              {idAcademia === "nueva" && <label className="block text-sm">Nombre oficial de la academia
+                <input required maxLength={120} className={campo} value={nombreAcademia} onChange={e => setNombreAcademia(e.target.value)} />
+              </label>}
+              <label className="block text-sm">Otorgante institucional de Subdirección
+                <select required className={campo} value={idOtorgante} onChange={e => setOtorgante(e.target.value)}>
+                  <option value="">Selecciona al otorgante</option>
+                  {catalogo?.otorgantes.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
+                </select>
+              </label>
+            </>}
             <label className="block text-sm">
               Motivo
               <textarea
@@ -141,6 +194,7 @@ export function GestionAcademicaPagina({
             <div className="flex flex-wrap gap-3">
               <button
                 type="submit"
+                disabled={guardando}
                 className="rounded-lg bg-[#7a132b] px-4 py-2 text-white"
               >
                 Confirmar
@@ -168,9 +222,7 @@ export function GestionAcademicaPagina({
           siguiente.
         </p>
         <p className="text-sm text-neutral-600">
-          Sin una configuración previa se utiliza el calendario escolarizado
-          IPN 2026–2027. Se respetan los periodos guardados por Subdirección.
-          Fuera de las fechas de un periodo no se reciben nuevas verificaciones.
+          Las nuevas verificaciones se reciben dentro de los periodos registrados por Administración.
           {" "}<a className="font-semibold text-[#7a132b] underline"
             href="https://www.ipn.mx/assets/files/website/docs/inicio/calendarioipn-escolarizada.pdf"
             target="_blank" rel="noreferrer">Consultar calendario oficial</a>.
@@ -207,22 +259,24 @@ export function GestionAcademicaPagina({
                   }
                 />
               </label>
-              <label className="text-sm">
-                Referencia del calendario
-                <input
-                  required
-                  className={campo}
-                  value={p.fuente}
-                  placeholder="Documento o enlace oficial"
-                  onChange={(e) =>
-                    setPeriodos(
-                      periodos.map((n, j) =>
-                        j === i ? { ...n, fuente: e.target.value } : n,
-                      ),
-                    )
-                  }
-                />
-              </label>
+              {!apiActiva && (
+                <label className="text-sm">
+                  Referencia del calendario
+                  <input
+                    required
+                    className={campo}
+                    value={p.fuente}
+                    placeholder="Documento o enlace oficial"
+                    onChange={(e) =>
+                      setPeriodos(
+                        periodos.map((n, j) =>
+                          j === i ? { ...n, fuente: e.target.value } : n,
+                        ),
+                      )
+                    }
+                  />
+                </label>
+              )}
               <label className="text-sm">
                 Inicio
                 <input

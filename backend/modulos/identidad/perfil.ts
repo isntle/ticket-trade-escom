@@ -1,3 +1,4 @@
+import { validarPeriodosIdentidad } from "../../../src/dominio/periodosIdentidad.js";
 import {presentacionCompartida,presentacionAutorizada,clavePresentacionValida,crearCookiePresentacion,nombreCookiePresentacion} from "./presentacion.js";
 import { Router } from "express";
 import { encolarAviso, registrarAvisoBandeja } from "../correos/avisos.js";
@@ -163,6 +164,300 @@ routerPerfil.get(
     );
     res.json({
       datos: await Promise.all(ids.rows.map((r) => proyectarUsuario(r.id))),
+    });
+  }),
+);
+routerPerfil.post(
+  "/usuarios/:id/estado",
+  exigirSesion,
+  ruta(async (req, res) => {
+    const admin = res.locals.usuario;
+    if (!admin.roles.includes("admin")) {
+      fallo("Solo Administración puede modificar el estado de la cuenta.", 403);
+    }
+    const id = idEntero(req.params.id);
+    if (String(id) === String(admin.id)) {
+      fallo("No puedes suspender tu propia cuenta.", 400);
+    }
+    const b = req.body || {};
+    const motivo = b.motivo ? texto(b.motivo, "el motivo", 500) : undefined;
+    const resultado = await conTransaccion(async (c) => {
+      const q = await c.query(
+        `SELECT c.id_cuenta::text, ec.nombre AS estado, c.correo
+         FROM ticket_trade."Cuenta" c
+         JOIN ticket_trade."EstadoCuenta" ec USING(id_estado_cuenta)
+         WHERE c.id_cuenta=$1 FOR UPDATE OF c`,
+        [id],
+      );
+      if (!q.rowCount) fallo("Cuenta no encontrada.", 404);
+      const cuentaActual = q.rows[0];
+      const actualmenteActiva = cuentaActual.estado === "Activa";
+      if (typeof b.activo !== "boolean") fallo("Indica el estado que deseas guardar.");
+      const nuevoActivo = b.activo;
+      if (nuevoActivo === actualmenteActiva) return { nuevoActivo };
+      const nuevoEstadoNombre = nuevoActivo ? "Activa" : "Desactivada";
+
+      await c.query(
+        `UPDATE ticket_trade."Cuenta"
+         SET id_estado_cuenta=(SELECT id_estado_cuenta FROM ticket_trade."EstadoCuenta" WHERE nombre=$2)
+         WHERE id_cuenta=$1`,
+        [id, nuevoEstadoNombre],
+      );
+
+      if (!nuevoActivo) {
+        // Efecto real: invalidar sesiones activas en la BD de inmediato
+        await c.query("DELETE FROM infra.sesion_http WHERE id_cuenta=$1", [id]);
+        if (motivo) {
+          await encolarAviso(
+            c,
+            String(id),
+            "cuenta-suspendida:" + Date.now(),
+            "Tu cuenta fue suspendida",
+            `Administración suspendió tu cuenta. Motivo: ${motivo}`,
+            "/login",
+          );
+        }
+      } else {
+        await encolarAviso(
+          c,
+          String(id),
+          "cuenta-reactivada:" + Date.now(),
+          "Tu cuenta fue reactivada",
+          "Administración ha reactivado tu cuenta. Ya puedes iniciar sesión nuevamente.",
+          "/login",
+        );
+      }
+
+      return { nuevoActivo, nuevoEstadoNombre };
+    });
+
+    res.json({
+      datos: {
+        exito: true,
+        mensaje: resultado.nuevoActivo
+          ? "Cuenta activada correctamente."
+          : `Cuenta suspendida correctamente.${motivo ? ` Motivo: ${motivo}` : ""}`,
+        estaActivo: resultado.nuevoActivo,
+        usuario: await proyectarUsuario(String(id)),
+      },
+    });
+  }),
+);
+routerPerfil.get("/jefaturas/catalogo", exigirSesion, ruta(async (_req, res) => {
+  if (!res.locals.usuario.roles.includes("admin")) fallo("Solo Administración puede gestionar jefaturas.", 403);
+  const [academias, otorgantes] = await Promise.all([
+    pool.query(`SELECT a.id_academia::text id, a.nombre, j.id_cuenta_empleada::text titular
+      FROM ticket_trade."Academia" a LEFT JOIN ticket_trade."JefaturaAcademia" j USING(id_academia)
+      ORDER BY a.nombre`),
+    pool.query(`SELECT id_cuenta::text id, concat_ws(' ', nombres, primer_apellido, segundo_apellido) nombre
+      FROM ticket_trade."Cuenta" JOIN ticket_trade."TipoCuenta" USING(id_tipo_cuenta)
+      JOIN ticket_trade."EstadoCuenta" USING(id_estado_cuenta)
+      WHERE "TipoCuenta".nombre='Subdirección' AND "EstadoCuenta".nombre='Activa'
+      ORDER BY id_cuenta`),
+  ]);
+  res.set("Cache-Control", "private, no-store").json({datos: {academias: academias.rows, otorgantes: otorgantes.rows}});
+}));
+routerPerfil.post(
+  "/periodos",
+  exigirSesion,
+  ruta(async (req, res) => {
+    const u = res.locals.usuario;
+    if (!u.roles.includes("admin")) {
+      fallo("No tienes permiso para configurar periodos escolares.", 403);
+    }
+    const b = req.body || {};
+    if (!Array.isArray(b.periodos) || b.periodos.length > 100) fallo("Envía una lista de hasta 100 periodos.");
+    const lista = b.periodos.map((p: any) => ({
+      id: texto(p?.id, "la clave del periodo", 80), inicio: p?.inicio, fin: p?.fin, fuente: "PostgreSQL",
+    }));
+    if (lista.some((p: any) => typeof p.inicio !== "string" || typeof p.fin !== "string"))
+      fallo("Indica las fechas del periodo.");
+    const error = validarPeriodosIdentidad(lista);
+    if (error) fallo(error);
+
+    await conTransaccion(async (c) => {
+      await c.query("SELECT pg_advisory_xact_lock(744220261107::bigint)");
+
+      const existentes = await c.query(`SELECT clave id,to_char(inicio,'YYYY-MM-DD') inicio,to_char(fin,'YYYY-MM-DD') fin
+        FROM ticket_trade."PeriodoEscolar" ORDER BY inicio`);
+      if (typeof b.versionEsperada === "string") {
+        let anterior: unknown;
+        try { anterior = JSON.parse(b.versionEsperada); }
+        catch { fallo("Vuelve a consultar los periodos antes de guardar.", 409); }
+        const firma = (p: any) => [p?.id, p?.inicio, p?.fin];
+        if (!Array.isArray(anterior) ||
+            JSON.stringify(anterior.map(firma)) !== JSON.stringify(existentes.rows.map(firma)))
+          fallo("Los periodos cambiaron. Recárgalos antes de guardar.", 409);
+      }
+      if (existentes.rows.some(p => !lista.some((n: any) => n.id === p.id)))
+        fallo("Conserva las claves de los periodos existentes.", 409);
+      const conTramites = await c.query(
+        `SELECT DISTINCT p.clave, to_char(p.inicio,'YYYY-MM-DD') inicio, to_char(p.fin,'YYYY-MM-DD') fin FROM ticket_trade."PeriodoEscolar" p
+         JOIN ticket_trade."SolicitudVerificacion" s USING(id_periodo_escolar)`,
+      );
+      const clavesEntrantes = new Map(lista.map((p: any) => [p.id.trim(), p]));
+      if (clavesEntrantes.size !== lista.length) fallo("Hay claves de periodo duplicadas.");
+      for (const row of conTramites.rows) {
+        const recibido = clavesEntrantes.get(row.clave) as { inicio: string; fin: string } | undefined;
+        if (!recibido || recibido.inicio !== row.inicio || recibido.fin !== row.fin) {
+          fallo(
+            `Conserva los periodos que ya tienen trámites de verificación; añade el siguiente periodo sin alterar el historial (periodo: ${row.clave}).`,
+            409,
+          );
+        }
+      }
+
+      for (const p of lista) {
+        await c.query(
+          `INSERT INTO ticket_trade."PeriodoEscolar" (clave, inicio, fin)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (clave) DO UPDATE SET inicio = EXCLUDED.inicio, fin = EXCLUDED.fin`,
+          [p.id.trim(), p.inicio, p.fin],
+        );
+      }
+    });
+
+    const actualizados = await pool.query(
+      `SELECT clave id, to_char(inicio, 'YYYY-MM-DD') inicio, to_char(fin, 'YYYY-MM-DD') fin
+       FROM ticket_trade."PeriodoEscolar" ORDER BY inicio`,
+    );
+
+    res.json({
+      datos: {
+        exito: true,
+        mensaje: "Periodos escolares guardados correctamente.",
+        periodos: actualizados.rows.map((p) => ({
+          ...p,
+          fuente: "Periodo configurado en PostgreSQL",
+        })),
+      },
+    });
+  }),
+);
+routerPerfil.post(
+  "/usuarios/:id/jefatura",
+  exigirSesion,
+  ruta(async (req, res) => {
+    const operador = res.locals.usuario;
+    if (!operador.roles.includes("admin")) {
+      fallo("No tienes permiso para gestionar jefaturas de academia.", 403);
+    }
+    const targetId = idEntero(req.params.id);
+    const b = req.body || {};
+    if (typeof b.valor !== "boolean") fallo("Indica si deseas asignar o retirar la jefatura.");
+    const valor = b.valor;
+    const motivo = b.motivo ? texto(b.motivo, "el motivo", 500) : "";
+
+    await conTransaccion(async (c) => {
+      await c.query("SELECT pg_advisory_xact_lock(744220261107::bigint)");
+
+      if (!valor) {
+        // Retiro de jefatura
+        const eliminada = await c.query(
+          `DELETE FROM ticket_trade."JefaturaAcademia" WHERE id_cuenta_empleada=$1 RETURNING id_academia::text`,
+          [targetId],
+        );
+        if (!eliminada.rowCount) {
+          fallo("El docente no cuenta con una jefatura de academia activa.", 404);
+        }
+        await encolarAviso(
+          c,
+          String(targetId),
+          "jefatura-retirada:" + Date.now(),
+          "Retiro de Jefatura de Academia",
+          `Se ha retirado tu nombramiento de jefatura de academia.${motivo ? ` Motivo: ${motivo}` : ""}`,
+          "/perfil",
+        );
+      } else {
+        // Alta de jefatura
+        // 1. Validar que la cuenta objetivo exista, esté activa y sea empleado del IPN
+        const cuentaTarget = await c.query(
+          `SELECT c.id_cuenta::text, ec.nombre AS estado,
+                  EXISTS(SELECT 1 FROM ticket_trade."EmpleadoIPN" WHERE id_cuenta = c.id_cuenta) AS es_empleado
+           FROM ticket_trade."Cuenta" c
+           JOIN ticket_trade."EstadoCuenta" ec USING(id_estado_cuenta)
+           WHERE c.id_cuenta = $1`,
+          [targetId],
+        );
+        if (!cuentaTarget.rowCount) fallo("Cuenta no encontrada.", 404);
+        if (cuentaTarget.rows[0].estado !== "Activa") {
+          fallo("La cuenta debe estar activa para recibir una jefatura.", 422);
+        }
+        if (!cuentaTarget.rows[0].es_empleado) {
+          fallo("La jefatura de academia solo puede asignarse a un docente o empleado del IPN.", 422);
+        }
+
+        // 2. Validar que tenga una Verificación sin retiro, ligada a SolicitudVerificacion aprobada y periodo vigente (Regla TT012)
+        const verifRow = await c.query(
+          `SELECT v.id_verificacion::text, v.retirada_en, p.clave, p.inicio, p.fin,
+                  ((CURRENT_TIMESTAMP AT TIME ZONE 'America/Mexico_City')::date BETWEEN p.inicio AND p.fin) AS periodo_vigente
+           FROM ticket_trade."Verificacion" v
+           JOIN ticket_trade."SolicitudVerificacion" s ON s.id_solicitud_verificacion = v.id_solicitud_verificacion_aprobada
+           JOIN ticket_trade."PeriodoEscolar" p USING(id_periodo_escolar)
+           WHERE s.id_cuenta = $1
+           ORDER BY v.id_verificacion DESC LIMIT 1`,
+          [targetId],
+        );
+        if (!verifRow.rowCount) {
+          fallo("El docente no cuenta con una verificación documental aprobada.", 422);
+        }
+        if (verifRow.rows[0].retirada_en) {
+          fallo("La verificación documental del docente fue retirada; no puede recibir jefatura de academia.", 422);
+        }
+        if (!verifRow.rows[0].periodo_vigente) {
+          fallo("La verificación del docente corresponde a un periodo escolar no vigente.", 422);
+        }
+
+        const idOtorganteFinal = idEntero(b.idOtorgante);
+        const otorgante = await c.query(`SELECT 1 FROM ticket_trade."Cuenta" c
+          JOIN ticket_trade."TipoCuenta" tc USING(id_tipo_cuenta)
+          JOIN ticket_trade."EstadoCuenta" ec USING(id_estado_cuenta)
+          WHERE c.id_cuenta=$1 AND tc.nombre='Subdirección' AND ec.nombre='Activa'`, [idOtorganteFinal]);
+        if (!otorgante.rowCount) fallo("El otorgante debe ser una cuenta activa de Subdirección.");
+
+        let idAcademiaFinal: string;
+        if (b.nombreAcademia !== undefined) {
+          const nombre = texto(b.nombreAcademia, "el nombre de la academia", 120);
+          const existente = await c.query('SELECT 1 FROM ticket_trade."Academia" WHERE lower(nombre)=lower($1)', [nombre]);
+          if (existente.rowCount) fallo("La academia ya existe. Selecciónala en el catálogo.", 409);
+          const creada = await c.query('INSERT INTO ticket_trade."Academia"(nombre) VALUES($1) RETURNING id_academia::text id', [nombre]);
+          idAcademiaFinal = creada.rows[0].id;
+        } else {
+          idAcademiaFinal = idEntero(b.idAcademia);
+          const academia = await c.query('SELECT 1 FROM ticket_trade."Academia" WHERE id_academia=$1', [idAcademiaFinal]);
+          if (!academia.rowCount) fallo("Academia no encontrada.", 404);
+        }
+        const nombramientos = await c.query(`SELECT id_academia::text academia, id_cuenta_empleada::text titular
+          FROM ticket_trade."JefaturaAcademia" WHERE id_academia=$1 OR id_cuenta_empleada=$2`,
+          [idAcademiaFinal, targetId]);
+        if (nombramientos.rows.some(n => n.academia === idAcademiaFinal && n.titular === targetId)) return;
+        if (nombramientos.rowCount) fallo("La academia o la persona ya tiene una jefatura. Retira primero el nombramiento vigente.", 409);
+        await c.query(
+          `INSERT INTO ticket_trade."JefaturaAcademia" (id_academia, id_cuenta_empleada, id_cuenta_otorgante)
+           VALUES ($1, $2, $3)`,
+          [idAcademiaFinal, targetId, idOtorganteFinal],
+        );
+
+        await encolarAviso(
+          c,
+          String(targetId),
+          "jefatura-asignada:" + Date.now(),
+          "Nombramiento de Jefatura de Academia",
+          `Se te ha asignado la jefatura de academia.${motivo ? ` Motivo: ${motivo}` : ""}`,
+          "/perfil",
+        );
+      }
+    });
+
+    res.json({
+      datos: {
+        exito: true,
+        mensaje: valor
+          ? "Jefatura de academia asignada correctamente."
+          : "Jefatura de academia retirada correctamente.",
+        tieneJefaturaAcademica: valor,
+        usuario: await proyectarUsuario(String(targetId)),
+      },
     });
   }),
 );

@@ -552,7 +552,7 @@ export function GestionIdentidadPagina({
           ))}
         </article>
       )}
-      {vista === "revision" && subdireccion && !periodoIdentidadActual(auth.periodosIdentidad) && <p className="rounded-xl bg-amber-50 p-4 text-sm">Configura el periodo académico para poder aprobar verificaciones. <button className="font-bold underline" onClick={()=>navigate('/subdireccion/jefes-academia')}>Abrir periodos de verificación</button></p>}
+      {vista === "revision" && subdireccion && !periodoIdentidadActual(auth.periodosIdentidad) && <p className="rounded-xl bg-amber-50 p-4 text-sm">Solicita a Administración que configure un periodo académico para poder aprobar verificaciones.</p>}
       {vista === "revision" && (
         <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="space-y-3">
@@ -675,7 +675,7 @@ export function GestionIdentidadPagina({
                   </button>
                 ))}
               </div>
-              {subdireccion && <form className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={async e=>{e.preventDefault();resultado((await auth.silenciarVerificacion(elegida.id,silencioHasta,motivoSilencio,seleccion!.version)));}}><h3 className="font-bold">Pausar nuevos envíos de verificación</h3><p className="text-sm">No bloquea la cuenta, las reservas ni el inicio de sesión. Deja la fecha vacía para levantar una pausa anterior.</p>{elegida.verificacionSilenciadaHasta&&<p className="text-sm">Pausa hasta {elegida.verificacionSilenciadaHasta}: {elegida.motivoSilencioVerificacion}</p>}<label className="block text-sm">Hasta<input type="date" value={silencioHasta} onChange={e=>setSilencioHasta(e.target.value)} className={campo}/></label><label className="block text-sm">Motivo<textarea required value={motivoSilencio} onChange={e=>setMotivoSilencio(e.target.value)} className={campo}/></label><button type="submit" className={boton}>Confirmar pausa o habilitación</button></form>}
+              {!apiActiva && subdireccion && <form className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4" onSubmit={async e=>{e.preventDefault();resultado((await auth.silenciarVerificacion(elegida.id,silencioHasta,motivoSilencio,seleccion!.version)));}}><h3 className="font-bold">Pausar nuevos envíos de verificación</h3><p className="text-sm">No bloquea la cuenta, las reservas ni el inicio de sesión. Deja la fecha vacía para levantar una pausa anterior.</p>{elegida.verificacionSilenciadaHasta&&<p className="text-sm">Pausa hasta {elegida.verificacionSilenciadaHasta}: {elegida.motivoSilencioVerificacion}</p>}<label className="block text-sm">Hasta<input type="date" value={silencioHasta} onChange={e=>setSilencioHasta(e.target.value)} className={campo}/></label><label className="block text-sm">Motivo<textarea required value={motivoSilencio} onChange={e=>setMotivoSilencio(e.target.value)} className={campo}/></label><button type="submit" className={boton}>Confirmar pausa o habilitación</button></form>}
               {decision && (
                 <div className="space-y-3 rounded-xl border border-amber-200 p-4">
                   <h3 className="font-bold">Confirmar: {estadoLegible(decision)}</h3>

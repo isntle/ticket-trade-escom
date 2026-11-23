@@ -401,7 +401,7 @@ export function PerfilUsuarioPagina({
             </>
           )}
           {rolActivo === "subdireccion" && (
-            <><button className={boton} onClick={()=>navigate("/subdireccion/verificaciones")}>Solicitudes de verificación</button><button className={boton} onClick={()=>navigate("/subdireccion/jefes-academia")}>Jefes de academia y periodos</button><button
+            <><button className={boton} onClick={()=>navigate("/subdireccion/verificaciones")}>Solicitudes de verificación</button><button
               className={boton}
               onClick={() => navigate("/subdireccion/restricciones")}
             >

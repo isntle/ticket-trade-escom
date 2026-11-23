@@ -89,6 +89,7 @@ export function ProveedorAutenticacionRemota({
         exito: true,
         mensaje: r.mensaje || "Cambios guardados.",
         codigoPrueba: r.codigoPrueba,
+        roles: (r.usuario as Usuario | undefined)?.roles,
       };
     } catch (e) {
       return errorDe(e);
@@ -96,10 +97,6 @@ export function ProveedorAutenticacionRemota({
   };
   const iniciarSesion = async (correo: string, password?: string) => {
     const r = await operacion("/auth/login", { correo, password });
-    if (r.exito) {
-      const u = await refrescar();
-      if (u) setRol(principal(u));
-    }
     return r;
   };
   const noDisponible = () => ({
@@ -257,13 +254,65 @@ export function ProveedorAutenticacionRemota({
       mensaje:
         "Dependencia pendiente: el alta y retiro de Staff aún no está conectado a PostgreSQL. No se guardaron cambios.",
     }),
-    alternarEstadoUsuario: noDisponible,
+    alternarEstadoUsuario: async (id: string, motivo?: string) => {
+      if (!usuario?.roles.includes("admin") || rol !== "admin") {
+        return {
+          exito: false,
+          mensaje: "Solo Administración puede modificar el estado de una cuenta.",
+        };
+      }
+      if (id === usuario.id) {
+        return {
+          exito: false,
+          mensaje: "No puedes suspender tu propia cuenta.",
+        };
+      }
+      const objetivo = usuarios.find(u => u.id === id);
+      if (!objetivo) return { exito: false, mensaje: "Cuenta no encontrada." };
+      return operacion(`/auth/usuarios/${encodeURIComponent(id)}/estado`, { motivo, activo: !objetivo.estaActivo });
+    },
     reiniciarConfirmacionPrueba: noDisponible,
     solicitarRestriccion: noDisponible,
     actualizarRestriccionSolicitudes: noDisponible,
-    cambiarAutoaprobacion: noDisponible,
-    configurarPeriodosIdentidad: noDisponible,
-    silenciarVerificacion: noDisponible,
+    cambiarAutoaprobacion: async (
+      id: string,
+      valor: boolean,
+      motivo = "",
+      _version?: number,
+      nombramiento?: { idAcademia?: string; nombreAcademia?: string; idOtorgante: string },
+    ) => {
+      if (!usuario?.roles.includes("admin")) {
+        return {
+          exito: false,
+          mensaje: "No tienes permiso para gestionar jefaturas de academia.",
+        };
+      }
+      return operacion(`/auth/usuarios/${encodeURIComponent(id)}/jefatura`, {
+        valor,
+        motivo,
+        ...nombramiento,
+      });
+    },
+    configurarPeriodosIdentidad: async (
+      periodos: PeriodoIdentidad[],
+      versionEsperada?: string,
+    ) => {
+      if (!usuario?.roles.includes("admin")) {
+        return {
+          exito: false,
+          mensaje: "No tienes permiso para configurar periodos escolares.",
+        };
+      }
+      return operacion("/auth/periodos", {
+        periodos,
+        versionEsperada,
+      });
+    },
+    silenciarVerificacion: () => ({
+      exito: false,
+      mensaje:
+        "La pausa de envíos de verificación no tiene persistencia en la base de datos remota. Función no disponible en modo conectado.",
+    }),
   };
   if (!listo)
     return (

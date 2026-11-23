@@ -367,7 +367,6 @@ function ContenidoApp() {
       return <PanelOrganizadorPagina navigate={navegarA} />;
     }
 
-    if (rutaActual === "/subdireccion/jefes-academia") return <GestionAcademicaPagina navigate={navegarA}/>;
     if (rutaActual === "/subdireccion/verificaciones") return <GestionIdentidadPagina vista="revision" navigate={navegarA}/>;
     if (rutaActual === "/subdireccion/restricciones")
       return (
@@ -455,6 +454,13 @@ function ContenidoApp() {
       return (
         <GestionIdentidadPagina vista="restricciones" navigate={navegarA} />
       );
+    if (
+      rutaActual === "/admin/jefaturas" ||
+      rutaActual === "/admin/jefes-academia" ||
+      rutaActual === "/admin/periodos"
+    ) {
+      return <GestionAcademicaPagina navigate={navegarA} />;
+    }
     if (rutaActual.startsWith("/admin")) {
       return <AdministracionUsuariosPagina navigate={navegarA} />;
     }

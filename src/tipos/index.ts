@@ -41,6 +41,7 @@ export interface Usuario {
   tipoExterno?: "asistente" | "representante";
   rfc?: string;
   puedeAutoaprobar?: boolean;
+  tieneJefaturaAcademica?: boolean;
   archivosExpediente?: DocumentoIdentidad[];
   verificacionHasta?: string;
   periodoVerificado?: string;

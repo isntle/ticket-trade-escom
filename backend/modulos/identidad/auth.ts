@@ -32,7 +32,7 @@ export async function proyectarUsuario(id: string) {
  tc.nombre AS tipo,ec.nombre AS estado,rr.nombre AS afiliacion,c.correo_confirmado_en,e.boleta,m.rfc,
  EXISTS(SELECT 1 FROM ticket_trade.v_verificaciones_vigentes v WHERE v.id_cuenta=c.id_cuenta) AS verificado,
  ARRAY(SELECT se.id_evento::text FROM ticket_trade."StaffEvento" se WHERE se.id_cuenta=c.id_cuenta) AS eventos,
- EXISTS(SELECT 1 FROM ticket_trade."JefaturaAcademia" j JOIN ticket_trade.v_verificaciones_vigentes v ON v.id_cuenta=j.id_cuenta_empleada WHERE j.id_cuenta_empleada=c.id_cuenta) AS jefatura
+ EXISTS(SELECT 1 FROM ticket_trade."JefaturaAcademia" j WHERE j.id_cuenta_empleada=c.id_cuenta) AS jefatura
  FROM ticket_trade."Cuenta" c JOIN ticket_trade."TipoCuenta" tc USING(id_tipo_cuenta) JOIN ticket_trade."EstadoCuenta" ec USING(id_estado_cuenta)
  LEFT JOIN ticket_trade."PerfilUsuario" p USING(id_cuenta) LEFT JOIN ticket_trade."RolRegistro" rr USING(id_rol_registro)
  LEFT JOIN ticket_trade."Estudiante" e USING(id_cuenta) LEFT JOIN ticket_trade."EmpleadoIPN" m USING(id_cuenta) WHERE c.id_cuenta=$1`,
@@ -147,7 +147,8 @@ export async function proyectarUsuario(id: string) {
     boleta: r.boleta || undefined,
     rfc: r.rfc || undefined,
     eventosAsignadosStaff: r.eventos,
-    puedeAutoaprobar: false, // La autorización automática aún no forma parte del comando remoto.
+    tieneJefaturaAcademica: Boolean(r.jefatura),
+    puedeAutoaprobar: false,
   };
 }
 export async function usuarioSesion(token: unknown) {

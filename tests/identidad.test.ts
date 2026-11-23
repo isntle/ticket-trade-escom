@@ -511,7 +511,7 @@ test("los ocho CU-ID tienen pantalla, control y respuesta; permisos y alternativ
   assert.equal(casos[6].ruta, "/subdireccion/verificaciones");
   assert.deepEqual(
     casos[7].accesos?.map((a) => a.ruta),
-    ["/subdireccion/restricciones", "/admin", "/subdireccion/jefes-academia", "/organizador/staff"],
+    ["/subdireccion/restricciones", "/admin", "/admin/jefaturas", "/organizador/staff"],
   );
 });
 test("la carga comprueba el PDF real y rechaza extensión falsa, cifrado, acciones y exceso de tamaño", async () => {
@@ -696,4 +696,40 @@ test('tres rechazos bloquean el cuarto envío, pero una corrección y un PDF inv
   assert.equal(r.exito,false);
   assert.match(r.mensaje,/tres rechazos/);
   assert.equal(p.leer().find(u=>u.id==='usr-carlos')!.historialExpediente!.filter(h=>h.estado==='rechazado').length,3);
+});
+
+test('Administración suspende cuenta con motivo: efecto en siguiente intento y conservación de correo y verificación', () => {
+  const p = preparar('usr-admin');
+  const uOriginal = p.leer().find(u => u.id === 'usr-silva')!;
+  const correoConfirmadoOriginal = uOriginal.correoConfirmado;
+  const esVerificadoOriginal = uOriginal.esVerificado;
+  assert.equal(uOriginal.estaActivo, true);
+
+  // Intentar suspenderse a sí mismo debe ser rechazado
+  assert.equal(auth.alternarEstadoUsuario('usr-admin', 'Auto-suspensión').exito, false);
+
+  // Suspender a usr-silva con motivo
+  const resSuspension = auth.alternarEstadoUsuario('usr-silva', 'Incumplimiento normativo de recinto');
+  assert.equal(resSuspension.exito, true);
+
+  const suspendido = p.leer().find(u => u.id === 'usr-silva')!;
+  assert.equal(suspendido.estaActivo, false);
+  // Conservación de correo confirmado y verificación documental
+  assert.equal(suspendido.correoConfirmado, correoConfirmadoOriginal);
+  assert.equal(suspendido.esVerificado, esVerificadoOriginal);
+  // El motivo queda registrado en el historial de identidad
+  const ultimoMov = suspendido.historialIdentidad?.at(-1);
+  assert.equal(ultimoMov?.motivo, 'Incumplimiento normativo de recinto');
+
+  // Efecto real en el siguiente intento: el inicio de sesión es rechazado
+  const intentoLogin = auth.iniciarSesion(suspendido.correo, suspendido.password || 'Password123!');
+  assert.equal(intentoLogin.exito, false);
+
+  // Reactivar la cuenta
+  const resReactivacion = auth.alternarEstadoUsuario('usr-silva', 'Sanción cumplida');
+  assert.equal(resReactivacion.exito, true);
+  const reactivado = p.leer().find(u => u.id === 'usr-silva')!;
+  assert.equal(reactivado.estaActivo, true);
+  assert.equal(reactivado.correoConfirmado, correoConfirmadoOriginal);
+  assert.equal(reactivado.esVerificado, esVerificadoOriginal);
 });
