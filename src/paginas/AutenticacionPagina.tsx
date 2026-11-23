@@ -2,7 +2,7 @@ import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import {transporteApi} from "../servicios/http";
 import {apiActiva} from '../servicios/modoDatos';
 import { verificacionIdentidadVigente, validarDominioIdentidad } from "../dominio/identidad";
-import { destinoInternoSeguro } from "../dominio/navegacion";
+import { destinoInternoSeguro, destinoTrasLogin } from "../dominio/navegacion";
 import { volverA } from "../dominio/navegacion";
 import React, { useEffect, useState } from "react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
@@ -237,15 +237,10 @@ export function AutenticacionPagina({
               e.preventDefault();
               const r = (await auth.iniciarSesion(correo, password));
               setMensaje(r.mensaje);
-              if (r.exito) {
-                navigate(
-                  destinoInternoSeguro(
-                    new URLSearchParams(window.location.search).get(
-                      "continuar",
-                    ),
-                  ),
-                );
-              }
+              if (r.exito) navigate(destinoTrasLogin(
+                new URLSearchParams(window.location.search).get("continuar"),
+                r.roles,
+              ));
             }}
           >
             <label className="block text-sm font-semibold text-neutral-800">

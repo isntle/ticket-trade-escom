@@ -262,7 +262,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
       <button
         type="button"
         onClick={() => navigate(volverA('/eventos'))}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-4 transition-colors cursor-pointer"
+        className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-semibold text-neutral-800 hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-[#7a132b]"
       >
         <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
 

@@ -11,6 +11,18 @@ export function destinoInternoSeguro(ruta: unknown, alternativa = '/eventos'): s
   } catch { return alternativa; }
 }
 
+export function destinoTrasLogin(continuar: unknown, roles: readonly string[] = []): string {
+  const panel = roles.includes('admin') ? '/admin'
+    : roles.includes('subdireccion') ? '/subdireccion'
+    : roles.includes('organizador') ? '/organizador'
+    : roles.includes('staff') ? '/staff/checkin'
+    : '/eventos';
+  const destino = destinoInternoSeguro(continuar, panel);
+  if (['/login', '/registro', '/confirmar-correo', '/recuperar-password', '/restablecer-password']
+    .includes(destino.split(/[?#]/)[0])) return panel;
+  return destino;
+}
+
 export function regresarAlOrigen(alternativa: () => void) {
   const origen = window.history.state?.origenTT;
   if (origen && destinoInternoSeguro(origen,'') && origen !== window.location.pathname + window.location.search) window.history.back();

@@ -199,7 +199,7 @@ export const SUBEQUIPOS: Subequipo[] = [
             usuario: "usr-admin",
             rol: "admin",
           },
-          {nombre:"Gestionar jefes de academia y periodos",ruta:"/subdireccion/jefes-academia",usuario:"usr-subdireccion",rol:"subdireccion"},
+          {nombre:"Gestionar jefes de academia y periodos",ruta:"/admin/jefaturas",usuario:"usr-admin",rol:"admin"},
           {
             nombre: "Asignar Staff de mis eventos",
             ruta: "/organizador/staff",

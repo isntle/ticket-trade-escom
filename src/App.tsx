@@ -69,15 +69,15 @@ function ContenidoApp() {
   const navegarA = (rutaConParametros: string) => {
     if (esRegreso(rutaConParametros)) {
       const origen = window.history.state?.origenTT;
-      if (origen && destinoInternoSeguro(origen,'') && origen !== window.location.pathname+window.location.search) { window.history.back(); return; }
+      if (origen && destinoInternoSeguro(origen,'') && origen !== window.location.pathname+window.location.search+window.location.hash) { window.history.back(); return; }
       rutaConParametros = alternativaRegreso(rutaConParametros);
     }
     rutaConParametros = destinoInternoSeguro(rutaConParametros);
-    const actual = window.location.pathname + window.location.search;
+    const actual = window.location.pathname + window.location.search + window.location.hash;
     if (actual === rutaConParametros) return;
     const url = new URL(rutaConParametros, window.location.origin);
     if (modoDemostracionActivo() && !url.searchParams.has('demo')) url.searchParams.set('demo','1');
-    rutaConParametros = url.pathname + url.search;
+    rutaConParametros = url.pathname + url.search + url.hash;
     window.history.replaceState({...window.history.state,scrollTT:window.scrollY},'',actual);
     const acceso = ['/login','/registro','/confirmar-correo'].includes(window.location.pathname);
     // Autenticarse para continuar la misma operación no debe duplicarla en el historial.

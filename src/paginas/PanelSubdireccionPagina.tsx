@@ -54,10 +54,10 @@ export const PanelSubdireccionPagina: React.FC<
 
   const [pestañaActiva, setPestañaActiva] = useState<
     "solicitudes" | "agenda" | "bloqueos" | "evento_directo"
-  >(initialTab);
+  >(apiActiva && initialTab === "evento_directo" ? "solicitudes" : initialTab);
 
   useEffect(() => {
-    setPestañaActiva(initialTab);
+    setPestañaActiva(apiActiva && initialTab === "evento_directo" ? "solicitudes" : initialTab);
   }, [initialTab]);
 
   const cambiarPestaña = (
@@ -264,9 +264,9 @@ export const PanelSubdireccionPagina: React.FC<
           <span>Bloqueos de recintos ({listaBloqueos.length})</span>
         </button>
 
-        <button
+        {!apiActiva && esSubdireccion && (
+          <button
           type="button"
-          disabled={!esSubdireccion}
           onClick={() => cambiarPestaña("evento_directo")}
           className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
             pestañaActiva === "evento_directo"
@@ -277,6 +277,7 @@ export const PanelSubdireccionPagina: React.FC<
           <Plus className="w-3.5 h-3.5" />
           <span>Crear evento</span>
         </button>
+        )}
       </div>
 
       {pestañaActiva === "solicitudes" && (
@@ -293,7 +294,7 @@ export const PanelSubdireccionPagina: React.FC<
       {pestañaActiva === 'bloqueos' && <GestionBloqueos navigate={navigate} />}
 
       {/* Pestaña: Evento Directo */}
-      {pestañaActiva === "evento_directo" && (
+      {!apiActiva && esSubdireccion && pestañaActiva === "evento_directo" && (
         <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs space-y-4 max-w-2xl">
           <h2 className="text-sm font-bold text-neutral-900 ">
             Registro Directo de Evento Institucional

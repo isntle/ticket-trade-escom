@@ -319,7 +319,7 @@ export const DetalleSolicitudPagina: React.FC<{
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <button
         onClick={() => navigate(volverA(regreso))}
-        className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-neutral-600"
+        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-semibold text-neutral-800 hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-[#7a132b]"
       >
         <ArrowLeft size={17} />
         <span>Regresar</span>

@@ -94,6 +94,11 @@ export function GestionIdentidadPagina({
   const admin = !!cuenta?.roles.includes("admin") && rolActivo === "admin";
   const subdireccion =
     !!cuenta?.roles.includes("subdireccion") && rolActivo === "subdireccion";
+  const regreso = vista === "expediente" ? "/perfil"
+    : admin ? "/admin"
+    : subdireccion ? "/subdireccion"
+    : vista === "staff" ? "/organizador"
+    : "/perfil";
   const organizador =
     !!cuenta?.roles.includes("organizador") && rolActivo === "organizador";
   const elegida = usuarios.find((u) => u.id === seleccion?.id);
@@ -307,8 +312,9 @@ export function GestionIdentidadPagina({
   return (
     <section className="mx-auto max-w-6xl space-y-5 px-4 py-8 sm:px-6">
       <button
-        className="flex items-center gap-2 text-sm"
-        onClick={() => navigate(volverA("/perfil"))}
+        type="button"
+        className={boton + " inline-flex min-h-10 items-center gap-2 focus-visible:ring-2 focus-visible:ring-[#7a132b]"}
+        onClick={() => navigate(volverA(regreso))}
       >
         <ArrowLeft size={16} /><span>Regresar</span></button>
       <header>

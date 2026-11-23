@@ -4,7 +4,7 @@ import {validarProgramacion} from '../src/dominio/solicitudes';
 import {validarDistribuciones,lugaresDelRecinto} from '../src/dominio/distribucionSolicitud';
 import {convertirDiasSolicitud} from '../src/dominio/programa';
 import {validarItinerarios} from '../src/dominio/actividades';
-import {destinoInternoSeguro,alternativaRegreso,esRegreso,volverA} from '../src/dominio/navegacion';
+import {destinoTrasLogin,destinoInternoSeguro,alternativaRegreso,esRegreso,volverA} from '../src/dominio/navegacion';
 import {RECINTOS_INICIALES,SOLICITUDES_INICIALES} from '../src/datos/datosIniciales';
 import type {ElementoFechaSolicitada} from '../src/tipos';
 const ahora=new Date('2030-01-01T12:00:00-06:00');
@@ -64,4 +64,16 @@ test('dos identificadores del mismo recinto físico no permiten ocultar un cruce
   const recinto=RECINTOS_INICIALES.find(r=>r.id===base.idRecinto)!;
   const alias={...recinto,id:'alias-del-auditorio'};
   assert.match(validarProgramacion([base,{...base,id:'act-alias',idRecinto:alias.id}],[...RECINTOS_INICIALES,alias],{ahora})||'',/mismo recinto/);
+});
+
+
+test('la sesión abre el panel del rol y conserva los enlaces internos de regreso', () => {
+  assert.equal(destinoTrasLogin(null, ['asistente', 'admin']), '/admin');
+  assert.equal(destinoTrasLogin(null, ['subdireccion']), '/subdireccion');
+  assert.equal(destinoTrasLogin(null, ['asistente', 'staff']), '/staff/checkin');
+  assert.equal(destinoTrasLogin(null, ['organizador']), '/organizador');
+  assert.equal(destinoTrasLogin(null, ['asistente']), '/eventos');
+  assert.equal(destinoTrasLogin('/eventos/1001/reservar?dateId=1002#detalle', ['admin']), '/eventos/1001/reservar?dateId=1002#detalle');
+  assert.equal(destinoTrasLogin('//ejemplo.invalido', ['admin']), '/admin');
+  assert.equal(destinoTrasLogin('/login', ['admin']), '/admin');
 });
