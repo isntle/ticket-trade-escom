@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { apiActiva } from '../servicios/modoDatos';
+import { DistribucionActividadRemota } from './DistribucionActividadRemota';
 import {
   Layers,
   CheckCircle,
@@ -27,7 +28,10 @@ interface PropiedadesDistribucionAsientos {
   navigate: (ruta: string) => void;
 }
 
-export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsientos> = ({
+export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsientos> = props =>
+  apiActiva ? <DistribucionActividadRemota /> : <DistribucionAsientosLocal {...props} />;
+
+const DistribucionAsientosLocal: React.FC<PropiedadesDistribucionAsientos> = ({
   navigate
 }) => {
   const {
@@ -83,12 +87,6 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
   // Recinto seleccionado en la pestaña (por defecto: Auditorio Principal)
   const [idRecintoSeleccionado, setIdRecintoSeleccionado] = useState<string>(listaRecintos[0]?.id || 'rec-auditorio');
 
-  const edicionDisponible = () => {
-    if (!apiActiva) return true;
-    mostrarNotificacion('Distribución en consulta', 'Estás consultando los lugares registrados para esta actividad. La edición de esta distribución aún no está disponible.', 'advertencia');
-    return false;
-  };
-
   const recintoActivo =
     listaRecintos.find((r) => r.id === idRecintoSeleccionado) || listaRecintos[0];
 
@@ -117,7 +115,6 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
 
   // Manejo de clic interactivo en una butaca o estación
   const manejarClicAsiento = (asiento: ConfiguracionAsiento) => {
-    if (!edicionDisponible()) return;
     if (!arregloActivo) return;
 
     const asientosActualizados = arregloActivo.asientos.map((a) => {
@@ -173,7 +170,6 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
 
   // Asignar fila completa como categoría seleccionada
   const asignarFilaCompleta = (fila: string, categoria: CategoriaAsiento | 'bloquear') => {
-    if (!edicionDisponible()) return;
     if (!arregloActivo) return;
 
     const asientosActualizados = arregloActivo.asientos.map((a) => {
@@ -220,7 +216,6 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
 
   // Guardar y confirmar formalmente como Versión Oficial
   const marcarComoOficial = () => {
-    if (!edicionDisponible()) return;
     if (!arregloActivo) return;
     confirmarVersionFinalArreglo(arregloActivo.idFechaEvento, arregloActivo.id);
     mostrarNotificacion(
@@ -232,7 +227,6 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
 
   // Duplicar como nuevo borrador para experimentar
   const duplicarBorrador = () => {
-    if (!edicionDisponible()) return;
     if (!arregloActivo) return;
     const nuevo = crearArreglo({
       idFechaEvento: arregloActivo.idFechaEvento,
@@ -263,14 +257,14 @@ export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsiento
               Subsistema 02 · Espacios Físicos ESCOM
             </span>
             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-              {apiActiva ? 'Distribución de lugares' : '✓ Edición Siempre Habilitada'}
+              ✓ Edición Siempre Habilitada
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight">
             Distribución y Asignación de Butacas por Recinto
           </h1>
           <p className="text-xs sm:text-sm text-neutral-500 mt-1 max-w-3xl">
-            {apiActiva ? 'Consulta los lugares y sus categorías para cada actividad. Esta distribución está disponible solo para consulta.' : 'Edita de forma interactiva la disposición de lugares del Auditorio Principal, la Sala 14 modular y los Laboratorios de Cómputo. Asigna butacas VIP, lugares para comité organizador, staff de apoyo o bloqueos logísticos.'}
+            Edita de forma interactiva la disposición de lugares del Auditorio Principal, la Sala 14 modular y los Laboratorios de Cómputo. Asigna butacas VIP, lugares para comité organizador, staff de apoyo o bloqueos logísticos.
           </p>
         </div>
 

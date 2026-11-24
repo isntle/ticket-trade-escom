@@ -85,3 +85,16 @@ test("la selección no cambia la escala del mapa", () => {
   assert.equal(escala(conSeleccion), escala(sinSeleccion));
   assert.match(conSeleccion, /title="B5 — Tu lugar seleccionado"/);
 });
+
+test("el editor remoto deshabilita lugares protegidos y conserva los lugares editables", () => {
+  const html = renderToString(React.createElement(MapaAsientos, {
+    asientos: butacas,
+    tipoRecinto: "auditorio",
+    modo: "editor",
+    motivosNoEditables: new Map([["B-5", "Tiene un apartado o una reserva"]]),
+  }));
+  const ocupado = html.match(/<button\b[^>]*title="B5 — Tiene un apartado o una reserva"[^>]*>/)?.[0];
+  const libre = html.match(/<button\b[^>]*title="B6 — Asistente General"[^>]*>/)?.[0];
+  assert.ok(ocupado?.includes('disabled=""'));
+  assert.ok(libre && !libre.includes('disabled=""'));
+});

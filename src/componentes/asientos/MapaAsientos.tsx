@@ -45,6 +45,8 @@ interface PropiedadesMapaAsientos {
   alEliminarAsientoModular?: (idAsiento: string) => void;
   permiteEliminar?: boolean; // Sala 14: true (modular), Auditorio/Lab: false
   permitirVip?: boolean;
+  motivosNoEditables?: ReadonlyMap<string, string>;
+  editorDeshabilitado?: boolean;
 }
 
 export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
@@ -55,6 +57,8 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
   idsAsientosApartados = [],
   idsAsientosReservados = [],
   idsAsientosCheckIn = [],
+  motivosNoEditables,
+  editorDeshabilitado,
   alSeleccionarAsiento,
   permiteEliminar = false,
   permitirVip = true
@@ -391,12 +395,16 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
       textoAyuda = `${lugar.etiqueta} — Soporte Técnico / Staff`;
     }
 
+    const motivoNoEditable = motivosNoEditables?.get(lugar.id);
+    if (motivoNoEditable) textoAyuda = `${lugar.etiqueta} — ${motivoNoEditable}`;
+
     return (
       <button
         type="button"
         onClick={() => alSeleccionarAsiento && alSeleccionarAsiento(lugar)}
+        disabled={editorDeshabilitado || Boolean(motivoNoEditable)}
         title={textoAyuda}
-        className={`relative shrink-0 rounded-md border font-mono flex flex-col items-center justify-center cursor-pointer transition-all active:scale-95 ${claseTamañoBoton} ${estiloEditor}`}
+        className={`relative shrink-0 rounded-md border font-mono flex flex-col items-center justify-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 transition-all active:scale-95 ${claseTamañoBoton} ${estiloEditor}`}
       >
         {esLaboratorio && !lugar.estaBloqueado && (
           <Monitor className="w-3 h-3 mb-0.5 opacity-60 shrink-0" />
