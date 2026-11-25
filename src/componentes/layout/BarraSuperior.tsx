@@ -4,6 +4,8 @@ import { modoDemostracionActivo } from "../../dominio/demostracion";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
+  ArrowUpRight,
+  Check,
   BadgeCheck,
   Bell,
   LogIn,
@@ -63,6 +65,23 @@ export const BarraSuperior: React.FC<{
   const [movilAbierto, setMovilAbierto] = useState(false);
   const [panelNotificaciones, setPanelNotificaciones] = useState(false);
   const contenedor = useRef<HTMLDivElement>(null);
+  const botonNotificaciones = useRef<HTMLButtonElement>(null);
+  const [avisoEnProceso, setAvisoEnProceso] = useState<string>();
+  const [errorAviso, setErrorAviso] = useState<{ id: string; mensaje: string }>();
+  const marcarAviso = async (id: string) => {
+    if (!marcarNotificacionLeida || avisoEnProceso) return;
+    setAvisoEnProceso(id);
+    setErrorAviso(undefined);
+    try {
+      const resultado = await marcarNotificacionLeida(id);
+      if (resultado && !resultado.exito)
+        setErrorAviso({ id, mensaje: resultado.error || "No se pudo marcar el aviso. Inténtalo de nuevo." });
+    } catch {
+      setErrorAviso({ id, mensaje: "No se pudo marcar el aviso. Inténtalo de nuevo." });
+    } finally {
+      setAvisoEnProceso(undefined);
+    }
+  };
   const contenedorNotificaciones = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setMenuAbierto(false);
@@ -78,6 +97,8 @@ export const BarraSuperior: React.FC<{
     };
     const tecla = (evento: KeyboardEvent) => {
       if (evento.key === "Escape") {
+        if (contenedorNotificaciones.current?.contains(document.activeElement))
+          botonNotificaciones.current?.focus();
         setMenuAbierto(false);
         setMovilAbierto(false);
         setPanelNotificaciones(false);
@@ -173,6 +194,8 @@ export const BarraSuperior: React.FC<{
             {estaAutenticado && usuarioActual && (
               <div ref={contenedorNotificaciones} className="relative">
                 <button
+                  ref={botonNotificaciones}
+                  type="button"
                   onClick={() => setPanelNotificaciones(!panelNotificaciones)}
                   aria-label={
                     noLeidas
@@ -181,7 +204,7 @@ export const BarraSuperior: React.FC<{
                   }
                   aria-expanded={panelNotificaciones}
                   aria-controls="panel-notificaciones"
-                  className="relative rounded-lg border p-2.5 hover:bg-neutral-50"
+                  className="relative grid size-11 place-items-center rounded-xl border border-neutral-200 bg-white text-[#7a132b] hover:bg-[#7a132b]/5 aria-expanded:bg-[#7a132b]/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7a132b]"
                 >
                   <Bell size={19} />
                   {noLeidas > 0 && (
@@ -193,65 +216,45 @@ export const BarraSuperior: React.FC<{
                 {panelNotificaciones && (
                   <div
                     id="panel-notificaciones"
-                    className="absolute right-0 top-full mt-2 max-h-[75vh] w-[min(24rem,calc(100vw-2rem))] overflow-auto rounded-2xl border border-neutral-200 bg-white p-3 shadow-xl"
+                    role="region"
+                    aria-labelledby="titulo-notificaciones"
+                    className="fixed inset-x-3 top-[4.5rem] z-50 max-h-[min(68dvh,34rem)] overflow-auto overscroll-contain rounded-2xl border border-neutral-200 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[25rem]"
                   >
-                    <div className="flex items-center justify-between px-2 pb-2">
-                      <h2 className="text-sm font-bold">Notificaciones</h2>
-                      <span className="text-xs text-neutral-500">
-                        {noLeidas} sin leer
-                      </span>
+                    <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-neutral-200 bg-white px-4 py-3">
+                      <div>
+                        <h2 id="titulo-notificaciones" className="text-base font-bold text-neutral-900">Notificaciones</h2>
+                        <p className="text-xs text-neutral-600">{noLeidas} sin leer</p>
+                      </div>
+                      <button type="button" aria-label="Cerrar notificaciones"
+                        className="grid size-10 place-items-center rounded-xl text-neutral-600 hover:bg-neutral-100 focus-visible:outline-2 focus-visible:outline-[#7a132b]"
+                        onClick={() => { setPanelNotificaciones(false); botonNotificaciones.current?.focus(); }}>
+                        <X size={18} aria-hidden="true" />
+                      </button>
                     </div>
                     {listaNotificaciones.length === 0 ? (
-                      <p className="px-2 py-4 text-sm text-neutral-500">
-                        No tienes notificaciones.
-                      </p>
+                      <p className="px-4 py-6 text-sm text-neutral-600">No tienes notificaciones.</p>
                     ) : (
-                      <ul className="space-y-2">
-                        {listaNotificaciones.map((n) => (
-                          <li
-                            key={n.id}
-                            className={
-                              "rounded-xl border p-3 " +
-                              (n.leida
-                                ? "border-neutral-200 bg-white"
-                                : "border-[#7a132b]/25 bg-[#7a132b]/5")
-                            }
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-sm font-semibold">{n.titulo}</p>
-                              {!n.leida && (
-                                <span
-                                  className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#7a132b]"
-                                  aria-label="Sin leer"
-                                />
-                              )}
+                      <ul className="divide-y divide-neutral-100">
+                        {listaNotificaciones.map(n => (
+                          <li key={n.id} className={`border-l-[3px] px-4 py-3 ${n.leida ? "border-transparent" : "border-[#7a132b] bg-[#7a132b]/5"}`}>
+                            <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+                              <p className="min-w-0 break-words text-sm font-semibold text-neutral-900">{n.titulo}</p>
+                              {!n.leida && <span className="text-xs font-semibold text-[#7a132b]">Sin leer</span>}
                             </div>
-                            <p className="mt-1 whitespace-pre-line text-xs text-neutral-600">
-                              {n.mensaje}
-                            </p>
-                            <p className="mt-1 text-[11px] text-neutral-400">
-                              {new Date(n.fecha).toLocaleString("es-MX")}
-                            </p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {n.enlace && (
-                                <button
-                                  onClick={() => n.enlace && ir(n.enlace)}
-                                  className="rounded-lg bg-[#7a132b] px-3 py-1.5 text-xs font-semibold text-white"
-                                >
-                                  Ir al trámite
-                                </button>
-                              )}
-                              {!n.leida && marcarNotificacionLeida && (
-                                <button
-                                  onClick={() =>
-                                    void marcarNotificacionLeida(n.id)
-                                  }
-                                  className="rounded-lg border px-3 py-1.5 text-xs font-semibold hover:bg-neutral-50"
-                                >
-                                  Marcar como leída
-                                </button>
-                              )}
+                            <p className="mt-1 whitespace-pre-line break-words text-sm leading-relaxed text-neutral-700">{n.mensaje}</p>
+                            <p className="mt-1 text-xs text-neutral-600">{new Date(n.fecha).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" })}</p>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-4">
+                              {n.enlace && <button type="button" onClick={() => n.enlace && ir(n.enlace)}
+                                className="inline-flex min-h-10 items-center gap-1 rounded text-sm font-semibold text-[#7a132b] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-[#7a132b]">
+                                Ir al trámite <ArrowUpRight size={14} aria-hidden="true" />
+                              </button>}
+                              {!n.leida && marcarNotificacionLeida && <button type="button" disabled={!!avisoEnProceso}
+                                onClick={() => void marcarAviso(n.id)}
+                                className="inline-flex min-h-10 items-center gap-1 rounded text-sm font-medium text-neutral-700 hover:underline focus-visible:outline-2 focus-visible:outline-[#7a132b] disabled:opacity-60">
+                                <Check size={15} aria-hidden="true" />{avisoEnProceso === n.id ? "Marcando…" : "Marcar como leída"}
+                              </button>}
                             </div>
+                            {errorAviso?.id === n.id && <p role="alert" className="mt-1 text-sm text-rose-800">{errorAviso.mensaje}</p>}
                           </li>
                         ))}
                       </ul>
