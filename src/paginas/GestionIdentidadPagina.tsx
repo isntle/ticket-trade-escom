@@ -3,9 +3,9 @@ import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { impedimentoVerificacion, intentosPeriodo, periodoIdentidadActual, rechazosPeriodo } from "../dominio/periodosIdentidad";
 import { volverA } from '../dominio/navegacion';
 import { apiActiva } from '../servicios/modoDatos';
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft, FileCheck2, CircleCheck, Clock3, AlertTriangle,
+  ArrowLeft, UploadCloud, FileCheck2, CircleCheck, Clock3, AlertTriangle,
   XCircle, ShieldOff, CircleHelp
 } from "lucide-react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
@@ -91,6 +91,9 @@ export function GestionIdentidadPagina({
   const [archivos, setArchivos] = useState<DocumentoIdentidad[]>([]);
   const [revision, setRevision] = useState<number | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const operacionExpediente = useRef(false);
+  const tituloRevision = useRef<HTMLHeadingElement>(null);
+  const [errorExpediente, setErrorExpediente] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [seleccion, setSeleccion] = useState<{
     id: string;
@@ -228,17 +231,29 @@ export function GestionIdentidadPagina({
   const expedientesVisibles = (apartado === "pendientes" ? expedientesPendientes : expedientesHistorial).filter((u) =>
     (u.nombre + u.correo).toLocaleLowerCase().includes(filtro.trim().toLocaleLowerCase()),
   );
+  useEffect(() => {
+    if (revision !== null) tituloRevision.current?.focus();
+  }, [revision]);
   const agregar = async (files: File[]) => {
-    if (!files.length) return;
+    if (!files.length || operacionExpediente.current) return;
+    setErrorExpediente("");
     if (files.length + archivos.length > limiteDocumentos)
-      return setMensaje(`Tu perfil requiere ${limiteDocumentos} documento(s) PDF. Retira el anterior para reemplazarlo.`);
+      return setErrorExpediente(`El expediente admite hasta ${limiteDocumentos} PDF. Quita un archivo antes de añadir el reemplazo.`);
+    operacionExpediente.current = true;
     setOcupado(true);
     setMensaje('Cargando PDF…');
     setRevision(null);
+    const nuevos: DocumentoIdentidad[] = [];
+    const errores: string[] = [];
     try {
-      const nuevos: DocumentoIdentidad[] = [];
       for (const file of files) {
-        const id = await guardarDocumentoIdentidad(crypto.randomUUID(), file);
+        let id: string;
+        try {
+          id = await guardarDocumentoIdentidad(crypto.randomUUID(), file);
+        } catch (error) {
+          errores.push(file.name + ": " + (error instanceof Error ? error.message : "No se pudo cargar. Inténtalo de nuevo."));
+          continue;
+        }
         const usados = new Set([...archivos, ...nuevos].map((a) => a.tipo));
         nuevos.push({
           id,
@@ -253,11 +268,31 @@ export function GestionIdentidadPagina({
           fechaEmision: "",
         });
       }
-      setArchivos((prev) => [...prev, ...nuevos]);
-      setMensaje(apiActiva ? 'PDF guardados en el servidor. Completa sus datos y envía el expediente a Subdirección.' : 'PDF guardados en este navegador; completa sus datos y revisa antes de enviar.');
-    } catch (e) {
-      setMensaje((e as Error).message);
+      if (nuevos.length) setArchivos(prev => [...prev, ...nuevos]);
+      setMensaje(nuevos.length ? "PDF adjunto. Revisa los datos antes de enviar." : "");
+      setErrorExpediente(errores.join("\n"));
     } finally {
+      operacionExpediente.current = false;
+      setOcupado(false);
+    }
+  };
+  const enviarExpediente = async () => {
+    if (!cuenta || revision === null || operacionExpediente.current) return;
+    operacionExpediente.current = true;
+    setOcupado(true);
+    setErrorExpediente("");
+    try {
+      const respuesta = await auth.enviarExpediente(cuenta.id, archivos, revision, motivoSolicitud.trim());
+      if (!respuesta.exito) {
+        setErrorExpediente(respuesta.mensaje || "No se pudo enviar el expediente. Inténtalo de nuevo.");
+        return;
+      }
+      setRevision(null);
+      setMensaje("");
+    } catch (error) {
+      setErrorExpediente(error instanceof Error ? error.message : "No se pudo confirmar el envío.");
+    } finally {
+      operacionExpediente.current = false;
       setOcupado(false);
     }
   };
@@ -410,10 +445,7 @@ export function GestionIdentidadPagina({
             <p className="text-sm"><strong>Observaciones:</strong> {cuenta.motivoExpediente}</p>
           )}
           <p className="text-sm">
-            Aviso de datos: solo el titular, Subdirección y Administración pueden consultar
-            estos documentos para revisar la habilitación para solicitar
-            eventos. Usa únicamente documentos ficticios en este prototipo. No
-            se consultan padrones oficiales.
+            Solo tú, Subdirección y Administración pueden consultar estos documentos para evaluar tu verificación. En cuentas de prueba, usa documentos ficticios.
           </p>
           {cuenta.correoConfirmado !== true ? (
             <button
@@ -424,14 +456,17 @@ export function GestionIdentidadPagina({
             </button>
           ) : cuenta.estadoExpediente === "en_revision" ? (
             <>
-              <p>
-                Subdirección está revisando esta versión. No se puede reenviar
-                mientras esté en revisión.
-              </p>
+              <section role="status" className="flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+                <CircleCheck size={20} className="shrink-0" aria-hidden="true" />
+                <div><h2 className="font-bold">Expediente recibido</h2><p>Subdirección está revisando tus documentos. Consulta el resultado aquí.</p></div>
+              </section>
               {listadoArchivos(cuenta)}
             </>
           ) : (
             <>
+              {impedimentoEnvio && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm">{impedimentoEnvio}</p>}
+              {errorExpediente && <p role="alert" className="whitespace-pre-line break-words rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{textoParaUsuario(errorExpediente)}</p>}
+              {revision === null && <>
               <p className="text-sm">
                 Estudiante: constancia o comprobante de horario del periodo actual. Personal: comprobante
                 de adscripción y número de empleado declarado.
@@ -441,15 +476,15 @@ export function GestionIdentidadPagina({
                 expresa.
               </p>
               <label className="block text-sm font-bold">¿Por qué solicitas la verificación?<textarea required className={campo} value={motivoSolicitud} onChange={e=>{setMotivoSolicitud(e.target.value);setRevision(null);}}/></label>
-              {impedimentoEnvio && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm">{impedimentoEnvio}</p>}
-              <label className="block text-sm font-bold">
-                Adjuntar documentos PDF ({limiteDocumentos} por expediente; 10 MiB por archivo)
+              <label className="flex cursor-pointer flex-wrap items-center gap-3 rounded-2xl border border-dashed border-[#7a132b]/40 bg-[#7a132b]/5 p-4 text-sm focus-within:ring-2 focus-within:ring-[#7a132b]">
+                <UploadCloud size={24} className="text-[#7a132b]" aria-hidden="true" />
+                <span className="min-w-0 flex-1"><span className="block font-bold">Adjuntar PDF</span><span className="text-neutral-700">{archivos.length} de {limiteDocumentos} archivos. Hasta 10 MiB por PDF.</span></span>
                 <input
                   disabled={ocupado}
                   type="file"
-                  multiple
+                  multiple={limiteDocumentos > 1}
                   accept=".pdf,application/pdf"
-                  className={campo}
+                  className="max-w-full text-sm file:mr-2 file:rounded-lg file:border-0 file:bg-[#7a132b] file:px-3 file:py-2 file:font-semibold file:text-white"
                   onChange={async (e) => {
                     const entrada = e.currentTarget;
                     await agregar(Array.from(entrada.files || []));
@@ -459,7 +494,10 @@ export function GestionIdentidadPagina({
               </label>
               {archivos.map((a) => (
                 <div key={a.id} className="space-y-3 rounded-2xl border p-4">
-                  <p className="break-all font-semibold">{a.nombre}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="break-all font-semibold">{a.nombre}</p>
+                    <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-700">Adjunto</span>
+                  </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="text-sm">
                       Tipo de documento
@@ -532,54 +570,45 @@ export function GestionIdentidadPagina({
                     <BotonVerDocumento archivo={a} onClick={() => abrirDocumento(a, cuenta)} />
                     <button
                       className={boton}
+                      disabled={ocupado}
                       onClick={() => {
                         setArchivos(archivos.filter((f) => f.id !== a.id));
                         setRevision(null);
                       }}
                     >
-                      Quitar
+                      Quitar PDF
                     </button>
                   </div>
                 </div>
               ))}
+              </>}
               {revision !== null && (
-                <div className="space-y-3 border-t pt-4">
-                  <h2 className="font-bold">
-                    Revisar expediente antes del envío
+                <section className="space-y-4 rounded-2xl border border-[#7a132b]/20 bg-[#7a132b]/[0.03] p-4">
+                  <h2 ref={tituloRevision} tabIndex={-1} className="text-lg font-bold">
+                    Revisa antes de enviar
                   </h2>
                   {listadoArchivos(cuenta, archivos)}
-                  <p>
-                    Subdirección revisará la versión {revision}. Enviar no
-                    concede aprobación ni roles.
-                  </p>
-                  <button className={boton} onClick={() => setRevision(null)}>
-                    Regresar a editar
-                  </button>
-                  <button
-                    disabled={ocupado}
-                    className={primario}
-                    onClick={async () =>
-                      resultado(
-                        (await auth.enviarExpediente(cuenta.id, archivos, revision,motivoSolicitud)),
-                      )
-                    }
-                  >
-                    Enviar a revisión
-                  </button>
-                </div>
+                  <p className="break-words text-sm"><strong>Motivo de la solicitud.</strong> {motivoSolicitud}</p>
+                  <p className="text-sm text-neutral-700">Al enviar, Subdirección recibirá tu expediente para revisión.</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" disabled={ocupado} className={boton} onClick={() => setRevision(null)}>Volver a editar</button>
+                    <button type="button" disabled={ocupado} className={primario} onClick={() => void enviarExpediente()}>
+                      {ocupado ? "Enviando…" : "Enviar a Subdirección"}
+                    </button>
+                  </div>
+                </section>
               )}
+              {revision === null && (
               <div className="flex flex-wrap gap-3">
                 <button
                   className={boton}
                   disabled={ocupado}
                   onClick={() => {
                     const fallo = impedimentoVerificacion(cuenta,auth.periodosIdentidad) || (!motivoSolicitud.trim()?"Explica por qué solicitas la verificación.":undefined) || validarExpedienteIdentidad(cuenta, archivos);
-                    if (fallo) setMensaje(fallo);
-                    else {
+                    setErrorExpediente(fallo || "");
+                    if (!fallo) {
+                      setMensaje("");
                       setRevision(cuenta.versionIdentidad || 0);
-                      setMensaje(
-                        "Comprueba documentos y datos antes de confirmar.",
-                      );
                     }
                   }}
                 >
@@ -587,14 +616,18 @@ export function GestionIdentidadPagina({
                 </button>
                 <button
                   className={boton}
+                  disabled={ocupado}
                   onClick={() => {
+                    setErrorExpediente("");
+                    setMensaje("");
                     setArchivos(cuenta.archivosExpediente || []);
                     setRevision(null);
                   }}
                 >
-                  Cancelar envío
+                  Restaurar adjuntos
                 </button>
               </div>
+              )}
             </>
           )}
           <p className="text-xs text-neutral-500">

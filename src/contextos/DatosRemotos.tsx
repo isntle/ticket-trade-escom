@@ -263,6 +263,7 @@ function DatosDeSesion({ children, usuarioActual }: {
     ...crearServicioConfiguracionRecintos(api, async () => { agendaRemota.limpiar(); await cargar(); }),
     agendaRemota,
     verificarDisponibilidadRecinto,
+    actualizarEstadoTaquilla: async () => { await cargar(); },
     marcarNotificacionLeida,
     obtenerOcupacionesRecinto: (id: string, fecha: string) =>
       agenda(fecha).filter((a: any) => a.idRecinto === id),

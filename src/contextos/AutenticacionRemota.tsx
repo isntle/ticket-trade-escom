@@ -83,7 +83,12 @@ export function ProveedorAutenticacionRemota({
   const operacion = async (ruta: string, datos?: unknown) => {
     try {
       const r = await api<any>(ruta, { metodo: "POST", datos: datos || {} });
-      await refrescar();
+      if (ruta === "/auth/expediente" && r.usuario?.id === cuentaRef.current && vigente.current) {
+        // La escritura ya se confirmó. La siguiente lectura periódica actualiza el resto.
+        setUsuario(r.usuario as Usuario);
+      } else {
+        await refrescar();
+      }
       window.dispatchEvent(new Event("tt:datos-remotos"));
       return {
         exito: true,
@@ -177,8 +182,7 @@ export function ProveedorAutenticacionRemota({
       documentos: unknown[],
       _version: number,
       motivoSolicitud: string,
-    ) =>
-      operacion("/auth/expediente", {
+    ) => operacion("/auth/expediente", {
         documentos,
         motivoSolicitud,
         ...(usuario?.afiliacion === "profesor"

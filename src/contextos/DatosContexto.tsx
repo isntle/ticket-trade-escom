@@ -84,6 +84,7 @@ export interface ContextoDatosTipo {
   listaReservaciones: Reservacion[];
   listaBoletos: BoletoDigital[];
   listaNotificaciones?: Notificacion[];
+  actualizarEstadoTaquilla?: () => Promise<void>;
   marcarNotificacionLeida?: (id: string) => { exito: boolean; error?: string } | Promise<{ exito: boolean; error?: string }>;
   listaEspera: EntradaListaEspera[];
   listaIntencionesAsistencia: RegistroIntencionAsistencia[];

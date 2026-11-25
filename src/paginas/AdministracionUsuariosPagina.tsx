@@ -1,3 +1,4 @@
+import { apiActiva } from '../servicios/modoDatos';
 import { afiliacionLegible } from "../utilidades/afiliacion";
 import { volverA } from '../dominio/navegacion';
 import React, { useState } from "react";
@@ -180,7 +181,7 @@ export const AdministracionUsuariosPagina: React.FC<
           Administración de Cuentas, Roles y Permisos
         </h1>
         <p className="text-xs text-neutral-500 mt-1">
-          Configura roles (Asistente, Organizador, Staff, Subdirección, Admin) y
+          Gestiona el estado de las cuentas y
           asocia al personal operativo con sus eventos.
         </p>
       </div>
@@ -265,7 +266,7 @@ export const AdministracionUsuariosPagina: React.FC<
                 <th className="px-5 py-3.5">Roles Asignados</th>
                 <th className="px-5 py-3.5">Eventos Staff</th>
                 <th className="px-5 py-3.5">Estado</th>
-                <th className="px-5 py-3.5 text-right">Acciones</th>
+                {!apiActiva && <th className="px-5 py-3.5 text-right">Acciones</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
@@ -350,6 +351,7 @@ export const AdministracionUsuariosPagina: React.FC<
                     </button>
                   </td>
 
+                  {!apiActiva && (
                   <td className="px-5 py-3.5 text-right">
                     <button
                       type="button"
@@ -359,6 +361,7 @@ export const AdministracionUsuariosPagina: React.FC<
                       Editar Roles
                     </button>
                   </td>
+                  )}
                 </tr>
               ))}
             </tbody>

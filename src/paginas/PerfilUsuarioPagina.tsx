@@ -1,3 +1,4 @@
+import { apiActiva } from '../servicios/modoDatos';
 import { afiliacionLegible } from "../utilidades/afiliacion";
 import { cuentaInstitucional } from "../dominio/facultadOrganizar.js";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
@@ -223,7 +224,8 @@ export function PerfilUsuarioPagina({
         )}
         </div>
       </article>
-      <div className="grid items-start gap-6 lg:grid-cols-2">
+      <div className={`grid items-start gap-6 ${apiActiva ? "" : "lg:grid-cols-2"}`}>
+      {!apiActiva && (
       <article className="space-y-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-neutral-200/70 sm:p-7">
         <h2 className="flex items-center gap-3 text-lg font-bold"><span className="rounded-xl bg-[#7a132b]/5 p-2.5 text-[#7a132b]"><Mail className="h-5 w-5" aria-hidden="true" /></span>Cambiar correo electrónico</h2><p className="text-sm leading-relaxed text-neutral-500">Tu correo actual sigue activo hasta que confirmes la nueva dirección.</p>
         {u.correoPendiente && (
@@ -299,6 +301,7 @@ export function PerfilUsuarioPagina({
           </button>
         )}
       </article>
+      )}
       <article className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-neutral-200/70 sm:p-7">
         <h2 data-interfaz="UI-IP-06" tabIndex={-1} className="mb-4 flex scroll-mt-24 items-center gap-3 text-lg font-bold"><span className="rounded-xl bg-[#7a132b]/5 p-2.5 text-[#7a132b]"><KeyRound className="h-5 w-5" aria-hidden="true" /></span>Seguridad</h2>
         <form
