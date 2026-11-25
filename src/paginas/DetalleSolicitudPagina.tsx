@@ -212,8 +212,10 @@ export const DetalleSolicitudPagina: React.FC<{
       }
 
       mostrarNotificacion(
-        "Solicitud actualizada",
-        "La operación y la versión revisada quedaron registradas.",
+        accion === "devolver" ? "Correcciones enviadas" : "Solicitud actualizada",
+        accion === "devolver"
+          ? "La persona solicitante puede consultar tus indicaciones y editar su propuesta."
+          : "La operación y la versión revisada quedaron registradas.",
         "exito",
       );
       setAccion(null);
@@ -737,7 +739,7 @@ export const DetalleSolicitudPagina: React.FC<{
             {solicitud.observacionesCorreccion && (
               <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
                 <h3 className="font-bold">Correcciones solicitadas</h3>
-                <p className="mt-2">{solicitud.observacionesCorreccion}</p>
+                <p className="mt-2 whitespace-pre-line break-words">{solicitud.observacionesCorreccion}</p>
                 {solicitud.fechaLimiteCorreccion && (
                   <p className="mt-2">
                     Plazo: {formatoFecha(solicitud.fechaLimiteCorreccion)}
@@ -879,7 +881,7 @@ export const DetalleSolicitudPagina: React.FC<{
                 />
                 {accion === "devolver" && (
                   <span className="mt-2 block font-normal text-neutral-600">
-                    Tendrá 24 horas para corregir y reenviar.
+                    La persona solicitante recibirá estas indicaciones y tendrá 24 horas para corregir y reenviar. Se conservarán los datos de su propuesta.
                   </span>
                 )}
               </label>
@@ -896,9 +898,12 @@ export const DetalleSolicitudPagina: React.FC<{
               <button
                 type="button"
                 className={boton}
-                onClick={() => setAccion(null)}
+                onClick={() => {
+                  setAccion(null);
+                  requestAnimationFrame(() => document.getElementById("titulo-disponibilidad")?.focus());
+                }}
               >
-                Revisar disponibilidad y alternativas
+                Ver disponibilidad
               </button>
             )}
             <div className="flex flex-wrap justify-end gap-3">

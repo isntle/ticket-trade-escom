@@ -29,6 +29,13 @@ test('Sprint 9 dictamen: bloqueo posterior, alternativas autorizadas y devoluci�
   const s=await bien(await pedir('/organizacion/solicitudes',titular,{tituloEvento:'Dictamen de disponibilidad',descripcionEvento:'Prueba de alternativas y corrección',categoria:'Conferencia',visibilidad:'privado',correoContacto:'dictamen@example.invalid',telefonoContacto:'5555555555',idArchivoCartel:cartel,enviar:true,
     fechasSolicitadas:[{idRecinto:recintos[0],fecha,horaInicio:'10:00',horaFin:'11:00',nombreActividad:'Conferencia de sistemas',asistenciaEstimada:10000,modalidadAsistencia:'registro'}]}),201);
   const consultar = async (cookie=sub):Promise<RevisionDisponibilidadSolicitud> => {const r=await pedir(`/organizacion/solicitudes/${s.id}/disponibilidad`,cookie);assert.match(r.headers.get('cache-control')||'',/no-store/);return bien(r);};
+  const leerSolicitud = async () => {
+    const estado = await bien(await pedir('/estado', titular));
+    const solicitud = estado.listaSolicitudes.find((r: any) => r.id === s.id);
+    assert.ok(solicitud, 'La propia solicitud está visible desde la sesión de organización');
+    return solicitud;
+  };
+  const original = await leerSolicitud();
 
   await t.test('se lee la actividad persistida y se protege la solicitud privada',async()=>{
     assert.equal((await pedir(`/organizacion/solicitudes/${s.id}/disponibilidad`)).status,401);
@@ -58,8 +65,13 @@ test('Sprint 9 dictamen: bloqueo posterior, alternativas autorizadas y devoluci�
   await t.test('pedir corrección guarda observaciones y conserva la actividad original',async()=>{
     const motivo='Conferencia de sistemas: bloqueo posterior al envío en Sala dictamen. Propón otro recinto u horario; las alternativas no reservan espacio.';
     await bien(await pedir(`/organizacion/solicitudes/${s.id}/resolucion`,sub,{decision:'Devuelta',version:1,mensaje:motivo}));
-    const estado=await bien(await pedir('/estado',titular));const solicitud=estado.listaSolicitudes.find((r:any)=>r.id===s.id);
+    const solicitud = await leerSolicitud();
     assert.equal(solicitud.estado,'requiere_correccion');assert.equal(solicitud.observacionesCorreccion,motivo);assert.ok(solicitud.fechaLimiteCorreccion);
+    for (const campo of ['id', 'idEvento', 'version', 'tituloEvento', 'descripcionEvento', 'categoria',
+      'visibilidad', 'correoContacto', 'telefonoContacto', 'fechasSolicitadas', 'itinerarios', 'urlImagen',
+      'urlDocumento', 'fechaEnvioInicial']) {
+      assert.deepEqual(solicitud[campo], original[campo], `La devolución conserva ${campo}`);
+    }
     const r=await consultar(titular);assert.equal(r.actividades[0].idRecinto,recintos[0]);assert.equal(r.actividades[0].horaInicio,'10:00');assert.equal(r.actividades[0].disponible,false);
     assert.equal((await pedir(`/organizacion/solicitudes/${s.id}/resolucion`,sub,{decision:'Aprobada',version:1})).status,409);
     t.diagnostic('Devolución HTTP 200 persistida, observaciones visibles al titular y fecha límite de corrección; seleccionar/sugerir opciones no reprogramó la actividad.');

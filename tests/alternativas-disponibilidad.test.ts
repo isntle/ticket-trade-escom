@@ -26,6 +26,15 @@ test('las opciones consideran otras actividades de la solicitud y las clases sig
   assert.ok(!r.some(o => o.idRecinto === '1' && o.horaInicio === '11:30'));
   assert.ok(r.some(o => o.idRecinto === '2' && o.advertencias[0]?.id === 'clase'));
 });
+test('se muestran dos recintos distintos antes de repetir un recinto alternativo', () => {
+  const ag = agenda();
+  ag.recintos[2].nombre = 'Sala alterna';
+  const r = alternativasDisponibilidad(a, [a], ag, new Map([['1',20],['2',30],['3',30]]), 10, 0);
+  assert.equal(r.length, 4);
+  assert.deepEqual(r.slice(0, 2).map(o => o.idRecinto), ['1', '1']);
+  assert.deepEqual(new Set(r.slice(2).map(o => o.idRecinto)), new Set(['2', '3']));
+  assert.ok(r.slice(2).every(o => o.horaInicio === a.horaInicio));
+});
 test('no se ofrecen horas pasadas, espacios insuficientes ni horarios fuera de la jornada visible', () => {
   assert.deepEqual(alternativasDisponibilidad(a,[a],agenda(),capacidades,100,0),[]);
   assert.deepEqual(alternativasDisponibilidad(a,[a],agenda(),capacidades,10,Date.parse('2100-01-01T00:00:00Z')),[]);
@@ -42,7 +51,7 @@ test('el motivo de corrección identifica actividad, conflicto posterior y suger
   const r: RevisionDisponibilidadSolicitud = {idSolicitud:'1',versionSolicitud:1,consultadoEn:'2026-11-20T12:00:00Z',margenSeparacionMinutos:30,
     actividades:[{...a,nombreActividad:'Conferencia',nombreRecinto:'Sala',disponible:false,conflictos:[ocupacion({titulo:'Bloqueo de recinto',posteriorAlEnvio:true})],advertencias:[],alternativas:[opcion]}]};
   const texto = motivoCorreccionDisponibilidad(r,opcion);
-  assert.match(texto,/Conferencia: Sala, 2099-11-17, 10:00–11:00/);
+  assert.match(texto,/Conferencia: Sala, 17 de noviembre de 2099, 10:00–11:00/);
   assert.match(texto,/después del envío/); assert.match(texto,/Laboratorio/); assert.match(texto,/no reservan/);
 });
 test('el servicio consulta el expediente guardado y propaga errores sin anunciar resultados', async () => {

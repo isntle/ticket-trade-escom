@@ -642,7 +642,7 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
           Organización y recintos
         </span>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight">
-          Solicitar evento
+          {solicitudEnEdicion?.estado === "requiere_correccion" ? "Corregir solicitud" : solicitudEnEdicion ? "Editar solicitud" : "Solicitar evento"}
         </h1>
         <p className="text-sm sm:text-sm text-neutral-500 mt-1 max-w-3xl">
           Prepara la información del evento y elige las fechas, horarios y
@@ -650,6 +650,19 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
           espacio.
         </p>
       </div>
+
+      {solicitudEnEdicion?.estado === "requiere_correccion" && (
+        <aside aria-labelledby="correcciones-solicitadas" className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <h2 id="correcciones-solicitadas" className="font-bold">Correcciones solicitadas</h2>
+          <p className="mt-2 whitespace-pre-line break-words">{solicitudEnEdicion.observacionesCorreccion}</p>
+          {solicitudEnEdicion.fechaLimiteCorreccion && (
+            <p className="mt-2 font-semibold">
+              Plazo para reenviar: {new Date(solicitudEnEdicion.fechaLimiteCorreccion).toLocaleString("es-MX", { timeZone: "America/Mexico_City", dateStyle: "medium", timeStyle: "short" })} (hora de Ciudad de México)
+            </p>
+          )}
+          <p className="mt-2">Tu propuesta ya está cargada. Cambia lo que pidió Subdirección y vuelve a enviarla.</p>
+        </aside>
+      )}
 
       <form onSubmit={manejarEnvio} aria-busy={guardandoSolicitud}>
         {guardandoSolicitud && <p role="status" className="mb-4 rounded-xl bg-blue-50 p-3 text-blue-900">Guardando tu solicitud. Espera la confirmación antes de salir.</p>}
