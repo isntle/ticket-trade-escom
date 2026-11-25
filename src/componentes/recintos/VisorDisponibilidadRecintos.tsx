@@ -71,14 +71,24 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
     return !d.disponible ? d.motivo || 'Conflicto en el horario consultado' : d.tipoConflicto === 'clase' ? 'Clase informativa: decide Subdirección' : `Sin conflictos de ${horaInicioConsulta} a ${horaFinConsulta}`;
   };
 
-  // Fechas de prueba rápidas para facilitar la evaluación
-  const fechasRapidas = [
-    { fecha: '2026-10-15', label: '15 Oct (Simposio IA)' },
-    { fecha: '2026-10-16', label: '16 Oct (Día 2)' },
-    { fecha: '2026-10-20', label: '20 Oct (Feria Empleo)' },
-    { fecha: '2026-10-22', label: '22 Oct (Taller DevOps)' },
-    { fecha: '2026-10-24', label: '24 Oct (Hackathon Lab 3)' }
-  ];
+  const [vista, setVista] = useState<'dia' | 'semana' | 'mes'>('dia');
+  const seleccion = new Date(fechaConsulta + 'T12:00:00Z');
+  const diaHoy = fechaHoyMexico();
+  const inicio = new Date(seleccion);
+  if (vista === 'mes') inicio.setUTCDate(1);
+  if (vista === 'semana') inicio.setUTCDate(inicio.getUTCDate() - (inicio.getUTCDay() + 6) % 7);
+  const desplazar = (direccion: number) => {
+    const fecha = new Date(vista === 'mes' ? inicio : seleccion);
+    if (vista === 'mes') fecha.setUTCMonth(fecha.getUTCMonth() + direccion);
+    else fecha.setUTCDate(fecha.getUTCDate() + direccion * (vista === 'semana' ? 7 : 1));
+    setFechaConsulta(fecha.toISOString().slice(0, 10));
+  };
+  const dias = vista === 'mes'
+    ? new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth() + 1, 0)).getUTCDate()
+    : vista === 'semana' ? 7 : 0;
+  const formatoDia = new Intl.DateTimeFormat('es-MX', { weekday: 'short', day: 'numeric', timeZone: 'UTC' });
+  const mes = new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(seleccion);
+  const controlFecha = 'grid min-h-10 min-w-10 place-items-center rounded-lg border border-neutral-300 px-2 text-sm font-semibold hover:bg-neutral-100';
 
   return (
     <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs space-y-6">
@@ -111,7 +121,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
               type="date"
               aria-label="Fecha de consulta de la agenda"
               value={fechaConsulta}
-              onChange={(e) => setFechaConsulta(e.target.value)}
+              onChange={(e) => e.target.value && setFechaConsulta(e.target.value)}
               className="bg-transparent font-bold text-neutral-900 focus:outline-none cursor-pointer"
             />
           </div>
@@ -137,26 +147,38 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
         </div>
       </div>
 
-      {/* Píldoras de Acceso Rápido a Fechas de Demostración */}
-      {!consulta.remota && <div className="flex items-center gap-2 overflow-x-auto pb-1 text-sm">
-        <span className="text-sm font-semibold text-neutral-400  shrink-0">
-          Fechas Clave:
-        </span>
-        {fechasRapidas.map((item) => (
-          <button
-            key={item.fecha}
-            type="button"
-            onClick={() => setFechaConsulta(item.fecha)}
-            className={`px-3 py-1 rounded-lg text-sm font-medium transition-all shrink-0 cursor-pointer ${
-              fechaConsulta === item.fecha
-                ? 'bg-[#7a132b] text-white shadow-2xs font-bold'
-                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={controlFecha} onClick={() => desplazar(-1)} aria-label="Periodo anterior"><ChevronLeft size={18} /></button>
+          <button type="button" className={controlFecha} onClick={() => desplazar(1)} aria-label="Periodo siguiente"><ChevronRight size={18} /></button>
+          <button type="button" className={controlFecha} onClick={() => { setFechaConsulta(diaHoy); setVista('dia'); }}>Hoy</button>
+          <span className="mx-1 text-sm font-semibold capitalize">{mes}</span>
+          {(['dia', 'semana', 'mes'] as const).map(opcion => (
+            <button key={opcion} type="button" aria-pressed={vista === opcion} onClick={() => setVista(opcion)}
+              className={controlFecha + ' aria-pressed:border-[#7a132b] aria-pressed:bg-[#7a132b]/5 aria-pressed:text-[#7a132b]'}>
+              {opcion === 'dia' ? 'Día' : opcion === 'semana' ? 'Semana' : 'Mes'}
+            </button>
+          ))}
+        </div>
+        {dias > 0 && <>
+          <p className="text-sm text-neutral-600">Elige un día para consultar sus horarios y recintos.</p>
+          <div className="grid grid-cols-7 gap-1.5" aria-label="Días del periodo">
+            {vista === 'mes' && ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(dia => (
+              <span key={dia} className="text-center text-xs font-semibold text-neutral-600">{dia}</span>
+            ))}
+            {vista === 'mes' && Array.from({ length: (inicio.getUTCDay() + 6) % 7 }, (_, i) => <span key={i} aria-hidden="true" />)}
+            {Array.from({ length: dias }, (_, i) => {
+              const fecha = new Date(inicio);
+              fecha.setUTCDate(fecha.getUTCDate() + i);
+              const iso = fecha.toISOString().slice(0, 10);
+              return <button key={iso} type="button" aria-label={formatoDia.format(fecha)} aria-pressed={fechaConsulta === iso} onClick={() => setFechaConsulta(iso)}
+                className="min-h-10 rounded-lg border border-neutral-200 text-xs font-semibold capitalize hover:bg-neutral-100 aria-pressed:bg-[#7a132b] aria-pressed:text-white">
+                {vista === 'mes' ? fecha.getUTCDate() : formatoDia.format(fecha)}
+              </button>;
+            })}
+          </div>
+        </>}
+      </div>
       <EstadoConsultaAgenda {...consulta}/>
       {consulta.remota && consulta.estado === 'listo' && <p className="text-xs text-neutral-500">Agenda consultada a las {new Date(consulta.agenda!.consultadoEn).toLocaleTimeString('es-MX',{timeZone:'America/Mexico_City'})} h · hora de Ciudad de México. <button type="button" onClick={consulta.recargar} className="ml-2 rounded-lg border border-neutral-300 px-3 py-2 font-semibold text-[#7a132b]">Actualizar agenda</button></p>}
 

@@ -185,7 +185,7 @@ export interface ContextoDatosTipo {
     correoUsuario: string
   ) => { exito: boolean; reservacion?: Reservacion; error?: string };
 
-  liberarApartadoAsiento: (idReservacion: string) => void;
+  liberarApartadoAsiento: (idReservacion: string) => void | Promise<{ exito: boolean; error?: string }>;
   confirmarReservacion: (
     idReservacion: string
   ) => { exito: boolean; boleto?: BoletoDigital; error?: string };

@@ -178,10 +178,21 @@ routerTaquilla.post(
       if (idLugar) {
         const lugar = await c.query(
           `SELECT 1 FROM ticket_trade."LugarActividad" la JOIN ticket_trade."CategoriaLugarActividad" cl USING(id_categoria_lugar_actividad)
-        WHERE la.id_lugar_actividad=$1 AND la.id_actividad=$2 AND cl.nombre='Asistente'`,
+        LEFT JOIN ticket_trade."EstacionComputo" pc USING(id_lugar_recinto)
+        LEFT JOIN ticket_trade."EstadoFuncionamiento" ef USING(id_estado_funcionamiento)
+        WHERE la.id_lugar_actividad=$1 AND la.id_actividad=$2 AND cl.nombre='Asistente'
+          AND ef.nombre IS DISTINCT FROM 'Fuera de servicio'`,
           [idLugar, id],
         );
-        if (!lugar.rowCount) fallo("Selecciona un asiento para asistentes.");
+        if (!lugar.rowCount) fallo("Selecciona un lugar habilitado para asistentes.");
+        const ocupado = await c.query(
+          `SELECT 1 FROM ticket_trade."AsignacionAsiento" aa
+           JOIN ticket_trade."CompromisoCupo" cp USING (id_compromiso_cupo)
+           JOIN ticket_trade."EstadoCompromisoCupo" ec USING (id_estado_compromiso_cupo)
+           WHERE aa.id_lugar_actividad=$1 AND ec.nombre='Activo'`,
+          [idLugar],
+        );
+        if (ocupado.rowCount) fallo("Ese lugar ya está ocupado. Elige otro lugar disponible.", 409);
       }
       const cp = await c.query(
         `INSERT INTO ticket_trade."CompromisoCupo"(id_actividad,id_estado_compromiso_cupo)
@@ -436,6 +447,8 @@ routerTaquilla.post(
     const u = res.locals.usuario,
       id = idEntero(req.body?.idActividad),
       codigo = texto(req.body?.codigo, "el código", 200);
+    if (req.body.idOperadorEsperado !== undefined && String(u.id) !== req.body.idOperadorEsperado)
+      fallo("Vuelve a iniciar sesión con la cuenta que capturó los escaneos.", 401);
     const resultado = await conTransaccion(async (c) => {
       await bloquear(c);
       const a = await actividad(c, id);

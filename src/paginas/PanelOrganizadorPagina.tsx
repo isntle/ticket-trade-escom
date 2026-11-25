@@ -1,3 +1,4 @@
+import { useImagenEvento } from "../componentes/eventos/useImagenEvento";
 import {
   filtrarPorTituloYEstado,
   nombreEstadoOrganizador,
@@ -24,6 +25,15 @@ import { EstadoVacio } from "../componentes/ui/EstadoVacio";
 interface PropiedadesPanelOrganizador {
   navigate: (ruta: string) => void;
   soloSolicitudes?: boolean;
+}
+
+function MiniaturaEvento({ url }: { url?: string }) {
+  const cartel = useImagenEvento(url);
+  return (
+    <div className="grid aspect-[3/2] w-full shrink-0 place-items-center overflow-hidden rounded-xl bg-[#7a132b]/5 text-sm font-medium text-[#7a132b] sm:w-28">
+      {cartel.url ? <img src={cartel.url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" /> : "Sin cartel"}
+    </div>
+  );
 }
 
 export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
@@ -288,7 +298,8 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
                     key={evento.id}
                     className="bg-white rounded-xl border border-neutral-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
                   >
-                    <div className="space-y-1">
+                    <MiniaturaEvento url={evento.urlImagen} />
+                    <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-neutral-900 text-sm">
                           {evento.titulo}
@@ -333,7 +344,7 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
                         className="px-4 py-2 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
                       >
                         <Settings className="w-3.5 h-3.5" />
-                        <span>Configurar y Publicar</span>
+                        <span>Gestionar evento</span>
                       </button>
                     </div>
                   </div>
@@ -479,7 +490,8 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
                   key={sol.id}
                   className="bg-white rounded-xl border border-neutral-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
                 >
-                  <div className="space-y-1">
+                  <MiniaturaEvento url={sol.urlImagen} />
+                    <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-neutral-900 text-sm">
                         {sol.tituloEvento}

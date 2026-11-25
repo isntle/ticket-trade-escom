@@ -1,10 +1,11 @@
+import { useEscaneosPendientes } from "../contextos/useEscaneosPendientes";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { inicioEnMexico } from "../dominio/solicitudes";
 import { modalidadActividad, nombreActividad } from '../dominio/actividades';
 import { volverA, reemplazarParametrosUrl } from '../dominio/navegacion';
 import { REGLA_INGRESO_ACTIVIDAD, agruparActividadesPorDia, describirActividad, etiquetaOpcionActividad, fechaLegible, horaOficial } from '../dominio/presentacionActividad';
 import React, { useEffect, useRef, useState } from 'react';
-import { BrowserQRCodeReader, IScannerControls } from '@zxing/browser';
+import type { BrowserQRCodeReader, IScannerControls } from '@zxing/browser';
 import {
   QrCode,
   CheckCircle,
@@ -61,6 +62,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
   const { listaBoletos, procesarCheckIn, listaEventos, listaRecintos, listaBloqueos } = useDatos();
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
+  const pendientes = useEscaneosPendientes(usuarioActual?.id);
 
   const [codigoIngresado, setCodigoIngresado] = useState('');
   const [errorCamara, setErrorCamara] = useState('');
@@ -69,7 +71,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
   const [ahoraSistema, setAhoraSistema] = useState(Date.now());
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlesCamara = useRef<IScannerControls | null>(null);
-  const lectorQr = useRef(new BrowserQRCodeReader());
+  const lectorQr = useRef<BrowserQRCodeReader | null>(null);
   const leyendoQr = useRef(false);
   const reanudarCamaraAlContinuar = useRef(false);
 
@@ -186,6 +188,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     try {
       const video = videoRef.current;
       if (!video) return;
+      lectorQr.current ??= new (await import("@zxing/browser")).BrowserQRCodeReader();
       controlesCamara.current = await lectorQr.current.decodeFromVideoDevice(undefined, video, (resultado) => {
         if (!resultado || leyendoQr.current) return;
         leyendoQr.current = true;
@@ -221,6 +224,15 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
         'No estás asignado como Staff autorizado para este evento específico.',
         'error'
       );
+      return;
+    }
+
+    if (pendientes.habilitado && !navigator.onLine && fechaSeleccionada) {
+      const guardado = pendientes.guardar(codigoAProcesar.trim(), fechaSeleccionada.id);
+      mostrarNotificacion(guardado ? 'Escaneo pendiente' : 'No se guardó el escaneo',
+        guardado ? 'Se enviará al recuperar conexión. El acceso aún no está validado.' : 'La cola está llena o el navegador no puede guardarla. Recupera la conexión antes de continuar.',
+        guardado ? 'advertencia' : 'error');
+      setCodigoIngresado('');
       return;
     }
 
@@ -359,6 +371,13 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       {/* ========================================================================= */}
       {/* CASO A: PANTALLA DE RESULTADO ULTRA-ENFOCADA (Soft Green / Soft Red)     */}
       {/* ========================================================================= */}
+      {pendientes.habilitado && (pendientes.cantidad > 0 || pendientes.aviso) && (
+        <aside role="status" className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+          {pendientes.cantidad > 0 && <strong>{pendientes.cantidad} por validar en el servidor.</strong>}
+          {pendientes.aviso && <span>{pendientes.aviso}</span>}
+          {pendientes.cantidad > 0 && <button type="button" onClick={() => void pendientes.sincronizar()} className="rounded-lg border border-amber-400 px-3 py-1.5 font-semibold">Sincronizar</button>}
+        </aside>
+      )}
       {ultimoResultado ? (
         <div
           className={`my-auto p-7 rounded-3xl border text-center shadow-lg transition-all animate-in zoom-in-95 duration-150 flex flex-col justify-between min-h-[460px] ${

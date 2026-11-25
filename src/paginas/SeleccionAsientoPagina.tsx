@@ -1,3 +1,4 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { AvisoCupo } from "../componentes/taquilla/AvisoCupo";
 import { eventoParaActividad, nombreActividad, modalidadActividad } from '../dominio/actividades';
 import { apiActiva } from '../servicios/modoDatos';
@@ -7,7 +8,7 @@ import { impedimentoActividad, impedimentoParticipante, rutaAccesoConRegreso, ru
 import { volverA } from '../dominio/navegacion';
 import React, { useState, useEffect, useRef } from 'react';
 import { useDisponibilidadTaquilla } from '../contextos/useDisponibilidadTaquilla';
-import { Clock, ArrowLeft, CheckCircle, AlertTriangle, ShieldCheck, Ticket, Users, Lock } from 'lucide-react';
+import { Clock, CheckCircle, AlertTriangle, ShieldCheck, Ticket, Users, Lock } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { useNotificaciones } from '../contextos/NotificacionesContexto';
@@ -166,12 +167,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     const msg = obtenerMensaje('ERR-MT-02');
     return (
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
-        <button
-          type="button"
-          onClick={() => navigate(volverA(rutaDetalle))}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
+        <BotonRegresar destino="Volver al evento" alVolver={() => navigate(volverA(rutaDetalle))} />
         <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-xs">
           <div className="w-12 h-12 rounded-xl bg-neutral-100 text-neutral-600 flex items-center justify-center mb-4">
             <Lock className="w-6 h-6" />
@@ -281,7 +277,11 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     }
 
     if (reservacionActiva) {
-      await liberarApartadoAsiento(reservacionActiva.id);
+      const liberacion = await liberarApartadoAsiento(reservacionActiva.id);
+      if (liberacion && !liberacion.exito) {
+        setErrorColision(liberacion.error || "No se pudo liberar tu apartado actual.");
+        return;
+      }
       setReservacionActiva(null);
     }
 
@@ -303,9 +303,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     } else {
       setAsientoSeleccionado(null);
       setReservacionActiva(null);
-      const msg = obtenerMensaje('MSG-BOOKING-002');
-      setErrorColision(resultado.error || msg.descripcion);
-      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+      setErrorColision(resultado.error || 'No se pudo apartar el lugar. Actualiza la disponibilidad e inténtalo de nuevo.');
     }
   };
 
@@ -348,9 +346,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     ).length;
 
     if (cupoAgotado || (!apiActiva && lugaresOcupados >= capacidad)) {
-      const msgAgotado = obtenerMensaje('ERR-MT-03');
-      setErrorColision(msgAgotado.descripcion);
-      mostrarNotificacion(msgAgotado.titulo, msgAgotado.descripcion, msgAgotado.tipo);
+      setErrorColision(obtenerMensaje('ERR-MT-03').descripcion);
       return;
     }
 
@@ -400,9 +396,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         setErrorColision(confirmacion.error || 'Error al generar el boleto.');
       }
     } else {
-      const msgAgotado = obtenerMensaje('ERR-MT-03');
-      setErrorColision(msgAgotado.descripcion);
-      mostrarNotificacion(msgAgotado.titulo, msgAgotado.descripcion, msgAgotado.tipo);
+      setErrorColision(resultadoApartado.error || 'No se pudo apartar el cupo. Inténtalo de nuevo.');
     }
   };
 
@@ -417,12 +411,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   return (
     <div data-interfaz="UI-40" tabIndex={-1} className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       {/* Botón Volver */}
-      <button
-        type="button"
-        onClick={() => navigate(volverA(rutaDetalle))}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
-      >
-        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
+      <BotonRegresar destino="Volver al evento" alVolver={() => navigate(volverA(rutaDetalle))} />
 
       {/* Cabecera de la Taquilla */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs mb-6">

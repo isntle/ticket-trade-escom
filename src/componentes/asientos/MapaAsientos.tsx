@@ -768,36 +768,8 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                   </div>
                 </div>
 
-                {/* Muro Frontal: Pizarrón Blanco y Estrado Docente ubicado exactamente a la derecha de PC-28 */}
-                <div className="flex flex-col items-center justify-between p-3 sm:p-4 rounded-2xl bg-neutral-900 border-2 border-neutral-800 text-white shadow-md w-32 sm:w-40 shrink-0 self-stretch min-h-[300px]">
-                  {/* Pizarrón / Pantalla */}
-                  <div className="w-full flex flex-col items-center text-center">
-                    <span className="text-[9px] font-mono tracking-wider font-bold text-emerald-400 uppercase flex items-center gap-1.5 mb-1.5">
-                      <Tv className="w-3.5 h-3.5" />
-                      PIZARRÓN & PROYECCIÓN
-                    </span>
-                    <div className="w-full h-24 sm:h-28 bg-neutral-800 rounded-xl border border-neutral-700 flex flex-col items-center justify-center p-2 text-center shadow-inner">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mb-1" />
-                      <span className="text-[9px] font-mono font-bold text-neutral-200 uppercase leading-snug">
-                        PANTALLA DE PROYECCIÓN 4K
-                      </span>
-                      <span className="text-[8px] font-mono text-neutral-400 mt-0.5">Pizarrón Blanco Frontal</span>
-                    </div>
-                  </div>
-
-                  {/* Línea divisoria */}
-                  <div className="h-px w-4/5 bg-neutral-700/80 my-2" />
-
-                  {/* Estrado del Docente */}
-                  <div className="w-full flex flex-col items-center text-center bg-neutral-800/80 p-2 rounded-xl border border-neutral-700/60">
-                    <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-white uppercase">
-                      <Cpu className="w-3.5 h-3.5 text-[#7a132b]" />
-                      <span>ESTRADO DOCENTE</span>
-                    </div>
-                    <span className="text-[8px] font-mono text-neutral-400 mt-1 leading-tight">
-                      A la derecha de Cabecera (PC-28)
-                    </span>
-                  </div>
+                <div className="grid w-10 shrink-0 place-items-center self-stretch rounded-xl bg-neutral-900 px-2 text-white sm:w-12">
+                  <span className="-rotate-90 whitespace-nowrap text-xs font-semibold tracking-wide">Pizarrón</span>
                 </div>
               </div>
             </div>

@@ -144,14 +144,14 @@ function DatosDeSesion({ children, usuarioActual }: {
       window.removeEventListener("popstate", refrescarEnlace);
     };
   }, []);
-  const intentar = async (accion: () => Promise<any>) => {
+  const intentar = async (accion: () => Promise<any>, mostrarErrorGlobal = true) => {
     setError("");
     try {
       return await accion();
     } catch (e) {
       const mensaje =
         e instanceof Error ? e.message : "No se pudieron guardar los cambios.";
-      setError(mensaje);
+      if (mostrarErrorGlobal) setError(mensaje);
       return {
         exito: false,
         error: mensaje,
@@ -372,26 +372,31 @@ function DatosDeSesion({ children, usuarioActual }: {
                 : undefined,
           },
         });
-        const nuevo = await actualizarTrasGuardar();
-        return {
-          exito: true,
-          reservacion: nuevo.listaReservaciones.find(
-            (x: any) => x.id === "apartado-" + r.id,
-          ) ?? {
-            id: "apartado-" + r.id,
-            idEvento,
-            idFechaEvento: idActividad,
-            idUsuario,
-            nombreUsuario: usuarioActual.nombre,
-            correoUsuario: usuarioActual.correo,
-            fechaCreacion: new Date(Date.parse(r.vence) - 120_000).toISOString(),
-            idAsiento: actividad?.modalidadAsistencia === "controlado" ? idAsiento : undefined,
-            etiquetaAsiento: etiqueta,
-            estado: "apartado_temporal",
-            tiempoExpiracionApartado: Date.parse(r.vence),
-          },
+        const reservacion = {
+          id: "apartado-" + r.id,
+          idEvento,
+          idFechaEvento: idActividad,
+          idUsuario,
+          nombreUsuario: usuarioActual.nombre,
+          correoUsuario: usuarioActual.correo,
+          fechaCreacion: new Date(Date.parse(r.vence) - 120_000).toISOString(),
+          idAsiento: actividad?.modalidadAsistencia === "controlado" ? idAsiento : undefined,
+          etiquetaAsiento: etiqueta,
+          estado: "apartado_temporal",
+          tiempoExpiracionApartado: Date.parse(r.vence),
         };
-      }),
+        const estadoConApartado = {
+          ...estadoRef.current,
+          listaReservaciones: [
+            ...estadoRef.current.listaReservaciones.filter((x: any) => x.id !== reservacion.id),
+            reservacion,
+          ],
+        };
+        estadoRef.current = estadoConApartado;
+        setEstado(estadoConApartado);
+        void actualizarTrasGuardar();
+        return { exito: true, reservacion };
+      }, false),
     liberarApartadoAsiento: (id: string) =>
       intentar(async () => {
         await api(
@@ -596,9 +601,9 @@ function DatosDeSesion({ children, usuarioActual }: {
   const aviso = (errorLectura || error) && (
     <div
       role="alert"
-      className="m-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
+      className={`m-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm ${listo && !error ? "border-amber-200 bg-amber-50 text-amber-900" : "border-rose-200 bg-rose-50 text-rose-800"}`}
     >
-      <p>{textoParaUsuario(errorLectura || error)}</p>
+      <p>{listo && !error ? "Se muestran los últimos datos disponibles. " : ""}{textoParaUsuario(errorLectura || error)}</p>
       <button type="button" className="font-semibold underline" onClick={reconsultar}>
         Volver a consultar
       </button>

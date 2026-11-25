@@ -726,7 +726,8 @@ export function GestionIdentidadPagina({
           {elegida ? (
             <article className="space-y-4 rounded-3xl border bg-white p-5">
               <h2 className="text-xl font-bold">{elegida.nombre}</h2>
-              <p className="break-all text-sm">
+              <div className="space-y-2 rounded-xl bg-neutral-50 p-4 text-sm text-neutral-800">
+              <p className="break-words">
                 {elegida.correo} · {afiliacionLegible(elegida.afiliacion)}
               </p>
               <p>
@@ -738,6 +739,7 @@ export function GestionIdentidadPagina({
                       ? "Entidad: " + (elegida.nombreOrganizacion || "No registrada") + " · Cargo: " + (elegida.puestoContacto || "No registrado")
                       : "RFC: " + (elegida.rfc || "No registrado")}
               </p>
+              </div>
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-neutral-600">Versión {seleccion?.version}</span>
                 <InsigniaEstado valor={elegida.estadoExpediente || (elegida.esVerificado ? "aprobado" : undefined)} />
@@ -759,7 +761,7 @@ export function GestionIdentidadPagina({
               <div className="flex flex-wrap gap-2">
                 {(elegida.id !== cuenta.id && elegida.estadoExpediente === "en_revision" && subdireccion
                   ? [
-                      ["aprobado", "Aprobar expediente"],
+                      ["aprobado", "Aprobar"],
                       ["requiere_correccion", "Solicitar corrección"],
                       ["rechazado", "Rechazar"],
                     ]

@@ -424,6 +424,8 @@ test(
       [201, 409],
       "Dos sesiones no apartan el mismo asiento",
     );
+    const rechazo = await carreras.find((r) => r.status === 409)!.json();
+    assert.match(rechazo.error.mensaje, /Ese lugar ya está ocupado/);
     const ganador = carreras[0].status === 201 ? cookie : estudiante;
     const ap = await ok(
       carreras.find((r) => r.status === 201)!,
@@ -474,6 +476,10 @@ test(
     assert.deepEqual(sinPermiso.find((u: any) => u.id === "1006")?.eventosAsignadosStaff, []);
     await ok(await pedir("/api/auth/staff/1001/1006", { asociar: true }, admin));
     await ok(await pedir("/api/auth/staff/1001/1006", { asociar: true }, admin));
+    const otraCuenta = await pedir("/api/taquilla/checkin", {
+      idActividad: actividad, codigo: boleto.codigo_qr, idOperadorEsperado: "1006",
+    }, admin);
+    assert.equal(otraCuenta.status, 401);
     assert.equal(
       (
         await pedir(
