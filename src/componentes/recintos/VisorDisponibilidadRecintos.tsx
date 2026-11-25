@@ -87,8 +87,16 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
     ? new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth() + 1, 0)).getUTCDate()
     : vista === 'semana' ? 7 : 0;
   const formatoDia = new Intl.DateTimeFormat('es-MX', { weekday: 'short', day: 'numeric', timeZone: 'UTC' });
-  const mes = new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(seleccion);
-  const controlFecha = 'grid min-h-10 min-w-10 place-items-center rounded-lg border border-neutral-300 px-2 text-sm font-semibold hover:bg-neutral-100';
+  const formatoMes = new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const formatoFecha = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const finSemana = new Date(inicio);
+  finSemana.setUTCDate(finSemana.getUTCDate() + 6);
+  const periodo = vista === 'mes' ? formatoMes.format(seleccion)
+    : vista === 'semana' ? formatoFecha.formatRange(inicio, finSemana)
+    : formatoFecha.format(seleccion);
+  const unidad = vista === 'mes' ? 'mes' : vista === 'semana' ? 'semana' : 'día';
+  const focoControl = 'focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#7a132b]';
+  const flecha = `grid size-8 place-items-center text-neutral-700 hover:bg-neutral-100 sm:size-7 ${focoControl}`;
 
   return (
     <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs space-y-6">
@@ -148,17 +156,31 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
       </div>
 
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={controlFecha} onClick={() => desplazar(-1)} aria-label="Periodo anterior"><ChevronLeft size={18} /></button>
-          <button type="button" className={controlFecha} onClick={() => desplazar(1)} aria-label="Periodo siguiente"><ChevronRight size={18} /></button>
-          <button type="button" className={controlFecha} onClick={() => { setFechaConsulta(diaHoy); setVista('dia'); }}>Hoy</button>
-          <span className="mx-1 text-sm font-semibold capitalize">{mes}</span>
-          {(['dia', 'semana', 'mes'] as const).map(opcion => (
-            <button key={opcion} type="button" aria-pressed={vista === opcion} onClick={() => setVista(opcion)}
-              className={controlFecha + ' aria-pressed:border-[#7a132b] aria-pressed:bg-[#7a132b]/5 aria-pressed:text-[#7a132b]'}>
-              {opcion === 'dia' ? 'Día' : opcion === 'semana' ? 'Semana' : 'Mes'}
-            </button>
-          ))}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 sm:flex sm:flex-wrap">
+          <h3 className="min-w-0 text-sm font-bold leading-tight text-neutral-900 first-letter:uppercase" aria-live="polite">
+            {periodo}
+          </h3>
+          <div className="flex shrink-0 items-center gap-1.5" role="group" aria-label="Navegar por fecha">
+            <div className="inline-flex divide-x divide-neutral-200 rounded-lg border border-neutral-200 bg-white">
+              <button type="button" className={`${flecha} rounded-l-[7px]`} onClick={() => desplazar(-1)} aria-label={`Anterior por ${unidad}`}>
+                <ChevronLeft size={16} aria-hidden="true" />
+              </button>
+              <button type="button" className={`${flecha} rounded-r-[7px]`} onClick={() => desplazar(1)} aria-label={`Siguiente por ${unidad}`}>
+                <ChevronRight size={16} aria-hidden="true" />
+              </button>
+            </div>
+            <button type="button" className={`min-h-8 rounded-lg px-2 text-xs font-semibold text-[#7a132b] hover:bg-[#7a132b]/5 sm:min-h-7 ${focoControl}`}
+              onClick={() => { setFechaConsulta(diaHoy); setVista('dia'); }}>Hoy</button>
+          </div>
+          <div className="col-span-2 inline-grid w-fit grid-flow-col gap-0.5 rounded-lg border border-neutral-200 bg-neutral-100 p-0.5 sm:ml-auto"
+            role="group" aria-label="Vista de la agenda">
+            {([{ id: 'dia', nombre: 'Día' }, { id: 'semana', nombre: 'Semana' }, { id: 'mes', nombre: 'Mes' }] as const).map(opcion => (
+              <button key={opcion.id} type="button" aria-pressed={vista === opcion.id} onClick={() => setVista(opcion.id)}
+                className={`min-h-8 rounded-md px-3 text-xs font-semibold text-neutral-600 hover:text-neutral-900 aria-pressed:bg-white aria-pressed:text-[#7a132b] aria-pressed:shadow-xs sm:min-h-7 ${focoControl}`}>
+                {opcion.nombre}
+              </button>
+            ))}
+          </div>
         </div>
         {dias > 0 && <>
           <p className="text-sm text-neutral-600">Elige un día para consultar sus horarios y recintos.</p>
