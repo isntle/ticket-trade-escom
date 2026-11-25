@@ -1,3 +1,4 @@
+import { DistribucionActividadRemota } from "./paginas/DistribucionActividadRemota";
 import { apiActiva } from './servicios/modoDatos';
 import { GestionAcademicaPagina } from "./paginas/GestionAcademicaPagina";
 import { modoDemostracionActivo } from './dominio/demostracion';
@@ -28,7 +29,6 @@ import {
   GestionInscripcionesPagina,
   PanelTaquillaParticipacionPagina,
   EditorArreglosPagina,
-  DistribucionAsientosPagina,
   PanelSubdireccionPagina,
   EscaneoStaffPagina,
   HistorialAccesosPagina,
@@ -94,6 +94,18 @@ function ContenidoApp() {
 
   const { usuarioActual, rolActivo, cambiarRolActivo } = useAutenticacion();
 
+  const esDistribucionAnterior = ["/distribucion", "/arreglos", "/editor-asientos", "/recintos/distribucion"].includes(rutaActual);
+  const inicioDistribucion = rolActivo === "subdireccion" ? "/subdireccion" : rolActivo === "admin" ? "/admin" : "/organizador";
+  useEffect(() => {
+    if (!esDistribucionAnterior || !usuarioActual || !["organizador", "subdireccion", "admin"].includes(rolActivo)) return;
+    const ubicacion = new URL(inicioDistribucion, window.location.origin);
+    if (modoDemostracionActivo()) ubicacion.searchParams.set("demo", "1");
+    window.history.replaceState({ scrollTT: 0 }, "", ubicacion.pathname + ubicacion.search);
+    setRutaActual(ubicacion.pathname);
+    setParametrosBusqueda(ubicacion.search);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [esDistribucionAnterior, inicioDistribucion, rolActivo, usuarioActual]);
+
   // Parámetros de consulta (query params)
   const parametrosUrl = new URLSearchParams(parametrosBusqueda);
   useEffect(() => {
@@ -113,10 +125,7 @@ function ContenidoApp() {
     const esRutaOrganizador =
       (rutaActual.startsWith("/organizador") &&
         !rutaActual.startsWith("/organizador/solicitudes")) ||
-      rutaActual === "/distribucion" ||
-      rutaActual === "/arreglos" ||
-      rutaActual === "/editor-asientos" ||
-      rutaActual === "/recintos/distribucion";
+      esDistribucionAnterior;
 
     const esRutaSubdireccion = rutaActual.startsWith("/subdireccion");
     const esRutaAdministracion = rutaActual.startsWith("/admin");
@@ -294,6 +303,7 @@ function ContenidoApp() {
       const segmentos = rutaActual.split("/");
       const idEvento = segmentos[3];
       const idFecha = segmentos[5];
+      if (apiActiva) return <DistribucionActividadRemota key={idEvento + "/" + idFecha} eventId={idEvento} dateId={idFecha} navigate={navegarA} />;
       return (
         <EditorArreglosPagina
           eventId={idEvento}
@@ -339,14 +349,7 @@ function ContenidoApp() {
       );
     }
 
-    if (
-      rutaActual === "/distribucion" ||
-      rutaActual === "/arreglos" ||
-      rutaActual === "/editor-asientos" ||
-      rutaActual === "/recintos/distribucion"
-    ) {
-      return <DistribucionAsientosPagina navigate={navegarA} />;
-    }
+    if (esDistribucionAnterior) return null;
 
     if (rutaActual.startsWith("/organizador/eventos/")) {
       const segmentos = rutaActual.split("/");

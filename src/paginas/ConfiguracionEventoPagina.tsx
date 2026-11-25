@@ -1,3 +1,5 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
+import { fechaLegible } from "../dominio/presentacionActividad";
 import {apiActiva} from "../servicios/modoDatos";
 import { transporteApi } from '../servicios/http';
 import {NuevaActividadEvento} from "../componentes/eventos/NuevaActividadEvento";
@@ -17,8 +19,6 @@ import { EditorCartel } from '../componentes/eventos/EditorCartel';
 import { ordenarPrograma, validarPrograma } from '../dominio/programa';
 import type { ActividadPrograma, FechaEvento } from '../tipos';
 import {
-  ArrowLeft,
-  CheckCircle,
   AlertCircle,
   Calendar,
   MapPin,
@@ -323,6 +323,18 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   const cancelarDia=(id:string)=>confirmarCancelacion(id);
   const cancelarEventoCompleto=()=>confirmarCancelacion();
 
+  const recintosProgramados = [...new Set(evento.fechas
+    .filter(fecha => !fecha.cancelada)
+    .map(fecha => obtenerNombreRecinto(fecha.idRecinto)))];
+  const fechaInicial = evento.fechas.filter(fecha => !fecha.cancelada).map(fecha => fecha.fecha).sort()[0];
+  const secciones = [
+    { id: 'gestion-taquilla', nombre: 'Taquilla' },
+    { id: 'gestion-actividades', nombre: 'Actividades y lugares' },
+    ...(puedeEditarInformacion ? [{ id: 'gestion-informacion', nombre: 'Editar información' }] : []),
+    ...(puedeGestionar && esPublicado && evento.visibilidad === 'privado'
+      ? [{ id: 'gestion-enlace', nombre: 'Enlace privado' }] : []),
+  ];
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {puedeGestionar && idCambioRecinto && evento.fechas.some(a=>a.id===idCambioRecinto) && <CambioRecintoActividad key={idCambioRecinto} evento={evento} idActividad={idCambioRecinto} alCerrar={()=>setIdCambioRecinto(null)}/>}
@@ -351,16 +363,51 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
           <div className="flex gap-3"><button type="button" onClick={() => setCancelacion(null)} className="rounded-lg border px-4 py-2">Volver</button><button type="submit" disabled={guardando} aria-busy={guardando} className="rounded-lg bg-rose-700 px-4 py-2 text-white">Confirmar operación</button></div>
         </form>
       </VentanaModal>
-      {/* Botón Volver */}
-      <button
-        type="button"
-        onClick={() => navigate(volverA('/organizador'))}
-        className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
-      >
-        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
+      <BotonRegresar destino="Volver a mis eventos y solicitudes" alVolver={() => navigate(volverA('/organizador'))} />
+
+      <header className="overflow-hidden rounded-[1.75rem] border border-[#4d1121] bg-[#521426] text-white md:grid md:grid-cols-[minmax(0,1fr)_minmax(15rem,34%)]">
+        <div className="flex min-w-0 flex-col justify-between gap-6 p-5 sm:p-8">
+          <div>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <InsigniaEstado estado={evento.estado} />
+              <span className="rounded-full border border-white/25 px-2.5 py-1 text-xs font-semibold text-white">
+                {evento.visibilidad === 'privado' ? 'Privado' : 'Público'}
+              </span>
+            </div>
+            <h1 className="break-words text-2xl font-extrabold leading-tight tracking-tight sm:text-4xl">{evento.titulo}</h1>
+            {evento.descripcion && <p className="mt-3 max-w-prose text-sm leading-relaxed text-rose-100/90">{evento.descripcion}</p>}
+          </div>
+          <dl className="grid grid-cols-2 gap-x-5 gap-y-4 border-t border-white/20 pt-4 text-sm sm:grid-cols-3">
+            <div><dt className="text-xs text-rose-200">Actividades</dt><dd className="mt-1 font-semibold">{evento.fechas.length}</dd></div>
+            {fechaInicial && <div><dt className="text-xs text-rose-200">Primera fecha</dt><dd className="mt-1 font-semibold">{fechaLegible(fechaInicial)}</dd></div>}
+            {recintosProgramados.length > 0 && <div><dt className="text-xs text-rose-200">{recintosProgramados.length === 1 ? 'Recinto' : 'Recintos'}</dt><dd className="mt-1 font-semibold">{recintosProgramados.length === 1 ? recintosProgramados[0] : recintosProgramados.length}</dd></div>}
+          </dl>
+        </div>
+        <div className="relative min-h-36 overflow-hidden bg-[#682139] md:min-h-full">
+          {evento.urlImagen ? <img key={evento.urlImagen} src={evento.urlImagen} alt="" className="h-44 w-full object-cover md:absolute md:inset-0 md:h-full" />
+            : <Calendar className="absolute left-1/2 top-1/2 size-20 -translate-x-1/2 -translate-y-1/2 text-rose-200/35" aria-hidden="true" />}
+        </div>
+      </header>
+
+      <nav aria-label="Secciones de gestión del evento" className="mb-7 flex flex-wrap items-center gap-2 border-b border-neutral-200 py-3">
+        {secciones.map(seccion => (
+          <button type="button" key={seccion.id} onClick={() => {
+            const destino = document.getElementById(seccion.id);
+            destino?.scrollIntoView({ block: 'start' });
+            destino?.focus({ preventScroll: true });
+          }} className="min-h-10 rounded-lg px-3 text-sm font-semibold text-[#7a132b] hover:bg-rose-50">
+            {seccion.nombre}
+          </button>
+        ))}
+        {esPublicado && evento.visibilidad !== 'privado' && <button type="button"
+          onClick={() => navigate(`/eventos/${evento.id}`)}
+          className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-semibold text-neutral-800 hover:bg-neutral-50 sm:ml-auto">
+          <Eye size={16} aria-hidden="true" /> Ver en cartelera
+        </button>}
+      </nav>
 
       {/* Cabecera del Evento */}
-      {puedeGestionar && evento.visibilidad === 'privado' && evento.estado === 'publicado' && <section className="mb-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-xs" aria-label="Compartir evento privado">
+      {puedeGestionar && evento.visibilidad === 'privado' && evento.estado === 'publicado' && <section id="gestion-enlace" tabIndex={-1} className="mb-6 scroll-mt-24 rounded-2xl border border-neutral-200 bg-white p-5" aria-label="Compartir evento privado">
         <h2 className="font-bold text-neutral-900">Compartir enlace privado</h2>
         {apiActiva ? <p className="mt-1 text-sm text-neutral-600">Cualquier persona con el enlace puede consultar el evento. Para reservar necesita iniciar sesión.</p> : <p className="mt-1 text-sm text-amber-900">Este evento pertenece al prototipo local y solo existe en este navegador. Para compartirlo con invitados debes crearlo en la aplicación conectada a la base de datos.</p>}
         {apiActiva && <button type="button" disabled={compartiendo} className="mt-3 rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold hover:border-[#7a132b] hover:bg-rose-50 disabled:opacity-50" onClick={async () => {
@@ -393,39 +440,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         }}>Renovar enlace</button>}
         {enlacePrivado && <label className="mt-3 block text-sm font-semibold">Enlace para invitados<input readOnly value={enlacePrivado} onFocus={e=>e.currentTarget.select()} className="mt-1 w-full rounded-lg border border-neutral-300 bg-neutral-50 p-2 text-xs font-normal" /></label>}
       </section>}
-      <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5 text-sm">
-            <span className="font-mono text-neutral-400 font-bold uppercase">ID: {evento.id}</span>
-            <span aria-hidden="true" className="text-neutral-300">·</span>
-            <InsigniaEstado estado={evento.estado} />
-            <span aria-hidden="true" className="text-neutral-300">·</span>
-            <span className="font-semibold text-neutral-700 capitalize">
-              Modalidad: {evento.modalidadAsistencia}
-            </span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-neutral-900 tracking-tight">
-            {evento.titulo}
-          </h1>
-          <p className="text-sm text-neutral-500 mt-1 max-w-2xl line-clamp-2">
-            {evento.descripcion}
-          </p>
-          {evento.urlImagen && <img src={evento.urlImagen} alt="Cartel del evento aprobado" className="mt-5 max-h-80 w-full rounded-2xl bg-neutral-100 object-contain" />}
-        </div>
-
-        <div className="flex items-center gap-2.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => navigate(`/eventos/${evento.id}`)}
-            className="px-4 py-2.5 border border-neutral-300 rounded-xl text-sm font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-1.5 cursor-pointer transition-colors"
-          >
-            <Eye className="w-3.5 h-3.5 text-neutral-500" />
-            <span>Ver Cartelera Pública</span>
-          </button>
-        </div>
-      </div>
-
-      {puedeEditarInformacion && <form onSubmit={(e) => {
+      {puedeEditarInformacion && <form id="gestion-informacion" onSubmit={(e) => {
         e.preventDefault();
         const data = new FormData(e.currentTarget);
         const titulo = String(data.get('titulo') || '').trim();
@@ -469,33 +484,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
 
       {(evento.historialCambios?.length || 0) > 0 && <section className="mb-8 rounded-2xl border border-neutral-200 bg-white p-5"><h2 className="font-bold">Historial de modificaciones ({evento.historialCambios?.length})</h2><ol className="mt-3 space-y-3 text-sm text-neutral-600">{[...(evento.historialCambios || [])].reverse().map((cambio) => <li key={cambio.version} className="border-t pt-3"><strong>Versión {cambio.version}</strong> · {new Date(cambio.fecha).toLocaleString('es-MX')} · {cambio.responsable}<p className="mt-1">Campos: {cambio.campos.join(', ')}</p>{cambio.motivo && <p className="mt-1"><strong>Motivo:</strong> {cambio.motivo}</p>}{(cambio.detalleAnterior || cambio.detalleNuevo) && <details className="mt-1"><summary className="cursor-pointer font-semibold">Consultar valores antes y después</summary><div className="mt-2 grid gap-2 sm:grid-cols-2"><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Antes: {cambio.detalleAnterior || JSON.stringify(cambio.valoresAnteriores, null, 2)}</pre><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Después: {cambio.detalleNuevo || JSON.stringify(cambio.valoresNuevos, null, 2)}</pre></div></details>}{cambio.resultadoNotificacion && <p role="status" className="mt-2 rounded bg-amber-50 p-2 text-amber-900">Correo no enviado: no hay proveedor de correo configurado. Destinatarios previstos: {cambio.resultadoNotificacion.destinatarios.join(', ') || 'ninguno registrado'}.</p>}</li>)}</ol></section>}
 
-      {/* ========================================================================= */}
-      {/* BANNER HERO: ESTADO DE PREPARACIÓN PARA PUBLICAR                          */}
-      {/* ========================================================================= */}
-      {esPublicado ? (
-        <div className="mb-8 p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
-              <CheckCircle className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-extrabold text-sm text-emerald-900">
-                Evento Publicado Oficialmente en Cartelera
-              </h3>
-              <p className="text-emerald-800 text-sm mt-0.5">
-                La taquilla digital está habilitada. Los alumnos y la comunidad politécnica pueden registrar su asistencia y reservar butacas.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => navigate(`/eventos/${evento.id}`)}
-            className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold cursor-pointer transition-colors shadow-2xs whitespace-nowrap"
-          >
-            Ver Evento en Cartelera →
-          </button>
-        </div>
-      ) : (
+      {!esPublicado && (
         <div
           className={`mb-8 p-6 rounded-2xl border text-sm shadow-xs transition-all ${
             checklist.puedePublicar
@@ -550,16 +539,8 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         </div>
       )}
 
-      {/* Operaciones del Motor de Taquilla */}
-      <section className="mb-8">
-        <div className="mb-3">
-          <span className="text-sm font-bold text-[#7a132b] uppercase tracking-wider">
-            Subsistema 03 · Motor de Taquilla
-          </span>
-          <h2 className="text-base font-extrabold text-neutral-900 mt-0.5">
-            Operación de boletaje del evento
-          </h2>
-        </div>
+      <section id="gestion-taquilla" tabIndex={-1} aria-labelledby="titulo-gestion-taquilla" className="mb-8 scroll-mt-24">
+        <h2 id="titulo-gestion-taquilla" className="mb-3 text-xl font-bold tracking-tight text-neutral-900">Taquilla y participación</h2>
 
         <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -643,9 +624,9 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         {/* Columna Izquierda: Días y Configuración de Butacas (8 COLS) */}
         <div className="xl:col-span-8 min-w-0 space-y-6">
-          <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs space-y-4">
+          <section id="gestion-actividades" tabIndex={-1} aria-labelledby="titulo-gestion-actividades" className="scroll-mt-24 space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6">
             <div>
-              <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-wider">
+              <h2 id="titulo-gestion-actividades" className="text-lg font-bold text-neutral-900">
                 Actividades y distribución de lugares
               </h2>
               <p className="text-sm text-neutral-500 mt-0.5">
@@ -729,7 +710,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
             </div>
             {evento.estado !== 'cancelado' && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"><button type="button" onClick={imprimirConstancia} className="rounded-lg border px-3 py-2 text-sm font-bold">Imprimir constancia operativa</button>{puedeGestionar&&<button type="button" onClick={cancelarEventoCompleto} className="rounded-lg bg-rose-700 px-3 py-2 text-sm font-bold text-white">Cancelar evento aprobado</button>}</div>}
             {(evento.historialExcepcionesAnticipacion?.length || 0) > 0 && <aside className="rounded-xl bg-amber-50 p-4 text-sm"><h3 className="font-bold text-amber-950">Excepciones de anticipación registradas</h3>{evento.historialExcepcionesAnticipacion?.map((item, indice) => <p key={`${item.fechaAplicacion}-${indice}`} className="mt-1 text-amber-900">{new Date(item.fechaAplicacion).toLocaleString('es-MX')} · {item.responsable}: {item.motivo}</p>)}</aside>}
-          </div>
+          </section>
         </div>
 
         {/* Columna Derecha: Checklist Detallado de Publicación (4 COLS) */}

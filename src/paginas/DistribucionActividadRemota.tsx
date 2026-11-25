@@ -1,3 +1,4 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import React, { useEffect, useState } from 'react';
 import { MapaAsientos } from '../componentes/asientos/MapaAsientos';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
@@ -29,10 +30,9 @@ type Distribucion = {
 };
 const boton = 'rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50';
 
-export function DistribucionActividadRemota() {
+export function DistribucionActividadRemota({ eventId, dateId, navigate }: { eventId: string; dateId: string; navigate: (ruta: string) => void }) {
   const { usuarioActual, rolActivo } = useAutenticacion();
   const { listaEventos, listaRecintos } = useDatos();
-  const [seleccion, setSeleccion] = useState('');
   const [distribucion, setDistribucion] = useState<Distribucion>();
   const [pendientes, setPendientes] = useState<Record<string, Categoria>>({});
   const [categoria, setCategoria] = useState<Categoria>('vip');
@@ -41,21 +41,14 @@ export function DistribucionActividadRemota() {
   const [requiereConsulta, setRequiereConsulta] = useState(false);
   const [aviso, setAviso] = useState('');
   const [error, setError] = useState('');
-  const opciones = usuarioActual && ['organizador', 'subdireccion', 'admin'].includes(rolActivo)
-    ? listaEventos.filter(evento =>
-        evento.idOrganizador === usuarioActual.id || usuarioActual.roles.includes('subdireccion')
-      ).flatMap(evento => evento.fechas.flatMap((actividad, indice) =>
-        modalidadActividad(actividad, evento.modalidadAsistencia) === 'controlado'
-          ? [{
-              valor: evento.id + '/' + actividad.id,
-              etiqueta: evento.titulo + ' · ' + etiquetaActividad(actividad, listaRecintos, indice),
-            }]
-          : []
-      ))
-    : [];
-  const [evento, actividad] = seleccion.split('/');
-  const ruta = opciones.some(opcion => opcion.valor === seleccion)
-    ? `/organizacion/eventos/${encodeURIComponent(evento)}/actividades/${encodeURIComponent(actividad)}/distribucion`
+  const evento = listaEventos.find(item => item.id === eventId);
+  const actividad = evento?.fechas.find(item => item.id === dateId);
+  const tieneAcceso = evento && actividad && usuarioActual &&
+    ['organizador', 'subdireccion', 'admin'].includes(rolActivo) &&
+    (evento.idOrganizador === usuarioActual.id || usuarioActual.roles.includes('subdireccion')) &&
+    modalidadActividad(actividad, evento.modalidadAsistencia) === 'controlado';
+  const ruta = tieneAcceso
+    ? `/organizacion/eventos/${encodeURIComponent(eventId)}/actividades/${encodeURIComponent(dateId)}/distribucion`
     : '';
 
   useEffect(() => {
@@ -133,23 +126,16 @@ export function DistribucionActividadRemota() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl space-y-5 px-4 py-8">
-      <h1 className="text-2xl font-bold">Distribución de espacios</h1>
-      <label className="block space-y-1 text-sm font-semibold">
-        <span>Evento y actividad</span>
-        <select className="block w-full rounded-lg border p-2 disabled:opacity-50"
-          value={ruta ? seleccion : ''} disabled={ocupado || cambios.length > 0} onChange={e => {
-            setSeleccion(e.target.value);
-            setDistribucion(undefined);
-            setAviso('');
-            setError('');
-            setRequiereConsulta(false);
-          }}>
-          <option value="">Selecciona una actividad con lugares asignados</option>
-          {opciones.map(opcion => <option key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</option>)}
-        </select>
-      </label>
-      {!opciones.length && <p>No hay actividades con lugares asignados disponibles para tu cuenta.</p>}
+    <section className="mx-auto max-w-7xl space-y-5 px-4 py-8">
+      <BotonRegresar destino="Volver al evento" alVolver={() => navigate(`/organizador/eventos/${eventId}`)} />
+      <header className="rounded-2xl border border-neutral-200 border-t-4 border-t-[#7a132b] bg-white p-5 sm:p-6">
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Distribución de lugares</h1>
+        {tieneAcceso && <div className="mt-2 space-y-1">
+          <p className="font-semibold text-neutral-900">{evento.titulo}</p>
+          <p className="text-sm text-neutral-600">{etiquetaActividad(actividad, listaRecintos, evento.fechas.indexOf(actividad))}</p>
+        </div>}
+        {!ruta && <p className="mt-2 text-sm text-neutral-600">Esta actividad no admite lugares asignados o tu perfil no puede consultarla.</p>}
+      </header>
       {ocupado && <p role="status">Procesando distribución…</p>}
       {aviso && <p role="status" className="text-emerald-800">{aviso}</p>}
       {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-rose-900">{error}</p>}
@@ -202,6 +188,6 @@ export function DistribucionActividadRemota() {
           ) : <p>El recinto todavía no tiene lugares configurados.</p>}
         </section>
       )}
-    </main>
+    </section>
   );
 }

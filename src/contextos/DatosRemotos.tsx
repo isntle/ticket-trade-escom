@@ -67,6 +67,7 @@ function DatosDeSesion({ children, usuarioActual }: {
     [error, setError] = useState(""),
     [errorLectura, setErrorLectura] = useState("");
   const lecturasActivas = useRef(0);
+  const ultimaLecturaCorrecta = useRef(0);
   const estadoRef = useRef<any>(estado),
     secuencia = useRef(0),
     montado = useRef(true);
@@ -91,6 +92,7 @@ function DatosDeSesion({ children, usuarioActual }: {
         }
       }
       if (montado.current && orden === secuencia.current) {
+        ultimaLecturaCorrecta.current = Date.now();
         estadoRef.current = nuevo;
         setEstado(nuevo);
         setErrorLectura("");
@@ -119,7 +121,7 @@ function DatosDeSesion({ children, usuarioActual }: {
     montado.current = true;
     const refrescar = () => void cargar().catch(() => {});
     const refrescarEnSegundoPlano = () => {
-      if (!document.hidden && lecturasActivas.current === 0) refrescar();
+      if (!document.hidden && lecturasActivas.current === 0 && Date.now() - ultimaLecturaCorrecta.current >= 15_000) refrescar();
     };
     refrescar();
     const t = window.setInterval(refrescarEnSegundoPlano, 15000);

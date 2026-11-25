@@ -137,9 +137,6 @@ export const BarraSuperior: React.FC<{
     ruta === "/eventos"
       ? rutaActual === "/" || rutaActual.startsWith("/eventos")
       : rutaActual.startsWith(ruta);
-  const puedeOrganizar = usuarioActual?.roles.some((rol) =>
-    ["organizador", "subdireccion", "admin"].includes(rol),
-  );
   const noLeidas = listaNotificaciones.filter((n) => !n.leida).length;
   const claseEnlace = (ruta: string) =>
     "rounded-lg px-3 py-2 text-sm font-semibold transition-colors " +
@@ -171,14 +168,6 @@ export const BarraSuperior: React.FC<{
                 {enlace.nombre}
               </button>
             ))}
-            {puedeOrganizar && rolActivo !== "asistente" && (
-              <button
-                onClick={() => ir("/distribucion")}
-                className={claseEnlace("/distribucion")}
-              >
-                Distribución de espacios
-              </button>
-            )}
           </nav>
           <div className="flex shrink-0 items-center gap-2">
             <button
@@ -421,14 +410,6 @@ export const BarraSuperior: React.FC<{
                 {enlace.nombre}
               </button>
             ))}
-            {puedeOrganizar && rolActivo !== "asistente" && (
-              <button
-                onClick={() => ir("/distribucion")}
-                className={claseEnlace("/distribucion") + " text-left"}
-              >
-                Distribución de espacios
-              </button>
-            )}
           </nav>
         )}
       </div>

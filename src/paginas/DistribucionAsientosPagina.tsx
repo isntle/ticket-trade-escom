@@ -1,6 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { apiActiva } from '../servicios/modoDatos';
-import { DistribucionActividadRemota } from './DistribucionActividadRemota';
 import {
   Layers,
   CheckCircle,
@@ -29,7 +27,7 @@ interface PropiedadesDistribucionAsientos {
 }
 
 export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsientos> = props =>
-  apiActiva ? <DistribucionActividadRemota /> : <DistribucionAsientosLocal {...props} />;
+  <DistribucionAsientosLocal {...props} />;
 
 const DistribucionAsientosLocal: React.FC<PropiedadesDistribucionAsientos> = ({
   navigate
