@@ -32,7 +32,7 @@ export function crearAlmacenDisponibilidad(servicio: Pick<ReturnType<typeof crea
       estados.set(k, { estado: 'listo', agenda }); vigencias.set(k, ahora());
     }).catch(error => {
       if (controlador.signal.aborted) return;
-      estados.set(k, { estado: 'error', error: error instanceof Error ? error.message : 'No se pudo consultar la agenda.' });
+      estados.set(k, { estado: 'error', agenda: leer(q).agenda, error: error instanceof Error ? error.message : 'No se pudo consultar la agenda.' });
     }).finally(() => {
       if (pendientes.get(k)?.controlador !== controlador) return;
       pendientes.delete(k); notificar();

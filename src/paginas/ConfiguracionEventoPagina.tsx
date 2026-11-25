@@ -5,11 +5,11 @@ import { transporteApi } from '../servicios/http';
 import {NuevaActividadEvento} from "../componentes/eventos/NuevaActividadEvento";
 import { CambioRecintoActividad } from "../componentes/recintos/CambioRecintoActividad";
 import { trasladarPrograma } from "../dominio/cambiosEvento";
-import { EditorItinerarios, VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
+import { EditorItinerarios } from '../componentes/eventos/EditorItinerarios';
 import { validarItinerarios, nombreActividad } from '../dominio/actividades';
-import type { ItinerarioDia } from '../tipos';
+import type { Evento, ItinerarioDia } from '../tipos';
 import { modalidadActividad, aforoActividad } from '../dominio/actividades';
-import { volverA } from '../dominio/navegacion';
+import { volverASeccion } from '../dominio/navegacion';
 import { inicioEnMexico } from '../dominio/solicitudes';
 import React from 'react';
 import { interfazSolicitada } from '../dominio/pantallasDocumentacion';
@@ -52,6 +52,17 @@ interface PropuestaEdicionEvento {
   versionOriginal: string;
 }
 
+function camposEditados(evento: Evento, propuesta: PropuestaEdicionEvento) {
+  return [
+    evento.titulo !== propuesta.titulo && 'Título',
+    evento.descripcion !== propuesta.descripcion && 'Descripción',
+    JSON.stringify(evento.ponentes) !== JSON.stringify(propuesta.ponentes) && 'Ponentes',
+    evento.urlImagen !== propuesta.urlImagen && 'Cartel',
+    JSON.stringify(evento.fechas) !== JSON.stringify(propuesta.fechas) && 'Actividades',
+    JSON.stringify(evento.itinerarios ?? []) !== JSON.stringify(propuesta.itinerarios ?? []) && 'Itinerarios',
+  ].filter((campo): campo is string => Boolean(campo));
+}
+
 interface PropiedadesConfiguracionEvento {
   eventId: string;
   navigate: (ruta: string) => void;
@@ -77,8 +88,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   const [itinerariosEditados,setItinerariosEditados] = React.useState<ItinerarioDia[] | undefined>();
   const [erroresItinerario,setErroresItinerario] = React.useState<Record<string,{cargando:boolean;error:string}>>({});
   const [actividadesEditadas,setActividadesEditadas] = React.useState<Record<string,{nombreActividad:string;descripcionActividad:string}>>({});
-  const [motivoEdicion, setMotivoEdicion] = React.useState('');
-  const [cancelacion, setCancelacion] = React.useState<{idFecha?:string; retirar:boolean; version:string} | null>(null);
+  const [cancelacion, setCancelacion] = React.useState<{idFecha?:string; version:string} | null>(null);
   const [reprogramacion,setReprogramacion] = React.useState<{anterior:FechaEvento;nueva:FechaEvento;confirmar:()=>void} | null>(null);
   const [motivoCancelacion, setMotivoCancelacion] = React.useState('');
   const [idCambioRecinto,setIdCambioRecinto] = React.useState<string|null>(null);
@@ -91,11 +101,13 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
   const checklist = obtenerListaDeVerificacion(eventId);
   const casoDocumentado = new URLSearchParams(window.location.search).get('caso');
   const interfazDocumentada = interfazSolicitada();
+  const actividadSolicitada = new URLSearchParams(window.location.search).get('cambioRecinto');
+  React.useEffect(() => { setIdCambioRecinto(actividadSolicitada); }, [eventId, actividadSolicitada]);
   React.useEffect(() => {
     if (interfazDocumentada !== 'UI.21' || !evento || !(evento.idOrganizador === usuarioActual?.id || rolActivo === 'subdireccion')) return;
     const dia = evento.fechas.find(d => !d.cancelada && inicioEnMexico(d.fecha,d.horaInicio)>Date.now());
     if (['CU-OR-22','CU-OR-23','CU-OR-24','CU-OR-25'].includes(casoDocumentado || '') && dia) {
-      setCancelacion({idFecha:casoDocumentado === 'CU-OR-23'?undefined:dia.id,retirar:casoDocumentado==='CU-OR-22',version:JSON.stringify(evento)});
+      setCancelacion({idFecha:casoDocumentado === 'CU-OR-23'?undefined:dia.id,version:JSON.stringify(evento)});
     }
     if (casoDocumentado === 'CU-OR-21' && dia) setIdCambioRecinto(dia.id);
     if (casoDocumentado === 'CU-OR-19') setPropuestaEdicion({titulo:evento.titulo,descripcion:evento.descripcion,ponentes:evento.ponentes,urlImagen:evento.urlImagen,fechas:evento.fechas,versionOriginal:JSON.stringify(evento)});
@@ -114,6 +126,8 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     );
   }
 
+  const panelEventos = rolActivo === 'subdireccion' ? '/subdireccion' : '/organizador';
+  const textoRegreso = rolActivo === 'subdireccion' ? 'Volver a Subdirección' : 'Volver a mis eventos y solicitudes';
   const puedeGestionar = !!usuarioActual?.estaActivo && (evento.idOrganizador === usuarioActual.id || (rolActivo === 'subdireccion' && usuarioActual.roles.includes('subdireccion')));
 
   const confirmarEdicionEvento = async () => {
@@ -134,20 +148,8 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     const errorItinerario = validarItinerarios(itinerarios,propuestaEdicion.fechas);
     const pendienteItinerario = Object.values(erroresItinerario).find(e=>e.cargando||e.error);
     if(errorItinerario||pendienteItinerario){mostrarNotificacion('Revisa el itinerario',errorItinerario||pendienteItinerario?.error||'Espera a que termine la preparación.','advertencia');return;}
-    const motivo = motivoEdicion.trim();
-    if (!motivo) {
-      mostrarNotificacion('Indica el motivo', 'Es necesario registrar un motivo para conservar la trazabilidad.', 'advertencia');
-      return;
-    }
     const anterior = { titulo: evento.titulo, descripcion: evento.descripcion, ponentes: [...evento.ponentes], urlImagen: evento.urlImagen };
-    const campos = [
-      anterior.titulo !== propuestaEdicion.titulo && 'título',
-      anterior.descripcion !== propuestaEdicion.descripcion && 'descripción',
-      JSON.stringify(anterior.ponentes) !== JSON.stringify(propuestaEdicion.ponentes) && 'ponentes',
-      propuestaEdicion.urlImagen !== anterior.urlImagen && 'banner',
-      JSON.stringify(evento.fechas) !== JSON.stringify(propuestaEdicion.fechas) && 'actividades',
-      JSON.stringify(evento.itinerarios||[]) !== JSON.stringify(itinerarios||[]) && 'itinerarios'
-    ].filter((campo): campo is string => Boolean(campo));
+    const campos = camposEditados(evento, propuestaEdicion);
     if (!campos.length) {
       mostrarNotificacion('Sin cambios', 'No modificaste la información del evento.', 'informacion');
       setPropuestaEdicion(null);
@@ -167,7 +169,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       version: (evento.historialCambios?.length || 0) + 1,
       fecha: new Date().toISOString(),
       responsable: usuarioActual.nombre,
-      motivo: motivo.trim(),
+      motivo: "Edición de información",
       campos,
       valoresAnteriores: anterior,
       valoresNuevos,
@@ -185,7 +187,6 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     setUrlBannerPropuesto(undefined);
     setCartelModificado(false);
     setProgramasEditados({});
-    setMotivoEdicion('');
   };
 
   const obtenerNombreRecinto = (idRecinto: string) => {
@@ -236,7 +237,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       mostrarNotificacion('Revisa la programación', 'La fecha y el horario deben ser válidos.', 'advertencia'); return;
     }
     if (fecha === fechaActual.fecha && horaInicio === fechaActual.horaInicio && horaFin === fechaActual.horaFin && idRecinto === fechaActual.idRecinto && !fechaActual.suspendida) {
-      mostrarNotificacion('Sin cambios', 'Modifica la fecha, el horario o el recinto antes de revisar.', 'informacion'); return;
+      mostrarNotificacion('Sin cambios', 'Modifica la fecha o el horario antes de revisar.', 'informacion'); return;
     }
     let programa:FechaEvento['programa'];
     try { programa=trasladarPrograma(fechaActual,horaInicio); }
@@ -309,17 +310,16 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     });
   };
 
-  const confirmarCancelacion = (idFecha?:string, retirar=false) => {
+  const confirmarCancelacion = (idFecha?:string) => {
     setMotivoCancelacion('');
-    setCancelacion({idFecha, retirar, version:JSON.stringify(evento)});
+    setCancelacion({idFecha, version:JSON.stringify(evento)});
   };
   const ejecutarCancelacion = async () => {
     if (!cancelacion || !motivoCancelacion.trim()) return;
-    const resultado = await cancelarUnidadEvento(evento.id, cancelacion.idFecha, motivoCancelacion, cancelacion.retirar, cancelacion.version);
-    mostrarNotificacion(resultado.exito ? 'Operación registrada' : 'Operación no realizada', resultado.exito ? 'Los cambios quedaron guardados. Los avisos se procesan según la configuración de correo del entorno.' : resultado.error || '', resultado.exito ? 'exito' : 'error');
+    const resultado = await cancelarUnidadEvento(evento.id, cancelacion.idFecha, motivoCancelacion, false, cancelacion.version);
+    mostrarNotificacion(resultado.exito ? 'Operación registrada' : 'Operación no realizada', resultado.exito ? 'La cancelación quedó guardada. Los avisos se enviarán a los participantes registrados.' : resultado.error || '', resultado.exito ? 'exito' : 'error');
     if (resultado.exito) setCancelacion(null);
   };
-  const retirarDia=(id:string)=>confirmarCancelacion(id,true);
   const cancelarDia=(id:string)=>confirmarCancelacion(id);
   const cancelarEventoCompleto=()=>confirmarCancelacion();
 
@@ -343,8 +343,8 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
           <h3 className="font-bold">{nombreActividad(reprogramacion.anterior)}</h3>
           <div className="grid gap-3 sm:grid-cols-2">{[{titulo:'Programación actual',actividad:reprogramacion.anterior},{titulo:'Nueva programación',actividad:reprogramacion.nueva}].map(({titulo,actividad})=><div key={titulo} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4"><p className="font-semibold">{titulo}</p><p>{actividad.fecha} · {actividad.horaInicio}–{actividad.horaFin}</p><p>{obtenerNombreRecinto(actividad.idRecinto)}</p></div>)}</div>
           {reprogramacion.nueva.programa?.length && reprogramacion.nueva.horaInicio!==reprogramacion.anterior.horaInicio ? <details className="rounded-xl border border-neutral-200 p-4"><summary className="cursor-pointer font-semibold">Programa ajustado al nuevo inicio</summary><p className="my-2 text-sm text-neutral-500">Se conservan los intervalos y la duración de las actividades del programa.</p><ProgramaDia programa={reprogramacion.nueva.programa}/></details>:null}
-          <p className="rounded-xl bg-sky-50 p-4 text-sm text-sky-900">Los boletos vigentes conservarán su código QR y mostrarán la nueva programación. Las demás actividades conservarán sus reservas. Este cambio no envía correos.</p>
-          <div className="flex gap-3"><button type="button" onClick={()=>setReprogramacion(null)} className="rounded-lg border border-neutral-200 px-4 py-2">Seguir editando</button><button type="button" disabled={guardando} aria-busy={guardando} onClick={()=>guardar(reprogramacion.confirmar)} className="rounded-lg bg-sky-700 px-4 py-2 font-semibold text-white">Confirmar cambio</button></div>
+          <p className="rounded-xl bg-neutral-50 p-4 text-sm text-neutral-800">Los boletos conservan su QR y muestran el horario actualizado.</p>
+          <div className="flex gap-3"><button type="button" onClick={()=>setReprogramacion(null)} className="rounded-lg border border-neutral-200 px-4 py-2">Seguir editando</button><button type="button" disabled={guardando} aria-busy={guardando} onClick={()=>guardar(reprogramacion.confirmar)} className="rounded-lg bg-[#7a132b] px-4 py-2 font-semibold text-white">Confirmar cambio</button></div>
         </div>}
       </VentanaModal>
       <VentanaModal estaAbierto={verConstancia} alCerrar={() => setVerConstancia(false)} titulo="Constancia operativa del evento" anchoMaximo="4xl">
@@ -353,17 +353,16 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         <ul className="my-5 space-y-3">{evento.fechas.map((dia,i) => <li className="rounded-lg border p-3" key={dia.id}><strong>Día {i+1} · {dia.fecha}</strong><p>{dia.horaInicio}–{dia.horaFin} · {obtenerNombreRecinto(dia.idRecinto)}</p><p>{dia.cancelada?'Cancelado':dia.suspendida?'Pendiente de reprogramación':'Programado'}</p></li>)}</ul>
         <button type="button" onClick={imprimirConstancia} className="rounded-lg border px-4 py-2">Imprimir constancia operativa</button>
       </VentanaModal>
-      <VentanaModal estaAbierto={Boolean(cancelacion)} alCerrar={() => setCancelacion(null)} titulo={cancelacion?.retirar ? 'Retirar actividad' : 'Confirmar cancelación'}>
+      <VentanaModal estaAbierto={Boolean(cancelacion)} alCerrar={() => setCancelacion(null)} titulo={cancelacion?.idFecha ? "Cancelar actividad" : "Cancelar evento"}>
         <form onSubmit={e => {e.preventDefault(); void guardar(ejecutarCancelacion);}} className="space-y-4">
-          <p>Se conservará el historial. Al cancelar, se invalidarán únicamente los accesos de las actividades seleccionadas.</p>
-          {!cancelacion?.retirar && (!cancelacion?.idFecha || evento.fechas.filter(a=>!a.cancelada).every(a=>a.id===cancelacion.idFecha)) && <p className="rounded-xl bg-rose-50 p-3 text-sm text-rose-900">No quedarán actividades vigentes. El evento completo aparecerá como cancelado, conservando su expediente e historial.</p>}
+          <p>Los accesos afectados se invalidarán. {apiActiva && "Se enviará un aviso a las cuentas registradas con correo confirmado."}</p>
+          {(!cancelacion?.idFecha || evento.fechas.filter(a=>!a.cancelada).every(a=>a.id===cancelacion.idFecha)) && <p className="rounded-xl bg-rose-50 p-3 text-sm text-rose-900">No quedarán actividades vigentes. El evento completo aparecerá como cancelado, conservando su expediente e historial.</p>}
           <ul className="space-y-2">{evento.fechas.filter(actividad=>!actividad.cancelada&&(!cancelacion?.idFecha||actividad.id===cancelacion.idFecha)).map((actividad,indice)=><li key={actividad.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3"><strong>{nombreActividad(actividad,indice)}</strong><p className="text-sm">{actividad.fecha} · {actividad.horaInicio}–{actividad.horaFin} · {obtenerNombreRecinto(actividad.idRecinto)}</p><p className="mt-2 text-sm text-neutral-600">{listaReservaciones.filter(r=>r.idFechaEvento===actividad.id&&r.estado==='confirmada').length} reservaciones confirmadas · {listaBoletos.filter(b=>b.idFechaEvento===actividad.id&&b.estado==='valido').length} boletos vigentes</p></li>)}</ul>
-          <p className="text-sm text-neutral-500">Los compromisos se vuelven a comprobar al confirmar. Las demás actividades conservarán sus accesos.</p>
-          <label className="block text-sm font-semibold">Motivo de la operación<textarea required value={motivoCancelacion} onChange={e => setMotivoCancelacion(e.target.value)} className="mt-1 w-full rounded-lg border p-3" /></label>
-          <div className="flex gap-3"><button type="button" onClick={() => setCancelacion(null)} className="rounded-lg border px-4 py-2">Volver</button><button type="submit" disabled={guardando} aria-busy={guardando} className="rounded-lg bg-rose-700 px-4 py-2 text-white">Confirmar operación</button></div>
+          <label className="block text-sm font-semibold">Motivo de la cancelación<textarea required value={motivoCancelacion} onChange={e => setMotivoCancelacion(e.target.value)} className="mt-1 w-full rounded-lg border p-3" /></label>
+          <div className="flex gap-3"><button type="button" onClick={() => setCancelacion(null)} className="rounded-lg border px-4 py-2">Volver</button><button type="submit" disabled={guardando} aria-busy={guardando} className="rounded-lg bg-rose-700 px-4 py-2 text-white">{cancelacion?.idFecha ? "Cancelar actividad" : "Cancelar evento"}</button></div>
         </form>
       </VentanaModal>
-      <BotonRegresar destino="Volver a mis eventos y solicitudes" alVolver={() => navigate(volverA('/organizador'))} />
+      <BotonRegresar destino={textoRegreso} alVolver={() => navigate(volverASeccion(panelEventos))} />
 
       <header className="overflow-hidden rounded-[1.75rem] border border-[#4d1121] bg-[#521426] text-white md:grid md:grid-cols-[minmax(0,1fr)_minmax(15rem,34%)]">
         <div className="flex min-w-0 flex-col justify-between gap-6 p-5 sm:p-8">
@@ -409,7 +408,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       {/* Cabecera del Evento */}
       {puedeGestionar && evento.visibilidad === 'privado' && evento.estado === 'publicado' && <section id="gestion-enlace" tabIndex={-1} className="mb-6 scroll-mt-24 rounded-2xl border border-neutral-200 bg-white p-5" aria-label="Compartir evento privado">
         <h2 className="font-bold text-neutral-900">Compartir enlace privado</h2>
-        {apiActiva ? <p className="mt-1 text-sm text-neutral-600">Cualquier persona con el enlace puede consultar el evento. Para reservar necesita iniciar sesión.</p> : <p className="mt-1 text-sm text-amber-900">Este evento pertenece al prototipo local y solo existe en este navegador. Para compartirlo con invitados debes crearlo en la aplicación conectada a la base de datos.</p>}
+        {apiActiva ? <p className="mt-1 text-sm text-neutral-600">Cualquier persona con el enlace puede consultar el evento. Para reservar necesita iniciar sesión.</p> : <p className="mt-1 text-sm text-neutral-700">Este evento pertenece al prototipo local y solo existe en este navegador. Para compartirlo con invitados debes crearlo en la aplicación conectada a la base de datos.</p>}
         {apiActiva && <button type="button" disabled={compartiendo} className="mt-3 rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold hover:border-[#7a132b] hover:bg-rose-50 disabled:opacity-50" onClick={async () => {
           setCompartiendo(true);
           try {
@@ -445,7 +444,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         const data = new FormData(e.currentTarget);
         const titulo = String(data.get('titulo') || '').trim();
         const descripcion = String(data.get('descripcion') || '').trim();
-        const ponentes = String(data.get('ponentes') || '').split('\n').map((ponente) => ponente.trim()).filter(Boolean);
+        const ponentes = apiActiva ? evento.ponentes : String(data.get('ponentes') || '').split('\n').map((ponente) => ponente.trim()).filter(Boolean);
         if (!titulo || !descripcion) { mostrarNotificacion('Datos incompletos', 'El título y la descripción son obligatorios; los ponentes son opcionales.', 'advertencia'); return; }
         const fechas = evento.fechas.map(dia => {
           const programa = ordenarPrograma(programasEditados[dia.id] ?? dia.programa);
@@ -454,10 +453,15 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         });
         const errorPrograma = fechas.map(validarPrograma).find(Boolean);
         if (errorPrograma || errorBanner || cargandoBanner) { mostrarNotificacion('Revisa los cambios', errorPrograma || errorBanner || 'Espera a que termine la carga del cartel.', 'advertencia'); return; }
-        setMotivoEdicion('');
-        setPropuestaEdicion({ titulo, descripcion, ponentes, fechas, itinerarios:itinerariosEditados??evento.itinerarios, urlImagen: cartelModificado ? urlBannerPropuesto : evento.urlImagen, versionOriginal: JSON.stringify(evento) });
+        const propuesta = { titulo, descripcion, ponentes, fechas, itinerarios: itinerariosEditados ?? evento.itinerarios,
+          urlImagen: cartelModificado ? urlBannerPropuesto : evento.urlImagen, versionOriginal: JSON.stringify(evento) };
+        if (!camposEditados(evento, propuesta).length) {
+          mostrarNotificacion('Sin cambios', 'Edita la información que quieras actualizar.', 'informacion');
+          return;
+        }
+        setPropuestaEdicion(propuesta);
       }} data-interfaz={casoDocumentado === 'CU-OR-19' ? 'UI.21' : undefined} tabIndex={-1} className="mb-8 grid scroll-mt-24 gap-3 rounded-2xl border border-neutral-200 bg-white p-5 sm:grid-cols-2">
-        <div className="sm:col-span-2"><h2 className="font-bold">Editar información del evento aprobado</h2><p className="text-sm text-neutral-500">Revisa título, descripción, cartel y actividades por día. Las fechas, recintos, horarios generales y compromisos vigentes se conservan.</p></div>
+        <div className="sm:col-span-2"><h2 className="font-bold">Editar información del evento</h2></div>
         <label className="text-sm font-semibold">Título<input name="titulo" required defaultValue={evento.titulo} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm"/></label>
         {!apiActiva && <label className="text-sm font-semibold">Ponentes (opcional, uno por línea)<textarea name="ponentes" defaultValue={evento.ponentes.join('\n')} rows={2} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm"/></label>}
         <label className="text-sm font-semibold sm:col-span-2">Descripción<textarea name="descripcion" required defaultValue={evento.descripcion} rows={3} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm"/></label>
@@ -471,18 +475,22 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
         <button disabled={cargandoBanner} className="w-fit rounded-lg bg-[#7a132b] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Revisar cambios</button>
       </form>}
 
-      {propuestaEdicion && puedeEditarInformacion && <section role="dialog" aria-modal="true" aria-labelledby="confirmar-cambios-evento" className="mb-8 rounded-2xl border border-amber-300 bg-amber-50 p-5">
-        <h2 id="confirmar-cambios-evento" className="font-bold">Confirmar modificación del evento</h2>
-        <p className="mt-1 text-sm text-neutral-700">Revisa la información propuesta. Al confirmar se guardará una nueva versión en el historial.</p>
-        <label className="mt-4 block text-sm font-semibold">Motivo de la modificación *<textarea aria-label="Motivo de la modificación" value={motivoEdicion} onChange={e => setMotivoEdicion(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border bg-white p-2" /></label>
-        {propuestaEdicion.fechas.map((dia, indice) => <div key={dia.id} className="mt-3"><h3 className="text-sm font-bold">Programa propuesto · {dia.nombreDia || `Día ${indice + 1}`}</h3><ProgramaDia programa={dia.programa} />{!dia.programa?.length && <p className="text-sm">Sin actividades registradas.</p>}</div>)}
-        {!propuestaEdicion.urlImagen && evento.urlImagen && <p className="mt-3 text-sm">Se quitará el cartel actual.</p>}
-        <VistaItinerarios itinerarios={propuestaEdicion.itinerarios} />
-        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="font-semibold">Título</dt><dd>{evento.titulo} → {propuestaEdicion.titulo}</dd></div><div><dt className="font-semibold">Ponentes</dt><dd>{evento.ponentes.join(', ')} → {propuestaEdicion.ponentes.join(', ')}</dd></div><div className="sm:col-span-2"><dt className="font-semibold">Descripción</dt><dd>{evento.descripcion} → {propuestaEdicion.descripcion}</dd></div>{propuestaEdicion.urlImagen && <div className="sm:col-span-2"><dt className="font-semibold">Banner</dt><dd className="mt-2 grid grid-cols-2 gap-3">{evento.urlImagen && <img src={evento.urlImagen} alt="Banner actual" className="max-h-36 w-full rounded-lg object-cover"/>}<img src={propuestaEdicion.urlImagen} alt="Banner propuesto" className="max-h-36 w-full rounded-lg object-cover"/></dd></div>}</dl>
-        <div className="mt-4 flex gap-2"><button type="button" disabled={guardando} aria-busy={guardando} onClick={()=>guardar(confirmarEdicionEvento)} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">Confirmar cambios</button><button type="button" onClick={() => { setPropuestaEdicion(null); setNombreBanner(''); setUrlBannerPropuesto(undefined); setCartelModificado(false); setProgramasEditados({}); }} className="rounded-lg border px-4 py-2 text-sm font-bold">Cancelar</button></div>
-      </section>}
+      <VentanaModal estaAbierto={Boolean(propuestaEdicion && puedeEditarInformacion)}
+        alCerrar={() => { if (!guardando) setPropuestaEdicion(null); }} titulo="Confirmar cambios">
+        {propuestaEdicion && <>
+          <p className="text-sm text-neutral-700">{camposEditados(evento, propuestaEdicion).join(" · ") || "Información del evento"}</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button type="button" disabled={guardando} onClick={() => setPropuestaEdicion(null)}
+              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-semibold">Seguir editando</button>
+            <button type="button" disabled={guardando} aria-busy={guardando} onClick={() => guardar(confirmarEdicionEvento)}
+              className="rounded-lg bg-[#7a132b] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+              {guardando ? 'Guardando…' : 'Confirmar cambios'}
+            </button>
+          </div>
+        </>}
+      </VentanaModal>
 
-      {(evento.historialCambios?.length || 0) > 0 && <section className="mb-8 rounded-2xl border border-neutral-200 bg-white p-5"><h2 className="font-bold">Historial de modificaciones ({evento.historialCambios?.length})</h2><ol className="mt-3 space-y-3 text-sm text-neutral-600">{[...(evento.historialCambios || [])].reverse().map((cambio) => <li key={cambio.version} className="border-t pt-3"><strong>Versión {cambio.version}</strong> · {new Date(cambio.fecha).toLocaleString('es-MX')} · {cambio.responsable}<p className="mt-1">Campos: {cambio.campos.join(', ')}</p>{cambio.motivo && <p className="mt-1"><strong>Motivo:</strong> {cambio.motivo}</p>}{(cambio.detalleAnterior || cambio.detalleNuevo) && <details className="mt-1"><summary className="cursor-pointer font-semibold">Consultar valores antes y después</summary><div className="mt-2 grid gap-2 sm:grid-cols-2"><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Antes: {cambio.detalleAnterior || JSON.stringify(cambio.valoresAnteriores, null, 2)}</pre><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Después: {cambio.detalleNuevo || JSON.stringify(cambio.valoresNuevos, null, 2)}</pre></div></details>}{cambio.resultadoNotificacion && <p role="status" className="mt-2 rounded bg-amber-50 p-2 text-amber-900">Correo no enviado: no hay proveedor de correo configurado. Destinatarios previstos: {cambio.resultadoNotificacion.destinatarios.join(', ') || 'ninguno registrado'}.</p>}</li>)}</ol></section>}
+      {(evento.historialCambios?.length || 0) > 0 && <section className="mb-8 rounded-2xl border border-neutral-200 bg-white p-5"><h2 className="font-bold">Historial de modificaciones ({evento.historialCambios?.length})</h2><ol className="mt-3 space-y-3 text-sm text-neutral-600">{[...(evento.historialCambios || [])].reverse().map((cambio) => <li key={cambio.version} className="border-t pt-3"><strong>Versión {cambio.version}</strong> · {new Date(cambio.fecha).toLocaleString('es-MX')} · {cambio.responsable}<p className="mt-1">Campos: {cambio.campos.join(', ')}</p>{cambio.motivo && <p className="mt-1"><strong>Motivo:</strong> {cambio.motivo}</p>}{(cambio.detalleAnterior || cambio.detalleNuevo) && <details className="mt-1"><summary className="cursor-pointer font-semibold">Consultar valores antes y después</summary><div className="mt-2 grid gap-2 sm:grid-cols-2"><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Antes: {cambio.detalleAnterior || JSON.stringify(cambio.valoresAnteriores, null, 2)}</pre><pre className="overflow-auto whitespace-pre-wrap rounded bg-neutral-50 p-2">Después: {cambio.detalleNuevo || JSON.stringify(cambio.valoresNuevos, null, 2)}</pre></div></details>}{cambio.resultadoNotificacion && <p role="status" className="mt-2 rounded bg-neutral-50 p-2 text-neutral-700">Correo no enviado: no hay proveedor de correo configurado. Destinatarios previstos: {cambio.resultadoNotificacion.destinatarios.join(', ') || 'ninguno registrado'}.</p>}</li>)}</ol></section>}
 
       {!esPublicado && (
         <div
@@ -503,7 +511,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                     ✓ Listo para Publicar
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-sm font-bold">
+                  <span className="px-2 py-0.5 rounded bg-neutral-100 text-neutral-700 text-sm font-bold">
                     {checklist.elementosPendientes.length} Requisito(s) Pendiente(s)
                   </span>
                 )}
@@ -551,9 +559,6 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-neutral-900">Boletos especiales</h3>
               </div>
-              <p className="text-sm text-neutral-500 mt-1 max-w-2xl">
-                Genera e invalida acreditaciones QR para Comité Organizador, Staff de apoyo e invitados VIP.
-              </p>
             </div>
           </div>
 
@@ -563,7 +568,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
             className="px-4 py-2.5 bg-[#7a132b] hover:bg-[#620f23] text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
           >
             <Ticket className="w-3.5 h-3.5" />
-            <span>Gestionar boletos</span>
+            <span>Generar boletos especiales</span>
           </button>
         </div>
 
@@ -621,17 +626,15 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       {/* ========================================================================= */}
       {/* CUERPO PRINCIPAL: DÍAS (IZQUIERDA) + CHECKLIST DETALLADO (DERECHA)   */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+      <div className={`grid grid-cols-1 gap-6 items-start ${esPublicado || evento.estado === "cancelado" ? "" : "xl:grid-cols-12"}`}>
         {/* Columna Izquierda: Días y Configuración de Butacas (8 COLS) */}
-        <div className="xl:col-span-8 min-w-0 space-y-6">
+        <div className={`min-w-0 space-y-6 ${esPublicado || evento.estado === "cancelado" ? "" : "xl:col-span-8"}`}>
           <section id="gestion-actividades" tabIndex={-1} aria-labelledby="titulo-gestion-actividades" className="scroll-mt-24 space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6">
             <div>
               <h2 id="titulo-gestion-actividades" className="text-lg font-bold text-neutral-900">
                 Actividades y distribución de lugares
               </h2>
-              <p className="text-sm text-neutral-500 mt-0.5">
-                Para eventos con acceso controlado, cada fecha debe tener su distribución de butacas o estaciones confirmada.
-              </p>
+
             </div>
 
             <div className="space-y-4 pt-1">
@@ -651,21 +654,21 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                           {nombreActividad(fecha,i)} · {fecha.fecha}
                         </span>
                         {fecha.cancelada && <span className="rounded bg-rose-100 px-2 py-0.5 text-sm font-bold text-rose-800">Día cancelado</span>}
-                        {fecha.suspendida && !fecha.cancelada && <span className="rounded bg-amber-100 px-2 py-0.5 text-sm font-bold text-amber-900">Pendiente de reprogramación por bloqueo</span>}
+                        {fecha.suspendida && !fecha.cancelada && <span className="rounded bg-neutral-100 px-2 py-0.5 text-sm font-bold text-neutral-700">Pendiente de reprogramación por bloqueo</span>}
                         {modalidadActividad(fecha,evento.modalidadAsistencia) !== 'controlado' ? <span className="rounded-lg bg-sky-50 px-2 py-1 text-sky-800">Sin asientos numerados</span> : tieneArregloConfirmado ? (
                           <span className="inline-flex items-center gap-1 text-sm font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             <span>Distribución confirmada</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-sm font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                          <span className="inline-flex items-center gap-1 text-sm font-bold text-neutral-700 bg-neutral-50 px-2 py-0.5 rounded border border-neutral-200">
                             <AlertCircle className="w-3 h-3 text-amber-600" />
                             <span>Distribución pendiente</span>
                           </span>
                         )}
                       </div>
-                      {!fecha.cancelada && disponibilidadDia.estadoConsulta && disponibilidadDia.estadoConsulta!=='listo' ? <p role="status" className="rounded-lg bg-neutral-100 p-3 text-neutral-600">{disponibilidadDia.motivo}<button type="button" onClick={()=>{void agendaRemota?.cargar({fecha:fecha.fecha,idActividadExcluir:fecha.id},true);}} className="ml-2 font-semibold underline">Consultar de nuevo</button></p> : !fecha.cancelada && !disponibilidadDia.disponible && <div className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm text-amber-950"><strong>{disponibilidadDia.tipoConflicto === 'bloqueo' ? 'Día afectado por bloqueo institucional' : 'Conflicto de agenda'}</strong><p>{disponibilidadDia.motivo}</p><span>Resuelve el conflicto reprogramando el día o cancelándolo de forma segura.</span></div>}
-                      {!fecha.cancelada && (disponibilidadDia.tipoConflicto==='clase'||Boolean(disponibilidadDia.advertencias?.length)) && <p className="rounded-lg bg-amber-50 p-3 text-amber-950">Coincidencia con clase informativa: requiere revisión de Subdirección.</p>}
+                      {!fecha.cancelada && disponibilidadDia.estadoConsulta && disponibilidadDia.estadoConsulta!=='listo' ? <p role="status" className="rounded-lg bg-neutral-100 p-3 text-neutral-600">{disponibilidadDia.motivo}<button type="button" onClick={()=>{void agendaRemota?.cargar({fecha:fecha.fecha,idActividadExcluir:fecha.id},true);}} className="ml-2 font-semibold underline">Consultar de nuevo</button></p> : !fecha.cancelada && !disponibilidadDia.disponible && <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-2 text-sm text-neutral-900"><strong>{disponibilidadDia.tipoConflicto === 'bloqueo' ? 'Día afectado por bloqueo institucional' : 'Conflicto de agenda'}</strong><p>{disponibilidadDia.motivo}</p></div>}
+                      {!fecha.cancelada && (disponibilidadDia.tipoConflicto==='clase'||Boolean(disponibilidadDia.advertencias?.length)) && <p className="rounded-lg bg-neutral-50 p-3 text-neutral-700">Coincidencia con clase informativa: requiere revisión de Subdirección.</p>}
 
                       <div className="text-neutral-600 flex flex-wrap items-center gap-x-4 gap-y-2">
                         <span className="flex items-center gap-1 font-semibold text-neutral-800">
@@ -680,18 +683,24 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                       </div>
                     </div>
 
-                    {!fecha.cancelada && puedeGestionar && <form data-interfaz={casoDocumentado !== 'CU-OR-19' ? 'UI.21' : undefined} tabIndex={-1} onSubmit={(e) => guardarCambioFecha(e, fecha.id)} className="grid min-w-0 w-full gap-4 border-t border-neutral-200 pt-4 sm:grid-cols-2">
+                    {!fecha.cancelada && puedeGestionar && <details className="rounded-xl border border-neutral-200 bg-white p-3">
+                      <summary className="cursor-pointer font-semibold text-neutral-800">Cambiar fecha u horario</summary>
+                      <form data-interfaz={casoDocumentado !== 'CU-OR-19' ? 'UI.21' : undefined} tabIndex={-1} onSubmit={(e) => guardarCambioFecha(e, fecha.id)} className="grid min-w-0 w-full gap-4 border-t border-neutral-200 pt-4 sm:grid-cols-2">
                       <label className="text-sm font-semibold text-neutral-600">Fecha<input name="fecha" type="date" defaultValue={fecha.fecha} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>
                       <label className="text-sm font-semibold text-neutral-600">Inicio<input name="horaInicio" type="time" defaultValue={fecha.horaInicio} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>
                       <label className="text-sm font-semibold text-neutral-600">Fin<input name="horaFin" type="time" defaultValue={fecha.horaFin} className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>
-                      <div className="text-sm font-semibold text-neutral-600">Recinto actual<input type="hidden" name="idRecinto" value={fecha.idRecinto}/><p className="mt-1 text-sm">{nombreRecinto}</p><button type="button" disabled={inicioEnMexico(fecha.fecha,fecha.horaInicio)<=Date.now() || listaBoletos.some(b=>b.idFechaEvento===fecha.id&&b.estado==='utilizado') || bitacoraEscaneos.some(r=>r.idFechaEvento===fecha.id&&r.resultado==='exito')} onClick={()=>setIdCambioRecinto(fecha.id)} className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-800 disabled:opacity-40">Cambiar recinto</button></div>
+                      <input type="hidden" name="idRecinto" value={fecha.idRecinto} />
                       <label className="text-sm font-semibold text-neutral-600 sm:col-span-2">Motivo del cambio<input name="motivoCambio" required className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>
                       {rolActivo === 'subdireccion' && <label className="text-sm font-semibold text-neutral-600 sm:col-span-2">Justificación de excepción de anticipación (solo cambios urgentes)<input name="motivoExcepcion" className="mt-1 min-w-0 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm" /></label>}
-                      <button type="submit" className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-bold text-white">Revisar cambio</button>
-                      {puedeGestionar && <button type="button" onClick={() => retirarDia(fecha.id)} className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-bold text-rose-700">Retirar actividad sin compromisos</button>}
-                      {puedeGestionar && !fecha.cancelada && <button type="button" onClick={() => cancelarDia(fecha.id)} className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700">Cancelar esta actividad</button>}
-                    </form>}
+                      <button type="submit" className="w-fit rounded-lg bg-[#7a132b] px-3 py-2 text-sm font-bold text-white">Revisar horario</button>
+                      </form>
+                    </details>}
 
+                    <div className="flex flex-wrap items-center gap-2">
+                    {!fecha.cancelada && puedeGestionar && <button type="button"
+                      disabled={inicioEnMexico(fecha.fecha,fecha.horaInicio)<=Date.now() || listaBoletos.some(b=>b.idFechaEvento===fecha.id&&b.estado==='utilizado') || bitacoraEscaneos.some(r=>r.idFechaEvento===fecha.id&&r.resultado==='exito')}
+                      onClick={() => setIdCambioRecinto(fecha.id)}
+                      className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold disabled:opacity-40">Cambiar recinto</button>}
                     {modalidadActividad(fecha,evento.modalidadAsistencia) === 'controlado' && <button
                       type="button"
                       onClick={() =>
@@ -699,105 +708,50 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
                           `/organizador/eventos/${evento.id}/fechas/${fecha.id}/arreglos`
                         )
                       }
-                      className="px-4 py-2.5 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
+                      className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold hover:border-[#7a132b]"
                     >
                       <Layers className="w-3.5 h-3.5" />
                       <span>{tieneArregloConfirmado ? 'Revisar distribución de lugares' : 'Diseñar distribución de lugares'}</span>
                     </button>}
+                    {!fecha.cancelada && puedeGestionar && <button type="button" onClick={() => cancelarDia(fecha.id)}
+                      className="rounded-lg px-3 py-2 text-sm font-semibold text-[#7a132b] underline underline-offset-4">Cancelar actividad</button>}
+                    </div>
                   </div>
                 );
               })}
             </div>
-            {evento.estado !== 'cancelado' && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"><button type="button" onClick={imprimirConstancia} className="rounded-lg border px-3 py-2 text-sm font-bold">Imprimir constancia operativa</button>{puedeGestionar&&<button type="button" onClick={cancelarEventoCompleto} className="rounded-lg bg-rose-700 px-3 py-2 text-sm font-bold text-white">Cancelar evento aprobado</button>}</div>}
-            {(evento.historialExcepcionesAnticipacion?.length || 0) > 0 && <aside className="rounded-xl bg-amber-50 p-4 text-sm"><h3 className="font-bold text-amber-950">Excepciones de anticipación registradas</h3>{evento.historialExcepcionesAnticipacion?.map((item, indice) => <p key={`${item.fechaAplicacion}-${indice}`} className="mt-1 text-amber-900">{new Date(item.fechaAplicacion).toLocaleString('es-MX')} · {item.responsable}: {item.motivo}</p>)}</aside>}
+            {evento.estado !== 'cancelado' && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"><button type="button" onClick={imprimirConstancia} className="rounded-lg border px-3 py-2 text-sm font-bold">Imprimir constancia operativa</button>{puedeGestionar&&<button type="button" onClick={cancelarEventoCompleto} className="rounded-lg border border-[#7a132b]/40 px-3 py-2 text-sm font-semibold text-[#7a132b]">Cancelar evento</button>}</div>}
+            {(evento.historialExcepcionesAnticipacion?.length || 0) > 0 && <aside className="rounded-xl bg-neutral-50 p-4 text-sm"><h3 className="font-bold text-neutral-900">Excepciones de anticipación registradas</h3>{evento.historialExcepcionesAnticipacion?.map((item, indice) => <p key={`${item.fechaAplicacion}-${indice}`} className="mt-1 text-neutral-700">{new Date(item.fechaAplicacion).toLocaleString('es-MX')} · {item.responsable}: {item.motivo}</p>)}</aside>}
           </section>
         </div>
 
-        {/* Columna Derecha: Checklist Detallado de Publicación (4 COLS) */}
-        <div className="xl:col-span-4 space-y-4">
-          <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-xs space-y-4 text-sm">
-            <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-[#7a132b]" />
-              <span>Lista de Verificación (Checklist)</span>
+        {!esPublicado && evento.estado !== 'cancelado' && (
+          <aside className="rounded-2xl border border-neutral-200 bg-white p-5 xl:col-span-4">
+            <h3 className="flex items-center gap-2 text-sm font-bold text-neutral-900">
+              <ShieldCheck className="h-4 w-4 text-[#7a132b]" />
+              Requisitos de publicación
             </h3>
-
-            <div className="space-y-3 divide-y divide-neutral-100">
-              {/* 1. Dictamen Subdirección */}
-              <div className="pt-2 flex items-start gap-2.5">
-                {checklist.solicitudAutorizada ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                ) : (
-                  <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                )}
-                <div>
-                  <div className="font-semibold text-neutral-900">Dictamen de Subdirección</div>
-                  <div className="text-neutral-500 text-sm">
-                    {checklist.solicitudAutorizada ? 'Autorizado formalmente' : 'Pendiente de dictamen'}
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. Información General */}
-              <div className="pt-2 flex items-start gap-2.5">
-                {checklist.informacionGeneralCompleta ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                ) : (
-                  <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                )}
-                <div>
-                  <div className="font-semibold text-neutral-900">Información General Completa</div>
-                  <div className="text-neutral-500 text-sm">
-                    {checklist.informacionGeneralCompleta ? 'Título, descripción y ponentes registrados' : 'Faltan datos informativos'}
-                  </div>
-                </div>
-              </div>
-
-              {/* 3. Fechas y Recintos */}
-              <div className="pt-2 flex items-start gap-2.5">
-                {checklist.todasLasFechasTienenRecinto ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                ) : (
-                  <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                )}
-                <div>
-                  <div className="font-semibold text-neutral-900">Asignación de Recintos</div>
-                  <div className="text-neutral-500 text-sm">
-                    {checklist.todasLasFechasTienenRecinto ? 'Todos los días cuentan con espacio físico' : 'Días sin recinto asignado'}
-                  </div>
-                </div>
-              </div>
-
-              {/* 4. Arreglos Confirmados (1:1) */}
-              <div className="pt-2 flex items-start gap-2.5">
-                {checklist.todasLasFechasTienenVersionFinal ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                ) : (
-                  <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                )}
-                <div>
-                  <div className="font-semibold text-neutral-900">Distribución de Asientos (1:1)</div>
-                  <div className="text-neutral-500 text-sm">
-                    {checklist.todasLasFechasTienenVersionFinal
-                      ? 'Versión oficial confirmada en cada día'
-                      : 'Faltan fechas por confirmar su distribución'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Elementos Pendientes si existen */}
-            {checklist.elementosPendientes && checklist.elementosPendientes.length > 0 && (
-              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-950 text-sm space-y-1">
-                <span className="font-bold block text-amber-900">Pendiente para Publicar:</span>
-                <ul className="list-disc list-inside space-y-0.5">
-                  {checklist.elementosPendientes.map((item, idx) => (
-                    <li key={idx}>{item}</li>
-                  ))}
-                </ul>
-              </div>
+            <ul className="mt-3 divide-y divide-neutral-100 text-sm">
+              {[
+                { listo: checklist.solicitudAutorizada, etiqueta: 'Dictamen de Subdirección' },
+                { listo: checklist.informacionGeneralCompleta, etiqueta: 'Información del evento' },
+                { listo: checklist.todasLasFechasTienenRecinto, etiqueta: 'Recintos asignados' },
+                { listo: checklist.todasLasFechasTienenVersionFinal, etiqueta: 'Distribución de lugares' },
+              ].map(({ listo, etiqueta }) => (
+                <li key={etiqueta} className="flex items-center gap-2 py-2">
+                  {listo ? <CheckCircle2 aria-label="Completo" className="h-4 w-4 shrink-0 text-neutral-600" />
+                    : <XCircle aria-label="Pendiente" className="h-4 w-4 shrink-0 text-[#7a132b]" />}
+                  {etiqueta}
+                </li>
+              ))}
+            </ul>
+            {!!checklist.elementosPendientes?.length && (
+              <ul className="mt-3 list-inside list-disc space-y-1 rounded-xl bg-neutral-50 p-3 text-sm">
+                {checklist.elementosPendientes.map(item => <li key={item}>{item}</li>)}
+              </ul>
             )}
-          </div>
-        </div>
+          </aside>
+        )}
       </div>
     </div>
   );

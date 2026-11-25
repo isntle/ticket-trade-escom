@@ -1,5 +1,20 @@
 const PREFIJO_REGRESO = '@regresar:';
 export const volverA = (alternativa: string) => PREFIJO_REGRESO + destinoInternoSeguro(alternativa);
+/** Conserva el historial cuando el origen corresponde al destino visible. */
+export function volverASeccion(destino: string, origen: unknown = typeof window === 'undefined' ? undefined : window.history.state?.origenTT): string {
+  const ruta = destinoInternoSeguro(destino);
+  const anterior = destinoInternoSeguro(origen, '');
+  if (!anterior) return ruta;
+
+  const objetivo = new URL(ruta, 'https://tickettrade.local');
+  const previo = new URL(anterior, objetivo.origin);
+  if (previo.pathname !== objetivo.pathname || (objetivo.hash && previo.hash !== objetivo.hash)) return ruta;
+  for (const [clave, valor] of objetivo.searchParams) {
+    if (previo.searchParams.get(clave) !== valor) return ruta;
+  }
+  return volverA(ruta);
+}
+
 export const esRegreso = (ruta: string) => ruta.startsWith(PREFIJO_REGRESO);
 export const alternativaRegreso = (ruta: string) => destinoInternoSeguro(ruta.slice(PREFIJO_REGRESO.length));
 
@@ -21,12 +36,6 @@ export function destinoTrasLogin(continuar: unknown, roles: readonly string[] = 
   if (['/login', '/registro', '/confirmar-correo', '/recuperar-password', '/restablecer-password']
     .includes(destino.split(/[?#]/)[0])) return panel;
   return destino;
-}
-
-export function regresarAlOrigen(alternativa: () => void) {
-  const origen = window.history.state?.origenTT;
-  if (origen && destinoInternoSeguro(origen,'') && origen !== window.location.pathname + window.location.search) window.history.back();
-  else alternativa();
 }
 
 /**

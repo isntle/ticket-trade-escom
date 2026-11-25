@@ -1,12 +1,12 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { apiActiva } from '../servicios/modoDatos';
 import { nombreActividad } from '../dominio/actividades';
-import { volverA } from '../dominio/navegacion';
+import { volverASeccion } from '../dominio/navegacion';
 import { afectaBloqueo } from '../dominio/bloqueos';
 import { etiquetaActividad, estadoInscripcionesActividad, formatearFechaHoraInstitucional, impedimentoApertura, limiteInscripcionesActividad, puedeAdministrarTaquilla } from '../dominio/taquilla';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
-  ArrowLeft,
   Calendar,
   Clock,
   History,
@@ -202,12 +202,7 @@ export const GestionInscripcionesPagina: React.FC<PropiedadesGestionInscripcione
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <button
-        type="button"
-        onClick={() => navigate(volverA(`/organizador/eventos/${evento.id}`))}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
-      >
-        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
+      <BotonRegresar destino="Volver al evento" alVolver={() => navigate(volverASeccion(`/organizador/eventos/${evento.id}`))} />
 
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-8">
         <div>

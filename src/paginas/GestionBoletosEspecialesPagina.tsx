@@ -1,8 +1,8 @@
-import { volverA } from '../dominio/navegacion';
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
+import { volverA, volverASeccion } from '../dominio/navegacion';
 import { etiquetaActividad, impedimentoApertura, puedeAdministrarTaquilla } from '../dominio/taquilla';
 import React, { useMemo, useState } from 'react';
 import {
-  ArrowLeft,
   Ban,
   CalendarDays,
   CheckCircle2,
@@ -33,6 +33,8 @@ interface PropiedadesGestionBoletosEspeciales {
   eventId: string;
   navigate: (ruta: string) => void;
 }
+
+const ACCION_GENERAR = 'Generar boletos especiales';
 
 const ETIQUETAS_TIPO: Record<TipoBoletoEspecial, string> = {
   organizador: 'Comité organizador',
@@ -182,9 +184,9 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
       });
 
       if (!resultado.exito || !resultado.boletos) {
-        const mensajeError = resultado.error || 'No fue posible emitir los boletos especiales.';
+        const mensajeError = resultado.error || 'No se pudieron generar los boletos especiales.';
         setErrorEmision(mensajeError);
-        mostrarNotificacion('No fue posible emitir los boletos', mensajeError, 'error');
+        mostrarNotificacion('No se pudieron generar los boletos', mensajeError, 'error');
         return;
       }
 
@@ -255,12 +257,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <button
-        type="button"
-        onClick={() => navigate(volverA(`/organizador/eventos/${evento.id}`))}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
-      >
-        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
+      <BotonRegresar destino="Volver al evento" alVolver={() => navigate(volverASeccion(`/organizador/eventos/${evento.id}`))} />
 
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-8">
         <div>
@@ -271,7 +268,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
             Gestión de boletos especiales
           </h1>
           <p className="text-xs sm:text-sm text-neutral-500 mt-1 max-w-3xl">
-            Emite e invalida acreditaciones con código QR para Comité Organizador, Staff de apoyo e invitados VIP de <strong className="text-neutral-700">{evento.titulo}</strong>.
+            {evento.titulo}
           </p>
         </div>
 
@@ -282,7 +279,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
           className="px-5 py-3 rounded-xl bg-[#7a132b] hover:bg-[#620f23] disabled:bg-neutral-300 disabled:cursor-not-allowed text-white text-xs font-bold inline-flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          <span>Generar boletos especiales</span>
+          <span>{ACCION_GENERAR}</span>
         </button>
       </div>
 
@@ -316,12 +313,12 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
       {ultimoLote.length > 0 && (
         <AlertaMensaje
           tipo="exito"
-          titulo="Paquete listo para el Organizador"
+          titulo="Boletos especiales listos"
           className="mb-6"
           mensaje={
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <span>
-                Se generaron {ultimoLote.length} boleto(s) especiales con código QR listos para consulta y descarga.
+                {ultimoLote.length === 1 ? "Se generó 1 boleto especial." : `Se generaron ${ultimoLote.length} boletos especiales.`}
               </span>
               <button
                 type="button"
@@ -338,9 +335,9 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
       <div className="bg-white rounded-2xl border border-neutral-200 shadow-xs overflow-hidden">
         <div className="p-5 border-b border-neutral-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <div>
-            <h2 className="text-sm font-extrabold text-neutral-900">Acreditaciones emitidas</h2>
+            <h2 className="text-sm font-extrabold text-neutral-900">Boletos especiales generados</h2>
             <p className="text-[11px] text-neutral-500 mt-0.5">
-              Consulta el estado de cada QR y conserva la trazabilidad de las invalidaciones.
+              Filtra por actividad, tipo o estado.
             </p>
           </div>
 
@@ -394,10 +391,10 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
               titulo={boletosEspeciales.length === 0 ? 'Aún no hay boletos especiales' : 'No hay coincidencias'}
               descripcion={
                 boletosEspeciales.length === 0
-                  ? 'Genera el primer paquete de acreditaciones para el equipo organizador, Staff o invitados VIP.'
+                  ? (actividadesEmision.length === 0 ? 'No hay actividades disponibles para generar boletos especiales.' : undefined)
                   : 'Modifica los filtros o el término de búsqueda para consultar otros boletos.'
               }
-              textoAccion={boletosEspeciales.length === 0 ? 'Generar primer paquete' : undefined}
+              textoAccion={boletosEspeciales.length === 0 && actividadesEmision.length > 0 && !emitiendo ? ACCION_GENERAR : undefined}
               alHacerAccion={boletosEspeciales.length === 0 ? abrirModalEmision : undefined}
             />
           </div>
@@ -477,15 +474,14 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
           setModalEmisionAbierto(false);
           setErrorEmision('');
         }}
-        titulo="Generar paquete de boletos especiales"
-        subtitulo="Cada acreditación recibirá un identificador y código QR únicos"
+        titulo={ACCION_GENERAR}
         anchoMaximo="2xl"
       >
         <form onSubmit={manejarEmision} className="space-y-5">
           {errorEmision && (
             <AlertaMensaje
               tipo="error"
-              titulo="No fue posible emitir los boletos"
+              titulo="No se pudieron generar los boletos"
               mensaje={errorEmision}
             />
           )}
@@ -600,7 +596,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
 
           <AlertaMensaje
             tipo="informacion"
-            mensaje="Las acreditaciones generadas quedan registradas en la actividad seleccionada y disponibles para consulta individual y descarga en paquete desde este panel."
+            mensaje="Los boletos se guardan en la actividad seleccionada. Puedes descargarlos juntos o por separado."
           />
 
           <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
@@ -621,7 +617,7 @@ export const GestionBoletosEspecialesPagina: React.FC<PropiedadesGestionBoletosE
               className="px-5 py-2.5 rounded-xl bg-[#7a132b] hover:bg-[#620f23] disabled:bg-neutral-300 disabled:cursor-not-allowed text-white text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer"
             >
               <PackageCheck className="w-4 h-4" />
-              {emitiendo ? 'Emitiendo boletos…' : 'Generar paquete de QR'}
+              {emitiendo ? 'Generando boletos…' : ACCION_GENERAR}
             </button>
           </div>
         </form>

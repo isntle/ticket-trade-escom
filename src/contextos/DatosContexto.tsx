@@ -161,7 +161,7 @@ export interface ContextoDatosTipo {
   crearEventoInstitucionalDirecto: (datosEvento: Partial<Evento>) => Evento;
   cancelarUnidadEvento: (idEvento:string,idFecha:string|undefined,motivo:string,retirar:boolean,versionEsperada:string) => {exito:boolean;error?:string};
   revisarCambioRecinto: (peticion: Omit<PeticionCambioRecinto, 'idArreglo'>) => {exito:boolean; error?:string; propuesta?:PropuestaCambioRecinto};
-  confirmarCambioRecinto: (propuesta: PropuestaCambioRecinto, aceptarReduccion:boolean) => {exito:boolean; error?:string};
+  confirmarCambioRecinto: (propuesta: PropuestaCambioRecinto, aceptarReduccion:boolean) => {exito:boolean; error?:string; pendiente?:boolean};
   actualizarEvento: (idEvento: string, parcial: Partial<Evento>, versionEsperada?: string) => { exito: boolean; error?: string };
   publicarEvento: (idEvento: string) => { exito: boolean; error?: string };
   agregarFechaEvento: (

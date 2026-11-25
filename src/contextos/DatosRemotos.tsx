@@ -6,7 +6,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { ContextoDatosTipo } from "./DatosContexto.js";
 import { ContextoDatos } from "./almacenes.js";
 import { useAutenticacion } from "./AutenticacionContexto.js";
-import { transporteApi, ErrorApi } from "../servicios/http.js";
+import { suscribirActualizacionVisible } from "../servicios/actualizacionVisible.js";
+import { transporteApi, ErrorApi, esFalloTemporal } from "../servicios/http.js";
 import { tokenEnlacePrivado } from '../servicios/enlacePrivado.js';
 import { guardarArchivoRemoto, guardarCartelRemoto } from "../servicios/archivos.js";
 import type { Evento, Notificacion, ResultadoEscaneo, SolicitudEvento, Usuario } from "../tipos/index.js";
@@ -68,10 +69,11 @@ function DatosDeSesion({ children, usuarioActual }: {
     [errorLectura, setErrorLectura] = useState("");
   const lecturasActivas = useRef(0);
   const ultimaLecturaCorrecta = useRef(0);
+  const fallosEnSegundoPlano = useRef(0);
   const estadoRef = useRef<any>(estado),
     secuencia = useRef(0),
     montado = useRef(true);
-  const cargar = async (mensajeSiFalla?: string) => {
+  const cargar = async (mensajeSiFalla?: string, enSegundoPlano = false) => {
     const orden = ++secuencia.current;
     lecturasActivas.current++;
     try {
@@ -93,6 +95,7 @@ function DatosDeSesion({ children, usuarioActual }: {
       }
       if (montado.current && orden === secuencia.current) {
         ultimaLecturaCorrecta.current = Date.now();
+        fallosEnSegundoPlano.current = 0;
         estadoRef.current = nuevo;
         setEstado(nuevo);
         setErrorLectura("");
@@ -101,7 +104,9 @@ function DatosDeSesion({ children, usuarioActual }: {
       return nuevo;
     } catch (error) {
       if (montado.current && orden === secuencia.current) {
-        setErrorLectura(mensajeSiFalla || (error instanceof Error ? error.message : "No se pudo actualizar la vista."));
+        const falloAislado = enSegundoPlano && ultimaLecturaCorrecta.current > 0
+          && esFalloTemporal(error) && ++fallosEnSegundoPlano.current === 1;
+        if (!falloAislado) setErrorLectura(mensajeSiFalla || (error instanceof Error ? error.message : "No se pudo actualizar la vista."));
       }
       throw error;
     } finally {
@@ -121,11 +126,10 @@ function DatosDeSesion({ children, usuarioActual }: {
     montado.current = true;
     const refrescar = () => void cargar().catch(() => {});
     const refrescarEnSegundoPlano = () => {
-      if (!document.hidden && lecturasActivas.current === 0 && Date.now() - ultimaLecturaCorrecta.current >= 15_000) refrescar();
+      if (lecturasActivas.current === 0 && Date.now() - ultimaLecturaCorrecta.current >= 15_000) void cargar(undefined, true).catch(() => {});
     };
     refrescar();
-    const t = window.setInterval(refrescarEnSegundoPlano, 15000);
-    document.addEventListener("visibilitychange", refrescarEnSegundoPlano);
+    const detener = suscribirActualizacionVisible(refrescarEnSegundoPlano, 15_000);
     window.addEventListener("tt:datos-remotos", refrescar);
     const refrescarEnlace = () => {
       const ruta = window.location.pathname.match(/^\/eventos\/([^/]+)(?:\/reservar)?\/?$/);
@@ -139,8 +143,7 @@ function DatosDeSesion({ children, usuarioActual }: {
     return () => {
       montado.current = false;
       secuencia.current++;
-      document.removeEventListener("visibilitychange", refrescarEnSegundoPlano);
-      window.clearInterval(t);
+      detener();
       window.removeEventListener("tt:datos-remotos", refrescar);
       window.removeEventListener("tt:navegacion", refrescarEnlace);
       window.removeEventListener("popstate", refrescarEnlace);
@@ -550,11 +553,11 @@ function DatosDeSesion({ children, usuarioActual }: {
     revisarCambioRecinto: (peticion:any) => intentar(async()=>{
       const e=estadoRef.current.listaEventos.find((e:any)=>e.id===peticion.idEvento);
       return api('/organizacion/eventos/'+peticion.idEvento+'/recinto/revision',{metodo:'POST',datos:{peticion,version:e?.versionServidor}});
-    }),
+    }, false),
     confirmarCambioRecinto: (propuesta:any,aceptarReduccion:boolean) => intentar(async()=>{
-      await api('/organizacion/eventos/'+propuesta.peticion.idEvento+'/recinto',{metodo:'POST',datos:{peticion:propuesta.peticion,version:propuesta.firma,aceptarReduccion}});
-      await actualizarTrasGuardar();return {exito:true};
-    }),
+      const resultado = await api('/organizacion/eventos/'+propuesta.peticion.idEvento+'/recinto',{metodo:'POST',datos:{peticion:propuesta.peticion,version:propuesta.firma,aceptarReduccion}});
+      await actualizarTrasGuardar();return resultado;
+    }, false),
     agregarFechaEvento: (id:string,actividad:any) => intentar(async()=>{
       const e=estadoRef.current.listaEventos.find((e:any)=>e.id===id);
       await api('/organizacion/eventos/'+id+'/actividades',{metodo:'POST',datos:{actividad,version:e?.versionServidor,motivo:actividad.motivo}});
@@ -575,6 +578,7 @@ function DatosDeSesion({ children, usuarioActual }: {
     actualizarEvento: (id: string, parcial: any, versionEsperada: string) => intentar(async () => {
       const original=JSON.parse(versionEsperada);
       const datos={...parcial};
+      if (JSON.stringify(datos.ponentes) === JSON.stringify(original.ponentes)) delete datos.ponentes;
       if(parcial.itinerarios)datos.itinerarios=await Promise.all(parcial.itinerarios.map(async(i:any)=>({...i,idArchivo:await guardarCartelRemoto(i.urlImagen,i.nombreArchivo)})));
       if(Object.prototype.hasOwnProperty.call(parcial,'urlImagen') && parcial.urlImagen!==original.urlImagen) datos.idArchivoCartel=await guardarCartelRemoto(parcial.urlImagen);
       await api('/organizacion/eventos/'+id,{metodo:'PATCH',datos:{parcial:datos,version:original.versionServidor,motivo:parcial.historialCambios?.at(-1)?.motivo}});

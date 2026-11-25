@@ -1,6 +1,7 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { apiActiva } from '../servicios/modoDatos';
 import { afiliacionLegible } from "../utilidades/afiliacion";
-import { volverA } from '../dominio/navegacion';
+import { volverASeccion } from '../dominio/navegacion';
 import React, { useState } from "react";
 import {
   Users,
@@ -8,7 +9,6 @@ import {
   Check,
   X,
   ShieldAlert,
-  ArrowLeft,
   UserPlus,
   Lock,
   KeyRound,
@@ -156,12 +156,7 @@ export const AdministracionUsuariosPagina: React.FC<
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 animate-in fade-in duration-200">
       <div className="flex items-center justify-between mb-6">
-        <button
-          type="button"
-          onClick={() => navigate(volverA("/eventos"))}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
+        <BotonRegresar destino="Volver a la cartelera" alVolver={() => navigate(volverASeccion("/eventos"))} />
 
         <button
           type="button"

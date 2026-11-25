@@ -6,7 +6,7 @@ import { capacidadActividad } from '../dominio/taquilla';
 import { impedimentoActividad, impedimentoParticipante, rutaAccesoConRegreso, rutaDetalleEvento, rutaReservaActividad } from '../dominio/participacionActividad';
 import { useImagenEvento } from '../componentes/eventos/useImagenEvento';
 import { VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
-import { volverA } from '../dominio/navegacion';
+import { volverA, volverASeccion } from '../dominio/navegacion';
 import React, { useState } from 'react';
 import {
   Calendar,
@@ -259,7 +259,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
   return (
     <div data-interfaz="UI-11" tabIndex={-1} className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
       {/* Botón Volver */}
-      <BotonRegresar destino="Volver a la cartelera" alVolver={() => navigate(volverA('/eventos'))} />
+      <BotonRegresar destino="Volver a la cartelera" alVolver={() => navigate(volverASeccion('/eventos'))} />
 
       {/* Banner Principal */}
       <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden shadow-xs mb-8">

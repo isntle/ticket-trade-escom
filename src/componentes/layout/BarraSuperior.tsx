@@ -1,3 +1,4 @@
+import { SimboloTicketTrade } from "./SimboloTicketTrade";
 import { afiliacionLegible } from "../../utilidades/afiliacion";
 import { verificacionIdentidadVigente } from '../../dominio/identidad';
 import { modoDemostracionActivo } from "../../dominio/demostracion";
@@ -149,10 +150,11 @@ export const BarraSuperior: React.FC<{
         <div className="flex min-h-18 items-center justify-between gap-3 py-3">
           <button
             onClick={() => ir("/eventos")}
-            className="shrink-0 whitespace-nowrap text-xl font-extrabold tracking-tight text-[#7a132b]"
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-lg font-extrabold tracking-tight text-[#7a132b] sm:gap-2 sm:text-xl"
             aria-label="Ticket Trade, ir a cartelera"
           >
-            Ticket Trade
+            <SimboloTicketTrade className="h-5 w-5 shrink-0 sm:h-6 sm:w-7" />
+            <span>Ticket Trade</span>
           </button>
           <nav
             aria-label="Navegación principal"
@@ -169,7 +171,7 @@ export const BarraSuperior: React.FC<{
               </button>
             ))}
           </nav>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <button
               onClick={() => setMovilAbierto(!movilAbierto)}
               aria-label={
@@ -258,10 +260,11 @@ export const BarraSuperior: React.FC<{
                   onClick={() => setMenuAbierto(!menuAbierto)}
                   aria-expanded={menuAbierto}
                   aria-controls="menu-cuenta"
-                  className="flex max-w-[48vw] items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2 text-left hover:bg-neutral-50"
+                  aria-label={`Mi cuenta, ${usuarioActual.nombre}`}
+                  className="flex size-11 items-center justify-center gap-2 rounded-xl border border-neutral-200 px-2 text-left hover:bg-neutral-50 sm:h-auto sm:min-h-11 sm:w-auto sm:max-w-[26vw] sm:justify-start sm:px-3 sm:py-2"
                 >
                   <UserRound size={18} className="shrink-0 text-[#7a132b]" />
-                  <span className="min-w-0">
+                  <span className="hidden min-w-0 sm:block">
                     <span className="block max-w-44 truncate text-sm font-semibold">
                       {usuarioActual.nombre}
                     </span>
@@ -270,13 +273,17 @@ export const BarraSuperior: React.FC<{
                       {usuarioActual.roles.includes("admin") ? "Administración" : usuarioActual.roles.includes("subdireccion") ? "Subdirección" : afiliacionLegible(usuarioActual.afiliacion)}
                     </span>
                   </span>
-                  <ChevronDown size={15} className="shrink-0" />
+                  <ChevronDown size={15} className="hidden shrink-0 sm:block" aria-hidden="true" />
                 </button>
                 {menuAbierto && (
                   <div
                     id="menu-cuenta"
                     className="absolute right-0 top-full mt-2 max-h-[75vh] w-[min(22rem,calc(100vw-2rem))] overflow-auto rounded-2xl border border-neutral-200 bg-white p-3 shadow-xl"
                   >
+                    <div className="mb-3 border-b border-neutral-200 px-2 pb-3 sm:hidden">
+                      <p className="break-words text-sm font-semibold text-neutral-900">{usuarioActual.nombre}</p>
+                      {verificacionIdentidadVigente(usuarioActual) && <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-sky-700"><BadgeCheck size={15} aria-hidden="true" /> Verificado</p>}
+                    </div>
                     {usuarioActual.roles.length > 1 && (
                       <label className="mb-3 block px-2 text-sm font-semibold">
                         Perfil de trabajo

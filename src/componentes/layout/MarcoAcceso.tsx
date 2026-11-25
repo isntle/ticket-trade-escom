@@ -1,49 +1,24 @@
-import {SimboloTicketTrade} from "./SimboloTicketTrade";
-import React from "react";
-import { CheckCircle } from "lucide-react";
+import React from 'react';
+import {SimboloTicketTrade} from './SimboloTicketTrade';
 
-/** Composición de acceso compartida; conserva el banner de IP-Regina sin recortar pantallas bajas. */
-export function MarcoAcceso({ children }: { children: React.ReactNode }) {
-  return (
-    <section className="min-h-dvh w-full bg-white">
-      <div className="grid min-h-dvh w-full grid-rows-[auto_1fr] overflow-hidden bg-white lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:grid-rows-1">
-        <aside className="relative flex flex-col justify-between gap-8 overflow-hidden bg-[#651127] px-5 py-4 text-white sm:px-8 lg:px-10 lg:py-10">
-          <div className="relative flex items-center gap-2.5">
-            <SimboloTicketTrade claro className="h-7 w-8 shrink-0" />
-            <p className="text-2xl font-semibold tracking-tight">Ticket Trade</p>
-          </div>
-          <div className="relative my-auto hidden max-w-lg py-4 lg:block">
-            <p className="mb-4 text-sm text-white/80">
-              Tu agenda académica, en un solo lugar
-            </p>
-            <h1 className="text-3xl font-black leading-tight tracking-tight sm:text-4xl lg:text-5xl">
-              Entra a la experiencia ESCOM.
-            </h1>
-            <p className="mt-4 text-sm leading-6 text-white/70">
-              Consulta eventos, reserva tu lugar y lleva tus boletos digitales
-              contigo.
-            </p>
-          </div>
-          <div className="relative hidden space-y-3 border-t border-white/15 pt-5 lg:block">
-            {[
-              ["Acceso institucional", "Una cuenta para toda tu actividad"],
-              ["Boletos digitales", "Tu entrada siempre disponible"],
-              ["Agenda ESCOM", "Eventos y recintos organizados"],
-            ].map(([titulo, descripcion]) => (
-              <div key={titulo} className="flex gap-3">
-                <CheckCircle className="h-4 w-4 shrink-0 text-[#e6c46b]" />
-                <div>
-                  <p className="text-xs font-semibold">{titulo}</p>
-                  <p className="mt-1 text-xs text-white/60">{descripcion}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </aside>
-        <div className="flex min-w-0 items-start px-5 py-8 sm:px-8 lg:items-center lg:px-[clamp(2rem,4vw,5rem)] lg:py-10">
-          <div className="w-full">{children}</div>
-        </div>
-      </div>
-    </section>
-  );
+/** Marco compartido por acceso, registro, confirmación y recuperación. */
+export function MarcoAcceso({children}:{children:React.ReactNode}){
+ return <section style={{fontFamily:"var(--fuente-principal)"}} className="min-h-dvh bg-[#faf9f8] p-0 lg:p-6">
+  <div className="mx-auto grid min-h-[calc(100dvh-3rem)] max-w-[1600px] grid-cols-1 items-start lg:grid-cols-[1.05fr_1fr]">
+   <aside className="relative order-2 h-72 overflow-hidden lg:sticky lg:top-6 lg:order-1 lg:h-[calc(100dvh-3rem)] lg:rounded-[24px]">
+    <img src="/imagenes/eventos/expo-escom.jpg" alt="Personas colaborando frente a una computadora" className="absolute inset-0 h-full w-full object-cover object-right" />
+    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent px-7 pb-8 pt-28 lg:px-9 lg:pb-10">
+     <h2 className="max-w-sm text-3xl font-bold leading-tight tracking-tight text-white lg:text-[clamp(1.8rem,2.6vw,2.6rem)]">Las mejores ideas empiezan juntos.</h2>
+     <p className="mt-4 max-w-sm text-sm leading-6 text-white/85">Conferencias, talleres y encuentros que forman parte de tu vida académica.</p>
+    </div>
+   </aside>
+   <div className="order-1 flex min-w-0 flex-col px-6 pb-10 pt-8 sm:px-10 lg:order-2 lg:min-h-[calc(100dvh-3rem)] lg:px-[clamp(2rem,5vw,5rem)] lg:pt-8">
+    <div className="mb-10 flex items-center justify-center gap-2.5 text-[#70162c] lg:mb-14">
+     <SimboloTicketTrade className="h-8 w-9 shrink-0" />
+     <span className="text-2xl font-bold tracking-tight">Ticket Trade</span>
+    </div>
+    <div className="mx-auto my-auto w-full max-w-[460px]">{children}</div>
+   </div>
+  </div>
+ </section>;
 }

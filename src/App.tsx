@@ -1,8 +1,9 @@
+import { BotonRegresar } from "./componentes/ui/BotonRegresar";
 import { DistribucionActividadRemota } from "./paginas/DistribucionActividadRemota";
 import { apiActiva } from './servicios/modoDatos';
 import { GestionAcademicaPagina } from "./paginas/GestionAcademicaPagina";
 import { modoDemostracionActivo } from './dominio/demostracion';
-import { esRegreso, alternativaRegreso, destinoInternoSeguro, volverA } from './dominio/navegacion';
+import { esRegreso, alternativaRegreso, destinoInternoSeguro, volverASeccion } from './dominio/navegacion';
 import { CatalogoRecintosPagina } from "./paginas/CatalogoRecintosPagina";
 import React, { useState, useEffect } from "react";
 
@@ -10,7 +11,7 @@ import React, { useState, useEffect } from "react";
 import { ProveedorAutenticacion, useAutenticacion } from "./contextos";
 import { ProveedorDatos } from "./contextos";
 import { ProveedorNotificaciones } from "./contextos";
-import { ShieldAlert, ArrowLeft, UserCheck } from "lucide-react";
+import { ShieldAlert, UserCheck } from "lucide-react";
 
 // Componentes de Estructura y Navegación
 import { BarraSuperior, PieDePagina, ExploradorCasosUso } from "./componentes";
@@ -183,14 +184,7 @@ function ContenidoApp() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => navegarA(volverA("/eventos"))}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Regresar</span>
-              </button>
+              <BotonRegresar destino="Volver a la cartelera" alVolver={() => navegarA(volverASeccion("/eventos"))} />
               {tieneRolAutorizado ? (
                 <button
                   type="button"
@@ -495,7 +489,7 @@ function ContenidoApp() {
     }
 
     // Ruta por defecto: Cartelera general de eventos
-    return <section className="mx-auto max-w-xl px-5 py-16"><h1 className="text-2xl font-bold">Página no disponible</h1><p className="mt-3 text-neutral-600">Este enlace no corresponde a una pantalla disponible. Puedes regresar y continuar desde donde estabas.</p><button type="button" onClick={()=>navegarA(volverA('/eventos'))} className="boton-primario mt-6 inline-flex items-center gap-2 px-5 py-3"><ArrowLeft size={16}/>Regresar</button></section>;
+    return <section className="mx-auto max-w-xl px-5 py-16"><h1 className="text-2xl font-bold">Página no disponible</h1><p className="mt-3 text-neutral-600">Este enlace no corresponde a una pantalla disponible. Puedes continuar desde la cartelera.</p><BotonRegresar destino="Volver a la cartelera" alVolver={() => navegarA(volverASeccion("/eventos"))} /></section>;
   };
 
   const esRutaAutenticacion = [

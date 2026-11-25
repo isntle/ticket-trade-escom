@@ -3,9 +3,10 @@ import { Router } from "express";
 import { conTransaccion } from "../../bd/pool.js";
 import { fallo, ruta, idEntero, texto } from "../../comun/http.js";
 import { versionEvento } from "./version.js";
-import { encolarAviso } from "../correos/avisos.js";
+import { encolarAviso, registrarAvisoBandeja } from "../correos/avisos.js";
 import { comprobarArchivo } from "../archivos/rutas.js";
 import type { PoolClient } from "pg";
+import { revisarDisponibilidadServidor, exigirPropuestaSinCruces } from "./disponibilidad.js";
 export const routerEventos = Router();
 // La limpieza vence antes de la operación; un conflicto posterior no la deshace.
 routerEventos.use("/eventos/:id", async (_req, _res, next) => {
@@ -89,7 +90,8 @@ async function registrar(
   operacion: string,
   antes: any,
   despues: any,
-  personas: any[],
+  personas: { id: string }[],
+  mensajeCancelacion?: string,
 ) {
   const detalle = {
     fecha: new Date().toISOString(),
@@ -118,15 +120,17 @@ async function registrar(
       String(e.id_evento),
     ],
   );
-  for (const p of personas)
-    await encolarAviso(
-      c,
-      p.id,
-      `evento:${e.id_evento}:operacion:${r.rows[0].id}:${p.id}`,
-      operacion,
-      `${e.titulo}. ${motivo}`,
-      "/mis-reservaciones",
-    );
+  for (const persona of personas) {
+    const tipo = `evento:${e.id_evento}:operacion:${r.rows[0].id}`;
+    const referencia = "/mis-reservaciones";
+    if (mensajeCancelacion)
+      await registrarAvisoBandeja(c, {
+        destinatario: persona.id, tipo, titulo: operacion,
+        mensaje: mensajeCancelacion, referencia,
+      });
+    await encolarAviso(c, persona.id, `${tipo}:${persona.id}`, operacion,
+      mensajeCancelacion ?? `${e.titulo}. ${motivo}`, referencia);
+  }
 }
 routerEventos.post(
   "/eventos/:id/cancelacion",
@@ -135,7 +139,7 @@ routerEventos.post(
       b = req.body || {},
       u = res.locals.usuario;
     const motivo = texto(b.motivo, "el motivo", 2000);
-    await conTransaccion(async (c) => {
+    const destinatarios = await conTransaccion(async (c) => {
       const { e, a } = await contexto(c, id, u, b.version);
       const objetivo = b.idActividad
         ? [idEntero(b.idActividad)]
@@ -149,6 +153,15 @@ routerEventos.post(
         fallo("Actividad no disponible.", 409);
       await proteger(c, objetivo);
       const personas = await audiencia(c, objetivo);
+      const cancelacionTotal = a.filter(x => x.estado !== "Cancelada").length === objetivo.length;
+      if (!b.retirar && (await c.query("SELECT to_regclass('infra.intencion_asistencia') IS NOT NULL existe")).rows[0].existe) {
+        const intenciones = await c.query(
+          "SELECT DISTINCT id_cuenta::text id FROM infra.intencion_asistencia WHERE id_actividad=ANY($1::bigint[])",
+          [objetivo],
+        );
+        const registrados = new Set(personas.map(p => p.id));
+        personas.push(...intenciones.rows.filter(p => !registrados.has(p.id)));
+      }
       const historial = (
         await c.query(
           'SELECT 1 FROM ticket_trade."CompromisoCupo" WHERE id_actividad=ANY($1::bigint[]) LIMIT 1',
@@ -182,9 +195,7 @@ routerEventos.post(
           `UPDATE ticket_trade."Reservacion" r SET id_estado_reservacion=(SELECT id_estado_reservacion FROM ticket_trade."EstadoReservacion" WHERE nombre='Cancelada'),cancelada_en=clock_timestamp(),id_causa_cancelacion_reservacion=(SELECT id_causa_cancelacion_reservacion FROM ticket_trade."CausaCancelacionReservacion" WHERE nombre=$2) FROM ticket_trade."CompromisoCupo" cp WHERE cp.id_compromiso_cupo=r.id_compromiso_cupo AND cp.id_actividad=ANY($1::bigint[]) AND r.cancelada_en IS NULL`,
           [
             objetivo,
-            b.idActividad
-              ? "Cancelación de la actividad"
-              : "Cancelación del evento",
+            cancelacionTotal ? "Cancelación del evento" : "Cancelación de la actividad",
           ],
         );
         await c.query(
@@ -209,12 +220,17 @@ routerEventos.post(
         e,
         u,
         motivo,
-        b.retirar ? "Actividad retirada" : "Cancelación de actividad o evento",
+        b.retirar ? "Actividad retirada" : cancelacionTotal ? "Evento cancelado" : "Actividad cancelada",
         objetivo,
         { actividades: objetivo },
         personas,
+        b.retirar ? undefined : cancelacionTotal
+          ? `Se canceló el evento «${e.titulo}». ${motivo}`
+          : `Se canceló «${a.find(x => x.id === objetivo[0]).nombre}», actividad de «${e.titulo}». ${motivo}`,
       );
+      return b.retirar ? 0 : personas.length;
     });
+    res.locals.avisosCancelacion = destinatarios;
     res.json({ datos: { exito: true } });
   }),
 );
@@ -225,7 +241,7 @@ routerEventos.patch(
       b = req.body || {},
       u = res.locals.usuario,
       p = b.parcial || {};
-    const motivo = texto(b.motivo, "el motivo", 2000);
+    let motivo = b.motivo === undefined ? "Edición de información" : texto(b.motivo, "el motivo", 2000);
     await conTransaccion(async (c) => {
       const { e, a } = await contexto(c, id, u, b.version);
       const ids = a.map((x) => x.id);
@@ -268,15 +284,14 @@ routerEventos.patch(
         for (const n of p.fechas) {
           const old = a.find((x) => x.id === n.id);
           if (!old) fallo("Actividad ajena al evento.");
-          const cambio =
+          const cambioHorario =
             old.dia !== n.fecha ||
             old.inicio !== n.horaInicio ||
             old.fin !== n.horaFin ||
             String(old.id_recinto) !== n.idRecinto ||
-            (old.estado === "Suspendida" && n.suspendida === false) ||
-            old.nombre !== n.nombreActividad ||
-            old.descripcion !== n.descripcionActividad;
-          if (!cambio) continue;
+            (old.estado === "Suspendida" && n.suspendida === false);
+          if (!cambioHorario && old.nombre === n.nombreActividad && old.descripcion === n.descripcionActividad) continue;
+          if (cambioHorario) motivo = texto(b.motivo, "el motivo", 2000);
           if (old.estado === "Cancelada")
             fallo("Conserva las actividades canceladas.", 409);
           await proteger(c, [old.id]);
@@ -312,7 +327,7 @@ routerEventos.patch(
               "La reprogramación urgente requiere Subdirección y una justificación.",
               403,
             );
-          await comprobarBloqueo(
+          if (cambioHorario) await comprobarBloqueo(
             c,
             n.idRecinto,
             n.fecha,
@@ -458,21 +473,9 @@ async function propuestaRecinto(c: PoolClient, id: string, u: any, b: any) {
   ).rows[0].nombre;
   if (acceso === "Entrada libre" && r.tipo === "Laboratorio")
     fallo("Un laboratorio no admite entrada libre.");
-  const conflicto = await c.query(
-    `SELECT 1 FROM ticket_trade."Actividad" a JOIN ticket_trade."Evento" e USING(id_evento) JOIN ticket_trade."EstadoEvento" ee USING(id_estado_evento) JOIN ticket_trade."EstadoActividad" ea USING(id_estado_actividad) WHERE id_recinto=$1 AND fecha=$2 AND id_actividad<>$3 AND ea.nombre<>'Cancelada' AND ee.nombre='Publicado' AND hora_inicio<$5::time+interval '30 minutes' AND $4::time<hora_fin+interval '30 minutes' LIMIT 1`,
-    [p.idRecinto, act.dia, act.id, act.inicio, act.fin],
-  );
-  if (conflicto.rowCount)
-    fallo(
-      "El recinto está ocupado en ese horario, incluyendo los 30 minutos de separación.",
-      409,
-    );
-  const bloqueado = await c.query(
-    `SELECT 1 FROM ticket_trade."BloqueoRecinto" WHERE id_recinto=$1 AND (finalizado_en IS NULL OR finalizado_en>inicio) AND inicio < ($2::date+$4::time) AT TIME ZONE 'America/Mexico_City' AND coalesce(finalizado_en,'infinity'::timestamptz) > ($2::date+$3::time) AT TIME ZONE 'America/Mexico_City' LIMIT 1`,
-    [p.idRecinto, act.dia, act.inicio, act.fin],
-  );
-  if (bloqueado.rowCount)
-    fallo("El recinto tiene un bloqueo vigente para ese horario.", 409);
+  exigirPropuestaSinCruces(await revisarDisponibilidadServidor(c, u, [{
+    id: act.id, idRecinto: p.idRecinto, fecha: act.dia, horaInicio: act.inicio, horaFin: act.fin,
+  }], { idActividadExcluir: act.id }), true);
   const cupos = (
     await c.query(
       `SELECT cp.id_compromiso_cupo::text id,aa.id_lugar_actividad::text origen,cl.nombre categoria,lr.codigo etiqueta FROM ticket_trade."CompromisoCupo" cp JOIN ticket_trade."EstadoCompromisoCupo" ec USING(id_estado_compromiso_cupo) LEFT JOIN ticket_trade."AsignacionAsiento" aa USING(id_compromiso_cupo) LEFT JOIN ticket_trade."LugarActividad" la USING(id_lugar_actividad) LEFT JOIN ticket_trade."CategoriaLugarActividad" cl USING(id_categoria_lugar_actividad) LEFT JOIN ticket_trade."LugarRecinto" lr USING(id_lugar_recinto) WHERE cp.id_actividad=$1 AND ec.nombre='Activo' ORDER BY cp.id_compromiso_cupo`,
@@ -568,18 +571,90 @@ routerEventos.post(
     res.json({ datos: { exito: true, propuesta } });
   }),
 );
+const solicitudRecintoPendiente = "evento_recinto_pendiente";
+const solicitudRecintoResuelta = "evento_recinto_resuelto";
+
+routerEventos.get("/eventos/:id/recinto/pendiente", ruta(async (req, res) => {
+  const id = idEntero(req.params.id);
+  const idActividad = idEntero(req.query.actividad);
+  const u = res.locals.usuario;
+  const pendiente = await conTransaccion(async c => {
+    const { e } = await contexto(c, id, u, await versionEvento(c, id));
+    const r = await c.query(
+      `SELECT id_notificacion::text id,mensaje FROM ticket_trade."Notificacion"
+        WHERE tipo=$1 AND id_cuenta_destinataria=$2 AND referencia_destino=$3`,
+      [solicitudRecintoPendiente, e.id_cuenta_organizadora, `${id}/${idActividad}`],
+    );
+    return r.rows[0] ? { id: r.rows[0].id, propuesta: JSON.parse(r.rows[0].mensaje) } : null;
+  });
+  res.json({ datos: { pendiente } });
+}));
+
 routerEventos.post(
   "/eventos/:id/recinto",
   ruta(async (req, res) => {
     const id = idEntero(req.params.id),
-      b = req.body || {},
       u = res.locals.usuario;
-    await conTransaccion(async (c) => {
-      const { e, act, cupos, controlado, destinos, propuesta } =
-        await propuestaRecinto(c, id, u, b);
-      const motivo = texto(b.peticion?.motivo, "el motivo", 2000);
+    const entrada = req.body || {};
+    const resultado = await conTransaccion(async (c) => {
+      const esRevisor = u.roles.includes("subdireccion");
+      let b = entrada;
+      let solicitud;
+      if (entrada.idSolicitud) {
+        if (!esRevisor) fallo("Subdirección debe resolver el cambio de recinto.", 403);
+        if (!["aprobar", "rechazar"].includes(entrada.decision)) fallo("Elige una decisión válida.");
+        const { e } = await contexto(c, id, u, await versionEvento(c, id));
+        solicitud = (await c.query(
+          `SELECT id_notificacion::text id, mensaje FROM ticket_trade."Notificacion"
+            WHERE id_notificacion=$1 AND tipo=$2 AND id_cuenta_destinataria=$3 AND split_part(referencia_destino,'/',1)=$4 FOR UPDATE`,
+          [idEntero(entrada.idSolicitud), solicitudRecintoPendiente, e.id_cuenta_organizadora, id],
+        )).rows[0];
+        if (!solicitud) fallo("La solicitud ya se resolvió o no está disponible.", 409);
+        const solicitada = JSON.parse(solicitud.mensaje);
+        const decision = entrada.decision;
+        await c.query('UPDATE ticket_trade."Notificacion" SET tipo=$2 WHERE id_notificacion=$1', [solicitud.id, solicitudRecintoResuelta]);
+        await registrarAvisoBandeja(c, {
+          destinatario: String(e.id_cuenta_organizadora),
+          tipo: `recinto:${solicitud.id}:${decision}`,
+          titulo: decision === "aprobar" ? "Cambio de recinto aprobado" : "Cambio de recinto rechazado",
+          mensaje: e.titulo,
+          referencia: `/organizador/eventos/${id}`,
+        });
+        if (decision === "rechazar") return { exito: true };
+        b = { peticion: solicitada.peticion, version: solicitada.firma, aceptarReduccion: true };
+      }
+      const { e, act, controlado, destinos, propuesta } = await propuestaRecinto(c, id, u, b);
+      const motivo = texto(propuesta.peticion.motivo, "el motivo", 2000);
       if (propuesta.reduccion && b.aceptarReduccion !== true)
         fallo("Confirma expresamente la reducción de aforo.");
+      if (!solicitud) {
+        const referencia = `${id}/${act.id}`;
+        const pendiente = await c.query(
+          `SELECT 1 FROM ticket_trade."Notificacion" WHERE tipo=$1 AND id_cuenta_destinataria=$2 AND referencia_destino=$3`,
+          [solicitudRecintoPendiente, e.id_cuenta_organizadora, referencia],
+        );
+        if (pendiente.rowCount) fallo("Ya hay una solicitud para este cambio de recinto.", 409);
+        if (!esRevisor) {
+          const revisores = await c.query(
+            `SELECT c.id_cuenta::text id FROM ticket_trade."Cuenta" c JOIN ticket_trade."TipoCuenta" t USING(id_tipo_cuenta) JOIN ticket_trade."EstadoCuenta" ec USING(id_estado_cuenta) WHERE t.nombre='Subdirección' AND ec.nombre='Activa'`,
+          );
+          if (!revisores.rowCount) fallo("No hay una cuenta de Subdirección disponible para revisar la solicitud.", 409);
+          const registro = await c.query(
+            `INSERT INTO ticket_trade."Notificacion"(id_cuenta_destinataria,tipo,titulo,mensaje,creada_en,referencia_destino)
+              VALUES ($1,$2,'Cambio de recinto',$3,now(),$4) RETURNING id_notificacion::text id`,
+            [e.id_cuenta_organizadora, solicitudRecintoPendiente, JSON.stringify(propuesta), referencia],
+          );
+          for (const revisor of revisores.rows)
+            await registrarAvisoBandeja(c, {
+              destinatario: revisor.id,
+              tipo: `recinto:${registro.rows[0].id}:solicitud`,
+              titulo: "Revisar cambio de recinto",
+              mensaje: `${e.titulo} · ${act.nombre}`,
+              referencia: `/organizador/eventos/${id}?cambioRecinto=${act.id}`,
+            });
+          return { exito: true, pendiente: true };
+        }
+      }
       const personas = await audiencia(c, [act.id]);
       if (controlado) {
         const categorias = (
@@ -655,8 +730,9 @@ routerEventos.post(
         propuesta,
         personas,
       );
+      return { exito: true };
     });
-    res.json({ datos: { exito: true } });
+    res.json({ datos: resultado });
   }),
 );
 routerEventos.post(

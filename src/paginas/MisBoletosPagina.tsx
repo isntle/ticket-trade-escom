@@ -1,3 +1,4 @@
+import { EncabezadoPagina } from "../componentes/ui/EncabezadoPagina";
 import { accesoPendienteDelEvento, agruparPasesEvento } from "../dominio/pasesEvento";
 import { inicioEnMexico } from "../dominio/solicitudes";
 import { nombreActividad } from '../dominio/actividades';
@@ -252,12 +253,9 @@ export const MisBoletosPagina: React.FC<PropiedadesMisBoletos> = ({ navigate }) 
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="mb-7">
-        <span className="text-[11px] font-bold text-[#7a132b] uppercase tracking-wider">Taquilla digital</span>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 mt-0.5">Mis boletos e historial</h1>
-        <p className="text-sm text-neutral-500 mt-1">Un boleto por evento con tus actividades reservadas y su estado de entrada.</p>
-      </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <EncabezadoPagina titulo="Mis boletos e historial"
+        descripcion="Consulta tus boletos, actividades reservadas y estado de entrada." />
 
       {totalRegistros === 0 && (
         <div className="mb-6">

@@ -1,11 +1,12 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { transporteApi } from "../servicios/http.js";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { impedimentoVerificacion, intentosPeriodo, periodoIdentidadActual, rechazosPeriodo } from "../dominio/periodosIdentidad";
-import { volverA } from '../dominio/navegacion';
+import { volverA, volverASeccion } from '../dominio/navegacion';
 import { apiActiva } from '../servicios/modoDatos';
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft, UploadCloud, FileCheck2, CircleCheck, Clock3, AlertTriangle,
+  UploadCloud, FileCheck2, CircleCheck, Clock3, AlertTriangle,
   XCircle, ShieldOff, CircleHelp
 } from "lucide-react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
@@ -391,12 +392,7 @@ export function GestionIdentidadPagina({
           : "Restricciones para solicitar eventos";
   return (
     <section className="mx-auto max-w-6xl space-y-5 px-4 py-8 sm:px-6">
-      <button
-        type="button"
-        className={boton + " inline-flex min-h-10 items-center gap-2 focus-visible:ring-2 focus-visible:ring-[#7a132b]"}
-        onClick={() => navigate(volverA(regreso))}
-      >
-        <ArrowLeft size={16} /><span>Regresar</span></button>
+      <BotonRegresar destino={vista === "expediente" ? "Volver a mi perfil" : admin ? "Volver a Administración" : subdireccion ? "Volver a Subdirección" : vista === "staff" ? "Volver a mis eventos y solicitudes" : "Volver a mi perfil"} alVolver={() => navigate(volverASeccion(regreso))} />
       <header>
         <FileCheck2 className="mb-3 text-[#7a132b]" />
         <p className="text-xs font-bold uppercase text-[#7a132b]">

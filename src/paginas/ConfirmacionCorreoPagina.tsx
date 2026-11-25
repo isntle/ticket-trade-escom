@@ -1,7 +1,8 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { destinoInternoSeguro } from '../dominio/navegacion';
 import { apiActiva } from '../servicios/modoDatos';
-import { volverA } from '../dominio/navegacion';
+import { volverASeccion } from '../dominio/navegacion';
 import React, { useState } from "react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { MarcoAcceso } from "../componentes/layout/MarcoAcceso";
@@ -46,9 +47,9 @@ export function ConfirmacionCorreoPagina({
         Confirma tu correo con el enlace recibido. Esto no equivale a
         verificación documental ni concede facultades para organizar eventos.
       </p>
-      <p className="mb-5 rounded-xl bg-amber-50 p-4 text-sm">
+      <p className="mb-5 rounded-xl bg-neutral-100 p-4 text-sm leading-6">
         {apiActiva
-          ? `Enviamos un enlace de confirmación${correo ? ` a ${correo}` : ' a tu correo'}. Abre el mensaje y pulsa «Confirmar correo». Si aún no aparece, revisa correo no deseado; la entrega puede tardar unos minutos.`
+          ? "Abre el enlace de confirmación en tu correo. Si no lo encuentras, revisa el correo no deseado o solicita otro enlace."
           : 'Esta vista usa datos locales. Puedes probar la confirmación con el código de demostración; no se envía a un buzón real.'}
       </p>
       {mensaje && (
@@ -138,7 +139,7 @@ export function ConfirmacionCorreoPagina({
         </>
       )}
       <nav className="mt-6 flex flex-wrap gap-4 border-t pt-5 text-sm">
-        <button onClick={() => navigate(volverA("/login"))}>Regresar</button>
+        <BotonRegresar destino="Volver al inicio de sesión" alVolver={() => navigate(volverASeccion("/login"))} />
         {auth.usuarioActual && (
           <button onClick={() => navigate("/perfil")}>Mi perfil</button>
         )}

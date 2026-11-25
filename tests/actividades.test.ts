@@ -4,7 +4,7 @@ import {validarProgramacion} from '../src/dominio/solicitudes';
 import {validarDistribuciones,lugaresDelRecinto} from '../src/dominio/distribucionSolicitud';
 import {convertirDiasSolicitud} from '../src/dominio/programa';
 import {validarItinerarios} from '../src/dominio/actividades';
-import {destinoTrasLogin,destinoInternoSeguro,alternativaRegreso,esRegreso,volverA} from '../src/dominio/navegacion';
+import {destinoTrasLogin,destinoInternoSeguro,alternativaRegreso,esRegreso,volverA,volverASeccion} from '../src/dominio/navegacion';
 import {RECINTOS_INICIALES,SOLICITUDES_INICIALES} from '../src/datos/datosIniciales';
 import type {ElementoFechaSolicitada} from '../src/tipos';
 const ahora=new Date('2030-01-01T12:00:00-06:00');
@@ -76,4 +76,11 @@ test('la sesión abre el panel del rol y conserva los enlaces internos de regres
   assert.equal(destinoTrasLogin('/eventos/1001/reservar?dateId=1002#detalle', ['admin']), '/eventos/1001/reservar?dateId=1002#detalle');
   assert.equal(destinoTrasLogin('//ejemplo.invalido', ['admin']), '/admin');
   assert.equal(destinoTrasLogin('/login', ['admin']), '/admin');
+});
+
+test('el regreso con destino explícito conserva el historial solo dentro de la sección indicada', () => {
+  assert.equal(volverASeccion('/organizador', '/organizador?demo=1'), volverA('/organizador'));
+  assert.equal(volverASeccion('/organizador', '/subdireccion/solicitudes'), '/organizador');
+  assert.equal(volverASeccion('/staff?eventId=1001', '/staff?eventId=1002'), '/staff?eventId=1001');
+  assert.equal(volverASeccion('/eventos', '//otro-sitio.example/eventos'), '/eventos');
 });

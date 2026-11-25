@@ -5,7 +5,7 @@ import { apiActiva } from '../servicios/modoDatos';
 import { REGLA_INGRESO_ACTIVIDAD, describirActividad } from '../dominio/presentacionActividad';
 import { capacidadActividad } from '../dominio/taquilla';
 import { impedimentoActividad, impedimentoParticipante, rutaAccesoConRegreso, rutaDetalleEvento, rutaReservaActividad } from '../dominio/participacionActividad';
-import { volverA } from '../dominio/navegacion';
+import { volverA, volverASeccion } from '../dominio/navegacion';
 import React, { useState, useEffect, useRef } from 'react';
 import { useDisponibilidadTaquilla } from '../contextos/useDisponibilidadTaquilla';
 import { Clock, CheckCircle, AlertTriangle, ShieldCheck, Ticket, Users, Lock } from 'lucide-react';
@@ -167,7 +167,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     const msg = obtenerMensaje('ERR-MT-02');
     return (
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
-        <BotonRegresar destino="Volver al evento" alVolver={() => navigate(volverA(rutaDetalle))} />
+        <BotonRegresar destino="Volver al evento" alVolver={() => navigate(volverASeccion(rutaDetalle))} />
         <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-xs">
           <div className="w-12 h-12 rounded-xl bg-neutral-100 text-neutral-600 flex items-center justify-center mb-4">
             <Lock className="w-6 h-6" />
@@ -411,7 +411,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   return (
     <div data-interfaz="UI-40" tabIndex={-1} className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       {/* Botón Volver */}
-      <BotonRegresar destino="Volver al evento" alVolver={() => navigate(volverA(rutaDetalle))} />
+      <BotonRegresar destino="Volver al evento" alVolver={() => navigate(volverASeccion(rutaDetalle))} />
 
       {/* Cabecera de la Taquilla */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs mb-6">

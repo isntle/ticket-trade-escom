@@ -1,9 +1,11 @@
+import { EncabezadoPagina } from "../componentes/ui/EncabezadoPagina";
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, ClipboardList, Eye, Search, X } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { nombreActividad } from '../dominio/actividades';
-import { reemplazarParametrosUrl, volverA } from '../dominio/navegacion';
+import { reemplazarParametrosUrl, volverASeccion } from '../dominio/navegacion';
 import { puedeConsultarOcupacion } from '../dominio/ocupacion';
 import { agruparActividadesPorDia, coincideConSeleccion, describirActividad, etiquetaOpcionActividad, fechaLegible } from '../dominio/presentacionActividad';
 import { apiActiva } from '../servicios/modoDatos';
@@ -104,11 +106,13 @@ export const HistorialAccesosPagina: React.FC<PropiedadesHistorial> = ({ navigat
     setHasta('');
   };
 
-  return <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-    <header className="mb-6"><span className="text-[11px] font-bold uppercase tracking-wider text-[#7a132b]">Check-in · IU-CI04</span><h1 className="mt-1 text-2xl font-black text-neutral-900">Historial de accesos</h1><p className="mt-1 text-sm text-neutral-600">Consulta de solo lectura de las entradas aceptadas por actividad y operador dentro de tu alcance autorizado.</p>{initialEventId && usuarioActual?.roles.some((rol) => ['staff', 'organizador', 'admin'].includes(rol)) && <button type="button" onClick={() => navigate(volverA(`/staff?eventId=${encodeURIComponent(initialEventId)}${initialDateId ? `&dateId=${encodeURIComponent(initialDateId)}` : ''}`))} className="mt-3 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-bold text-neutral-700 hover:bg-neutral-50">← Volver al control de acceso</button>}</header>
-    <div role="note" className="mb-5 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-xs text-neutral-700">
-      <strong className="font-bold text-neutral-900">Entradas aceptadas frente a intentos rechazados:</strong> las tablas de operación registran únicamente las entradas aceptadas con su hora, actividad y operador real. Los intentos rechazados (código ya utilizado, actividad no reservada o cancelada, fuera de horario u operador sin asignación) se validan y bloquean en el punto de acceso sin almacenarse en la base de datos, por lo que esta vista no simula una bitácora persistente de rechazos.
-    </div>
+  return <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    {initialEventId && usuarioActual?.roles.some((rol) => ['staff', 'organizador', 'admin'].includes(rol)) && <BotonRegresar destino="Volver al control de acceso" alVolver={() => navigate(volverASeccion(`/staff?eventId=${encodeURIComponent(initialEventId)}${initialDateId ? `&dateId=${encodeURIComponent(initialDateId)}` : ''}`))} />}
+    <EncabezadoPagina titulo="Historial de accesos" descripcion="Consulta las entradas aceptadas por actividad y operador." />
+    <details className="mb-5 text-sm text-neutral-600">
+      <summary className="cursor-pointer font-semibold">Entradas aceptadas frente a intentos rechazados</summary>
+      <p className="mt-2">El historial guarda las entradas aceptadas. Los intentos rechazados solo se muestran en el lector.</p>
+    </details>
     <section className="mb-5 grid gap-3 rounded-2xl border border-neutral-200 bg-white p-4 sm:grid-cols-3 lg:grid-cols-4">
       <label className="text-xs font-semibold text-neutral-600">Evento<select value={eventoId} onChange={(e) => { setEventoId(e.target.value); setDiaId('todos'); }} className="mt-1 w-full rounded-lg border border-neutral-300 bg-white p-2 text-sm"><option value="todos">Todos mis eventos</option>{eventosVisibles.map((evento) => <option key={evento.id} value={evento.id}>{evento.titulo}</option>)}</select></label>
       <label className="text-xs font-semibold text-neutral-600">Actividad<select value={diaId} onChange={(e) => setDiaId(e.target.value)} className="mt-1 w-full rounded-lg border border-neutral-300 bg-white p-2 text-sm"><option value="todos">Todas las actividades</option>{eventosDelFiltro.flatMap((evento) => agruparActividadesPorDia(evento.fechas).map((dia) => <optgroup key={`${evento.id}-${dia.fecha}`} label={eventoId === 'todos' ? `${evento.titulo} · ${dia.etiqueta}` : dia.etiqueta}>{dia.actividades.map(({ actividad, indice }) => <option key={actividad.id} value={actividad.id}>{etiquetaOpcionActividad(actividad, indice, nombreRecinto(actividad.idRecinto))}</option>)}</optgroup>))}</select></label>

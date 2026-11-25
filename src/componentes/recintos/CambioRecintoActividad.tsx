@@ -2,10 +2,18 @@ import { textoParaUsuario } from '../../utilidades/textoParaUsuario.js';
 import React from "react";
 import { ArrowRight, MapPin, ShieldCheck } from "lucide-react";
 import { VentanaModal } from "../ui/VentanaModal";
+import { useAutenticacion } from "../../contextos/AutenticacionContexto";
+import { useDisponibilidadRecintos } from "../../contextos/useDisponibilidadRecintos";
+import { revisarFranjaRecinto } from "../../dominio/disponibilidadRecintos";
+import { transporteApi } from "../../servicios/http";
+import { apiActiva } from "../../servicios/modoDatos";
 import { useDatos } from "../../contextos/DatosContexto";
 import { aforoActividad, nombreActividad } from "../../dominio/actividades";
 import type { PropuestaCambioRecinto } from "../../dominio/cambioRecinto";
 import type { Evento } from "../../tipos";
+
+const api = transporteApi();
+type SolicitudRecinto = { id: string; propuesta: PropuestaCambioRecinto };
 
 export function CambioRecintoActividad({
   evento,
@@ -16,11 +24,33 @@ export function CambioRecintoActividad({
   idActividad: string;
   alCerrar: () => void;
 }) {
-  const { listaRecintos, revisarCambioRecinto, confirmarCambioRecinto } =
-    useDatos();
+  const { listaRecintos, revisarCambioRecinto, confirmarCambioRecinto, obtenerOcupacionesRecinto, actualizarEstadoTaquilla } = useDatos();
+  const { rolActivo } = useAutenticacion();
+  const esRevisor = rolActivo === "subdireccion";
   const actividad = evento.fechas.find((a) => a.id === idActividad)!;
   const aforoActual = aforoActividad(actividad, evento.aforoMaximo) || 0;
   const [idRecinto, setRecinto] = React.useState("");
+  const agenda = useDisponibilidadRecintos(actividad.fecha, idActividad);
+  const consultarOcupaciones = (recinto: string) => agenda.remota
+    ? agenda.agenda?.recintos.find(r => r.id === recinto)?.ocupaciones || []
+    : obtenerOcupacionesRecinto(recinto, actividad.fecha);
+  const ocupaciones = consultarOcupaciones(idRecinto);
+  const revisionAgenda = revisarFranjaRecinto(
+    { id: idActividad, idRecinto, fecha: actividad.fecha, horaInicio: actividad.horaInicio, horaFin: actividad.horaFin },
+    ocupaciones.map(o => ({ ...o, fuente: o.tipo === "clase" || o.tipo === "bloqueo" ? o.tipo : "evento", informativa: o.tipo === "clase" })),
+    agenda.margen,
+  );
+  const rutaRecinto = `/organizacion/eventos/${evento.id}/recinto`;
+  const [pendiente, setPendiente] = React.useState<SolicitudRecinto | null>(null);
+  const [consulta, setConsulta] = React.useState(apiActiva ? "cargando" : "lista");
+  React.useEffect(() => {
+    if (!apiActiva) return;
+    const controlador = new AbortController();
+    void api<{ pendiente: SolicitudRecinto | null }>(`${rutaRecinto}/pendiente?actividad=${idActividad}`, { signal: controlador.signal })
+      .then(datos => { setPendiente(datos.pendiente); setConsulta("lista"); })
+      .catch(() => { if (!controlador.signal.aborted) setConsulta("error"); });
+    return () => controlador.abort();
+  }, [rutaRecinto, idActividad]);
   const [aforo, setAforo] = React.useState(aforoActual);
   const [motivo, setMotivo] = React.useState("");
   const [propuesta, setPropuesta] =
@@ -57,24 +87,61 @@ export function CambioRecintoActividad({
       anchoMaximo="4xl"
     >
       <div className="space-y-5">
-        <div className="rounded-xl bg-sky-50 p-4 text-sm text-sky-950">
+        <div className="rounded-xl bg-neutral-50 p-4 text-sm">
           <strong>
             {actividad.fecha} · {actividad.horaInicio}–{actividad.horaFin}
           </strong>
-          <p>
-            La fecha y el horario se conservan. Los boletos mantendrán su QR y
-            mostrarán el nuevo recinto y lugar.
-          </p>
+          <p className="mt-1 text-neutral-600">{listaRecintos.find(r => r.id === actividad.idRecinto)?.nombre}</p>
         </div>
         {mensaje && (
           <p
             role="status"
-            className={`rounded-xl p-4 text-sm ${confirmado ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-950"}`}
+            className={`rounded-xl p-4 text-sm ${confirmado ? "bg-neutral-50 text-neutral-900" : "bg-rose-50 text-rose-900"}`}
           >
             {textoParaUsuario(mensaje)}
           </p>
         )}
-        {!confirmado && !propuesta && (
+        {consulta === "cargando" && <p role="status">Consultando solicitudes…</p>}
+        {consulta === "error" && <p role="alert">No se pudo consultar. Cierra la ventana y vuelve a intentarlo.</p>}
+        {pendiente && !confirmado && (
+          <section className="space-y-3">
+            <h3 className="font-bold">Cambio pendiente de aprobación</h3>
+            <p className="text-sm">{pendiente.propuesta.recintoAnterior} → {pendiente.propuesta.recintoNuevo}</p>
+            <p className="text-sm"><strong>Aforo propuesto</strong> {pendiente.propuesta.aforoNuevo} · {pendiente.propuesta.compromisos} compromisos</p>
+            <p className="text-sm break-words">{pendiente.propuesta.peticion.motivo}</p>
+            {pendiente.propuesta.lugares.length > 0 && (
+              <details className="rounded-lg border border-neutral-200 p-3 text-sm">
+                <summary className="cursor-pointer font-semibold">Lugares reasignados</summary>
+                <ul className="mt-2 space-y-1">{pendiente.propuesta.lugares.map(l => (
+                  <li key={l.origen}>{l.etiquetaAnterior} → {l.etiquetaNueva}</li>
+                ))}</ul>
+              </details>
+            )}
+            {esRevisor && (
+              <div className="flex flex-wrap gap-3">
+                {(["aprobar", "rechazar"] as const).map(decision => (
+                  <button key={decision} type="button" disabled={guardando}
+                    className={`rounded-xl px-4 py-3 text-sm font-bold disabled:opacity-40 ${decision === "aprobar" ? "bg-[#7a132b] text-white" : "border border-neutral-200"}`}
+                    onClick={() => ejecutar(async () => {
+                      setMensaje("");
+                      try {
+                        await api(rutaRecinto, { metodo: "POST", datos: { idSolicitud: pendiente.id, decision } });
+                      } catch (error) {
+                        setMensaje(error instanceof Error ? error.message : "No se pudo resolver la solicitud.");
+                        return;
+                      }
+                      setConfirmado(true);
+                      setMensaje(decision === "aprobar" ? "Cambio de recinto aprobado." : "Cambio de recinto rechazado.");
+                      await actualizarEstadoTaquilla?.();
+                    })}>
+                    {decision === "aprobar" ? "Aprobar cambio" : "Rechazar solicitud"}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+        {!confirmado && !propuesta && !pendiente && consulta === "lista" && (
           <form
             className="space-y-4"
             onSubmit={async (e) => {
@@ -141,11 +208,26 @@ export function CambioRecintoActividad({
                   className={campo}
                 />
                 <span className="mt-1 block text-xs font-normal text-neutral-500">
-                  Aprobado: {aforoActual}. No se permite aumentar el aforo ni
-                  dejar fuera compromisos vigentes.
+                  Aforo actual {aforoActual}
                 </span>
               </label>
             </div>
+            {idRecinto && <section aria-label="Agenda del recinto" className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm">
+              <h3 className="font-bold">Ocupaciones del día</h3>
+              {agenda.estado === "error" ? (
+                <p className="mt-1">No se pudo actualizar la agenda. <button type="button" className="underline" onClick={agenda.recargar}>Volver a consultar</button></p>
+              ) : agenda.remota && !agenda.agenda ? (
+                <p className="mt-1" role="status">Consultando la agenda…</p>
+              ) : ocupaciones.length ? (
+                <ul className="mt-2 divide-y divide-neutral-200">
+                  {ocupaciones.map(o => <li key={o.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
+                    <span className="shrink-0 tabular-nums text-neutral-600">{o.horaInicio}–{o.horaFin}</span>
+                    <span>{o.titulo}</span>
+                    {revisionAgenda.conflictos.some(c => c.id === o.id) && <strong className="text-[#7a132b]">Coincide con esta actividad</strong>}
+                  </li>)}
+                </ul>
+              ) : <p className="mt-1 text-neutral-600">Sin ocupaciones registradas.</p>}
+            </section>}
             <label className="block text-sm font-semibold">
               Motivo del cambio
               <textarea
@@ -157,8 +239,8 @@ export function CambioRecintoActividad({
             </label>
             <div className="flex flex-wrap gap-3">
               <button
-                className="rounded-xl bg-[#7a132b] px-4 py-3 text-sm font-bold text-white"
-                disabled={guardando}
+                className="rounded-xl bg-[#7a132b] px-4 py-3 text-sm font-bold text-white disabled:opacity-40"
+                disabled={guardando || Boolean(idRecinto && !revisionAgenda.disponible)}
                 aria-busy={guardando}
                 type="submit"
               >
@@ -185,8 +267,8 @@ export function CambioRecintoActividad({
                 <strong className="block">{propuesta.recintoAnterior}</strong>
                 <span className="text-sm">Aforo {propuesta.aforoAnterior}</span>
               </div>
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                <span className="text-xs text-emerald-700">
+              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <span className="text-xs text-neutral-600">
                   Recinto propuesto
                 </span>
                 <strong className="block">{propuesta.recintoNuevo}</strong>
@@ -196,11 +278,7 @@ export function CambioRecintoActividad({
                 </span>
               </div>
             </div>
-            <p className="text-sm text-neutral-600">
-              Revisa cada lugar comprometido. Puedes elegir otro destino; no se
-              admiten duplicados. Las categorías y plazas especiales se
-              conservan.
-            </p>
+            {propuesta.lugares.length > 0 && <p className="text-sm text-neutral-600">Asigna un destino distinto a cada lugar comprometido.</p>}
             <div className="space-y-2">
               {propuesta.lugares.map((l) => (
                 <div
@@ -262,22 +340,14 @@ export function CambioRecintoActividad({
                 </div>
               ))}
             </div>
-            {!propuesta.lugares.length && (
-              <p className="rounded-xl bg-neutral-50 p-3 text-sm">
-                No hay asientos individuales comprometidos. Se conservarán los
-                cupos y la lista de espera.
-              </p>
-            )}
             {propuesta.reduccion && (
-              <label className="flex items-start gap-3 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
+              <label className="flex items-start gap-3 rounded-xl bg-neutral-50 p-4 text-sm">
                 <input
                   type="checkbox"
                   checked={reduccion}
                   onChange={(e) => setReduccion(e.target.checked)}
                 />
-                Acepto reducir expresamente el aforo de{" "}
-                {propuesta.aforoAnterior} a {propuesta.aforoNuevo}, conservando
-                los compromisos y plazas especiales.
+                Acepto reducir el aforo de {propuesta.aforoAnterior} a {propuesta.aforoNuevo}.
               </label>
             )}
             <label className="flex items-start gap-3 text-sm">
@@ -287,14 +357,10 @@ export function CambioRecintoActividad({
                 onChange={(e) => setRevisado(e.target.checked)}
               />
               <span>
-                Revisé los lugares y confirmo el cambio de recinto. La fecha y
-                el horario no cambian.
+                Revisé la propuesta y los lugares asignados.
               </span>
             </label>
-            <p className="text-xs text-neutral-500">
-              Los avisos quedan registrados para sus destinatarios. El envío se
-              procesa según la configuración de correo del entorno.
-            </p>
+            {apiActiva && !esRevisor && <p className="text-sm text-neutral-600">El recinto cambia después de que Subdirección lo apruebe.</p>}
             <div className="flex flex-wrap gap-3">
               <button
                 disabled={
@@ -309,7 +375,7 @@ export function CambioRecintoActividad({
                     );
                     setMensaje(
                       r.exito
-                        ? "Recinto actualizado. Se conservaron los QR, los compromisos y la programación."
+                        ? r.pendiente ? "Solicitud enviada a Subdirección." : "Recinto actualizado. Los boletos conservan su QR."
                         : r.error || "No se pudo confirmar.",
                     );
                     if (r.exito) setConfirmado(true);
@@ -317,7 +383,7 @@ export function CambioRecintoActividad({
                 }
               >
                 <ShieldCheck size={17} />
-                Confirmar cambio de recinto
+                {apiActiva && !esRevisor ? "Enviar a Subdirección" : "Confirmar cambio"}
               </button>
               <button
                 className="rounded-xl border border-neutral-200 px-4 py-3 text-sm"
@@ -326,10 +392,7 @@ export function CambioRecintoActividad({
                   setMensaje("");
                 }}
               >
-                Volver a la propuesta
-              </button>
-              <button className="px-4 py-3 text-sm" onClick={alCerrar}>
-                Cancelar sin cambios
+                Editar propuesta
               </button>
             </div>
           </section>

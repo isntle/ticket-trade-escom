@@ -1,11 +1,12 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { transporteApi } from "../servicios/http";
 import { apiActiva } from "../servicios/modoDatos";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import React from "react";
-import { ArrowLeft, GraduationCap, CalendarDays } from "lucide-react";
+import { GraduationCap, CalendarDays } from "lucide-react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { verificacionIdentidadVigente } from "../dominio/identidad";
-import { volverA } from "../dominio/navegacion";
+import { volverASeccion } from "../dominio/navegacion";
 import type { PeriodoIdentidad } from "../dominio/periodosIdentidad";
 
 const api = transporteApi();
@@ -57,15 +58,8 @@ export function GestionAcademicaPagina({
   const elegida = auth.todosLosUsuarios.find((u) => u.id === propuesta?.id);
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6">
-      <button
-        onClick={() =>
-          navigate(volverA("/admin"))
-        }
-        className="flex items-center gap-2 text-sm"
-      >
-        <ArrowLeft size={16} />
-        Regresar
-      </button>
+      <BotonRegresar destino="Volver a Administración" alVolver={() =>
+          navigate(volverASeccion("/admin"))} />
       <header>
         <p className="font-semibold text-[#7a132b]">
           Administración

@@ -1,7 +1,9 @@
+import { EncabezadoPagina } from "../componentes/ui/EncabezadoPagina";
 import {modoDemostracionActivo} from '../dominio/demostracion';
 import { CATEGORIAS_EVENTO, modalidadActividad } from '../dominio/actividades';
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
+  Plus,
   Search,
   Calendar,
   MapPin,
@@ -114,31 +116,15 @@ export const CarteleraEventosPagina: React.FC<PropiedadesCarteleraEventos> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Encabezado Principal Editorial */}
-      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <span className="text-[11px] font-bold text-[#7a132b] uppercase tracking-wider block mb-1">
-            Escuela Superior de Cómputo · Instituto Politécnico Nacional
-          </span>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-neutral-900">
-            Cartelera Académica y Eventos
-          </h1>
-          <p className="text-xs sm:text-sm text-neutral-500 mt-1 max-w-2xl">
-            Conferencias magistrales, simposios de investigación, hackathons en
-            laboratorios y actividades institucionales oficiales.
-          </p>
-        </div>
-
-        {(
-          <button
-            type="button"
-            onClick={() => navigate("/solicitar-evento")}
-            className="boton-primario px-4 py-2.5 text-xs font-bold inline-flex items-center gap-2 shrink-0 cursor-pointer shadow-xs"
-          >
-            <span>+ Solicitar nuevo evento</span>
-          </button>
-        )}
-      </div>
+      <EncabezadoPagina
+        titulo="Cartelera Académica y Eventos"
+        descripcion="Consulta la programación de la Escuela Superior de Cómputo."
+        accion={<button type="button" onClick={() => navigate("/solicitar-evento")}
+          className="boton-primario inline-flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm">
+          <Plus size={16} aria-hidden="true" />
+          Solicitar nuevo evento
+        </button>}
+      />
 
       {/* ========================================================================= */}
       {/* 1. FILTROS Y BÚSQUEDA INTERACTIVA (Segmented Controls)                   */}

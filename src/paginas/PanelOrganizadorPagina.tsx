@@ -1,3 +1,4 @@
+import { EncabezadoPagina } from "../componentes/ui/EncabezadoPagina";
 import { modalidadActividad } from "../dominio/actividades";
 import { fechaLegible } from "../dominio/presentacionActividad";
 import { useImagenEvento } from "../componentes/eventos/useImagenEvento";
@@ -147,21 +148,14 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-      <header className="mb-6 flex flex-col gap-4 border-t-4 border-[#7a132b] pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-extrabold leading-tight tracking-tight text-neutral-900 sm:text-4xl">
-          {soloSolicitudes ? "Mis solicitudes" : "Mis eventos y solicitudes"}
-        </h1>
-
-        <button
-          type="button"
-          onClick={() => navigate("/solicitar-evento")}
-          className="boton-primario px-4 py-2.5 text-sm inline-flex items-center gap-2 cursor-pointer shadow-xs"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Solicitar nuevo evento</span>
-        </button>
-      </header>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <EncabezadoPagina titulo={soloSolicitudes ? "Mis solicitudes" : "Mis eventos y solicitudes"}
+        accion={<button type="button" onClick={() => navigate("/solicitar-evento")}
+          className="boton-primario inline-flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm">
+          <Plus size={16} aria-hidden="true" />
+          Solicitar nuevo evento
+        </button>}
+      />
 
       {/* Pestañas */}
       <div className="flex items-center gap-4 border-b border-neutral-200 mb-6 overflow-x-auto">

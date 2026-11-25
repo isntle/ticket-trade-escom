@@ -1,4 +1,3 @@
-import { regresarAlOrigen } from '../../dominio/navegacion';
 import React from 'react';
 import { Inbox } from 'lucide-react';
 import { textoParaUsuario } from '../../utilidades/textoParaUsuario';
@@ -6,7 +5,7 @@ import { textoParaUsuario } from '../../utilidades/textoParaUsuario';
 interface PropiedadesEstadoVacio {
   icono?: React.ReactNode;
   titulo: string;
-  descripcion: string;
+  descripcion?: string;
   textoAccion?: string;
   alHacerAccion?: () => void;
 }
@@ -24,14 +23,14 @@ export const EstadoVacio: React.FC<PropiedadesEstadoVacio> = ({
         {icono || <Inbox className="w-6 h-6" />}
       </div>
       <h3 className="text-sm font-bold text-neutral-800">{textoParaUsuario(titulo)}</h3>
-      <p className="text-xs text-neutral-500 max-w-sm mt-1">{textoParaUsuario(descripcion)}</p>
+      {descripcion && <p className="text-xs text-neutral-500 max-w-sm mt-1">{textoParaUsuario(descripcion)}</p>}
       {textoAccion && alHacerAccion && (
         <button
           type="button"
-          onClick={() => /^(Volver|Regresar)/i.test(textoAccion) ? regresarAlOrigen(alHacerAccion) : alHacerAccion()}
+          onClick={alHacerAccion}
           className="mt-4 px-4 py-2 rounded-lg bg-[#7a132b] hover:bg-[#630f23] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
         >
-          {/^(Volver|Regresar)/i.test(textoAccion) ? "Regresar" : textoAccion}
+          {textoAccion}
         </button>
       )}
     </div>

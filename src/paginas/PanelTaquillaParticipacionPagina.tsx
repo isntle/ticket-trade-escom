@@ -1,12 +1,12 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { modalidadActividad, nombreActividad, accesoMixto } from '../dominio/actividades';
-import { volverA } from '../dominio/navegacion';
+import { volverASeccion } from '../dominio/navegacion';
 import { afectaBloqueo } from '../dominio/bloqueos';
 import { inicioEnMexico } from '../dominio/solicitudes';
 import { etiquetaActividad, formatearFechaHoraInstitucional, indicadoresActividad, puedeAdministrarTaquilla, registrosDeActividad } from '../dominio/taquilla';
 import { generarCsvParticipantesAutorizados, participantesAutorizadosDeEvento } from '../utilidades/exportarParticipantesCsv';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeft,
   BarChart3,
   CalendarDays,
   CheckCircle2,
@@ -424,12 +424,7 @@ export const PanelTaquillaParticipacionPagina: React.FC<PropiedadesPanelTaquilla
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <button
-        type="button"
-        onClick={() => navigate(volverA(`/organizador/eventos/${evento.id}`))}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
-      >
-        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
+      <BotonRegresar destino="Volver al evento" alVolver={() => navigate(volverASeccion(`/organizador/eventos/${evento.id}`))} />
 
       <header className="bg-white rounded-2xl border border-neutral-200 p-5 sm:p-6 shadow-xs mb-5">
         <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-5">

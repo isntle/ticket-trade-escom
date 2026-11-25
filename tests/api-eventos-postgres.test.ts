@@ -10,6 +10,7 @@ test(
     process.env.TT_CORREO_CLAVE = crypto.randomBytes(32).toString("base64");
     const { app } = await import("../backend/app");
     const { pool, conTransaccion } = await import("../backend/bd/pool");
+    const { descifrar } = await import("../backend/modulos/correos/seguridad");
     const { versionEvento } = await import(
       "../backend/modulos/organizacion/version"
     );
@@ -50,6 +51,17 @@ test(
     });
     assert.equal(login.status, 200, await login.clone().text());
     const cookie = login.headers.get("set-cookie")!.split(";")[0];
+    const sub = (
+      await pool.query(
+        `SELECT correo FROM ticket_trade."Cuenta" c JOIN ticket_trade."TipoCuenta" tc USING(id_tipo_cuenta) WHERE tc.nombre='Subdirección'`,
+      )
+    ).rows[0];
+    const ls = await post("auth/login", {
+      correo: sub.correo,
+      password: "Password123!",
+    });
+    assert.equal(ls.status, 200);
+    const cs = ls.headers.get("set-cookie")!.split(";")[0];
     const alumno = (
       await pool.query(
         'SELECT id_cuenta::text id FROM ticket_trade."Estudiante" ORDER BY id_cuenta LIMIT 1',
@@ -113,7 +125,6 @@ test(
       {
         version,
         parcial: { titulo: "Encuentro de innovación actualizado" },
-        motivo: "Actualizar el nombre del encuentro",
       },
       cookie,
       "PATCH",
@@ -307,6 +318,27 @@ test(
       cookie,
     );
     assert.equal(r.status, 200, await r.clone().text());
+    assert.equal((await r.json()).datos.pendiente, true);
+    const rutaRecinto = "organizacion/eventos/" + fixture.e + "/recinto";
+    const leerSolicitud = (sesion: string) => fetch(
+      base + "/api/" + rutaRecinto + "/pendiente?actividad=" + p.idActividad,
+      { headers: { Cookie: sesion } },
+    );
+    const pendiente = await leerSolicitud(cs);
+    assert.equal(pendiente.status, 200, await pendiente.clone().text());
+    const { id: idSolicitud } = (await pendiente.json()).datos.pendiente;
+    assert.equal((await pool.query('SELECT id_recinto::text id FROM ticket_trade."Actividad" WHERE id_actividad=$1', [p.idActividad])).rows[0].id, fixture.recinto);
+    r = await post(rutaRecinto, { idSolicitud, decision: "aprobar" }, cookie);
+    assert.equal(r.status, 403);
+    r = await post(rutaRecinto, { idSolicitud, decision: "rechazar" }, cs);
+    assert.equal(r.status, 200, await r.clone().text());
+    assert.equal((await (await leerSolicitud(cookie)).json()).datos.pendiente, null);
+    r = await post(rutaRecinto, { version: propuesta.firma, peticion: propuesta.peticion, aceptarReduccion: true }, cookie);
+    assert.equal(r.status, 200, await r.clone().text());
+    const segunda = (await (await leerSolicitud(cs)).json()).datos.pendiente;
+    r = await post(rutaRecinto, { idSolicitud: segunda.id, decision: "aprobar" }, cs);
+    assert.equal(r.status, 200, await r.clone().text());
+    assert.equal((await pool.query('SELECT id_recinto::text id FROM ticket_trade."Actividad" WHERE id_actividad=$1', [p.idActividad])).rows[0].id, destino);
     assert.equal(
       (
         await pool.query(
@@ -346,17 +378,6 @@ test(
       cookie,
     );
     assert.equal(r.status, 403);
-    const sub = (
-      await pool.query(
-        `SELECT correo FROM ticket_trade."Cuenta" c JOIN ticket_trade."TipoCuenta" tc USING(id_tipo_cuenta) WHERE tc.nombre='Subdirección'`,
-      )
-    ).rows[0];
-    const ls = await post("auth/login", {
-      correo: sub.correo,
-      password: "Password123!",
-    });
-    assert.equal(ls.status, 200);
-    const cs = ls.headers.get("set-cookie")!.split(";")[0];
     r = await post(
       "organizacion/eventos/" + fixture.e + "/publicacion",
       { version: await versionEvento(pool, fixture.e) },
@@ -430,6 +451,13 @@ test(
       cookie,
     );
     assert.equal(r.status, 200, await r.clone().text());
+    const aviso = await pool.query(`SELECT mensaje FROM ticket_trade."Notificacion"
+      WHERE id_cuenta_destinataria=$1 AND titulo='Actividad cancelada' AND mensaje LIKE '%Cancelar solo el primer taller%'`, [alumno]);
+    assert.equal(aviso.rowCount, 1);
+    assert.match(aviso.rows[0].mensaje, /Actividad 1.*Encuentro de innovación actualizado/);
+    const correo = await pool.query("SELECT contenido FROM infra.correo_salida WHERE id_cuenta=$1 AND clave LIKE $2",
+      [alumno, `evento:${fixture.e}:operacion:%`]);
+    assert.equal(correo.rows.map(f => descifrar(f.contenido)).filter(c => c.titulo === "Actividad cancelada").length, 1);
     const reservas = (
       await pool.query(
         'SELECT er.nombre FROM ticket_trade."Reservacion" r JOIN ticket_trade."EstadoReservacion" er USING(id_estado_reservacion) WHERE id_boleto_evento=$1 ORDER BY id_reservacion',

@@ -57,6 +57,7 @@ test('agenda remota: error de actualización retira la afirmación de disponibil
   let fallar=false;
   const s=crearAlmacenDisponibilidad(servicio(async()=>{if(fallar)throw new Error('Sesión vencida');return agenda();}));
   await s.cargar(consulta);fallar=true;await s.cargar(consulta,true);
+  assert.ok(s.leer(consulta).agenda, 'conserva la agenda previa al fallar la actualización');
   assert.equal(s.leer(consulta).estado,'error');assert.equal(s.verificar('1',fecha,'10:00','11:00').disponible,false);
   assert.match(s.verificar('1',fecha,'10:00','11:00').motivo!,/Sesión vencida/);
   const html=renderizar(s,React.createElement(AgendaHorarioRecinto,{actividad,otras:[],alElegir:()=>{}}));
