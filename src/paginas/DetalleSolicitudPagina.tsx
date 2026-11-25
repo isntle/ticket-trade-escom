@@ -7,7 +7,7 @@ import {
 } from "../dominio/actividades";
 import { VistaItinerarios } from "../componentes/eventos/EditorItinerarios";
 import { volverA } from "../dominio/navegacion";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import { ProgramaDia } from "../componentes/eventos/EditorPrograma";
 import {
@@ -100,6 +100,7 @@ export const DetalleSolicitudPagina: React.FC<{
   const [guardando, setGuardando] = useState(false);
   const [actualizarDisponibilidad, setActualizarDisponibilidad] = useState(0);
   const [versionConsultada, setVersionConsultada] = useState(1);
+  const irADisponibilidad = useRef(false);
 
   const solicitud = listaSolicitudes.find((s) => s.id === requestId);
   const evento = listaEventos.find((e) => e.idSolicitud === solicitud?.id);
@@ -830,6 +831,11 @@ export const DetalleSolicitudPagina: React.FC<{
       {accion && (
         <VentanaModal
           estaAbierto
+          destinoFocoAlCerrar={() => {
+            if (!irADisponibilidad.current) return null;
+            irADisponibilidad.current = false;
+            return document.getElementById("titulo-disponibilidad");
+          }}
           alCerrar={() => {
             if (!guardando) setAccion(null);
           }}
@@ -898,9 +904,10 @@ export const DetalleSolicitudPagina: React.FC<{
               <button
                 type="button"
                 className={boton}
+                disabled={guardando}
                 onClick={() => {
+                  irADisponibilidad.current = true;
                   setAccion(null);
-                  requestAnimationFrame(() => document.getElementById("titulo-disponibilidad")?.focus());
                 }}
               >
                 Ver disponibilidad
