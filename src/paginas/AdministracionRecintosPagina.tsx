@@ -59,7 +59,7 @@ export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupac
 
   if (!usuarioActual?.roles.includes('admin')) return <div className="mx-auto max-w-xl p-8 text-center"><h1 className="text-xl font-bold">Administración de recintos</h1><p className="mt-3 text-sm">El registro y modificación de recintos y actividades internas corresponde al Administrador.</p><button onClick={() => navigate('/recintos')} className="mt-5 rounded-xl border px-4 py-2 text-sm">Consultar catálogo de recintos</button></div>;
 
-  return <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+  return <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
     <BotonRegresar destino="Volver a Administración" alVolver={() => navigate("/admin")} />
     <header className="mb-5">
       <h1 className="text-2xl font-extrabold tracking-tight">{modo === "catalogo" ? "Administrar recintos" : "Actividades internas"}</h1>
@@ -74,10 +74,7 @@ export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupac
         </button>
       ))}
     </nav>}
-    {verBloqueos ? <>
-      <GestionBloqueos navigate={navigate} />
-      <div className="mt-6"><BotonRegresar destino="Volver a Administración" alVolver={() => navigate("/admin")} /></div>
-    </> : modo === 'catalogo' ? <><ConfiguracionCalendarioRevision/>
+    {verBloqueos ? <GestionBloqueos navigate={navigate} /> : modo === 'catalogo' ? <><ConfiguracionCalendarioRevision/>
       {!agendaRemota && <div className="flex justify-end mb-4"><button onClick={() => abrirEdicion()} className="inline-flex items-center gap-2 rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-bold text-white"><Plus size={16}/>Agregar recinto</button></div>}
       <section className="grid gap-3 md:grid-cols-2">{listaRecintos.map((recinto) => <article key={recinto.id} className="rounded-2xl border border-neutral-200 bg-white p-5">
         <div className="flex justify-between gap-3"><div className="flex gap-3"><Building2 className="mt-1 text-[#7a132b]"/><div><h2 className="font-bold">{recinto.nombre}</h2><p className="text-sm text-neutral-500">{recinto.codigo} · {recinto.tipo} · capacidad {recinto.capacidad}</p></div></div><span className={`h-fit rounded-full px-2 py-1 text-sm font-semibold ${recinto.activo === false ? 'bg-neutral-100 text-neutral-600' : 'bg-emerald-50 text-emerald-700'}`}>{recinto.activo === false ? 'Desactivado' : 'Activo'}</span></div>
@@ -104,5 +101,5 @@ export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupac
       </form>
       <section className="space-y-3">{listaOcupacionesInternas.length ? listaOcupacionesInternas.map((o: OcupacionInterna)=><article key={o.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4"><div><h2 className="font-bold">{o.titulo}</h2><p className="text-sm text-neutral-600">{listaRecintos.find((r)=>r.id===o.idRecinto)?.nombre} · {o.fechaInicio}{o.fechaFin!==o.fechaInicio?` a ${o.fechaFin}`:''} · {o.horaInicio}–{o.horaFin}</p><p className="text-sm text-neutral-500">{o.descripcion} · Responsable: {o.responsable} · {o.estado}</p></div>{o.estado==='activa'&&<button onClick={()=>cancelarOcupacionInterna(o.id)} className="rounded-lg border px-3 py-2 text-sm font-bold text-rose-700">Cancelar actividad</button>}</article>) : <p className="rounded-xl border border-dashed p-8 text-center text-sm text-neutral-500"><CalendarDays className="mx-auto mb-2"/>No hay ocupaciones internas registradas.</p>}</section>
     </>}
-  </main>;
+  </div>;
 };

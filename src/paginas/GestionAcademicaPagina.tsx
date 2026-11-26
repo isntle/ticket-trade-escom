@@ -60,7 +60,7 @@ export function GestionAcademicaPagina({
   const puedeRecibirJefatura = (u: (typeof docentes)[number]) =>
     u.estaActivo && u.afiliacion === "profesor" && u.correoConfirmado === true && verificacionIdentidadVigente(u);
   return (
-    <main className="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6">
       <BotonRegresar destino="Volver a Administración" alVolver={() =>
           navigate(volverASeccion("/admin"))} />
       <header>
@@ -336,6 +336,6 @@ export function GestionAcademicaPagina({
           </div>
         </form>
       </section>
-    </main>
+    </div>
   );
 }

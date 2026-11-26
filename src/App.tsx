@@ -380,8 +380,6 @@ function ContenidoApp() {
       );
 
     // Operaciones Institucionales de Subdirección
-    if (rutaActual === "/subdireccion/restricciones")
-      return <GestionIdentidadPagina vista="restricciones" navigate={navegarA} />;
     if (rutaActual.startsWith("/subdireccion")) {
       if (rutaActual === "/subdireccion/recintos")
         return (

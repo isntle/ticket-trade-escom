@@ -139,7 +139,9 @@ export function ConfirmacionCorreoPagina({
         </>
       )}
       <nav className="mt-6 flex flex-wrap gap-4 border-t pt-5 text-sm">
-        <BotonRegresar destino="Volver al inicio de sesión" alVolver={() => navigate(volverASeccion("/login"))} />
+        {(!confirmado || auth.usuarioActual) && (
+          <BotonRegresar destino="Volver al inicio de sesión" alVolver={() => navigate(volverASeccion("/login"))} />
+        )}
         {auth.usuarioActual && (
           <button onClick={() => navigate("/perfil")}>Mi perfil</button>
         )}

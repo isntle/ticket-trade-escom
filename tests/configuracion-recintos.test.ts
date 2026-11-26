@@ -1,5 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { ContextoAutenticacion, ContextoDatos } from '../src/contextos/almacenes';
+import type { TipoAutenticacion } from '../src/contextos/AutenticacionContexto';
+import type { ContextoDatosTipo } from '../src/contextos/DatosContexto';
+import { ProveedorNotificaciones } from '../src/contextos/NotificacionesContexto';
+import { AdministracionRecintosPagina } from '../src/paginas/AdministracionRecintosPagina';
 import { crearServicioConfiguracionRecintos } from '../src/servicios/configuracionRecintos';
 import { transporteApi } from '../src/servicios/http';
 import { afectaBloqueo } from '../src/dominio/bloqueos';
@@ -57,4 +64,19 @@ test('un fin previsto no libera la ocupación antes de un cierre efectivo', () =
   const actividad = { idRecinto: '1', fecha: '2030-01-02', horaInicio: '10:00', horaFin: '11:00' } as any;
   assert.equal(afectaBloqueo(bloqueo as any, actividad), true);
   assert.equal(afectaBloqueo({ ...bloqueo, estado: 'cancelado' } as any, actividad), false);
+});
+
+test('ambas pestañas de recintos muestran un solo regreso a Administración', () => {
+  const autenticacion = { usuarioActual: { roles: ['admin'] } } as TipoAutenticacion;
+  const datos = { listaRecintos: [], listaOcupacionesInternas: [], listaBloqueos: [], listaEventos: [] } as unknown as ContextoDatosTipo;
+  for (const verBloqueos of [false, true]) {
+    const pagina = createElement(AdministracionRecintosPagina, {
+      modo: 'catalogo', verBloqueos, navigate: () => {},
+    });
+    const html = renderToStaticMarkup(createElement(ContextoAutenticacion.Provider, { value: autenticacion },
+      createElement(ContextoDatos.Provider, { value: datos },
+        createElement(ProveedorNotificaciones, { children: pagina }))));
+    assert.equal((html.match(/Volver a Administración/g) ?? []).length, 1);
+    assert.match(html, verBloqueos ? /Bloqueos de recintos/ : /Calendario hábil de revisión/);
+  }
 });

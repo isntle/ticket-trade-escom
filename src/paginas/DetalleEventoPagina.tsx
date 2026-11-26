@@ -6,7 +6,7 @@ import { capacidadActividad } from '../dominio/taquilla';
 import { impedimentoActividad, impedimentoParticipante, rutaAccesoConRegreso, rutaDetalleEvento, rutaReservaActividad } from '../dominio/participacionActividad';
 import { useImagenEvento } from '../componentes/eventos/useImagenEvento';
 import { VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
-import { volverA, volverASeccion } from '../dominio/navegacion';
+import { volverASeccion } from '../dominio/navegacion';
 import React, { useState } from 'react';
 import {
   Calendar,
@@ -147,14 +147,10 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
             >
               Desbloquear Evento
             </button>
-            <button
-              type="button"
-              onClick={() => navigate(volverA('/eventos'))}
-              className="w-full py-2 text-xs text-neutral-500 hover:text-neutral-900 cursor-pointer"
-            >
-              Regresar a la cartelera
-            </button>
           </form>
+          <div className="mt-4">
+            <BotonRegresar destino="Volver a la cartelera" alVolver={() => navigate(volverASeccion('/eventos'))} />
+          </div>
         </div>
       </div>
     );
