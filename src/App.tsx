@@ -259,9 +259,11 @@ function ContenidoApp() {
     // -------------------------------------------------------------
     if (rutaActual === "/recintos")
       return <CatalogoRecintosPagina navigate={navegarA} />;
-    if (rutaActual === "/admin/recintos")
+    const bloqueosAdministracion = rolActivo === "admin"
+      && rutaActual === "/subdireccion" && parametrosUrl.get("tab") === "bloqueos";
+    if (rutaActual === "/admin/recintos" || bloqueosAdministracion)
       return (
-        <AdministracionRecintosPagina modo="catalogo" navigate={navegarA} />
+        <AdministracionRecintosPagina modo="catalogo" verBloqueos={parametrosUrl.get("tab") === "bloqueos"} navigate={navegarA} />
       );
     if (rutaActual === "/admin/ocupaciones")
       return (
@@ -353,7 +355,7 @@ function ContenidoApp() {
       );
     }
 
-    if (rutaActual === "/organizador/staff")
+    if (rutaActual === "/organizador/staff" || rutaActual === "/admin/staff")
       return <GestionIdentidadPagina vista="staff" navigate={navegarA} />;
     if (rutaActual === "/mis-solicitudes")
       return <PanelOrganizadorPagina soloSolicitudes navigate={navegarA} />;
@@ -378,6 +380,8 @@ function ContenidoApp() {
       );
 
     // Operaciones Institucionales de Subdirección
+    if (rutaActual === "/subdireccion/restricciones")
+      return <GestionIdentidadPagina vista="restricciones" navigate={navegarA} />;
     if (rutaActual.startsWith("/subdireccion")) {
       if (rutaActual === "/subdireccion/recintos")
         return (

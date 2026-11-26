@@ -1,3 +1,6 @@
+import { filtrarPorTituloYEstado, ordenarEventosOrganizador, nombreEstadoOrganizador } from "../dominio/filtrosOrganizador";
+import { fechaLegible } from "../dominio/presentacionActividad";
+import { modalidadActividad } from "../dominio/actividades";
 import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { transporteApi } from "../servicios/http.js";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
@@ -111,6 +114,7 @@ export function GestionIdentidadPagina({
   const [relacionadas, setRelacionadas] = useState("");
   const [accion, setAccion] = useState<"aplicar" | "levantar">("aplicar");
   const [eventoId, setEventoId] = useState("");
+  const [buscarEventoStaff, setBuscarEventoStaff] = useState("");
   const [filtro, setFiltro] = useState("");
   const [apartado, setApartado] = useState<"pendientes" | "historial">("pendientes");
   const [cargandoListado, setCargandoListado] = useState(false);
@@ -135,6 +139,9 @@ export function GestionIdentidadPagina({
     (e) => admin || e.idOrganizador === cuenta?.id,
   );
   const evento = eventos.find((e) => e.id === eventoId);
+  const eventosStaff = vista === "staff"
+    ? ordenarEventosOrganizador(filtrarPorTituloYEstado(eventos, e => e.titulo, buscarEventoStaff, "TODOS"))
+    : [];
   const [staffRemoto, setStaffRemoto] = useState<{ evento: string; cuentas: CuentaStaff[] }>();
   const [revisionStaff, setRevisionStaff] = useState(0);
   const [errorStaff, setErrorStaff] = useState("");
@@ -388,7 +395,7 @@ export function GestionIdentidadPagina({
       : vista === "revision"
         ? admin ? "Verificaciones y revocaciones" : "Solicitudes de verificación"
         : vista === "staff"
-          ? "Personal de acceso de mis eventos"
+          ? (admin ? "Personal de acceso por evento" : "Personal de acceso de mis eventos")
           : "Restricciones para solicitar eventos";
   return (
     <section className="mx-auto max-w-6xl space-y-5 px-4 py-8 sm:px-6">
@@ -1042,37 +1049,42 @@ export function GestionIdentidadPagina({
         </article>
       )}
       {vista === "staff" && (
-        <article className="space-y-4 rounded-3xl border bg-white p-5">
-          {apiActiva && <p>Solo puedes asignar cuentas que ya aceptaron la invitación para este evento.</p>}
-          <p>
-            Asigna cuentas activas con correo confirmado a tus eventos. Retirar
-            una asignación impide nuevas operaciones sobre ese evento y conserva
-            su historial. Ser portador de un boleto Staff no concede este
-            permiso.
-          </p>
-          <label className="block text-sm">
-            Evento
-            <select
-              className={campo}
-              value={eventoId}
-              onChange={(e) => setEventoId(e.target.value)}
-            >
-              <option value="">Selecciona un evento</option>
-              {eventos.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.titulo}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            Buscar cuenta
-            <input
-              className={campo}
-              value={filtro}
-              onChange={(e) => setFiltro(e.target.value)}
-            />
-          </label>
+        <div className="grid items-start gap-5 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+          <section className="min-w-0 space-y-3 rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
+            <h2 className="font-bold">Elige un evento</h2>
+            <label className="block text-sm font-semibold">Buscar evento
+              <input type="search" className={campo} value={buscarEventoStaff} onChange={e => setBuscarEventoStaff(e.target.value)} />
+            </label>
+            <div className="max-h-[28rem] space-y-1.5 overflow-y-auto px-1 pb-1" aria-label="Eventos para asignar personal">
+              {eventosStaff
+                .map(({ evento: opcion, actividadPrincipal }) => (
+                  <button key={opcion.id} type="button" aria-pressed={opcion.id === eventoId}
+                    onClick={() => { setEventoId(opcion.id); setFiltro(""); }}
+                    className="block w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-left text-sm hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-[#7a132b] aria-pressed:border-[#7a132b] aria-pressed:bg-[#7a132b]/5">
+                    <strong className="block">{opcion.titulo}</strong>
+                    <span className="mt-1 block text-xs text-neutral-600">
+                      {actividadPrincipal ? `${fechaLegible(actividadPrincipal.fecha)} · ` : ""}{nombreEstadoOrganizador(opcion.estado)}
+                    </span>
+                  </button>
+                ))}
+              {!eventosStaff.length &&
+                <p className="py-2 text-sm text-neutral-600">No hay eventos para esta búsqueda.</p>}
+            </div>
+          </section>
+          <section className="min-w-0 space-y-4 rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
+            <h2 className="font-bold">Personal de acceso</h2>
+            {!evento && <p className="text-sm text-neutral-600">Elige un evento para consultar o cambiar las asignaciones.</p>}
+            {evento && <>
+              <p className="text-sm font-semibold">{evento.titulo}</p>
+              <p className="text-sm text-neutral-600">{apiActiva
+                ? "Para asignar el permiso, la cuenta debe tener el correo confirmado y haber aceptado la invitación del evento."
+                : "Puedes asignar cuentas activas con correo confirmado."}</p>
+              {evento.fechas.every(f => modalidadActividad(f, evento.modalidadAsistencia) === 'libre') &&
+                <p className="text-sm text-neutral-600">Este evento no tiene actividades que requieran validar un boleto.</p>}
+              <label className="block text-sm font-semibold">Buscar cuenta
+                <input type="search" className={campo} value={filtro} onChange={e => setFiltro(e.target.value)} />
+              </label>
+            </>}
           {errorStaff && <p role="alert">{errorStaff}</p>}
           {evento && apiActiva && !errorStaff && staffRemoto?.evento !== evento.id && <p role="status">Consultando personal de acceso…</p>}
           {evento && apiActiva && staffRemoto?.evento === evento.id && cuentasStaff.length === 0 &&
@@ -1113,12 +1125,13 @@ export function GestionIdentidadPagina({
                     }}
                   >
                     {u.eventosAsignadosStaff?.includes(evento.id)
-                      ? "Retirar Staff"
-                      : "Asignar Staff"}
+                      ? "Retirar permiso"
+                      : "Asignar permiso"}
                   </button>
                 </div>
               ))}
-        </article>
+          </section>
+        </div>
       )}
       {documento && (
         <VisorDocumentoIdentidad

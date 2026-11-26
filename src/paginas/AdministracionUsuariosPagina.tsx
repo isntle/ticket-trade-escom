@@ -181,41 +181,26 @@ export const AdministracionUsuariosPagina: React.FC<
         </p>
       </div>
 
-      <nav className="mb-5 flex flex-wrap gap-3 text-sm">
-        <button
-          className="rounded-xl border p-3 font-semibold hover:border-[#7a132b] hover:bg-rose-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7a132b]"
-          onClick={() => navigate("/admin/recintos")}
-        >
-          Administrar recintos y calendario de revisión
-        </button>
-        <button className="rounded-xl border p-3" onClick={() => navigate('/subdireccion?tab=bloqueos')}>
-          Bloqueos y mantenimiento de recintos
-        </button>
-        <button
-          className="rounded-xl border p-3"
-          onClick={() => navigate("/admin/expedientes")}
-        >
-          Revisar expedientes
-        </button>
-        <button
-          className="rounded-xl border p-3"
-          onClick={() => navigate("/admin/restricciones")}
-        >
-          Resolver restricciones
-        </button>
-        <button
-          className="rounded-xl border p-3"
-          onClick={() => navigate("/admin/jefaturas")}
-        >
-          Jefaturas de academia y periodos
-        </button>
-        <button
-          className="rounded-xl border p-3"
-          onClick={() => navigate("/organizador/staff")}
-        >
-          Asignar personal de acceso
-        </button>
+      <nav aria-label="Herramientas de Administración" className="mb-6 flex flex-wrap gap-3 text-sm">
+        {[
+          { ruta: "/admin/recintos", etiqueta: "Recintos y mantenimiento" },
+          { ruta: "/admin/expedientes", etiqueta: "Revisar expedientes" },
+          { ruta: "/admin/jefaturas", etiqueta: "Jefaturas de academia y periodos" },
+          { ruta: "/admin/staff", etiqueta: "Asignar personal de acceso" },
+        ].map(({ ruta, etiqueta }) => (
+          <button key={ruta} type="button" onClick={() => navigate(ruta)}
+            className="rounded-xl border border-neutral-200 bg-white p-3 text-left font-semibold hover:border-[#7a132b] hover:bg-[#7a132b]/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7a132b]">
+            {etiqueta}
+          </button>
+        ))}
       </nav>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-bold">Cuentas de usuario</h2>
+        <button type="button" onClick={() => navigate("/admin/restricciones")}
+          className="rounded-lg px-2 py-2 text-sm font-semibold text-[#7a132b] hover:bg-[#7a132b]/5 focus-visible:outline-2 focus-visible:outline-[#7a132b]">
+          Restricciones de cuentas
+        </button>
+      </div>
       {/* Barra de Filtros y Búsqueda */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-4 mb-6 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
         <div className="relative w-full sm:w-80">

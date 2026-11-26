@@ -56,6 +56,9 @@ export function GestionAcademicaPagina({
       </section>
     );
   const elegida = auth.todosLosUsuarios.find((u) => u.id === propuesta?.id);
+  const docentes = auth.todosLosUsuarios.filter(u => u.afiliacion === "profesor" || tieneJefatura(u));
+  const puedeRecibirJefatura = (u: (typeof docentes)[number]) =>
+    u.estaActivo && u.afiliacion === "profesor" && u.correoConfirmado === true && verificacionIdentidadVigente(u);
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6">
       <BotonRegresar destino="Volver a Administración" alVolver={() =>
@@ -83,12 +86,13 @@ export function GestionAcademicaPagina({
           Jefes de academia
         </h2>
         <p className="text-sm text-neutral-600">
-          Selecciona una academia y registra a la persona de Subdirección que otorgó el nombramiento. El dictamen de eventos sigue su flujo habitual.
+          Puedes nombrar a un docente con cuenta activa, correo confirmado y verificación vigente. Cada academia admite una jefatura.
         </p>
+        {!docentes.some(u => !tieneJefatura(u) && puedeRecibirJefatura(u)) && (
+          <p className="rounded-xl bg-neutral-50 p-3 text-sm text-neutral-700">No hay otros docentes que puedan recibir una jefatura por ahora.</p>
+        )}
         <div className="grid gap-3 md:grid-cols-2">
-          {auth.todosLosUsuarios
-            .filter((u) => u.afiliacion === "profesor" || tieneJefatura(u))
-            .map((u) => (
+          {docentes.map((u) => (
               <article
                 key={u.id}
                 className="rounded-xl border border-neutral-200 p-4"
@@ -102,13 +106,7 @@ export function GestionAcademicaPagina({
                     : "Identidad pendiente o vencida"}
                 </p>
                 <button
-                  disabled={
-                    !tieneJefatura(u) &&
-                    (!u.estaActivo ||
-                      u.afiliacion !== "profesor" ||
-                      !verificacionIdentidadVigente(u) ||
-                      u.correoConfirmado !== true)
-                  }
+                  disabled={!tieneJefatura(u) && !puedeRecibirJefatura(u)}
                   className="rounded-lg bg-[#7a132b] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
                   onClick={() => {
                     setPropuesta({

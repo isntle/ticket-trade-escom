@@ -1,5 +1,5 @@
+import { GestionBloqueos } from "../componentes/recintos/GestionBloqueos";
 import { BotonRegresar } from "../componentes/ui/BotonRegresar";
-import { volverASeccion } from '../dominio/navegacion';
 import { ConfiguracionCalendarioRevision } from '../componentes/recintos/CalendarioRevision';
 import React, { useState } from 'react';
 import { Building2, CalendarDays, Plus, Save, XCircle } from 'lucide-react';
@@ -8,7 +8,7 @@ import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { useNotificaciones } from '../contextos/NotificacionesContexto';
 import type { OcupacionInterna, Recinto, TipoRecinto } from '../tipos';
 
-export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupaciones'; navigate: (ruta: string) => void }> = ({ modo, navigate }) => {
+export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupaciones'; verBloqueos?: boolean; navigate: (ruta: string) => void }> = ({ modo, navigate, verBloqueos = false }) => {
   const { listaRecintos, listaOcupacionesInternas, guardarRecinto, crearOcupacionInterna, cancelarOcupacionInterna, verificarDisponibilidadRecinto, agendaRemota } = useDatos();
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
@@ -60,9 +60,24 @@ export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupac
   if (!usuarioActual?.roles.includes('admin')) return <div className="mx-auto max-w-xl p-8 text-center"><h1 className="text-xl font-bold">Administración de recintos</h1><p className="mt-3 text-sm">El registro y modificación de recintos y actividades internas corresponde al Administrador.</p><button onClick={() => navigate('/recintos')} className="mt-5 rounded-xl border px-4 py-2 text-sm">Consultar catálogo de recintos</button></div>;
 
   return <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-    <BotonRegresar destino="Volver a Administración" alVolver={() => navigate(volverASeccion("/admin"))} />
-    <header className="mb-6"><p className="text-sm font-bold  text-[#7a132b]">Organización y recintos</p><h1 className="text-2xl font-black mt-1">{modo === 'catalogo' ? 'Administrar recintos' : 'Actividades internas'}</h1><p className="text-sm text-neutral-600 mt-2">{modo === 'catalogo' ? (agendaRemota ? 'Consulta los recintos registrados y configura el calendario de revisión.' : 'Consulta, registra y actualiza la información y el estado de los espacios.') : (agendaRemota ? 'Consulta las ocupaciones registradas en la agenda de recintos.' : 'Registra actividades institucionales y consulta su impacto en la agenda.')}</p></header>
-    {modo === 'catalogo' ? <><ConfiguracionCalendarioRevision/>
+    <BotonRegresar destino="Volver a Administración" alVolver={() => navigate("/admin")} />
+    <header className="mb-5">
+      <h1 className="text-2xl font-extrabold tracking-tight">{modo === "catalogo" ? "Administrar recintos" : "Actividades internas"}</h1>
+    </header>
+    {modo === "catalogo" && <nav aria-label="Administración de recintos" className="mb-6 flex flex-wrap gap-2 border-b border-neutral-200 pb-3">
+      {[{ ruta: "/admin/recintos", texto: "Recintos y calendario", activo: !verBloqueos },
+        { ruta: "/admin/recintos?tab=bloqueos", texto: "Bloqueos y mantenimiento", activo: verBloqueos }].map(item => (
+        <button key={item.ruta} type="button" aria-current={item.activo ? "page" : undefined}
+          onClick={() => { if (!item.activo) navigate(item.ruta); }}
+          className={`rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7a132b] ${item.activo ? "bg-[#7a132b]/10 text-[#7a132b]" : "text-neutral-600 hover:bg-neutral-100"}`}>
+          {item.texto}
+        </button>
+      ))}
+    </nav>}
+    {verBloqueos ? <>
+      <GestionBloqueos navigate={navigate} />
+      <div className="mt-6"><BotonRegresar destino="Volver a Administración" alVolver={() => navigate("/admin")} /></div>
+    </> : modo === 'catalogo' ? <><ConfiguracionCalendarioRevision/>
       {!agendaRemota && <div className="flex justify-end mb-4"><button onClick={() => abrirEdicion()} className="inline-flex items-center gap-2 rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-bold text-white"><Plus size={16}/>Agregar recinto</button></div>}
       <section className="grid gap-3 md:grid-cols-2">{listaRecintos.map((recinto) => <article key={recinto.id} className="rounded-2xl border border-neutral-200 bg-white p-5">
         <div className="flex justify-between gap-3"><div className="flex gap-3"><Building2 className="mt-1 text-[#7a132b]"/><div><h2 className="font-bold">{recinto.nombre}</h2><p className="text-sm text-neutral-500">{recinto.codigo} · {recinto.tipo} · capacidad {recinto.capacidad}</p></div></div><span className={`h-fit rounded-full px-2 py-1 text-sm font-semibold ${recinto.activo === false ? 'bg-neutral-100 text-neutral-600' : 'bg-emerald-50 text-emerald-700'}`}>{recinto.activo === false ? 'Desactivado' : 'Activo'}</span></div>

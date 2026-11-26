@@ -3,6 +3,9 @@ import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { useEscaneosPendientes } from "../contextos/useEscaneosPendientes";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { inicioEnMexico } from "../dominio/solicitudes";
+import { apiActiva } from "../servicios/modoDatos";
+import { ordenarEventosOrganizador } from "../dominio/filtrosOrganizador";
+import type { Evento, FechaEvento } from "../tipos";
 import { modalidadActividad, nombreActividad } from '../dominio/actividades';
 import { volverASeccion, reemplazarParametrosUrl } from '../dominio/navegacion';
 import { REGLA_INGRESO_ACTIVIDAD, agruparActividadesPorDia, describirActividad, fechaLegible, horaOficial, horarioActividad } from '../dominio/presentacionActividad';
@@ -20,6 +23,9 @@ interface PropiedadesEscaneoStaff {
   initialEventId?: string;
   initialDateId?: string;
 }
+
+const validaBoleto = (fecha: FechaEvento, evento: Evento) =>
+  modalidadActividad(fecha, evento.modalidadAsistencia) !== "libre";
 
 const CLAVE_INTENTOS_MANUALES_CHECKIN = 'ticket_trade_checkin_intentos_manuales';
 
@@ -68,9 +74,9 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     if (!usuarioActual) return false;
     const esResponsable =
       usuarioActual.roles.includes('admin') ||
-      (usuarioActual.roles.includes('organizador') && ev.idOrganizador === usuarioActual.id) ||
+      (!apiActiva && usuarioActual.roles.includes('organizador') && ev.idOrganizador === usuarioActual.id) ||
       (usuarioActual.roles.includes('staff') && Boolean(usuarioActual.eventosAsignadosStaff?.includes(ev.id)));
-    return esResponsable && ev.fechas.some(f=>modalidadActividad(f,ev.modalidadAsistencia)==='controlado');
+    return esResponsable && ev.fechas.some(fecha => validaBoleto(fecha, ev));
   });
 
   const [eventoActivoId, setEventoActivoId] = useState(initialEventId ?? '');
@@ -85,13 +91,14 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     horaRegistro?: string;
   } | null>(null);
 
-  const eventoSeleccionado = eventosPermitidos.find(ev => ev.id === eventoActivoId) ?? eventosPermitidos[0];
-  const actividadesControladas = eventoSeleccionado?.fechas.filter(
-    fecha => modalidadActividad(fecha, eventoSeleccionado.modalidadAsistencia) === 'controlado',
+  const eventoSeleccionado = eventosPermitidos.find(ev => ev.id === eventoActivoId)
+    ?? ordenarEventosOrganizador(eventosPermitidos, ahoraSistema)[0]?.evento;
+  const actividadesConBoleto = eventoSeleccionado?.fechas.filter(
+    fecha => validaBoleto(fecha, eventoSeleccionado),
   ) ?? [];
-  const fechaSeleccionada = actividadesControladas.find(f => f.id === fechaActivaId)
-    ?? actividadesControladas.find(f => !f.cancelada && inicioEnMexico(f.fecha, f.horaFin) > ahoraSistema)
-    ?? actividadesControladas[0];
+  const fechaSeleccionada = actividadesConBoleto.find(f => f.id === fechaActivaId)
+    ?? actividadesConBoleto.find(f => !f.cancelada && inicioEnMexico(f.fecha, f.horaFin) > ahoraSistema)
+    ?? actividadesConBoleto[0];
   const idEventoSeleccionado = eventoSeleccionado?.id;
   const idFechaSeleccionada = fechaSeleccionada?.id;
   const estaAsignadoAEvento = Boolean(idEventoSeleccionado && idFechaSeleccionada);
@@ -123,6 +130,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     if (!eventoSeleccionado || !fechaSeleccionada) return { disponible: false, etiqueta: 'Actividad no disponible', detalle: 'Selecciona un evento y una actividad válida.' };
     if (fechaSeleccionada.cancelada || eventoSeleccionado.estado === 'cancelado') return { disponible: false, etiqueta: 'Actividad cancelada', detalle: 'El registro de entradas está cerrado.' };
     if (eventoSeleccionado.estado === 'finalizado') return { disponible: false, etiqueta: 'Evento finalizado', detalle: 'El registro de entradas está cerrado.' };
+    if (eventoSeleccionado.estado === 'configuracion' || eventoSeleccionado.estado === 'borrador') return { disponible: false, etiqueta: 'Evento sin publicar', detalle: 'El lector se habilita cuando se publica el evento y abre el acceso.' };
     const bloqueo = listaBloqueos.find((elemento) => {
       const aplicaRecinto = elemento.idRecinto === fechaSeleccionada.idRecinto || elemento.idRecinto === 'todos' || Boolean(elemento.idsRecintos?.includes(fechaSeleccionada.idRecinto));
       if (!aplicaRecinto || fechaSeleccionada.fecha < elemento.fechaInicio) return false;
@@ -135,7 +143,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     const fin = inicioEnMexico(fechaSeleccionada.fecha,fechaSeleccionada.horaFin);
     const apertura = inicio - 30 * 60 * 1000;
     if (!Number.isFinite(inicio) || !Number.isFinite(fin) || fin <= inicio) return { disponible: false, etiqueta: 'Horario inválido', detalle: 'No se puede validar el horario de esta actividad.' };
-    if (ahoraSistema < apertura) return { disponible: false, etiqueta: 'Aún no disponible', detalle: `El acceso abre a las ${horaOficial(apertura)} h.` };
+    if (ahoraSistema < apertura) return { disponible: false, etiqueta: 'Aún no abre el acceso', detalle: `El lector se habilita el ${fechaLegible(fechaSeleccionada.fecha)} a las ${horaOficial(apertura)} h, 30 minutos antes de la actividad.` };
     if (ahoraSistema >= fin) return { disponible: false, etiqueta: 'Finalizado', detalle: 'El registro de entradas está cerrado.' };
     return { disponible: true, etiqueta: 'Acceso abierto', detalle: `Cierra a las ${fechaSeleccionada.horaFin} h.` };
   })();
@@ -312,7 +320,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
                 <fieldset className="mt-5 min-w-0">
                   <legend className="text-sm font-semibold text-neutral-900">Actividad</legend>
                   {agruparActividadesPorDia(eventoSeleccionado.fechas).map(dia => {
-                    const actividades = dia.actividades.filter(({ actividad }) => actividadesControladas.includes(actividad));
+                    const actividades = dia.actividades.filter(({ actividad }) => actividadesConBoleto.includes(actividad));
                     if (!actividades.length) return null;
                     return <div key={dia.fecha} className="mt-3 space-y-2">
                       <p className="text-sm text-neutral-600">{fechaLegible(dia.fecha)}</p>
