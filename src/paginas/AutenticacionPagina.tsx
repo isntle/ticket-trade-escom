@@ -18,7 +18,9 @@ import {
   ChevronUp,
   Eye,
   EyeOff,
+  LogIn,
   ShieldCheck,
+  UserPlus,
 } from "lucide-react";
 
 const campo =
@@ -158,9 +160,48 @@ export function AutenticacionPagina({
 
   return (
     <MarcoAcceso>
-      <button type="button" onClick={()=>navigate('/eventos')} className="mb-7 inline-flex items-center gap-2 py-1 text-sm font-medium text-neutral-600 underline decoration-neutral-300 underline-offset-4 transition hover:text-[#7a132b] hover:decoration-[#7a132b] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#7a132b]">
-        <Calendar className="h-4 w-4" aria-hidden="true" />Consultar cartelera
-      </button>
+      {/* Botones de navegación en la parte superior derecha */}
+      <div className="mb-6 flex flex-wrap items-center justify-end gap-2.5 sm:gap-3">
+        <button
+          type="button"
+          onClick={() => navigate("/eventos")}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-300 bg-white px-3.5 py-2 text-xs font-semibold text-neutral-700 shadow-sm transition hover:bg-neutral-50 hover:text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#7a132b]/20 sm:text-sm"
+        >
+          <Calendar className="h-4 w-4 text-[#7a132b]" />
+          <span>Consultar cartelera</span>
+        </button>
+
+        {view === "login" ? (
+          <button
+            type="button"
+            onClick={() =>
+              navigate(
+                "/registro?continuar=" +
+                  encodeURIComponent(
+                    destinoInternoSeguro(
+                      new URLSearchParams(window.location.search).get(
+                        "continuar",
+                      ),
+                    ),
+                  ),
+              )
+            }
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#7a132b] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#630f23] focus:outline-none focus:ring-2 focus:ring-[#7a132b]/20 sm:text-sm"
+          >
+            <UserPlus className="h-4 w-4" />
+            <span>Crear cuenta</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => navigate("/login?continuar=" + encodeURIComponent(destinoInternoSeguro(new URLSearchParams(window.location.search).get("continuar"))))}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#7a132b] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#630f23] focus:outline-none focus:ring-2 focus:ring-[#7a132b]/20 sm:text-sm"
+          >
+            <LogIn className="h-4 w-4" />
+            <span>Iniciar sesión</span>
+          </button>
+        )}
+      </div>
 
       <header className="mb-7">
         <h2 className="text-3xl font-black tracking-tight text-neutral-900">
@@ -674,10 +715,6 @@ export function AutenticacionPagina({
           )}
         </section>
       )}
-      <div className="mt-7 border-t border-neutral-200/70 pt-5 text-center text-sm text-neutral-500">
-        {view==='login'?'¿Es tu primera vez?':'¿Ya tienes una cuenta?'}{' '}
-        <button type="button" onClick={()=>navigate((view==='login'?'/registro':'/login')+'?continuar='+encodeURIComponent(destinoInternoSeguro(new URLSearchParams(window.location.search).get('continuar'))))} className="font-semibold text-[#7a132b] underline decoration-[#7a132b]/40 underline-offset-4 hover:decoration-[#7a132b] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#7a132b]">{view==='login'?'Crear cuenta':'Iniciar sesión'}</button>
-      </div>
     </MarcoAcceso>
   );
 }
