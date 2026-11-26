@@ -5,6 +5,8 @@ import { useImagenEvento } from "../componentes/eventos/useImagenEvento";
 import {
   filtrarPorTituloYEstado,
   nombreEstadoOrganizador,
+  ordenarEventosOrganizador,
+  ordenarSolicitudesRecientes,
 } from "../dominio/filtrosOrganizador";
 import React, { useState, useMemo, useEffect } from "react";
 import {
@@ -305,9 +307,11 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
             </div>
           ) : (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {eventosFiltrados.map((evento) => {
-                const fechaPrincipal = evento.fechas[0];
-                const fechaConLugares = evento.fechas.find(fecha => !fecha.cancelada && modalidadActividad(fecha, evento.modalidadAsistencia) === "controlado");
+              {ordenarEventosOrganizador(eventosFiltrados).map(({ evento, actividadPrincipal: fechaPrincipal }) => {
+                const tieneLugares = (fecha: (typeof evento.fechas)[number]) =>
+                  !fecha.cancelada && modalidadActividad(fecha, evento.modalidadAsistencia) === "controlado";
+                const fechaConLugares = fechaPrincipal && tieneLugares(fechaPrincipal)
+                  ? fechaPrincipal : evento.fechas.find(tieneLugares);
                 return (
                   <TarjetaGestion key={evento.id} titulo={evento.titulo} imagen={evento.urlImagen} estado={evento.estado}
                     etiquetas={<>
@@ -467,7 +471,7 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
             </div>
           ) : (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {solicitudesFiltradas.map((sol) => (
+              {ordenarSolicitudesRecientes(solicitudesFiltradas).map((sol) => (
                 <TarjetaGestion key={sol.id} titulo={sol.tituloEvento} imagen={sol.urlImagen} estado={sol.estado}
                   etiquetas={(sol.visibilidad === "privado" || sol.esExcepcional) && <>
                     {sol.visibilidad === "privado" && <span className="rounded bg-rose-50 px-2 py-0.5">Privado</span>}

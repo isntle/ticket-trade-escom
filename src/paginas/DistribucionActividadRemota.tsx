@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { MapaAsientos } from '../componentes/asientos/MapaAsientos';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { useDatos } from '../contextos/DatosContexto';
+import { numerarLugaresFisicos } from '../dominio/numeracionLugares';
 import { modalidadActividad } from '../dominio/actividades';
 import { etiquetaActividad } from '../dominio/taquilla';
 import { ErrorApi, transporteApi } from '../servicios/http';
@@ -79,6 +80,8 @@ export function DistribucionActividadRemota({ eventId, dateId, navigate }: { eve
   const cambios = Object.entries(pendientes);
   const recinto = listaRecintos.find(r => r.id === distribucion?.idRecinto);
   const lugares = distribucion?.lugares ?? [];
+  const laboratorio = recinto?.tipo === 'laboratorio';
+  const numeros = numerarLugaresFisicos(lugares, laboratorio);
   const motivosNoEditables = new Map<string, string>();
   const mapa = lugares.map<ConfiguracionAsiento>((lugar, indice) => {
     const valor = pendientes[lugar.idLugarRecinto] ?? lugar.categoria;
@@ -88,8 +91,9 @@ export function DistribucionActividadRemota({ eventId, dateId, navigate }: { eve
     return {
       id: lugar.idLugarRecinto,
       etiqueta: lugar.codigo,
-      fila: lugar.fila ?? '',
-      numero: Number(lugar.codigo.match(/\d+$/)?.[0] ?? indice + 1),
+      fila: lugar.fila || 'A',
+      numero: numeros[indice],
+      ...(laboratorio ? { equipoComputo: lugar.codigo } : {}),
       posicionX: lugar.x,
       posicionY: lugar.y,
       categoria: valor === 'bloqueado' ? 'asistente' : valor,
@@ -138,10 +142,13 @@ export function DistribucionActividadRemota({ eventId, dateId, navigate }: { eve
       </header>
       {ocupado && <p role="status">Procesando distribución…</p>}
       {aviso && <p role="status" className="text-emerald-800">{aviso}</p>}
-      {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-rose-900">{error}</p>}
-      {ruta && (error || distribucion) && <button type="button" className={boton} disabled={ocupado}
-        onClick={() => { setAviso(''); setLectura(n => n + 1); }}>Volver a consultar</button>}
-      {ruta && requiereConsulta && <p className="text-sm">Vuelve a consultar y revisa los cambios pendientes antes de guardar.</p>}
+      {error && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-neutral-200 bg-white p-3">
+          <p role="alert" className="text-sm text-neutral-800">{error}</p>
+          {ruta && requiereConsulta && <button type="button" className={boton} disabled={ocupado}
+            onClick={() => { setAviso(''); setLectura(n => n + 1); }}>Actualizar distribución</button>}
+        </div>
+      )}
       {ruta && distribucion && (
         <section className="space-y-4">
           <p className="text-sm">{recinto?.nombre} · Aforo de la actividad {distribucion.aforo}</p>

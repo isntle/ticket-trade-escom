@@ -5,6 +5,7 @@ import { exigirSesion, usuarioSesion } from "../identidad/auth.js";
 import { ruta, idEntero, fallo } from "../../comun/http.js";
 import { origenSeguro } from "../../comun/seguridad.js";
 import { leerEventos, leerRecintos } from "./catalogos.js";
+import { numerarLugaresFisicos } from "../../../src/dominio/numeracionLugares.js";
 import { estadoSolicitudDesdeCatalogo } from "../../../src/servicios/contratoOrganizacion.js";
 import { asegurarInfraEspeciales } from "../taquilla/especiales.js";
 import { conConfiguracion, leerCalendario, leerPlazos } from '../organizacion/calendario.js';
@@ -38,32 +39,27 @@ export async function leerEstado(u: any, eventoEnlace?: string) {
     e.fechas
       .filter((f) => f.modalidadAsistencia === "controlado")
       .map((f) => {
-        const porFila = new Map<string, number>();
         const laboratorio =
           recintos.find((r) => r.id === f.idRecinto)?.tipo === "laboratorio";
-        const lugares = asientos
-          .filter((l) => l.actividad === f.id)
-          .map((l, i) => {
-            const numeroFila = (porFila.get(l.fila) || 0) + 1;
-            porFila.set(l.fila, numeroFila);
-            return {
-              id: l.id,
-              fila: l.fila || "A",
-              numero: laboratorio ? i + 1 : numeroFila,
-              etiqueta: l.codigo,
-              ...(laboratorio ? { equipoComputo: l.codigo } : {}),
-              categoria:
-                ({
-                  Asistente: "asistente",
-                  VIP: "vip",
-                  Staff: "staff",
-                  Bloqueado: "asistente",
-                } as Record<string, string>)[l.categoria] || "sin_definir",
-              estaBloqueado: l.categoria === "Bloqueado" || l.averiado,
-              posicionX: l.x,
-              posicionY: l.y,
-            };
-          });
+        const lugaresActividad = asientos.filter((l) => l.actividad === f.id);
+        const numeros = numerarLugaresFisicos(lugaresActividad, laboratorio);
+        const lugares = lugaresActividad.map((l, i) => ({
+          id: l.id,
+          fila: l.fila || "A",
+          numero: numeros[i],
+          etiqueta: l.codigo,
+          ...(laboratorio ? { equipoComputo: l.codigo } : {}),
+          categoria:
+            ({
+              Asistente: "asistente",
+              VIP: "vip",
+              Staff: "staff",
+              Bloqueado: "asistente",
+            } as Record<string, string>)[l.categoria] || "sin_definir",
+          estaBloqueado: l.categoria === "Bloqueado" || l.averiado,
+          posicionX: l.x,
+          posicionY: l.y,
+        }));
         if (e.estado === "publicado" && lugares.filter(l=>!l.estaBloqueado).length >= (f.asistenciaEstimada || 1)) {
           f.esFinalConfirmado = true;
           Object.assign(f, { idArregloFinal: "pg-" + f.id });
