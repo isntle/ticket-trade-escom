@@ -627,10 +627,13 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
           className={`w-max px-2 sm:px-4 ${esAuditorio ? 'pb-7' : ''} ${medido ? 'absolute left-0 top-0 origin-top-left' : 'mx-auto'}`}
           style={medido && nivelZoom !== 1 ? { transform: `scale(${nivelZoom})` } : undefined}
         >
-          {/* CASO A: LABORATORIO DE CÓMPUTO SEGÚN BOCETO CON PIZARRÓN A LA DERECHA DE PC-28 */}
+          {/* CASO A: LABORATORIO DE CÓMPUTO */}
           {esLaboratorio ? (
             <div className="p-2 sm:p-4">
               <div className="flex items-center gap-3 sm:gap-6">
+                <span className="min-h-36 shrink-0 rotate-180 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1.5 text-center text-xs font-semibold leading-none tracking-wide text-white [writing-mode:vertical-rl]">
+                  Pizarrón
+                </span>
                 {/* Bloque Principal de Mesas e Islas de Cómputo */}
                 <div className="flex flex-col items-center gap-3 sm:gap-4">
                   {/* 1. FILA NORTE: 5 Módulos Verticales de 2 Equipos */}
@@ -766,10 +769,6 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                       </div>
                     ))}
                   </div>
-                </div>
-
-                <div className="grid w-10 shrink-0 place-items-center self-stretch rounded-xl bg-neutral-900 px-2 text-white sm:w-12">
-                  <span className="-rotate-90 whitespace-nowrap text-xs font-semibold tracking-wide">Pizarrón</span>
                 </div>
               </div>
             </div>
