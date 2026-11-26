@@ -7,6 +7,7 @@ interface PropiedadesVentanaModal {
   alCerrar: () => void;
   titulo?: string;
   subtitulo?: string;
+  destinoFocoAlCerrar?: () => HTMLElement | null;
   children: React.ReactNode;
   anchoMaximo?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl' | '5xl';
 }
@@ -30,6 +31,7 @@ export const VentanaModal: React.FC<PropiedadesVentanaModal> = ({
   alCerrar,
   titulo,
   subtitulo,
+  destinoFocoAlCerrar,
   children,
   anchoMaximo = 'lg'
 }) => {
@@ -40,6 +42,8 @@ export const VentanaModal: React.FC<PropiedadesVentanaModal> = ({
   // La función de cierre puede cambiar en cada render; se guarda para no reiniciar el foco.
   const alCerrarRef = useRef(alCerrar);
   alCerrarRef.current = alCerrar;
+  const destinoFocoRef = useRef(destinoFocoAlCerrar);
+  destinoFocoRef.current = destinoFocoAlCerrar;
 
   useEffect(() => {
     if (!estaAbierto) return;
@@ -102,11 +106,19 @@ export const VentanaModal: React.FC<PropiedadesVentanaModal> = ({
       window.clearTimeout(temporizador);
       panel?.removeEventListener('focusout', alPerderFoco);
       window.removeEventListener('keydown', alTeclear);
+      const eraSuperior = esSuperior();
       const posicion = pilaVentanas.indexOf(identificador);
       if (posicion >= 0) pilaVentanas.splice(posicion, 1);
       if (pilaVentanas.length === 0) document.body.style.overflow = overflowOriginal;
-      // Al cerrar, el foco vuelve al control que abrió la ventana si sigue en la página.
-      if (origen && origen.isConnected) window.setTimeout(() => origen.focus(), 0);
+      // Si la acción abre otra sección, enfócala después de desmontar el modal.
+      if (!eraSuperior) return;
+      const ventanaRestante = pilaVentanas.at(-1);
+      window.setTimeout(() => {
+        if (pilaVentanas.at(-1) !== ventanaRestante) return;
+        const destino = destinoFocoRef.current?.();
+        if (destino?.isConnected) destino.focus();
+        else if (origen?.isConnected) origen.focus();
+      }, 0);
     };
   }, [estaAbierto]);
 

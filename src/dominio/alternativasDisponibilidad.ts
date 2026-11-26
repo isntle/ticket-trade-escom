@@ -40,5 +40,14 @@ export function alternativasDisponibilidad(
   }
   opciones.sort((a, b) => Number(b.idRecinto === actividad.idRecinto) - Number(a.idRecinto === actividad.idRecinto) ||
     Math.abs(minutosRecinto(a.horaInicio) - minutosRecinto(actividad.horaInicio)) - Math.abs(minutosRecinto(b.horaInicio) - minutosRecinto(actividad.horaInicio)) || a.nombreRecinto.localeCompare(b.nombreRecinto));
-  return opciones.slice(0, 4);
+  const seleccion: AlternativaDisponibilidad[] = [];
+  const recintosMostrados = new Set<string>();
+  // Conservar opciones de horario y dar prioridad a recintos distintos antes de repetirlos.
+  for (const opcion of opciones) {
+    if (opcion.idRecinto !== actividad.idRecinto && recintosMostrados.has(opcion.idRecinto)) continue;
+    seleccion.push(opcion);
+    recintosMostrados.add(opcion.idRecinto);
+    if (seleccion.length === 4) return seleccion;
+  }
+  return [...seleccion, ...opciones.filter(o => !seleccion.includes(o))].slice(0, 4);
 }
