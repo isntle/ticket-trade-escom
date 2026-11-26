@@ -196,9 +196,16 @@ routerTaquilla.post(
       }
       const cp = await c.query(
         `INSERT INTO ticket_trade."CompromisoCupo"(id_actividad,id_estado_compromiso_cupo)
-      VALUES($1,(SELECT id_estado_compromiso_cupo FROM ticket_trade."EstadoCompromisoCupo" WHERE nombre='Activo')) RETURNING id_compromiso_cupo::text id`,
-        [id],
+        SELECT $1, activo.id_estado_compromiso_cupo
+        FROM ticket_trade."EstadoCompromisoCupo" activo
+        WHERE activo.nombre = 'Activo' AND (
+          SELECT count(*) FROM ticket_trade."CompromisoCupo" cp
+          WHERE cp.id_actividad = $1 AND cp.id_estado_compromiso_cupo = activo.id_estado_compromiso_cupo
+        ) < $2::int
+        RETURNING id_compromiso_cupo::text id`,
+        [id, a.aforo_solicitado],
       );
+      if (!cp.rowCount) fallo("Ya no quedan cupos disponibles para esta actividad.", 409);
       const idCupo = cp.rows[0].id;
       const ap = await c.query(
         `INSERT INTO ticket_trade."Apartado"(id_compromiso_cupo,id_cuenta,creado_en,id_estado_apartado)
@@ -321,7 +328,12 @@ routerTaquilla.post(
         `INSERT INTO ticket_trade."Reservacion"(id_boleto_evento,id_compromiso_cupo,confirmada_en,id_estado_reservacion)
       VALUES($1,$2,clock_timestamp(),(SELECT id_estado_reservacion FROM ticket_trade."EstadoReservacion" WHERE nombre='Confirmada')) RETURNING id_reservacion::text id`,
         [pase.id, id],
-      );
+      ).catch((error: unknown) => {
+        if (error instanceof Error && "code" in error && error.code === "23514" && error.message.startsWith("TT042:")) {
+          fallo("Tu apartado venció. Vuelve a elegir un lugar o cupo disponible.", 409);
+        }
+        throw error;
+      });
       const ocupacion = await c.query(
         `SELECT count(*)::int confirmadas FROM ticket_trade."Reservacion" r
          JOIN ticket_trade."CompromisoCupo" cp USING(id_compromiso_cupo)

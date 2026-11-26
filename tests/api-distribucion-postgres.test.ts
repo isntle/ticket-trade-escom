@@ -158,6 +158,12 @@ test("Distribución PostgreSQL: permisos, guardado, concurrencia y protección d
   assert.equal((await nuevoMapa.json()).datos.categorias[tercero.idLugarActividad], undefined);
   const { datos: reserva } = await confirmar.json();
   await pool.query('UPDATE ticket_trade."Actividad" SET aforo_solicitado=1 WHERE id_actividad=$1',[fixture.actividad]);
+  // Un lugar puede seguir libre aunque ya se haya agotado el aforo de la actividad.
+  const sinCupo = await solicitar("taquilla/apartados", "POST", propietario, {
+    idActividad: fixture.actividad, idLugar: tercero.idLugarActividad,
+  });
+  assert.equal(sinCupo.status, 409);
+  assert.equal((await sinCupo.json()).error.mensaje, "Ya no quedan cupos disponibles para esta actividad.");
   const aviso = `taquilla/actividades/${fixture.actividad}/aviso-cupo`;
   for (const cookie of [propietario, segundaSesion]) {
     const alta = await solicitar(aviso, "POST", cookie, {});

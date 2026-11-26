@@ -638,7 +638,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                 <div className="flex flex-col items-center gap-3 sm:gap-4">
                   {/* 1. FILA NORTE: 5 Módulos Verticales de 2 Equipos */}
                   <div className="flex items-center justify-center gap-2 sm:gap-3">
-                    {mesasNorte.map((mesa, idx) => (
+                    {mesasNorte.map((mesa, idx) => mesa.length > 0 && (
                       <div
                         key={`mesa-norte-${idx}`}
                         className="flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-xl bg-neutral-50/90 border border-neutral-200/80 shadow-2xs hover:border-[#7a132b]/40 transition-colors"
@@ -750,7 +750,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
 
                   {/* 3. FILA SUR: 5 Módulos Verticales de 2 Equipos */}
                   <div className="flex items-center justify-center gap-2 sm:gap-3">
-                    {mesasSur.map((mesa, idx) => (
+                    {mesasSur.map((mesa, idx) => mesa.length > 0 && (
                       <div
                         key={`mesa-sur-${idx}`}
                         className="flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-xl bg-neutral-50/90 border border-neutral-200/80 shadow-2xs hover:border-[#7a132b]/40 transition-colors"

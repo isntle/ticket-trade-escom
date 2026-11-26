@@ -13,6 +13,7 @@ import {
   zoomEfectivo,
   zoomMinimo,
 } from "../src/utilidades/zoomMapa";
+import { generarEstacionesLaboratorio } from "../src/datos/datosIniciales";
 import { MapaAsientos } from "../src/componentes/asientos/MapaAsientos";
 import { numerarLugaresFisicos } from "../src/dominio/numeracionLugares";
 import type { ConfiguracionAsiento } from "../src/tipos";
@@ -119,4 +120,18 @@ test("los códigos globales del catálogo quedan en los tres bloques del auditor
   }
   assert.match(html, /title="A-1001 — Asistente General"/);
   assert.deepEqual(numerarLugaresFisicos([{ fila: "A" }, { fila: "B" }], true), [1, 2]);
+});
+
+test("el mapa del laboratorio solo dibuja mesas con estaciones registradas", () => {
+  const estaciones = generarEstacionesLaboratorio();
+  const renderLaboratorio = (cantidad: number) => renderToString(React.createElement(MapaAsientos, {
+    asientos: estaciones.slice(0, cantidad), tipoRecinto: "laboratorio", modo: "asistente",
+  }));
+  const reducido = renderLaboratorio(30);
+  assert.match(reducido, /Mesa S<!-- -->1/);
+  assert.doesNotMatch(reducido, /Mesa S<!-- -->[2-5]/);
+  assert.equal((reducido.match(/>PC[0-9]{2}<\/span>/g) ?? []).length, 30);
+  const completo = renderLaboratorio(38);
+  assert.match(completo, /Mesa S<!-- -->5/);
+  assert.equal((completo.match(/>PC[0-9]{2}<\/span>/g) ?? []).length, 38);
 });
