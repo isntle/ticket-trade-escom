@@ -10,7 +10,7 @@ export const routerIntenciones = Router();
 async function preparar(c: PoolClient) {
   await c.query("SELECT pg_advisory_xact_lock(744220261107::bigint)");
   await c.query(`CREATE TABLE IF NOT EXISTS infra.intencion_asistencia (
-    id_cuenta bigint NOT NULL REFERENCES ticket_trade."PerfilUsuario"(id_cuenta) ON DELETE CASCADE,
+    id_cuenta bigint NOT NULL REFERENCES ticket_trade."Cuenta"(id_cuenta) ON DELETE CASCADE,
     id_actividad bigint NOT NULL REFERENCES ticket_trade."Actividad"(id_actividad) ON DELETE CASCADE,
     creada_en timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (id_cuenta, id_actividad)
@@ -52,11 +52,8 @@ routerIntenciones.post("/actividades/:id/intencion", exigirSesion, ruta(async (r
     if (!actividad || (actividad.visibilidad !== "Público" &&
         !tokenPrivadoValido(req.get("X-TicketTrade-Enlace"), actividad.token)))
       fallo("No puedes registrar intención para esta actividad.", 404);
-    const registro = await c.query(`INSERT INTO infra.intencion_asistencia(id_cuenta,id_actividad)
-      SELECT id_cuenta,$2 FROM ticket_trade."PerfilUsuario" WHERE id_cuenta=$1
-      ON CONFLICT (id_cuenta,id_actividad) DO UPDATE SET creada_en=intencion_asistencia.creada_en
-      RETURNING id_actividad`, [cuenta.id, id]);
-    if (!registro.rowCount) fallo("La cuenta no tiene un perfil participante.", 403);
+    await c.query(`INSERT INTO infra.intencion_asistencia(id_cuenta,id_actividad)
+      VALUES ($1,$2) ON CONFLICT (id_cuenta,id_actividad) DO NOTHING`, [cuenta.id, id]);
   });
   res.json({ datos: { exito: true } });
 }));

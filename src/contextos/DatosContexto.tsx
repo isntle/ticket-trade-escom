@@ -183,12 +183,12 @@ export interface ContextoDatosTipo {
     idUsuario: string,
     nombreUsuario: string,
     correoUsuario: string
-  ) => { exito: boolean; reservacion?: Reservacion; error?: string };
+  ) => { exito: boolean; reservacion?: Reservacion; error?: string; codigoError?: string };
 
-  liberarApartadoAsiento: (idReservacion: string) => void | Promise<{ exito: boolean; error?: string }>;
+  liberarApartadoAsiento: (idReservacion: string) => void | Promise<{ exito: boolean; error?: string; codigoError?: string }>;
   confirmarReservacion: (
     idReservacion: string
-  ) => { exito: boolean; boleto?: BoletoDigital; error?: string };
+  ) => { exito: boolean; boleto?: BoletoDigital; error?: string; codigoError?: string };
   cancelarReservacion: (idReservacion: string, idUsuario: string, motivo: string) => { exito: boolean; error?: string };
   cancelarReservacionPorEvento: (
     idReservacion: string,

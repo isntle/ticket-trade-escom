@@ -33,6 +33,7 @@ export async function instalar(c: pg.Pool | pg.Client) {
   await ejecutarSql(c, "migraciones/13_preferencias_perfil.sql");
   await ejecutarSql(c, "migraciones/15_correo_salida.sql");
   await ejecutarSql(c, "migraciones/16_boletos_especiales.sql");
+  await ejecutarSql(c, "migraciones/17_participacion_por_cuenta.sql");
 }
 export async function verificarModelo(c: pg.Pool | pg.Client) {
   const modelo = JSON.parse(
@@ -103,7 +104,12 @@ export async function verificarModelo(c: pg.Pool | pg.Client) {
   if (
     JSON.stringify(fks) !==
     JSON.stringify(
-      relacionesHtml.map((r: string[]) => r.slice(0, 4).join(".")).sort(),
+      relacionesHtml.map((r: string[]) => {
+        const [tabla, columna, destino, referencia] = r;
+        const participaPorCuenta = ["Apartado", "BoletoEvento", "AvisoDisponibilidad"].includes(tabla)
+          && columna === "id_cuenta" && destino === "PerfilUsuario";
+        return [tabla, columna, participaPorCuenta ? "Cuenta" : destino, referencia].join(".");
+      }).sort(),
     )
   )
     throw new Error(

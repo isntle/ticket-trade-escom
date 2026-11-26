@@ -47,6 +47,7 @@ interface PropiedadesMapaAsientos {
   permitirVip?: boolean;
   motivosNoEditables?: ReadonlyMap<string, string>;
   editorDeshabilitado?: boolean;
+  reservaDeshabilitada?: boolean;
 }
 
 export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
@@ -59,6 +60,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
   idsAsientosCheckIn = [],
   motivosNoEditables,
   editorDeshabilitado,
+  reservaDeshabilitada = false,
   alSeleccionarAsiento,
   permiteEliminar = false,
   permitirVip = true
@@ -312,10 +314,15 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
         textoAyuda = `${lugar.etiqueta} — ${esAuditorio ? 'Reservado para uso interno' : 'Reservado para comité técnico o docente'}`;
       }
 
+      if (reservaDeshabilitada && !noDisponible && !estaSeleccionado) {
+        estiloBoton = 'bg-neutral-50 border-neutral-200 text-neutral-500 cursor-not-allowed';
+        textoAyuda = `${lugar.etiqueta} — Selección no disponible por el momento`;
+      }
+
       return (
         <button
           type="button"
-          disabled={noDisponible}
+          disabled={noDisponible || reservaDeshabilitada}
           onClick={() => alSeleccionarAsiento && alSeleccionarAsiento(lugar)}
           title={textoAyuda}
           className={`relative shrink-0 rounded-md border font-mono flex flex-col items-center justify-center transition-all ${claseTamañoBoton} ${estiloBoton}`}

@@ -296,7 +296,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
       if (!motivo?.trim()) { mostrarNotificacion('Excepción cancelada', 'Se requiere una justificación para aplicar el cambio urgente.', 'advertencia'); return; }
       revisar(async () => {
       const resultado = await registrarCambioFecha([...(evento.historialExcepcionesAnticipacion || []), { idFechaEvento: idFecha, fechaAplicacion: new Date().toISOString(), motivo: motivo.trim(), responsable: usuarioActual?.nombre || 'Subdirección' }]);
-      if (!resultado.exito) { mostrarNotificacion('No se pudo reprogramar', resultado.error || 'Revisa los datos e inténtalo nuevamente.', 'error'); return; }
+      if (!resultado.exito) { mostrarNotificacion('No se pudo reprogramar', resultado.error || 'Consulta la agenda y comprueba que la fecha y el horario propuestos sigan disponibles.', 'error'); return; }
       mostrarNotificacion('Excepción aplicada', 'La justificación quedó registrada en la bitácora del evento.', 'informacion');
       setReprogramacion(null);
       });
@@ -304,7 +304,7 @@ export const ConfiguracionEventoPagina: React.FC<PropiedadesConfiguracionEvento>
     }
     revisar(async () => {
     const resultado = await registrarCambioFecha();
-    if (!resultado.exito) { mostrarNotificacion('No se pudo reprogramar', resultado.error || 'Revisa los datos e inténtalo nuevamente.', 'error'); return; }
+    if (!resultado.exito) { mostrarNotificacion('No se pudo reprogramar', resultado.error || 'Consulta la agenda y comprueba que la fecha y el horario propuestos sigan disponibles.', 'error'); return; }
     mostrarNotificacion('Programación actualizada', `Cambio registrado como versión ${(evento.historialCambios?.length || 0) + 1}.`, 'exito');
     setReprogramacion(null);
     });

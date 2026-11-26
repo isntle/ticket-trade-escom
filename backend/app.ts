@@ -89,22 +89,20 @@ app.use((err: any, _req: Request, res: Response, _next: any) => {
         : err.type === "entity.parse.failed"
           ? 400
           : 500);
-  res
-    .status(estado)
-    .json({
-      error: {
-        codigo:
-          estado === 500
-            ? "ERROR_SERVIDOR"
-            : estado === 409
-              ? "CONFLICTO"
-              : "OPERACION_INVALIDA",
-        mensaje:
-          estado === 500
-            ? "No se pudo completar la operación."
-            : err.estado
-              ? err.message
-              : "Revisa los datos o vuelve a consultar la información vigente.",
-      },
-    });
+  // Mientras se actualiza el esquema, explica el rechazo de las cuentas institucionales.
+  const vinculacionParticipante = err.code === "23503" && [
+    "fk_071", "fk_073", "fk_080", "intencion_asistencia_id_cuenta_fkey",
+  ].includes(err.constraint);
+  const codigo = vinculacionParticipante ? "PARTICIPACION_NO_HABILITADA"
+    : err.estado ? err.codigo || (estado === 409 ? "CONFLICTO" : "OPERACION_INVALIDA")
+    : estado === 500 ? "ERROR_SERVIDOR" : "SOLICITUD_RECHAZADA";
+  const mensaje = vinculacionParticipante
+    ? "La participación todavía no está habilitada para esta cuenta. Contacta al equipo de Ticket Trade."
+    : err.estado ? err.message
+    : estado === 500 ? "Ticket Trade no pudo procesar la solicitud. Vuelve a intentarlo en un momento."
+    : estado === 413 ? "El archivo o la solicitud supera el tamaño permitido. Reduce su tamaño y vuelve a enviarlo."
+    : estado === 400 ? "El servidor recibió una solicitud incompleta. Vuelve a abrir la pantalla e inténtalo de nuevo."
+    : estado === 409 ? "El servidor rechazó el cambio. Actualiza la pantalla antes de intentarlo de nuevo."
+    : "La información enviada ya no está disponible o no es válida para esta acción. Vuelve a abrir la pantalla y haz la selección de nuevo.";
+  res.status(estado).json({ error: { codigo, mensaje } });
 });

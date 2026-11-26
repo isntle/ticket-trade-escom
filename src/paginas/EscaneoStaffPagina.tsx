@@ -241,7 +241,8 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       setUltimoResultado({ ...res, horaRegistro: horaOficial(Date.now()) });
       setCodigoIngresado('');
     } catch {
-      mostrarNotificacion('No se pudo validar', 'Verifica la conexión y vuelve a intentarlo.', 'error');
+      setUltimoResultado({ exito: false, resultado: 'validacion_no_confirmada',
+        mensaje: 'Comprueba si la entrada se registró antes de volver a escanear el mismo boleto.' });
     } finally {
       validacionEnCurso.current = false;
       setValidando(false);
@@ -368,7 +369,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
                         ? <CheckCircle className="mt-0.5 h-6 w-6 shrink-0 text-emerald-700" aria-hidden="true" />
                         : <XCircle className="mt-0.5 h-6 w-6 shrink-0 text-rose-700" aria-hidden="true" />}
                       <div>
-                        <h3 className="text-xl font-bold text-neutral-900">{ultimoResultado.exito ? 'Entrada válida' : 'Entrada no válida'}</h3>
+                        <h3 className="text-xl font-bold text-neutral-900">{ultimoResultado.exito ? 'Entrada válida' : ultimoResultado.resultado === 'validacion_no_confirmada' ? 'Validación sin confirmar' : 'Entrada no válida'}</h3>
                         <p className="mt-1 text-sm text-neutral-600">{ultimoResultado.mensaje}</p>
                         {ultimoResultado.resultado === 'fuera_de_horario' && <p className="mt-2 text-sm text-neutral-600">{REGLA_INGRESO_ACTIVIDAD}</p>}
                       </div>
@@ -379,7 +380,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
                       {ultimoResultado.exito && <div className="grid gap-1 py-2.5 sm:grid-cols-[8rem_1fr]"><dt className="text-neutral-600">Hora de ingreso</dt><dd>{ultimoResultado.horaRegistro} h</dd></div>}
                     </dl>}
                     <button type="button" autoFocus onClick={limpiarParaSiguiente} className={`${botonPrimario} mt-4 w-full sm:w-auto`}>
-                      Escanear siguiente <ArrowRight size={16} aria-hidden="true" />
+                      {ultimoResultado.resultado === 'validacion_no_confirmada' ? 'Volver al lector' : 'Escanear siguiente'} <ArrowRight size={16} aria-hidden="true" />
                     </button>
                   </section>
                 ) : (

@@ -29,7 +29,7 @@ export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupac
   const guardar = (e: React.FormEvent) => {
     e.preventDefault();
     if (!recintoEditando?.nombre.trim() || !recintoEditando.codigo.trim() || recintoEditando.capacidad < 1) {
-      mostrarNotificacion('Revisa los datos', 'Nombre, código y capacidad son obligatorios.', 'advertencia'); return;
+      mostrarNotificacion('Faltan datos del recinto', 'Escribe el nombre, el código y una capacidad de al menos una persona.', 'advertencia'); return;
     }
     if (listaRecintos.some((r) => r.id !== recintoEditando.id && r.codigo.trim().toLowerCase() === recintoEditando.codigo.trim().toLowerCase())) {
       mostrarNotificacion('Código duplicado', 'Cada recinto debe tener un código institucional único.', 'error'); return;

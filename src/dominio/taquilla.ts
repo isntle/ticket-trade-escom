@@ -202,3 +202,47 @@ export function indicadoresActividad(evento: Evento, actividad: FechaEvento, dat
     ocupacion: aforo ? Math.min(100, Math.round(comprometidos / aforo * 100)) : 0
   };
 }
+
+type OperacionReserva = 'apartar' | 'apartar_cupo' | 'confirmar' | 'liberar';
+
+export function avisoOperacionReserva(
+  operacion: OperacionReserva,
+  { codigoError, error }: { codigoError?: string; error?: string },
+) {
+  const titulos = {
+    apartar: 'No se pudo apartar el lugar',
+    apartar_cupo: 'No se pudo apartar el cupo',
+    confirmar: 'No se pudo confirmar la reservación',
+    liberar: 'No se pudo liberar tu apartado',
+  };
+  const motivos: Record<string, string> = {
+    CUPO_AGOTADO: 'Cupo agotado',
+    LUGAR_OCUPADO: 'Lugar ocupado',
+    LUGAR_NO_HABILITADO: 'Lugar no disponible',
+    LUGAR_REQUERIDO: 'Elige un lugar',
+    RESERVA_EXISTENTE: 'Ya tienes una reservación',
+    APARTADO_NO_DISPONIBLE: 'Apartado no disponible',
+    APARTADO_VENCIDO: 'Apartado vencido',
+    PARTICIPACION_NO_HABILITADA: 'La cuenta aún no puede participar',
+  };
+  if (codigoError && motivos[codigoError] && error) {
+    return { titulo: motivos[codigoError], mensaje: error };
+  }
+  const resultadoIncierto = ['ERROR_RED', 'TIEMPO_RED', 'RESPUESTA_INVALIDA', 'ERROR_SERVIDOR'].includes(codigoError || '');
+  if (resultadoIncierto) {
+    return {
+      titulo: 'No se pudo verificar el resultado',
+      mensaje: operacion === 'confirmar'
+        ? 'Consulta Mis boletos antes de volver a confirmar. Si el boleto ya aparece ahí, tu reservación quedó registrada.'
+        : 'Consulta la disponibilidad para revisar el estado de tu apartado antes de volver a elegir.',
+    };
+  }
+  const siguientePaso = operacion === 'confirmar'
+    ? 'Consulta Mis boletos para verificar el resultado. Si tu apartado sigue vigente, puedes volver a confirmar.'
+    : 'Consulta la disponibilidad. Si el problema continúa, vuelve a abrir la actividad.';
+  return {
+    titulo: titulos[operacion],
+    mensaje: error && codigoError !== 'SOLICITUD_RECHAZADA' && error !== 'Revisa los datos o vuelve a consultar la información vigente.'
+      ? error : siguientePaso,
+  };
+}

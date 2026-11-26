@@ -425,7 +425,13 @@ test(
       "Dos sesiones no apartan el mismo asiento",
     );
     const rechazo = await carreras.find((r) => r.status === 409)!.json();
+    assert.equal(rechazo.error.codigo, "LUGAR_OCUPADO");
     assert.match(rechazo.error.mensaje, /Ese lugar ya está ocupado/);
+    const sinLugar = await pedir("/api/taquilla/apartados", { idActividad: actividad }, estudiante);
+    assert.equal(sinLugar.status, 422);
+    assert.deepEqual((await sinLugar.json()).error, {
+      codigo: "LUGAR_REQUERIDO", mensaje: "Elige un lugar en el mapa para apartarlo.",
+    });
     const ganador = carreras[0].status === 201 ? cookie : estudiante;
     const ap = await ok(
       carreras.find((r) => r.status === 201)!,

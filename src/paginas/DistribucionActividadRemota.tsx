@@ -44,10 +44,10 @@ export function DistribucionActividadRemota({ eventId, dateId, navigate }: { eve
   const [error, setError] = useState('');
   const evento = listaEventos.find(item => item.id === eventId);
   const actividad = evento?.fechas.find(item => item.id === dateId);
-  const tieneAcceso = evento && actividad && usuarioActual &&
+  const puedeConsultar = evento && usuarioActual &&
     ['organizador', 'subdireccion', 'admin'].includes(rolActivo) &&
-    (evento.idOrganizador === usuarioActual.id || usuarioActual.roles.includes('subdireccion')) &&
-    modalidadActividad(actividad, evento.modalidadAsistencia) === 'controlado';
+    (evento.idOrganizador === usuarioActual.id || usuarioActual.roles.includes('subdireccion'));
+  const tieneAcceso = puedeConsultar && actividad && modalidadActividad(actividad, evento.modalidadAsistencia) === 'controlado';
   const ruta = tieneAcceso
     ? `/organizacion/eventos/${encodeURIComponent(eventId)}/actividades/${encodeURIComponent(dateId)}/distribucion`
     : '';
@@ -138,7 +138,13 @@ export function DistribucionActividadRemota({ eventId, dateId, navigate }: { eve
           <p className="font-semibold text-neutral-900">{evento.titulo}</p>
           <p className="text-sm text-neutral-600">{etiquetaActividad(actividad, listaRecintos, evento.fechas.indexOf(actividad))}</p>
         </div>}
-        {!ruta && <p className="mt-2 text-sm text-neutral-600">Esta actividad no admite lugares asignados o tu perfil no puede consultarla.</p>}
+        {!ruta && <p className="mt-2 text-sm text-neutral-600">{!evento
+          ? 'El evento ya no está disponible en este panel.'
+          : !puedeConsultar
+            ? 'Tu perfil no tiene permiso para consultar la distribución de este evento.'
+            : !actividad
+              ? 'La actividad no está disponible en este evento. Vuelve al evento y elige otra actividad.'
+              : 'Esta actividad no utiliza lugares asignados.'}</p>}
       </header>
       {ocupado && <p role="status">Procesando distribución…</p>}
       {aviso && <p role="status" className="text-emerald-800">{aviso}</p>}

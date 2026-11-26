@@ -31,7 +31,8 @@ function clasificarErrorCheckIn(
   if (/entrada libre|no disponible|no existe/i.test(mensaje))
     return "evento_invalido";
   if (/no corresponde a un boleto/i.test(mensaje)) return "inexistente";
-  return "inexistente";
+  if (/no está vigente/i.test(mensaje)) return "reservacion_no_vigente";
+  return "validacion_no_confirmada";
 }
 
 const api = transporteApi();
@@ -160,6 +161,7 @@ function DatosDeSesion({ children, usuarioActual }: {
       return {
         exito: false,
         error: mensaje,
+        codigoError: e instanceof ErrorApi ? e.codigo : undefined,
         mensaje,
         resultado: "codigo_no_reconocido",
       };
@@ -410,7 +412,7 @@ function DatosDeSesion({ children, usuarioActual }: {
         );
         await actualizarTrasGuardar();
         return { exito: true };
-      }),
+      }, false),
     confirmarReservacion: (id: string) =>
       intentar(async () => {
         const apartado = estadoRef.current.listaReservaciones.find(
@@ -427,7 +429,7 @@ function DatosDeSesion({ children, usuarioActual }: {
           exito: true,
           boleto: nuevo.listaBoletos.find((b: any) => b.idReservacion === r.id),
         };
-      }),
+      }, false),
     cancelarReservacion: (id: string) =>
       intentar(async () => {
         await api("/taquilla/reservaciones/" + id + "/cancelacion", {
@@ -528,9 +530,15 @@ function DatosDeSesion({ children, usuarioActual }: {
         const mensaje =
           e instanceof Error ? e.message : "No se pudo validar el acceso.";
         const estadoHttp = e instanceof ErrorApi ? e.estado : undefined;
-        if (estadoHttp && estadoHttp >= 500) setError(mensaje);
-        const nuevo = await cargar().catch(() => estadoRef.current);
         const resultado = clasificarErrorCheckIn(mensaje, estadoHttp);
+        if (resultado === "validacion_no_confirmada") {
+          return {
+            exito: false,
+            resultado,
+            mensaje: "Comprueba si la entrada se registró antes de volver a escanear el mismo boleto.",
+          };
+        }
+        const nuevo = await cargar().catch(() => estadoRef.current);
         const codigoNorm = codigo.trim().toUpperCase();
         const boleto =
           resultado === "ya_utilizado" || resultado === "cancelado"
@@ -607,7 +615,7 @@ function DatosDeSesion({ children, usuarioActual }: {
   const aviso = (errorLectura || error) && (
     <div
       role="alert"
-      className={`m-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm ${listo && !error ? "border-amber-200 bg-amber-50 text-amber-900" : "border-rose-200 bg-rose-50 text-rose-800"}`}
+      className={`m-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm ${error ? "border-rose-200 bg-rose-50 text-rose-800" : "border-neutral-200 bg-white text-neutral-800"}`}
     >
       <p>{listo && !error ? "Se muestran los últimos datos disponibles. " : ""}{textoParaUsuario(errorLectura || error)}</p>
       <button type="button" className="font-semibold underline" onClick={reconsultar}>

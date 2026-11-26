@@ -205,7 +205,7 @@ export const DetalleSolicitudPagina: React.FC<{
                   );
 
       if (!resultado.exito) {
-        setError(resultado.error || "No se pudo completar la operación.");
+        setError(resultado.error || "Vuelve a abrir la solicitud para comprobar si el cambio se registró.");
         if (accion === "autorizar") {
           setActualizarDisponibilidad((n) => n + 1);
         }
@@ -224,7 +224,7 @@ export const DetalleSolicitudPagina: React.FC<{
       setError(
         e instanceof Error
           ? e.message
-          : "No se pudo completar la operación. Consulta el estado antes de reintentar.",
+          : "Se interrumpió el trámite. Vuelve a abrir la solicitud para comprobar si el cambio se registró.",
       );
       if (accion === "autorizar") {
         setActualizarDisponibilidad((n) => n + 1);

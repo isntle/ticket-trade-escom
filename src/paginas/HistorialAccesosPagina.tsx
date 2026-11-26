@@ -26,7 +26,8 @@ const ETIQUETAS_RESULTADO: Record<ResultadoEscaneo, string> = {
   cancelado: 'Rechazado · Cancelado',
   reservacion_no_vigente: 'Rechazado · Reserva no vigente',
   codigo_no_reconocido: 'Rechazado · Código no reconocido',
-  inexistente: 'Rechazado · Inexistente',
+  inexistente: 'Rechazado · Boleto inexistente',
+  validacion_no_confirmada: 'Validación sin confirmar',
   no_autorizado: 'Rechazado · Sin autorización',
   fuera_de_horario: 'Rechazado · Fuera de horario',
   suspendido: 'Rechazado · Actividad suspendida'
