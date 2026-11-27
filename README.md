@@ -1,104 +1,174 @@
-> Se conserva la estética original de Ticket Trade. El modo conectado utiliza las mismas pantallas y guarda en PostgreSQL. `?demo=1` activa cuentas, eventos y actividades de una **base independiente**; la URL normal utiliza la base limpia.
+> Se conserva la estética original de Ticket Trade. El modo conectado utiliza las mismas pantallas y guarda en PostgreSQL. Con `?demo=1` se activan las cuentas y el catálogo de demostración; en modo local aislado (`TT_DEMO_COMPARTIDA=0`) utiliza una **base independiente** de la base normal.
 >
-> [Arranque para la presentación y estado real de las conexiones](docs/ARRANQUE_Y_ESTADO.md) · [Guía técnica](backend/README.md) · [Preparación para Supabase y Vercel](docs/POSTGRESQL_DEMO_Y_SUPABASE.md).
+> [Guía técnica del backend](backend/README.md) · [Arranque y estado de conexiones](docs/ARRANQUE_Y_ESTADO.md) · [PostgreSQL demo y Supabase](docs/POSTGRESQL_DEMO_Y_SUPABASE.md) · [Conexión en producción](docs/SUPABASE_CONEXION.md).
 
 # TICKET TRADE — ESCOM IPN
 ### Sistema de Gestión de Eventos, Recintos, Boletaje Digital y Control de Acceso
 **Institución:** Escuela Superior de Cómputo (ESCOM) — Instituto Politécnico Nacional  
 **Materia:** Análisis y Diseño de Sistemas  
-**Alcance:** Aplicación académica con PostgreSQL y prototipo local independiente.
+**Alcance:** Aplicación full-stack (React + Vite + Express + PostgreSQL 16/Supabase) con modo local conectado y entorno de demostración aislado.
 
 ---
 
 ## 1. Visión General del Producto
 
-Ticket Trade es una plataforma institucional diseñada para gestionar de manera integral el ciclo de vida de los eventos celebrados dentro de ESCOM, abarcando desde la solicitud de espacios por parte de alumnos, docentes o entidades externas, hasta el control de acceso en puertas mediante boletos digitales con código QR y visualización de ocupabilidad en tiempo real.
-
-El sistema se compone de cuatro subsistemas desacoplados pero interconectados:
-1. **01. Identidad y Perfiles:** Cuenta base institucional con capacidades dinámicas (Asistente, Organizador, Staff de acceso, Subdirección y Administrador).
-2. **02. Organización y Recintos:** Solicitud, revisión y dictamen por Subdirección, configuración de eventos, administración de fechas independientes, recintos físicos y editor visual de arreglos (butacas) con versiones finales inmutables 1:1 por fecha.
-3. **03. Motor de Taquilla:** Cartelera de eventos (Público, Interno IPN, Privado con clave), modalidades de asistencia (Libre, Registro, Controlado), mapa interactivo de selección de asiento con apartado temporal de 2 minutos (sin pagos) y emisión de boleto digital QR. El alcance conectado vigente está detallado en la guía de arranque.
-4. **04. Check-In:** Aplicación móvil para personal de apoyo (Staff) con escáner QR, detección inmediata de boletos válidos, cancelados o reutilizados, y mapa en vivo de ocupabilidad del recinto.
+Ticket Trade gestiona el ciclo completo de los eventos celebrados en ESCOM:
+1. **01. Identidad y Perfiles:** Registro institucional, confirmación por correo, carga privada de PDF de verificación documental, revisión por Subdirección, restricciones y notificaciones en campana (`/api/estado`).
+2. **02. Organización y Recintos:** Solicitud de eventos (ordinaria y extraordinaria `< 168 h`), validación de disponibilidad y separación de 30 minutos entre actividades, dictamen de Subdirección, distribución de lugares por actividad (Asistente, VIP, Staff, Bloqueado) y publicación.
+3. **03. Motor de Taquilla:** Cartelera (Público, Interno IPN, Privado por enlace), modalidades (Libre, Registro sin asiento, Reservación con lugar asignado), mapa interactivo con apartado temporal de **2 minutos**, emisión de boleto digital QR/PDF y avisos de liberación de cupo.
+4. **04. Check-In:** Escáner QR y captura manual para personal de acceso (Staff), rechazo de boletos cancelados/reutilizados y mapa de ocupabilidad en vivo.
 
 ---
 
-## 2. Cómo Ejecutar el Prototipo
+## 2. Arranque Local
 
+### Requisitos previos
+- **Node.js** 22+ y **npm** 10+
+- **PostgreSQL** 16+ en ejecución (con permisos locales para crear bases si se ejecutará `npm run test:postgres`)
+
+### Variables de entorno requeridas (`.env`)
+Copia `.env.example` a `.env` en la raíz del proyecto y configura al menos:
+
+```dotenv
+PORT=4000
+APP_ORIGIN=http://localhost:3000
+
+# Bases distintas para operación normal y modo ?demo=1 aislado
+DATABASE_URL=postgresql://USUARIO:CONTRASENA@localhost:5432/tickettrade
+DATABASE_URL_DEMO=postgresql://USUARIO:CONTRASENA@localhost:5432/tickettrade_demo
+
+# Modo conectado a PostgreSQL
+VITE_MODO_DATOS=api
+TT_DEMO=1
+TT_DEMO_COMPARTIDA=0
+TT_MOSTRAR_CODIGOS=1
+TT_CORREO_ACTIVO=0
+```
+
+> Nunca asignes `DATABASE_URL` y `DATABASE_URL_DEMO` a la misma base cuando `TT_DEMO_COMPARTIDA=0`: el backend rechaza la petición con `BASES_NO_SEPARADAS` (HTTP `503`) y la semilla demo bloquea la ejecución.
+
+### Instalación, inicialización de PostgreSQL y levantamiento
 ```bash
-# Instalar dependencias
+# 1. Instalar dependencias
 npm install
 
-# Iniciar frontend y API juntos (puertos 3000 y 4000)
-npm start
+# 2. Instalar esquema y migraciones en la base normal (sin cuentas ni eventos semilla)
+npm run db:init
 
-# Compilar para producción
+# 3. Instalar esquema y sembrar catálogo/cuentas en la base demo
+npm run db:demo
+
+# 4. Verificar que ambas bases cumplen con las 73 tablas y 96 relaciones del modelo ER
+npm run db:verify
+npm run db:verify:demo
+
+# 5. Levantar backend (puerto 4000) y frontend Vite (puerto 3000) juntos
+npm start
+```
+
+- **Uso normal:** `http://localhost:3000/` (consulta `DATABASE_URL`, cookie `tt_sesion_id`)
+- **Demostración:** `http://localhost:3000/?demo=1` (consulta `DATABASE_URL_DEMO`, cookie `tt_sesion_demo`)
+- **Arranque en dos terminales (alternativa a `npm start`):** `npm run server` y `npm run dev` por separado.
+- **Inspección directa en PostgreSQL:** `npm run db:ver` y `npm run db:ver:demo` (o `npm run db:ver:demo -- Evento`).
+- **Cargar únicamente los 5 recintos físicos en base normal:** `npm run db:recintos`.
+
+---
+
+## 3. Pruebas Locales
+
+Todos los comandos se ejecutan desde la raíz del proyecto:
+
+```bash
+# 1. Verificación de tipos TypeScript (frontend, backend y pruebas)
+npm run lint
+
+# 2. Compilación de producción del frontend (Vite -> dist/)
 npm run build
 
-# Validar tipado y sintaxis
-npm run lint
+# 3. Suite unitaria y de contratos sin conexión a PostgreSQL (tests/*.test.ts)
+npm test
+
+# 4. Suite aislada contra PostgreSQL local (crea y destruye una BD desechable tt_pruebas_*)
+npm run test:postgres
 ```
 
-El servidor local corre en `http://localhost:3000`.
+- `npm test` ejecuta las pruebas unitarias y de dominio; las 11 suites `tests/api-*-postgres.test.ts` se omiten automáticamente si no existe `TT_API_PRUEBAS`.
+- `npm run test:postgres` (`backend/scripts/pruebas-postgres.ts`) crea una base temporal `tt_pruebas_<hex>`, instala el esquema desde cero, ejecuta `04_pruebas_integridad.sql`, corre las 11 suites PostgreSQL (autenticación, recuperación, correos, flujos completos, eventos, aislamiento demo/normal, disponibilidad, calendario/bloqueos, distribución, dictamen y notificaciones/bandeja) y elimina la base al finalizar. **No ejecutar contra Supabase remoto.**
 
 ---
 
-## 3. Cuentas y Roles del Prototipo Local
+## 4. Verificación de Despliegue
 
-La aplicación incluye un **Selector de Usuario y Rol** en la barra superior (TopBar), permitiendo cambiar de identidad con un solo clic para evaluar las diferentes perspectivas del sistema:
+Antes y después de desplegar (por ejemplo en **Vercel** + **Supabase**):
 
-| Nombre | Rol Activo | Afiliación | Identificador | Capacidades Clave |
-| :--- | :--- | :--- | :--- | :--- |
-| **Mtro. Fernando Silva Reyes** | Organizador | Profesor | Num: `ES-449102` | Gestiona el *Congreso Internacional de IA*, fechas, recintos y arreglos de asientos. |
-| **Carlos Mendoza López** | Asistente | Alumno | Boleta: `2022630192` | Explora la cartelera, reserva asientos en Auditorio, consulta boletos QR y solicita talleres. |
-| **Dra. Patricia Arriaga R.** | Subdirección | Administrativo | Plaza: `DIR-00281` | Revisa solicitudes ordinarias y excepcionales, aprueba/rechaza, bloquea recintos y crea eventos directos. |
-| **Ing. Roberto Gómez Morales** | Staff | PAE | Emp: `PAE-1194` | Escáner móvil de Check-in, auditoría de códigos QR y vista de ocupabilidad durante el evento. |
-| **Ing. Héctor Morales Téllez** | Administrador | Administrativo | Plaza: `ADM-9011` | Administración técnica de cuentas, activación/desactivación y asignación de permisos. |
-| **Lic. Mariana Torres** | Asistente | Externo | TechCorp México | Solicita eventos con comprobante empresarial y justificación de fechas extraordinarias. |
+```bash
+# 1. Compilar la función serverless api/index.ts como ESM estricto de Node y verificar su exportación
+npm run verify:api
+```
+
+El script `scripts/verificar-api.mjs` compila `api/index.ts` con `--module nodenext --moduleResolution nodenext` y verifica que Node importe `api/index.js` sin depender de `tsx`.
+
+### Comprobación de salud y aislamiento
+Con el servidor local o el despliegue en línea:
+
+```bash
+# Comprobar salud de la API (directo en :4000 o vía proxy en :3000)
+curl -sS http://localhost:3000/api/salud
+
+# Comprobar salud en modo demo aislado
+curl -sS -H "x-tickettrade-demo: 1" http://localhost:3000/api/salud
+```
+
+Respuesta esperada (`HTTP 200`):
+```json
+{"datos":{"estado":"en_linea","mensaje":"API de Ticket Trade conectada a PostgreSQL correctamente","fecha":"..."}}
+```
+
+### Variables de entorno a revisar en producción (Vercel)
+- **Conexión y TLS:** `DATABASE_URL` (pooler transaccional puerto `6543`, sin parámetros `sslmode`), `TT_POSTGRES_CA_PEM` o `TT_POSTGRES_CA_FILE` (certificado oficial de Supabase; nunca desactivar TLS).
+- **Orígenes y modo de datos:** `VITE_MODO_DATOS=api`, `APP_ORIGIN` (dominio exacto HTTPS) y `APP_ORIGIN_ALIASES` (solo dominios propios separados por coma). Nunca anteponer `VITE_` a secretos de servidor.
+- **Demostración / presentación:** `TT_DEMO=1`; si se usa presentación compartida (`TT_DEMO_COMPARTIDA=1`), definir `TT_PRESENTACION_CLAVE` y `TT_PRESENTACION_PASSWORD`. En modo aislado (`TT_DEMO_COMPARTIDA=0`), definir `DATABASE_URL_DEMO` apuntando a un proyecto distinto de `DATABASE_URL`.
+- **Correos y cron:** `TT_CORREO_ACTIVO`, `TT_CORREO_CLAVE`, `TT_CORREO_LIMITE_DIARIO`, `SMTP_*` y `CRON_SECRET` (`>= 32` caracteres para `/api/correos/procesar`).
 
 ---
 
-## 4. Arquitectura de Rutas Navegables
+## 5. Cuentas de Demostración (`?demo=1`)
+
+Contraseña en modo local aislado: `Password123!`
+
+| Nombre | Perfil | Correo demo | Notas |
+| :--- | :--- | :--- | :--- |
+| **Fernando Castro Pérez** | Administración | `cuenta1001@example.invalid` | Gestión técnica, usuarios, periodos y bloqueos. |
+| **Patricia González Ruiz** | Subdirección | `cuenta1002@example.invalid` | Dictamen de expedientes, solicitudes y agenda. |
+| **Roberto Silva Reyes** | Docente / Organizador | `cuenta1003@example.invalid` | Organizador verificado con eventos publicados. |
+| **Carlos Méndez Vega** | Estudiante | `cuenta1004@example.invalid` | Cuenta estudiantil inicial sin verificar (boleta `2022630412`). |
+| **Mariana Morales Navarro** | Externo | `cuenta1005@example.invalid` | Cuenta externa con expediente pendiente (`Fundación TechMX A.C.`). |
+| **Andrea Rangel Gómez** | Staff / Asistente | `cuenta1006@example.invalid` | Personal de acceso asignado al Simposio y cuenta asistente. |
+| **Lucía Torres Morales** | Estudiante | `ltorres.demo@alumno.ipn.mx` | Cuenta demo con correo pendiente de confirmación. |
+
+---
+
+## 6. Arquitectura de Rutas Navegables
 
 ```text
-/                                   -> Cartelera principal de eventos publicados
-/eventos                            -> Catálogo con filtros por categoría y modalidad
-/eventos/:id                        -> Detalle del evento, ponentes y desglose por fecha
-/eventos/:id/reservar               -> Selección visual de asiento con apartado de 10 min
-/mis-reservaciones                  -> Mis boletos QR digitales próximos e historial
-/solicitar-evento                   -> Formulario adaptativo de solicitud institucional
-/perfil                             -> Perfil y acreditaciones académicas del usuario
-/login                              -> Inicio de sesión y presets de cuentas demo
-/registro                           -> Registro con boleta, num. empleado o empresa
-/recuperar-password                 -> Flujo de recuperación de acceso
+/                                                  -> Cartelera principal de eventos publicados
+/eventos                                           -> Catálogo con filtros por categoría y modalidad
+/eventos/:id                                       -> Detalle del evento, actividades e intenciones
+/eventos/:id/reservar?dateId=:actId                -> Selección de asiento (apartado de 2 min) o cupo general
+/mis-reservaciones                                 -> Mis boletos QR digitales, descarga PDF e intenciones
+/solicitar-evento                                  -> Formulario guiado de solicitud institucional
+/perfil · /mi-expediente                           -> Perfil, envío y seguimiento de verificación documental
+/login · /registro · /confirmar-correo · /recuperar-password -> Acceso y recuperación de cuenta
 
-/organizador                        -> Panel de organizador: eventos y solicitudes
-/organizador/solicitudes/:id        -> Timeline de estado y dictamen de Subdirección
-/organizador/eventos/:id            -> Configuración general, fechas y checklist
-/organizador/eventos/:id/fechas/:dateId/arreglos -> Editor interactivo de butacas y versiones
+/organizador · /mis-solicitudes                    -> Panel de organizador: eventos y solicitudes
+/organizador/solicitudes/:id                       -> Timeline de estado y dictamen de Subdirección
+/organizador/eventos/:id                           -> Configuración general, publicación y logística
+/organizador/eventos/:id/fechas/:dateId/arreglos   -> Distribución de lugares por actividad (Asistente, VIP, Staff, Bloqueado)
+/organizador/eventos/:id/boletos-especiales        -> Emisión e invalidación de boletos especiales
+/organizador/eventos/:id/inscripciones             -> Gestión de inscripciones
+/organizador/eventos/:id/taquilla-participacion    -> Reporte y exportación CSV de participantes
 
-/subdireccion                       -> Dashboard operativo: solicitudes, agenda y bloqueos
-/staff/checkin                      -> Escáner de boletos QR (Mobile-First)
-/staff/ocupacion                    -> Mapa visual de ocupabilidad en tiempo real
-/admin                              -> Gestión técnica de usuarios y permisos
+/subdireccion · /subdireccion/verificaciones       -> Solicitudes de eventos, agenda y revisión de expedientes
+/staff/checkin · /staff/ocupacion · /staff/historial -> Escáner QR, ocupabilidad en vivo e historial
+/admin · /admin/recintos · /admin/ocupaciones      -> Usuarios, periodos escolares, jefaturas y recintos
 ```
-
----
-
-## 5. Recorridos de Demostración Guiados (Barra Flotante)
-
-En la esquina inferior izquierda se encuentra disponible la **Guía de Demostración Oficial**, con botones directos para los 7 escenarios requeridos:
-
-- **Escenario A — Evento Controlado de Punta a Punta:**  
-  Solicitud aprobada -> Configurar fechas -> Editor de arreglos -> Confirmar versión final -> Publicar -> Asistente aparta asiento (temporizador 10 min) -> Confirmación sin pago -> Boleto QR emitido -> Staff escanea QR -> Asiento pasa a estado ocupado.
-- **Escenario B — Evento Abierto / Registro:**  
-  Navegar a *Taller de Python* (Acceso libre) o *Jornadas de Inducción* (Registro de aforo). Se comprueba que no se fuerzan asientos ni códigos QR individuales innecesarios.
-- **Escenario C — Evento Privado:**  
-  Acceso restringido a la *Sesión de Consejo de Posgrado* mediante enlace directo o clave `POSGRADO-SEC-8820`. El evento no se expone en la cartelera pública.
-- **Escenario D — Conflicto de Disponibilidad:**  
-  Intentar programar una fecha en Auditorio el 12 de octubre (bloqueo por mantenimiento) o en empalme con otro evento. El sistema muestra la advertencia explícita y la regla de 30 minutos de despeje.
-- **Escenario E — Solicitud Excepcional (< 7 días):**  
-  En el formulario de solicitud, seleccionar una fecha a menos de una semana. El sistema detecta la situación, advierte al solicitante y habilita el campo obligatorio de *Justificación Excepcional* para revisión de Subdirección.
-- **Escenario F — Concurrencia de Asientos (Seat Race):**  
-  En el mapa de reservación, pulsar el botón *"Simular concurrencia"*. Se demuestra la liberación automática y notificación si otro usuario toma el lugar.
-- **Escenario G — Staff & QR Reutilizado:**  
-  En la pantalla de Staff, pulsar el botón de prueba *"Boleto Válido"* (éxito de check-in). Al pulsar *"Boleto Ya Utilizado"*, el escáner lo rechaza con el motivo: *"Este boleto ya fue utilizado previamente"*.
