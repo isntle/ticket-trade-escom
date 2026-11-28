@@ -165,7 +165,7 @@ export const SUBEQUIPOS: Subequipo[] = [
           "Subdirección revisa documentos y confirma aprobación, corrección o rechazo. Administración puede revocar la verificación con motivo.",
         ruta: "/subdireccion/verificaciones",
         estado: "comprobable",
-        control: "Ver detalle / Aprobar expediente / Confirmar decisión",
+        control: "Ver detalle / Aprobar / Confirmar decisión",
         respuesta:
           "Comprueba permiso, estado y versión; registra la decisión sin cancelar eventos o reservaciones.",
         usuarioDemo: "usr-subdireccion",
@@ -178,7 +178,7 @@ export const SUBEQUIPOS: Subequipo[] = [
         actor: "Subdirección, Administrador u Organizador",
         interfaz: "UI-IP-11 / UI-IP-12 · Restricciones y roles",
         descripcion:
-          "Subdirección solicita una restricción; Administración decide su aplicación y gestiona roles operativos. Subdirección asigna las jefaturas de academia. El Organizador asigna Staff de sus propios eventos.",
+          "Subdirección solicita una restricción; Administración decide su aplicación y gestiona roles operativos. Administración asigna las jefaturas de academia. El Organizador asigna Staff de sus propios eventos.",
         ruta: "/admin/restricciones",
         estado: "comprobable",
         control: "Confirmar restricción / Aceptar petición / Rechazar petición",

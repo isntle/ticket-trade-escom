@@ -13,7 +13,9 @@ import {
   zoomEfectivo,
   zoomMinimo,
 } from "../src/utilidades/zoomMapa";
+import { generarEstacionesLaboratorio } from "../src/datos/datosIniciales";
 import { MapaAsientos } from "../src/componentes/asientos/MapaAsientos";
+import { numerarLugaresFisicos } from "../src/dominio/numeracionLugares";
 import type { ConfiguracionAsiento } from "../src/tipos";
 
 test("al abrir, el mapa se ajusta al ancho disponible", () => {
@@ -97,4 +99,39 @@ test("el editor remoto deshabilita lugares protegidos y conserva los lugares edi
   const libre = html.match(/<button\b[^>]*title="B6 — Asistente General"[^>]*>/)?.[0];
   assert.ok(ocupado?.includes('disabled=""'));
   assert.ok(libre && !libre.includes('disabled=""'));
+});
+
+test("los códigos globales del catálogo quedan en los tres bloques del auditorio y conservan sus identificadores", () => {
+  let correlativo = 0;
+  const catalogo = [..."ABCDEFGHIJK"].flatMap((fila, indice) =>
+    Array.from({ length: [14, 21][indice] ?? 23 }, () => {
+      const id = String(++correlativo);
+      return { id, fila, etiqueta: id === "1" ? "A-1001" : `D-${id.padStart(3, "0")}` };
+    }),
+  );
+  const numeros = numerarLugaresFisicos(catalogo, false);
+  assert.deepEqual(numeros.slice(13, 17), [14, 1, 2, 3]);
+  const asientos: ConfiguracionAsiento[] = catalogo.map((lugar, i) => ({
+    ...lugar, numero: numeros[i], categoria: "asistente", estaBloqueado: false,
+  }));
+  const html = renderToString(React.createElement(MapaAsientos, { asientos, tipoRecinto: "auditorio", modo: "editor" }));
+  for (const [nombre, cantidad] of [["Bloque Lateral Izq.", 62], ["Bloque Central", 118], ["Bloque Lateral Der.", 62]]) {
+    assert.ok(html.includes(`<span>${nombre}</span><span class="text-[#7a132b] font-black">${cantidad}</span>`));
+  }
+  assert.match(html, /title="A-1001 — Asistente General"/);
+  assert.deepEqual(numerarLugaresFisicos([{ fila: "A" }, { fila: "B" }], true), [1, 2]);
+});
+
+test("el mapa del laboratorio solo dibuja mesas con estaciones registradas", () => {
+  const estaciones = generarEstacionesLaboratorio();
+  const renderLaboratorio = (cantidad: number) => renderToString(React.createElement(MapaAsientos, {
+    asientos: estaciones.slice(0, cantidad), tipoRecinto: "laboratorio", modo: "asistente",
+  }));
+  const reducido = renderLaboratorio(30);
+  assert.match(reducido, /Mesa S<!-- -->1/);
+  assert.doesNotMatch(reducido, /Mesa S<!-- -->[2-5]/);
+  assert.equal((reducido.match(/>PC[0-9]{2}<\/span>/g) ?? []).length, 30);
+  const completo = renderLaboratorio(38);
+  assert.match(completo, /Mesa S<!-- -->5/);
+  assert.equal((completo.match(/>PC[0-9]{2}<\/span>/g) ?? []).length, 38);
 });

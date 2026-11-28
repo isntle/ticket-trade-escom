@@ -1,7 +1,9 @@
+import { BotonRegresar } from "./componentes/ui/BotonRegresar";
+import { DistribucionActividadRemota } from "./paginas/DistribucionActividadRemota";
 import { apiActiva } from './servicios/modoDatos';
 import { GestionAcademicaPagina } from "./paginas/GestionAcademicaPagina";
 import { modoDemostracionActivo } from './dominio/demostracion';
-import { esRegreso, alternativaRegreso, destinoInternoSeguro, volverA } from './dominio/navegacion';
+import { esRegreso, alternativaRegreso, destinoInternoSeguro, volverASeccion } from './dominio/navegacion';
 import { CatalogoRecintosPagina } from "./paginas/CatalogoRecintosPagina";
 import React, { useState, useEffect } from "react";
 
@@ -9,7 +11,7 @@ import React, { useState, useEffect } from "react";
 import { ProveedorAutenticacion, useAutenticacion } from "./contextos";
 import { ProveedorDatos } from "./contextos";
 import { ProveedorNotificaciones } from "./contextos";
-import { ShieldAlert, ArrowLeft, UserCheck } from "lucide-react";
+import { ShieldAlert, UserCheck } from "lucide-react";
 
 // Componentes de Estructura y Navegación
 import { BarraSuperior, PieDePagina, ExploradorCasosUso } from "./componentes";
@@ -28,7 +30,6 @@ import {
   GestionInscripcionesPagina,
   PanelTaquillaParticipacionPagina,
   EditorArreglosPagina,
-  DistribucionAsientosPagina,
   PanelSubdireccionPagina,
   EscaneoStaffPagina,
   HistorialAccesosPagina,
@@ -94,6 +95,18 @@ function ContenidoApp() {
 
   const { usuarioActual, rolActivo, cambiarRolActivo } = useAutenticacion();
 
+  const esDistribucionAnterior = ["/distribucion", "/arreglos", "/editor-asientos", "/recintos/distribucion"].includes(rutaActual);
+  const inicioDistribucion = rolActivo === "subdireccion" ? "/subdireccion" : rolActivo === "admin" ? "/admin" : "/organizador";
+  useEffect(() => {
+    if (!esDistribucionAnterior || !usuarioActual || !["organizador", "subdireccion", "admin"].includes(rolActivo)) return;
+    const ubicacion = new URL(inicioDistribucion, window.location.origin);
+    if (modoDemostracionActivo()) ubicacion.searchParams.set("demo", "1");
+    window.history.replaceState({ scrollTT: 0 }, "", ubicacion.pathname + ubicacion.search);
+    setRutaActual(ubicacion.pathname);
+    setParametrosBusqueda(ubicacion.search);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [esDistribucionAnterior, inicioDistribucion, rolActivo, usuarioActual]);
+
   // Parámetros de consulta (query params)
   const parametrosUrl = new URLSearchParams(parametrosBusqueda);
   useEffect(() => {
@@ -113,10 +126,7 @@ function ContenidoApp() {
     const esRutaOrganizador =
       (rutaActual.startsWith("/organizador") &&
         !rutaActual.startsWith("/organizador/solicitudes")) ||
-      rutaActual === "/distribucion" ||
-      rutaActual === "/arreglos" ||
-      rutaActual === "/editor-asientos" ||
-      rutaActual === "/recintos/distribucion";
+      esDistribucionAnterior;
 
     const esRutaSubdireccion = rutaActual.startsWith("/subdireccion");
     const esRutaAdministracion = rutaActual.startsWith("/admin");
@@ -174,14 +184,7 @@ function ContenidoApp() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => navegarA(volverA("/eventos"))}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Regresar</span>
-              </button>
+              <BotonRegresar destino="Volver a la cartelera" alVolver={() => navegarA(volverASeccion("/eventos"))} />
               {tieneRolAutorizado ? (
                 <button
                   type="button"
@@ -256,9 +259,11 @@ function ContenidoApp() {
     // -------------------------------------------------------------
     if (rutaActual === "/recintos")
       return <CatalogoRecintosPagina navigate={navegarA} />;
-    if (rutaActual === "/admin/recintos")
+    const bloqueosAdministracion = rolActivo === "admin"
+      && rutaActual === "/subdireccion" && parametrosUrl.get("tab") === "bloqueos";
+    if (rutaActual === "/admin/recintos" || bloqueosAdministracion)
       return (
-        <AdministracionRecintosPagina modo="catalogo" navigate={navegarA} />
+        <AdministracionRecintosPagina modo="catalogo" verBloqueos={parametrosUrl.get("tab") === "bloqueos"} navigate={navegarA} />
       );
     if (rutaActual === "/admin/ocupaciones")
       return (
@@ -294,6 +299,7 @@ function ContenidoApp() {
       const segmentos = rutaActual.split("/");
       const idEvento = segmentos[3];
       const idFecha = segmentos[5];
+      if (apiActiva) return <DistribucionActividadRemota key={idEvento + "/" + idFecha} eventId={idEvento} dateId={idFecha} navigate={navegarA} />;
       return (
         <EditorArreglosPagina
           eventId={idEvento}
@@ -339,14 +345,7 @@ function ContenidoApp() {
       );
     }
 
-    if (
-      rutaActual === "/distribucion" ||
-      rutaActual === "/arreglos" ||
-      rutaActual === "/editor-asientos" ||
-      rutaActual === "/recintos/distribucion"
-    ) {
-      return <DistribucionAsientosPagina navigate={navegarA} />;
-    }
+    if (esDistribucionAnterior) return null;
 
     if (rutaActual.startsWith("/organizador/eventos/")) {
       const segmentos = rutaActual.split("/");
@@ -356,7 +355,7 @@ function ContenidoApp() {
       );
     }
 
-    if (rutaActual === "/organizador/staff")
+    if (rutaActual === "/organizador/staff" || rutaActual === "/admin/staff")
       return <GestionIdentidadPagina vista="staff" navigate={navegarA} />;
     if (rutaActual === "/mis-solicitudes")
       return <PanelOrganizadorPagina soloSolicitudes navigate={navegarA} />;
@@ -492,7 +491,7 @@ function ContenidoApp() {
     }
 
     // Ruta por defecto: Cartelera general de eventos
-    return <section className="mx-auto max-w-xl px-5 py-16"><h1 className="text-2xl font-bold">Página no disponible</h1><p className="mt-3 text-neutral-600">Este enlace no corresponde a una pantalla disponible. Puedes regresar y continuar desde donde estabas.</p><button type="button" onClick={()=>navegarA(volverA('/eventos'))} className="boton-primario mt-6 inline-flex items-center gap-2 px-5 py-3"><ArrowLeft size={16}/>Regresar</button></section>;
+    return <section className="mx-auto max-w-xl px-5 py-16"><h1 className="text-2xl font-bold">Página no disponible</h1><p className="mt-3 text-neutral-600">Este enlace no corresponde a una pantalla disponible. Puedes continuar desde la cartelera.</p><BotonRegresar destino="Volver a la cartelera" alVolver={() => navegarA(volverASeccion("/eventos"))} /></section>;
   };
 
   const esRutaAutenticacion = [

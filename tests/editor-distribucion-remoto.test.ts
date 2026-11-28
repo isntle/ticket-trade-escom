@@ -83,14 +83,14 @@ function renderizarEditor(
   ).replace(/<!--.*?-->/g, '');
 }
 
-test('Acceso 2 (desde detalle del evento): preselecciona la actividad y muestra botón Regresar al evento', () => {
+test('Acceso 2 (desde detalle del evento): preselecciona la actividad y muestra botón Volver al evento', () => {
   const html = renderizarEditor({
     eventId: eventoPrueba.id,
     dateId: actividadControlada.id,
     navigate: () => {},
   });
-  assert.match(html, /Regresar al evento/);
-  assert.match(html, /Distribución de espacios/);
+  assert.match(html, /Volver al evento/);
+  assert.match(html, /Distribución de lugares/);
   assert.match(
     html,
     new RegExp(`<option value="${eventoPrueba.id}/${actividadControlada.id}" selected=""`),
@@ -98,9 +98,9 @@ test('Acceso 2 (desde detalle del evento): preselecciona la actividad y muestra 
   assert.doesNotMatch(html, /no utiliza lugares asignados/);
 });
 
-test('Acceso 1 (desde /distribucion): no preselecciona actividad ni muestra Regresar al evento', () => {
+test('Acceso 1 (sin actividad preseleccionada): no preselecciona actividad ni muestra Volver al evento', () => {
   const html = renderizarEditor({ navigate: () => {} });
-  assert.doesNotMatch(html, /Regresar al evento/);
+  assert.doesNotMatch(html, /Volver al evento/);
   assert.match(html, /<option value="" selected="">Selecciona una actividad con lugares asignados<\/option>/);
   assert.match(html, /Foro de Distribución Remota · Conferencia Inaugural/);
 });

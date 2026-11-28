@@ -1,13 +1,14 @@
-import { volverA } from '../dominio/navegacion';
+import { GestionBloqueos } from "../componentes/recintos/GestionBloqueos";
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { ConfiguracionCalendarioRevision } from '../componentes/recintos/CalendarioRevision';
 import React, { useState } from 'react';
-import { ArrowLeft, Building2, CalendarDays, Plus, Save, XCircle } from 'lucide-react';
+import { Building2, CalendarDays, Plus, Save, XCircle } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { useNotificaciones } from '../contextos/NotificacionesContexto';
 import type { OcupacionInterna, Recinto, TipoRecinto } from '../tipos';
 
-export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupaciones'; navigate: (ruta: string) => void }> = ({ modo, navigate }) => {
+export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupaciones'; verBloqueos?: boolean; navigate: (ruta: string) => void }> = ({ modo, navigate, verBloqueos = false }) => {
   const { listaRecintos, listaOcupacionesInternas, guardarRecinto, crearOcupacionInterna, cancelarOcupacionInterna, verificarDisponibilidadRecinto, agendaRemota } = useDatos();
   const { usuarioActual } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
@@ -28,7 +29,7 @@ export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupac
   const guardar = (e: React.FormEvent) => {
     e.preventDefault();
     if (!recintoEditando?.nombre.trim() || !recintoEditando.codigo.trim() || recintoEditando.capacidad < 1) {
-      mostrarNotificacion('Revisa los datos', 'Nombre, código y capacidad son obligatorios.', 'advertencia'); return;
+      mostrarNotificacion('Faltan datos del recinto', 'Escribe el nombre, el código y una capacidad de al menos una persona.', 'advertencia'); return;
     }
     if (listaRecintos.some((r) => r.id !== recintoEditando.id && r.codigo.trim().toLowerCase() === recintoEditando.codigo.trim().toLowerCase())) {
       mostrarNotificacion('Código duplicado', 'Cada recinto debe tener un código institucional único.', 'error'); return;
@@ -58,14 +59,26 @@ export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupac
 
   if (!usuarioActual?.roles.includes('admin')) return <div className="mx-auto max-w-xl p-8 text-center"><h1 className="text-xl font-bold">Administración de recintos</h1><p className="mt-3 text-sm">El registro y modificación de recintos y actividades internas corresponde al Administrador.</p><button onClick={() => navigate('/recintos')} className="mt-5 rounded-xl border px-4 py-2 text-sm">Consultar catálogo de recintos</button></div>;
 
-  return <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-    <button onClick={() => navigate(volverA('/admin'))} className="mb-5 inline-flex items-center gap-2 text-sm text-neutral-600 hover:text-neutral-950"><ArrowLeft size={16}/><span>Regresar</span></button>
-    <header className="mb-6"><p className="text-sm font-bold  text-[#7a132b]">Organización y recintos</p><h1 className="text-2xl font-black mt-1">{modo === 'catalogo' ? 'Administrar recintos' : 'Actividades internas'}</h1><p className="text-sm text-neutral-600 mt-2">{modo === 'catalogo' ? 'Consulta, registra y actualiza la información y el estado de los espacios.' : 'Registra actividades institucionales y consulta su impacto en la agenda.'}</p></header>
-    {modo === 'catalogo' ? <><ConfiguracionCalendarioRevision/>
-      <div className="flex justify-end mb-4"><button onClick={() => abrirEdicion()} className="inline-flex items-center gap-2 rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-bold text-white"><Plus size={16}/>Agregar recinto</button></div>
+  return <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <BotonRegresar destino="Volver a Administración" alVolver={() => navigate("/admin")} />
+    <header className="mb-5">
+      <h1 className="text-2xl font-extrabold tracking-tight">{modo === "catalogo" ? "Administrar recintos" : "Actividades internas"}</h1>
+    </header>
+    {modo === "catalogo" && <nav aria-label="Administración de recintos" className="mb-6 flex flex-wrap gap-2 border-b border-neutral-200 pb-3">
+      {[{ ruta: "/admin/recintos", texto: "Recintos y calendario", activo: !verBloqueos },
+        { ruta: "/admin/recintos?tab=bloqueos", texto: "Bloqueos y mantenimiento", activo: verBloqueos }].map(item => (
+        <button key={item.ruta} type="button" aria-current={item.activo ? "page" : undefined}
+          onClick={() => { if (!item.activo) navigate(item.ruta); }}
+          className={`rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7a132b] ${item.activo ? "bg-[#7a132b]/10 text-[#7a132b]" : "text-neutral-600 hover:bg-neutral-100"}`}>
+          {item.texto}
+        </button>
+      ))}
+    </nav>}
+    {verBloqueos ? <GestionBloqueos navigate={navigate} /> : modo === 'catalogo' ? <><ConfiguracionCalendarioRevision/>
+      {!agendaRemota && <div className="flex justify-end mb-4"><button onClick={() => abrirEdicion()} className="inline-flex items-center gap-2 rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-bold text-white"><Plus size={16}/>Agregar recinto</button></div>}
       <section className="grid gap-3 md:grid-cols-2">{listaRecintos.map((recinto) => <article key={recinto.id} className="rounded-2xl border border-neutral-200 bg-white p-5">
         <div className="flex justify-between gap-3"><div className="flex gap-3"><Building2 className="mt-1 text-[#7a132b]"/><div><h2 className="font-bold">{recinto.nombre}</h2><p className="text-sm text-neutral-500">{recinto.codigo} · {recinto.tipo} · capacidad {recinto.capacidad}</p></div></div><span className={`h-fit rounded-full px-2 py-1 text-sm font-semibold ${recinto.activo === false ? 'bg-neutral-100 text-neutral-600' : 'bg-emerald-50 text-emerald-700'}`}>{recinto.activo === false ? 'Desactivado' : 'Activo'}</span></div>
-        <p className="mt-3 text-sm text-neutral-600">{recinto.descripcion || recinto.ubicacion}</p><button onClick={() => abrirEdicion(recinto)} className="mt-4 rounded-lg border px-3 py-2 text-sm font-bold hover:bg-neutral-50">Editar recinto</button>
+        <p className="mt-3 text-sm text-neutral-600">{recinto.descripcion || recinto.ubicacion}</p>{!agendaRemota && <button onClick={() => abrirEdicion(recinto)} className="mt-4 rounded-lg border px-3 py-2 text-sm font-bold hover:bg-neutral-50">Editar recinto</button>}
       </article>)}</section>
       {recintoEditando && <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"><form onSubmit={guardar} className="w-full max-w-xl space-y-4 rounded-2xl bg-white p-6 shadow-xl"><div className="flex justify-between"><h2 className="font-bold">{listaRecintos.some((r) => r.id === recintoEditando.id) ? 'Editar recinto' : 'Nuevo recinto'}</h2><button type="button" onClick={() => setRecintoEditando(null)} aria-label="Cerrar"><XCircle/></button></div>
         <div className="grid gap-3 sm:grid-cols-2">{([['nombre','Nombre'],['codigo','Código'],['ubicacion','Ubicación'],['indicaciones','Indicaciones'],['descripcion','Descripción']] as const).map(([key,label]) => <label key={key} className="text-sm font-semibold">{label}<input className="mt-1 w-full rounded-lg border p-2 text-sm" value={recintoEditando[key] as string} onChange={(e) => setRecintoEditando({...recintoEditando,[key]:e.target.value})}/></label>)}
@@ -73,7 +86,12 @@ export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupac
           <label className="text-sm font-semibold">Capacidad<input type="number" min="1" className="mt-1 w-full rounded-lg border p-2 text-sm" value={recintoEditando.capacidad} onChange={(e) => setRecintoEditando({...recintoEditando,capacidad:Number(e.target.value)})}/></label>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={recintoEditando.activo !== false} onChange={(e) => setRecintoEditando({...recintoEditando,activo:e.target.checked})}/>Recinto activo</label></div>
         <button className="inline-flex items-center gap-2 rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-bold text-white"><Save size={15}/>Guardar</button></form></div>}
-    </> : <>
+    </> : agendaRemota ? (
+      <section className="max-w-xl rounded-2xl border border-neutral-200 bg-white p-5">
+        <p className="text-sm text-neutral-700">La agenda muestra las clases y ocupaciones registradas. El alta y la cancelación de actividades internas todavía no están disponibles desde este panel.</p>
+        <button type="button" onClick={() => navigate('/recintos')} className="mt-4 rounded-xl bg-[#7a132b] px-4 py-2 text-sm font-semibold text-white">Consultar agenda de recintos</button>
+      </section>
+    ) : <>
       <form onSubmit={registrarOcupacion} className="mb-7 grid gap-3 rounded-2xl border bg-white p-5 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-sm font-semibold">Actividad<input className="mt-1 w-full rounded-lg border p-2 text-sm" value={titulo} onChange={(e)=>setTitulo(e.target.value)} required/></label>
         <label className="text-sm font-semibold">Recinto<select className="mt-1 w-full rounded-lg border p-2 text-sm" value={idRecinto} onChange={(e)=>setIdRecinto(e.target.value)}>{listaRecintos.filter((r)=>r.activo!==false).map((r)=><option key={r.id} value={r.id}>{r.nombre}</option>)}</select></label>
@@ -83,5 +101,5 @@ export const AdministracionRecintosPagina: React.FC<{ modo: 'catalogo' | 'ocupac
       </form>
       <section className="space-y-3">{listaOcupacionesInternas.length ? listaOcupacionesInternas.map((o: OcupacionInterna)=><article key={o.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4"><div><h2 className="font-bold">{o.titulo}</h2><p className="text-sm text-neutral-600">{listaRecintos.find((r)=>r.id===o.idRecinto)?.nombre} · {o.fechaInicio}{o.fechaFin!==o.fechaInicio?` a ${o.fechaFin}`:''} · {o.horaInicio}–{o.horaFin}</p><p className="text-sm text-neutral-500">{o.descripcion} · Responsable: {o.responsable} · {o.estado}</p></div>{o.estado==='activa'&&<button onClick={()=>cancelarOcupacionInterna(o.id)} className="rounded-lg border px-3 py-2 text-sm font-bold text-rose-700">Cancelar actividad</button>}</article>) : <p className="rounded-xl border border-dashed p-8 text-center text-sm text-neutral-500"><CalendarDays className="mx-auto mb-2"/>No hay ocupaciones internas registradas.</p>}</section>
     </>}
-  </main>;
+  </div>;
 };

@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react';
+import { suscribirActualizacionVisible } from '../servicios/actualizacionVisible.js';
 import { useDatos } from './DatosContexto.js';
 import type { ConsultaAgenda, EstadoAgenda } from '../servicios/almacenDisponibilidad.js';
 
@@ -16,9 +17,7 @@ export function useCargarAgendasRecintos(consultas: ConsultaAgenda[]) {
     const fechas: ConsultaAgenda[] = JSON.parse(clave).map((q: string) => JSON.parse(q));
     const refrescar = () => { fechas.forEach(q => { void agendaRemota.cargar(q); }); };
     refrescar();
-    const t = window.setInterval(refrescar, 15000);
-    window.addEventListener('focus', refrescar);
-    return () => { window.clearInterval(t); window.removeEventListener('focus', refrescar); };
+    return suscribirActualizacionVisible(refrescar, 15_000);
   }, [agendaRemota, clave]);
   return agendaRemota;
 }

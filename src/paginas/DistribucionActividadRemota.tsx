@@ -1,10 +1,10 @@
+import { BotonRegresar } from '../componentes/ui/BotonRegresar';
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { MapaAsientos } from '../componentes/asientos/MapaAsientos';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { useDatos } from '../contextos/DatosContexto';
+import { numerarLugaresFisicos } from '../dominio/numeracionLugares';
 import { modalidadActividad } from '../dominio/actividades';
-import { volverA } from '../dominio/navegacion';
 import { etiquetaActividad } from '../dominio/taquilla';
 import { ErrorApi, transporteApi } from '../servicios/http';
 import type { ConfiguracionAsiento } from '../tipos';
@@ -45,8 +45,10 @@ export function conciliarPendientesDistribucion(
 export function evaluarMapaDistribucion(
   distribucion: Pick<Distribucion, 'editable' | 'lugares'> | undefined,
   pendientes: Record<string, Categoria>,
+  laboratorio = false,
 ) {
   const lugares = distribucion?.lugares ?? [];
+  const numeros = numerarLugaresFisicos(lugares, laboratorio);
   const motivosNoEditables = new Map<string, string>();
   const idsOcupados: string[] = [];
   const conteos = { asistente: 0, vip: 0, staff: 0, bloqueado: 0, ocupados: 0 };
@@ -64,8 +66,9 @@ export function evaluarMapaDistribucion(
     return {
       id: lugar.idLugarRecinto,
       etiqueta: lugar.codigo,
-      fila: lugar.fila ?? '',
-      numero: Number(lugar.codigo.match(/\d+$/)?.[0] ?? indice + 1),
+      fila: lugar.fila || 'A',
+      numero: numeros[indice],
+      ...(laboratorio ? { equipoComputo: lugar.codigo } : {}),
       posicionX: lugar.x,
       posicionY: lugar.y,
       categoria: valor === 'bloqueado' ? 'asistente' : valor,
@@ -114,40 +117,41 @@ export function DistribucionActividadRemota({
   }, [claveInicial]);
 
   const opciones = usuarioActual && ['organizador', 'subdireccion', 'admin'].includes(rolActivo)
-    ? listaEventos.filter(evento =>
-        evento.idOrganizador === usuarioActual.id || usuarioActual.roles.includes('subdireccion')
-      ).flatMap(evento => evento.fechas.flatMap((actividad, indice) =>
-        modalidadActividad(actividad, evento.modalidadAsistencia) === 'controlado'
+    ? listaEventos.filter(ev =>
+        ev.idOrganizador === usuarioActual.id || usuarioActual.roles.includes('subdireccion'),
+      ).flatMap(ev => ev.fechas.flatMap((act, indice) =>
+        modalidadActividad(act, ev.modalidadAsistencia) === 'controlado'
           ? [{
-              valor: evento.id + '/' + actividad.id,
-              etiqueta: evento.titulo + ' · ' + etiquetaActividad(actividad, listaRecintos, indice),
+              valor: ev.id + '/' + act.id,
+              etiqueta: ev.titulo + ' · ' + etiquetaActividad(act, listaRecintos, indice),
             }]
-          : []
+          : [],
       ))
     : [];
-  const [evento, actividad] = seleccion.split('/');
-  const ruta = opciones.some(opcion => opcion.valor === seleccion)
-    ? `/organizacion/eventos/${encodeURIComponent(evento)}/actividades/${encodeURIComponent(actividad)}/distribucion`
+
+  const [idEventoActivo, idActividadActiva] = seleccion.split('/');
+  const eventoActual = listaEventos.find(item => item.id === (idEventoActivo || eventId));
+  const actividadActual = eventoActual?.fechas.find(item => item.id === (idActividadActiva || dateId));
+  const puedeConsultar = Boolean(
+    eventoActual && usuarioActual &&
+    ['organizador', 'subdireccion', 'admin'].includes(rolActivo) &&
+    (eventoActual.idOrganizador === usuarioActual.id || usuarioActual.roles.includes('subdireccion')),
+  );
+  const tieneAcceso = Boolean(
+    puedeConsultar && actividadActual &&
+    modalidadActividad(actividadActual, eventoActual!.modalidadAsistencia) === 'controlado',
+  );
+  const ruta = seleccion && opciones.some(opcion => opcion.valor === seleccion)
+    ? `/organizacion/eventos/${encodeURIComponent(idEventoActivo)}/actividades/${encodeURIComponent(idActividadActiva)}/distribucion`
     : '';
 
-  const eventoSolicitado = eventId ? listaEventos.find(e => e.id === eventId) : undefined;
-  const actividadSolicitada = dateId ? eventoSolicitado?.fechas.find(f => f.id === dateId) : undefined;
-  const mensajeContextoSolicitado = (() => {
+  const mensajeSinAcceso = (() => {
     if (!eventId || !dateId || ruta) return '';
     if (!usuarioActual) return 'Inicia sesión para consultar o editar la distribución de esta actividad.';
-    if (!eventoSolicitado || !actividadSolicitada) {
-      return 'La actividad solicitada no existe o no está disponible para tu cuenta.';
-    }
-    const autorizado =
-      eventoSolicitado.idOrganizador === usuarioActual.id ||
-      usuarioActual.roles.includes('subdireccion');
-    if (!autorizado) {
-      return 'Solo el organizador responsable o Subdirección pueden administrar la distribución de esta actividad.';
-    }
-    if (modalidadActividad(actividadSolicitada, eventoSolicitado.modalidadAsistencia) !== 'controlado') {
-      return 'Esta actividad no utiliza lugares asignados; solo las actividades con reservación con lugar asignado tienen distribución editable.';
-    }
-    return '';
+    if (!eventoActual) return 'El evento ya no está disponible en este panel.';
+    if (!puedeConsultar) return 'Solo el organizador responsable o Subdirección pueden administrar la distribución de esta actividad.';
+    if (!actividadActual) return 'La actividad no está disponible en este evento. Vuelve al evento y elige otra actividad.';
+    return 'Esta actividad no utiliza lugares asignados; solo las actividades con reservación con lugar asignado tienen distribución editable.';
   })();
 
   useEffect(() => {
@@ -172,6 +176,7 @@ export function DistribucionActividadRemota({
   }, [ruta, lectura]);
 
   const recinto = listaRecintos.find(r => r.id === distribucion?.idRecinto);
+  const laboratorio = recinto?.tipo === 'laboratorio';
   const {
     lugares,
     mapa,
@@ -180,7 +185,7 @@ export function DistribucionActividadRemota({
     conteos,
     cambios,
     cambiosImpedidos,
-  } = evaluarMapaDistribucion(distribucion, pendientes);
+  } = evaluarMapaDistribucion(distribucion, pendientes, laboratorio);
 
   async function guardar() {
     if (!ruta || ocupado || !distribucion?.editable || requiereConsulta || !cambios.length || cambiosImpedidos.length) return;
@@ -208,21 +213,27 @@ export function DistribucionActividadRemota({
   }
 
   return (
-    <main className="mx-auto max-w-7xl space-y-5 px-4 py-8">
+    <section className="mx-auto max-w-7xl space-y-5 px-4 py-8">
       {eventId && navigate && (
-        <button
-          type="button"
-          onClick={() => navigate(volverA(`/organizador/eventos/${eventId}`))}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Regresar al evento</span>
-        </button>
+        <BotonRegresar destino="Volver al evento" alVolver={() => navigate(`/organizador/eventos/${eventId}`)} />
       )}
-      <h1 className="text-2xl font-bold">Distribución de espacios</h1>
+      <header className="rounded-2xl border border-neutral-200 border-t-4 border-t-[#7a132b] bg-white p-5 sm:p-6">
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Distribución de lugares</h1>
+        {tieneAcceso && eventoActual && actividadActual && (
+          <div className="mt-2 space-y-1">
+            <p className="font-semibold text-neutral-900">{eventoActual.titulo}</p>
+            <p className="text-sm text-neutral-600">{etiquetaActividad(actividadActual, listaRecintos, eventoActual.fechas.indexOf(actividadActual))}</p>
+          </div>
+        )}
+        {mensajeSinAcceso && (
+          <p role="alert" className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+            {mensajeSinAcceso}
+          </p>
+        )}
+      </header>
       <label className="block space-y-1 text-sm font-semibold">
         <span>Evento y actividad</span>
-        <select className="block w-full rounded-lg border p-2 disabled:opacity-50"
+        <select className="block w-full rounded-lg border bg-white p-2 disabled:opacity-50"
           value={ruta ? seleccion : ''} disabled={ocupado || cambios.length > 0} onChange={e => {
             const nuevoValor = e.target.value;
             if (eventId && dateId && navigate && nuevoValor) {
@@ -240,18 +251,19 @@ export function DistribucionActividadRemota({
           {opciones.map(opcion => <option key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</option>)}
         </select>
       </label>
-      {mensajeContextoSolicitado && (
-        <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-          {mensajeContextoSolicitado}
-        </p>
-      )}
-      {!opciones.length && !mensajeContextoSolicitado && <p>No hay actividades con lugares asignados disponibles para tu cuenta.</p>}
+      {!opciones.length && !mensajeSinAcceso && <p>No hay actividades con lugares asignados disponibles para tu cuenta.</p>}
       {ocupado && <p role="status">Procesando distribución…</p>}
       {aviso && <p role="status" className="text-emerald-800">{aviso}</p>}
-      {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-rose-900">{error}</p>}
-      {ruta && (error || distribucion) && <button type="button" className={boton} disabled={ocupado}
-        onClick={() => { setAviso(''); setLectura(n => n + 1); }}>Volver a consultar</button>}
-      {ruta && requiereConsulta && <p className="text-sm">Vuelve a consultar y revisa los cambios pendientes antes de guardar.</p>}
+      {error && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 p-3">
+          <p role="alert" className="text-sm text-rose-900">{error}</p>
+          {ruta && requiereConsulta && (
+            <button type="button" className={boton + ' bg-white'} disabled={ocupado}
+              onClick={() => { setAviso(''); setLectura(n => n + 1); }}>Actualizar distribución</button>
+          )}
+        </div>
+      )}
+      {ruta && requiereConsulta && <p className="text-sm text-neutral-700">Actualiza la distribución y revisa los cambios pendientes antes de guardar.</p>}
       {ruta && distribucion && (
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -273,17 +285,17 @@ export function DistribucionActividadRemota({
           )}
           {distribucion.editable && <label className="block text-sm font-semibold">
             Categoría para asignar
-            <select className="ml-2 rounded-lg border p-2" value={categoria} disabled={ocupado || requiereConsulta}
+            <select className="ml-2 rounded-lg border bg-white p-2" value={categoria} disabled={ocupado || requiereConsulta}
               onChange={e => setCategoria(e.target.value as Categoria)}>
               {Object.entries(categorias).map(([valor, etiqueta]) => <option key={valor} value={valor}>{etiqueta}</option>)}
             </select>
           </label>}
           {cambios.length > 0 && (
-            <div className="space-y-2 rounded-lg border p-3 text-sm">
+            <div className="space-y-2 rounded-lg border bg-white p-3 text-sm">
               <p className="font-semibold">Cambios pendientes ({cambios.length})</p>
               <ul className="space-y-1">
                 {cambios.map(([id, valor]) => {
-                  const lugar = lugares.find(lugar => lugar.idLugarRecinto === id);
+                  const lugar = lugares.find(item => item.idLugarRecinto === id);
                   const impedimento = motivosNoEditables.get(id);
                   return (
                     <li key={id} className="flex flex-wrap items-center justify-between gap-2">
@@ -358,6 +370,6 @@ export function DistribucionActividadRemota({
           ) : <p>El recinto todavía no tiene lugares configurados.</p>}
         </section>
       )}
-    </main>
+    </section>
   );
 }

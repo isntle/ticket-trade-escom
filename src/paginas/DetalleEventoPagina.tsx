@@ -1,3 +1,4 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { REGLA_INGRESO_ACTIVIDAD, fechaLegible } from '../dominio/presentacionActividad';
 import { apiActiva } from '../servicios/modoDatos';
 import { modalidadActividad, nombreActividad, accesoMixto } from '../dominio/actividades';
@@ -5,7 +6,7 @@ import { capacidadActividad } from '../dominio/taquilla';
 import { impedimentoActividad, impedimentoParticipante, rutaAccesoConRegreso, rutaDetalleEvento, rutaReservaActividad } from '../dominio/participacionActividad';
 import { useImagenEvento } from '../componentes/eventos/useImagenEvento';
 import { VistaItinerarios } from '../componentes/eventos/EditorItinerarios';
-import { volverA } from '../dominio/navegacion';
+import { volverASeccion } from '../dominio/navegacion';
 import React, { useState } from 'react';
 import {
   Calendar,
@@ -16,7 +17,6 @@ import {
   Tag,
   Share2,
   Lock,
-  ArrowLeft,
   CheckCircle2,
   UserCheck,
   ChevronDown,
@@ -147,14 +147,10 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
             >
               Desbloquear Evento
             </button>
-            <button
-              type="button"
-              onClick={() => navigate(volverA('/eventos'))}
-              className="w-full py-2 text-xs text-neutral-500 hover:text-neutral-900 cursor-pointer"
-            >
-              Regresar a la cartelera
-            </button>
           </form>
+          <div className="mt-4">
+            <BotonRegresar destino="Volver a la cartelera" alVolver={() => navigate(volverASeccion('/eventos'))} />
+          </div>
         </div>
       </div>
     );
@@ -259,12 +255,7 @@ export const DetalleEventoPagina: React.FC<PropiedadesDetalleEvento> = ({
   return (
     <div data-interfaz="UI-11" tabIndex={-1} className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
       {/* Botón Volver */}
-      <button
-        type="button"
-        onClick={() => navigate(volverA('/eventos'))}
-        className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-semibold text-neutral-800 hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-[#7a132b]"
-      >
-        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
+      <BotonRegresar destino="Volver a la cartelera" alVolver={() => navigate(volverASeccion('/eventos'))} />
 
       {/* Banner Principal */}
       <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden shadow-xs mb-8">

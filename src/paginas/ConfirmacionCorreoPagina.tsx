@@ -1,7 +1,8 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { destinoInternoSeguro } from '../dominio/navegacion';
 import { apiActiva } from '../servicios/modoDatos';
-import { volverA } from '../dominio/navegacion';
+import { volverASeccion } from '../dominio/navegacion';
 import React, { useState } from "react";
 import { useAutenticacion } from "../contextos/AutenticacionContexto";
 import { MarcoAcceso } from "../componentes/layout/MarcoAcceso";
@@ -138,7 +139,9 @@ export function ConfirmacionCorreoPagina({
         </>
       )}
       <nav className="mt-6 flex flex-wrap gap-4 border-t pt-5 text-sm">
-        <button onClick={() => navigate(volverA("/login"))}>Regresar</button>
+        {(!confirmado || auth.usuarioActual) && (
+          <BotonRegresar destino="Volver al inicio de sesión" alVolver={() => navigate(volverASeccion("/login"))} />
+        )}
         {auth.usuarioActual && (
           <button onClick={() => navigate("/perfil")}>Mi perfil</button>
         )}

@@ -1,3 +1,4 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { afiliacionLegible } from "../utilidades/afiliacion";
 import './SolicitudEventoPagina.css';
 import { identidadHabilitadaParaOrganizar } from "../dominio/facultadOrganizar.js";
@@ -5,7 +6,7 @@ import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { servicioOrganizacionLocal } from '../servicios/organizacion';
 import { CATEGORIAS_EVENTO, aforoActividad, modalidadActividad, nombreActividad, validarItinerarios } from '../dominio/actividades';
 import { EditorItinerarios } from '../componentes/eventos/EditorItinerarios';
-import { volverA } from '../dominio/navegacion';
+import { volverA, volverASeccion } from '../dominio/navegacion';
 import { DiaSolicitud } from "../componentes/recintos/DiaSolicitud";
 import { validarDistribuciones } from "../dominio/distribucionSolicitud";
 import { VentanaModal } from "../componentes/ui/VentanaModal";
@@ -28,7 +29,6 @@ import {
   AlertTriangle,
   Plus,
   Send,
-  ArrowLeft,
   FileText,
   Info,
 } from "lucide-react";
@@ -622,27 +622,19 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
     const enRevision = usuarioActual?.estadoExpediente === 'en_revision';
     const restringida = usuarioActual && restriccionIdentidadVigente(usuarioActual);
     const destino = !usuarioActual ? '/login?continuar='+encodeURIComponent(rutaRetorno) : correoPendiente ? '/confirmar-correo?continuar='+encodeURIComponent(rutaRetorno) : '/identidad/expediente?continuar='+encodeURIComponent(rutaRetorno);
-    return <section className="solicitud-evento mx-auto max-w-2xl px-5 py-12"><button className="mb-6 inline-flex items-center gap-2 text-sm text-neutral-500" onClick={()=>navigate(volverA('/eventos'))}><ArrowLeft size={16}/><span>Regresar</span></button><div className="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-9"><h1 className="text-2xl font-bold">Solicitar nuevo evento</h1><p className="mt-4 text-neutral-600">{!usuarioActual?'Inicia sesión para preparar tu solicitud.':correoPendiente?'Primero confirma tu correo con el enlace o código de confirmación. Este paso es distinto de la revisión de tus documentos.':restringida?`Tu cuenta tiene una restricción vigente hasta ${usuarioActual.restriccionSolicitudesHasta}. ${usuarioActual.motivoRestriccion||''}`:enRevision?'Tu expediente de identidad está en revisión. Cuando se apruebe, podrás volver aquí y preparar la solicitud.':'Necesitas verificar tu identidad para solicitar un evento. Consulta los documentos que corresponden a tu perfil y envía tu expediente.'}</p><button onClick={()=>navigate(destino)} className="boton-primario mt-6 px-5 py-3">{!usuarioActual?'Iniciar sesión':correoPendiente?'Confirmar mi correo':enRevision?'Consultar mi verificación':'Ir a mi expediente'}</button><p className="mt-4 text-sm text-neutral-500">Encontrarás este acceso en la cartelera. La revisión documental y la aprobación del evento son trámites separados.</p></div></section>;
+    return <section className="solicitud-evento mx-auto max-w-2xl px-5 py-12"><BotonRegresar destino="Volver a la cartelera" alVolver={() => navigate(volverASeccion("/eventos"))} /><div className="rounded-2xl border border-neutral-200 bg-white p-6 sm:p-9"><h1 className="text-2xl font-bold">Solicitar nuevo evento</h1><p className="mt-4 text-neutral-600">{!usuarioActual?'Inicia sesión para preparar tu solicitud.':correoPendiente?'Primero confirma tu correo con el enlace o código de confirmación. Este paso es distinto de la revisión de tus documentos.':restringida?`Tu cuenta tiene una restricción vigente hasta ${usuarioActual.restriccionSolicitudesHasta}. ${usuarioActual.motivoRestriccion||''}`:enRevision?'Tu expediente de identidad está en revisión. Cuando se apruebe, podrás volver aquí y preparar la solicitud.':'Necesitas verificar tu identidad para solicitar un evento. Consulta los documentos que corresponden a tu perfil y envía tu expediente.'}</p><button onClick={()=>navigate(destino)} className="boton-primario mt-6 px-5 py-3">{!usuarioActual?'Iniciar sesión':correoPendiente?'Confirmar mi correo':enRevision?'Consultar mi verificación':'Ir a mi expediente'}</button><p className="mt-4 text-sm text-neutral-500">Encontrarás este acceso en la cartelera. La revisión documental y la aprobación del evento son trámites separados.</p></div></section>;
   }
 
   return (
     <div data-interfaz={requestId?"UI.04":"UI.03"} tabIndex={-1} className="solicitud-evento max-w-6xl mx-auto px-4 sm:px-6 py-8">
-      {/* Botón Volver */}
-      <button
-        type="button"
-        onClick={() => setConfirmarSalida(true)}
-        className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Regresar</span>
-      </button>
+      <BotonRegresar destino="Salir de la solicitud" alVolver={() => setConfirmarSalida(true)} />
 
       <div className="mb-8">
         <span className="text-sm font-bold text-[#7a132b]  block mb-1">
           Organización y recintos
         </span>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight">
-          Solicitar evento
+          {solicitudEnEdicion?.estado === "requiere_correccion" ? "Corregir solicitud" : solicitudEnEdicion ? "Editar solicitud" : "Solicitar evento"}
         </h1>
         <p className="text-sm sm:text-sm text-neutral-500 mt-1 max-w-3xl">
           Prepara la información del evento y elige las fechas, horarios y
@@ -650,6 +642,21 @@ export const SolicitudEventoPagina: React.FC<PropiedadesSolicitudEvento> = ({
           espacio.
         </p>
       </div>
+
+      {solicitudEnEdicion?.estado === "requiere_correccion" && (
+        <aside aria-labelledby="correcciones-solicitadas" className="mb-6 rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-800">
+          <h2 id="correcciones-solicitadas" className="font-bold">Correcciones solicitadas</h2>
+          {solicitudEnEdicion.observacionesCorreccion?.trim() && (
+            <p className="mt-2 whitespace-pre-line break-words">{solicitudEnEdicion.observacionesCorreccion}</p>
+          )}
+          {solicitudEnEdicion.fechaLimiteCorreccion && (
+            <p className="mt-2 font-semibold">
+              Plazo para reenviar: {new Date(solicitudEnEdicion.fechaLimiteCorreccion).toLocaleString("es-MX", { timeZone: "America/Mexico_City", dateStyle: "medium", timeStyle: "short" })} (hora de Ciudad de México)
+            </p>
+          )}
+          <p className="mt-2">Tu propuesta ya está cargada. Cambia lo que pidió Subdirección y vuelve a enviarla.</p>
+        </aside>
+      )}
 
       <form onSubmit={manejarEnvio} aria-busy={guardandoSolicitud}>
         {guardandoSolicitud && <p role="status" className="mb-4 rounded-xl bg-blue-50 p-3 text-blue-900">Guardando tu solicitud. Espera la confirmación antes de salir.</p>}

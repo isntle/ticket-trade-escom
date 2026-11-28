@@ -7,15 +7,21 @@ export function AvisoCupo({ actividad, agotado }: { actividad: string; agotado: 
   const [activo, setActivo] = useState<boolean>();
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState("");
+  const [errorLectura, setErrorLectura] = useState(false);
+  const [revision, setRevision] = useState(0);
   const ruta = "/taquilla/actividades/" + encodeURIComponent(actividad) + "/aviso-cupo";
 
   useEffect(() => {
     const control = new AbortController();
-    void api<{ activo: boolean }>(ruta, { signal: control.signal }).then(res => setActivo(res.activo)).catch(() => {
-      if (!control.signal.aborted) setMensaje("No se pudo consultar el aviso de cupo.");
+    void api<{ activo: boolean }>(ruta, { signal: control.signal }).then(res => {
+      if (control.signal.aborted) return;
+      setActivo(res.activo);
+      setErrorLectura(false);
+    }).catch(() => {
+      if (!control.signal.aborted) setErrorLectura(true);
     });
     return () => control.abort();
-  }, [ruta]);
+  }, [ruta, revision]);
 
   if (!agotado && !activo && !mensaje) return null;
   const cambiar = async () => {
@@ -38,6 +44,10 @@ export function AvisoCupo({ actividad, agotado }: { actividad: string; agotado: 
       {activo ? "Cancelar aviso de cupo" : "Avísame si se libera cupo"}
     </button>}
     {activo && <p className="mt-2">Te avisaremos por correo si se libera cupo. El aviso no reserva lugar.</p>}
+    {agotado && errorLectura && <div role="status">
+      <p>No se pudo consultar si tienes un aviso de cupo activo.</p>
+      <button type="button" className="mt-2 font-semibold underline" onClick={() => setRevision(n => n + 1)}>Consultar aviso de cupo</button>
+    </div>}
     {mensaje && <p role="status" className="mt-2">{mensaje}</p>}
   </div>;
 }

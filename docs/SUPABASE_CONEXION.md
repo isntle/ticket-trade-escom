@@ -56,3 +56,9 @@ La suite general aprobó 176 pruebas y las seis pruebas de integración PostgreS
 6. Si aparece una regresión en producción, recupera desde Vercel el último despliegue sano compatible con el esquema que esté activo y confirma su SHA y sus rutas públicas. Si se necesita recuperar datos, sigue el procedimiento de respaldo de Supabase. Cambiar el despliegue de Vercel conserva las escrituras ya realizadas en PostgreSQL.
 
 Consulta el [contrato y las pruebas de distribución](TICKTRADE-183-distribucion.md) y la [guía para verificar la recepción de correos](CORREOS_SIN_COSTO.md).
+
+## Habilitar participación de cuentas institucionales
+
+Aplica únicamente `base-de-datos/postgresql/migraciones/17_participacion_por_cuenta.sql` en la base autorizada. La migración conserva los datos y cambia las referencias de Apartado, BoletoEvento, AvisoDisponibilidad y, si existe, la tabla de intención de asistencia. Usa una transacción y puede ejecutarse nuevamente. En instalaciones locales se aplica con `npm run db:init`.
+
+Comprueba que esas referencias apunten a Cuenta y valida con perfiles de ensayo de Subdirección y Administración una reserva y su confirmación. No se requiere un perfil de estudiante, empleado o externo para participar. Se mantienen la sesión, el correo confirmado, el horario, el cupo y las reglas de acceso de la actividad. En producción, mientras siga el esquema anterior, Taquilla indica que la participación todavía no está habilitada para la cuenta.

@@ -6,7 +6,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { ContextoDatosTipo } from "./DatosContexto.js";
 import { ContextoDatos } from "./almacenes.js";
 import { useAutenticacion } from "./AutenticacionContexto.js";
-import { transporteApi, ErrorApi } from "../servicios/http.js";
+import { suscribirActualizacionVisible } from "../servicios/actualizacionVisible.js";
+import { transporteApi, ErrorApi, esFalloTemporal } from "../servicios/http.js";
 import { tokenEnlacePrivado } from '../servicios/enlacePrivado.js';
 import { guardarArchivoRemoto, guardarCartelRemoto } from "../servicios/archivos.js";
 import type { Evento, Notificacion, ResultadoEscaneo, SolicitudEvento, Usuario } from "../tipos/index.js";
@@ -30,7 +31,8 @@ function clasificarErrorCheckIn(
   if (/entrada libre|no disponible|no existe/i.test(mensaje))
     return "evento_invalido";
   if (/no corresponde a un boleto/i.test(mensaje)) return "inexistente";
-  return "inexistente";
+  if (/no está vigente/i.test(mensaje)) return "reservacion_no_vigente";
+  return "validacion_no_confirmada";
 }
 
 const api = transporteApi();
@@ -67,10 +69,12 @@ function DatosDeSesion({ children, usuarioActual }: {
     [error, setError] = useState(""),
     [errorLectura, setErrorLectura] = useState("");
   const lecturasActivas = useRef(0);
+  const ultimaLecturaCorrecta = useRef(0);
+  const fallosEnSegundoPlano = useRef(0);
   const estadoRef = useRef<any>(estado),
     secuencia = useRef(0),
     montado = useRef(true);
-  const cargar = async (mensajeSiFalla?: string) => {
+  const cargar = async (mensajeSiFalla?: string, enSegundoPlano = false) => {
     const orden = ++secuencia.current;
     lecturasActivas.current++;
     try {
@@ -91,6 +95,8 @@ function DatosDeSesion({ children, usuarioActual }: {
         }
       }
       if (montado.current && orden === secuencia.current) {
+        ultimaLecturaCorrecta.current = Date.now();
+        fallosEnSegundoPlano.current = 0;
         estadoRef.current = nuevo;
         setEstado(nuevo);
         setErrorLectura("");
@@ -99,7 +105,9 @@ function DatosDeSesion({ children, usuarioActual }: {
       return nuevo;
     } catch (error) {
       if (montado.current && orden === secuencia.current) {
-        setErrorLectura(mensajeSiFalla || (error instanceof Error ? error.message : "No se pudo actualizar la vista."));
+        const falloAislado = enSegundoPlano && ultimaLecturaCorrecta.current > 0
+          && esFalloTemporal(error) && ++fallosEnSegundoPlano.current === 1;
+        if (!falloAislado) setErrorLectura(mensajeSiFalla || (error instanceof Error ? error.message : "No se pudo actualizar la vista."));
       }
       throw error;
     } finally {
@@ -119,11 +127,10 @@ function DatosDeSesion({ children, usuarioActual }: {
     montado.current = true;
     const refrescar = () => void cargar().catch(() => {});
     const refrescarEnSegundoPlano = () => {
-      if (!document.hidden && lecturasActivas.current === 0) refrescar();
+      if (lecturasActivas.current === 0 && Date.now() - ultimaLecturaCorrecta.current >= 15_000) void cargar(undefined, true).catch(() => {});
     };
     refrescar();
-    const t = window.setInterval(refrescarEnSegundoPlano, 15000);
-    document.addEventListener("visibilitychange", refrescarEnSegundoPlano);
+    const detener = suscribirActualizacionVisible(refrescarEnSegundoPlano, 15_000);
     window.addEventListener("tt:datos-remotos", refrescar);
     const refrescarEnlace = () => {
       const ruta = window.location.pathname.match(/^\/eventos\/([^/]+)(?:\/reservar)?\/?$/);
@@ -137,24 +144,24 @@ function DatosDeSesion({ children, usuarioActual }: {
     return () => {
       montado.current = false;
       secuencia.current++;
-      document.removeEventListener("visibilitychange", refrescarEnSegundoPlano);
-      window.clearInterval(t);
+      detener();
       window.removeEventListener("tt:datos-remotos", refrescar);
       window.removeEventListener("tt:navegacion", refrescarEnlace);
       window.removeEventListener("popstate", refrescarEnlace);
     };
   }, []);
-  const intentar = async (accion: () => Promise<any>) => {
+  const intentar = async (accion: () => Promise<any>, mostrarErrorGlobal = true) => {
     setError("");
     try {
       return await accion();
     } catch (e) {
       const mensaje =
         e instanceof Error ? e.message : "No se pudieron guardar los cambios.";
-      setError(mensaje);
+      if (mostrarErrorGlobal) setError(mensaje);
       return {
         exito: false,
         error: mensaje,
+        codigoError: e instanceof ErrorApi ? e.codigo : undefined,
         mensaje,
         resultado: "codigo_no_reconocido",
       };
@@ -372,26 +379,31 @@ function DatosDeSesion({ children, usuarioActual }: {
                 : undefined,
           },
         });
-        const nuevo = await actualizarTrasGuardar();
-        return {
-          exito: true,
-          reservacion: nuevo.listaReservaciones.find(
-            (x: any) => x.id === "apartado-" + r.id,
-          ) ?? {
-            id: "apartado-" + r.id,
-            idEvento,
-            idFechaEvento: idActividad,
-            idUsuario,
-            nombreUsuario: usuarioActual.nombre,
-            correoUsuario: usuarioActual.correo,
-            fechaCreacion: new Date(Date.parse(r.vence) - 120_000).toISOString(),
-            idAsiento: actividad?.modalidadAsistencia === "controlado" ? idAsiento : undefined,
-            etiquetaAsiento: etiqueta,
-            estado: "apartado_temporal",
-            tiempoExpiracionApartado: Date.parse(r.vence),
-          },
+        const reservacion = {
+          id: "apartado-" + r.id,
+          idEvento,
+          idFechaEvento: idActividad,
+          idUsuario,
+          nombreUsuario: usuarioActual.nombre,
+          correoUsuario: usuarioActual.correo,
+          fechaCreacion: new Date(Date.parse(r.vence) - 120_000).toISOString(),
+          idAsiento: actividad?.modalidadAsistencia === "controlado" ? idAsiento : undefined,
+          etiquetaAsiento: etiqueta,
+          estado: "apartado_temporal",
+          tiempoExpiracionApartado: Date.parse(r.vence),
         };
-      }),
+        const estadoConApartado = {
+          ...estadoRef.current,
+          listaReservaciones: [
+            ...estadoRef.current.listaReservaciones.filter((x: any) => x.id !== reservacion.id),
+            reservacion,
+          ],
+        };
+        estadoRef.current = estadoConApartado;
+        setEstado(estadoConApartado);
+        void actualizarTrasGuardar();
+        return { exito: true, reservacion };
+      }, false),
     liberarApartadoAsiento: (id: string) =>
       intentar(async () => {
         await api(
@@ -400,7 +412,7 @@ function DatosDeSesion({ children, usuarioActual }: {
         );
         await actualizarTrasGuardar();
         return { exito: true };
-      }),
+      }, false),
     confirmarReservacion: (id: string) =>
       intentar(async () => {
         const apartado = estadoRef.current.listaReservaciones.find(
@@ -417,7 +429,7 @@ function DatosDeSesion({ children, usuarioActual }: {
           exito: true,
           boleto: nuevo.listaBoletos.find((b: any) => b.idReservacion === r.id),
         };
-      }),
+      }, false),
     cancelarReservacion: (id: string) =>
       intentar(async () => {
         await api("/taquilla/reservaciones/" + id + "/cancelacion", {
@@ -518,9 +530,15 @@ function DatosDeSesion({ children, usuarioActual }: {
         const mensaje =
           e instanceof Error ? e.message : "No se pudo validar el acceso.";
         const estadoHttp = e instanceof ErrorApi ? e.estado : undefined;
-        if (estadoHttp && estadoHttp >= 500) setError(mensaje);
-        const nuevo = await cargar().catch(() => estadoRef.current);
         const resultado = clasificarErrorCheckIn(mensaje, estadoHttp);
+        if (resultado === "validacion_no_confirmada") {
+          return {
+            exito: false,
+            resultado,
+            mensaje: "Comprueba si la entrada se registró antes de volver a escanear el mismo boleto.",
+          };
+        }
+        const nuevo = await cargar().catch(() => estadoRef.current);
         const codigoNorm = codigo.trim().toUpperCase();
         const boleto =
           resultado === "ya_utilizado" || resultado === "cancelado"
@@ -543,11 +561,11 @@ function DatosDeSesion({ children, usuarioActual }: {
     revisarCambioRecinto: (peticion:any) => intentar(async()=>{
       const e=estadoRef.current.listaEventos.find((e:any)=>e.id===peticion.idEvento);
       return api('/organizacion/eventos/'+peticion.idEvento+'/recinto/revision',{metodo:'POST',datos:{peticion,version:e?.versionServidor}});
-    }),
+    }, false),
     confirmarCambioRecinto: (propuesta:any,aceptarReduccion:boolean) => intentar(async()=>{
-      await api('/organizacion/eventos/'+propuesta.peticion.idEvento+'/recinto',{metodo:'POST',datos:{peticion:propuesta.peticion,version:propuesta.firma,aceptarReduccion}});
-      await actualizarTrasGuardar();return {exito:true};
-    }),
+      const resultado = await api('/organizacion/eventos/'+propuesta.peticion.idEvento+'/recinto',{metodo:'POST',datos:{peticion:propuesta.peticion,version:propuesta.firma,aceptarReduccion}});
+      await actualizarTrasGuardar();return resultado;
+    }, false),
     agregarFechaEvento: (id:string,actividad:any) => intentar(async()=>{
       const e=estadoRef.current.listaEventos.find((e:any)=>e.id===id);
       await api('/organizacion/eventos/'+id+'/actividades',{metodo:'POST',datos:{actividad,version:e?.versionServidor,motivo:actividad.motivo}});
@@ -568,6 +586,7 @@ function DatosDeSesion({ children, usuarioActual }: {
     actualizarEvento: (id: string, parcial: any, versionEsperada: string) => intentar(async () => {
       const original=JSON.parse(versionEsperada);
       const datos={...parcial};
+      if (JSON.stringify(datos.ponentes) === JSON.stringify(original.ponentes)) delete datos.ponentes;
       if(parcial.itinerarios)datos.itinerarios=await Promise.all(parcial.itinerarios.map(async(i:any)=>({...i,idArchivo:await guardarCartelRemoto(i.urlImagen,i.nombreArchivo)})));
       if(Object.prototype.hasOwnProperty.call(parcial,'urlImagen') && parcial.urlImagen!==original.urlImagen) datos.idArchivoCartel=await guardarCartelRemoto(parcial.urlImagen);
       await api('/organizacion/eventos/'+id,{metodo:'PATCH',datos:{parcial:datos,version:original.versionServidor,motivo:parcial.historialCambios?.at(-1)?.motivo}});
@@ -596,9 +615,9 @@ function DatosDeSesion({ children, usuarioActual }: {
   const aviso = (errorLectura || error) && (
     <div
       role="alert"
-      className="m-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
+      className={`m-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm ${error ? "border-rose-200 bg-rose-50 text-rose-800" : "border-neutral-200 bg-white text-neutral-800"}`}
     >
-      <p>{textoParaUsuario(errorLectura || error)}</p>
+      <p>{listo && !error ? "Se muestran los últimos datos disponibles. " : ""}{textoParaUsuario(errorLectura || error)}</p>
       <button type="button" className="font-semibold underline" onClick={reconsultar}>
         Volver a consultar
       </button>

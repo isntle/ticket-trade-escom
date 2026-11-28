@@ -50,7 +50,7 @@ export const ModalBoletoQR: React.FC<PropiedadesModalBoletoQR> = ({
     "entradaPendiente" in a ? a.entradaPendiente : a.estado === "valido",
   );
   return (
-    <VentanaModal estaAbierto alCerrar={alCerrar} titulo="Boleto del evento">
+    <VentanaModal estaAbierto alCerrar={alCerrar} titulo={vigente ? "Boleto del evento" : "Actividades del boleto"}>
       <div className="space-y-5">
         <div>
           <h3 className="text-xl font-bold">{boleto.tituloEvento}</h3>
@@ -82,25 +82,21 @@ export const ModalBoletoQR: React.FC<PropiedadesModalBoletoQR> = ({
               </p>
             </div>
           </>
-        ) : (
-          <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
-            Este boleto ya no tiene actividades con acceso pendiente.
-          </p>
-        )}
-        {propio && apiActiva && <p className="text-sm text-neutral-600">Al confirmar una reserva, el boleto actualizado se envía automáticamente al correo de tu cuenta.</p>}
+        ) : null}
+        {vigente && propio && apiActiva && <p className="text-sm text-neutral-600">Al confirmar una reserva, el boleto actualizado se envía automáticamente al correo de tu cuenta.</p>}
         <ul className="space-y-3" aria-label="Actividades de este boleto">
           {actividades.map((a) => (
             <li
               key={a.id}
-              className="rounded-xl border border-neutral-200 p-3 text-sm"
+              className="rounded-xl border border-neutral-200 border-l-4 border-l-[#7a132b]/40 bg-neutral-50 p-4 text-sm"
             >
               <div className="flex flex-wrap justify-between gap-2">
-                <strong>{a.nombreDia || "Actividad"}</strong>
+                <h4 className="font-semibold text-neutral-900">{a.nombreDia || "Actividad"}</h4>
                 <span
                   className={
-                    a.estado === "valido"
-                      ? "font-semibold text-emerald-700"
-                      : "text-neutral-500"
+                    a.estado === "utilizado"
+                      ? "rounded-full bg-emerald-100 px-2.5 py-0.5 font-semibold text-emerald-900"
+                      : "rounded-full bg-white px-2.5 py-0.5 font-medium text-neutral-700 ring-1 ring-neutral-200"
                   }
                 >
                   {a.estado === "valido"

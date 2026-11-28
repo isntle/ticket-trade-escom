@@ -1,14 +1,18 @@
+import { EncabezadoPagina } from "../componentes/ui/EncabezadoPagina";
+import { modalidadActividad } from "../dominio/actividades";
+import { fechaLegible } from "../dominio/presentacionActividad";
+import { useImagenEvento } from "../componentes/eventos/useImagenEvento";
 import {
   filtrarPorTituloYEstado,
   nombreEstadoOrganizador,
+  ordenarEventosOrganizador,
+  ordenarSolicitudesRecientes,
 } from "../dominio/filtrosOrganizador";
-import { modalidadActividad } from "../dominio/actividades";
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Plus,
   Calendar,
   FileText,
-  Settings,
   Users,
   ArrowRight,
   Layers,
@@ -26,6 +30,41 @@ interface PropiedadesPanelOrganizador {
   navigate: (ruta: string) => void;
   soloSolicitudes?: boolean;
 }
+
+function TarjetaGestion({ titulo, imagen, estado, etiquetas, ficha, acciones }: {
+  titulo: string;
+  imagen?: string;
+  estado: Parameters<typeof InsigniaEstado>[0]['estado'];
+  etiquetas?: React.ReactNode;
+  ficha?: React.ReactNode;
+  acciones: React.ReactNode;
+}) {
+  const cartel = useImagenEvento(imagen);
+  const [imagenFallida, setImagenFallida] = useState<string>();
+  return (
+    <article className="flex min-w-0 flex-col overflow-hidden rounded-[1.25rem] border border-neutral-200 bg-white">
+      <div className="relative isolate flex aspect-[2/1] items-center justify-center overflow-hidden bg-[#521426]">
+        <Calendar size={48} className="text-rose-200/40" aria-hidden="true" />
+        {cartel.url && cartel.url !== imagenFallida &&
+          <img src={cartel.url} alt="" loading="lazy" decoding="async" onError={() => setImagenFallida(cartel.url)} className="absolute inset-0 size-full object-cover" />}
+        <div className="absolute left-3 top-3 rounded-lg bg-white p-1 shadow-sm">
+          <InsigniaEstado estado={estado} />
+        </div>
+      </div>
+      <div className="flex flex-1 flex-col gap-3 px-4 py-4 sm:px-5">
+        {etiquetas && <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-[#7a132b]">{etiquetas}</div>}
+        <h2 className="break-words text-base font-bold leading-snug tracking-tight text-neutral-900 sm:text-lg">{titulo}</h2>
+        {ficha && <div className="space-y-1 text-sm text-neutral-600">{ficha}</div>}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-100 px-4 py-3 sm:px-5">
+        {acciones}
+      </div>
+    </article>
+  );
+}
+
+const accionPrincipal = "inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#7a132b] px-3 py-2 text-sm font-semibold text-white hover:bg-[#641026]";
+const accionSecundaria = "inline-flex min-h-10 items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-[#7a132b] hover:bg-rose-50";
 
 export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
   navigate,
@@ -111,31 +150,14 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-      {/* Cabecera */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <span className="text-sm font-bold text-[#7a132b]">
-            Gestión Académica de Espacios
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 mt-0.5">
-            {soloSolicitudes ? "Mis solicitudes" : "Mis eventos y solicitudes"}
-          </h1>
-          <p className="text-sm text-neutral-500 mt-1">
-            Tramita propuestas ante Subdirección, edita la distribución de
-            butacas en auditorios, salas y laboratorios, y publica tus eventos.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => navigate("/solicitar-evento")}
-          className="boton-primario px-4 py-2.5 text-sm inline-flex items-center gap-2 cursor-pointer shadow-xs"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Solicitar nuevo evento</span>
-        </button>
-      </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <EncabezadoPagina titulo={soloSolicitudes ? "Mis solicitudes" : "Mis eventos y solicitudes"}
+        accion={<button type="button" onClick={() => navigate("/solicitar-evento")}
+          className="boton-primario inline-flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm">
+          <Plus size={16} aria-hidden="true" />
+          Solicitar nuevo evento
+        </button>}
+      />
 
       {/* Pestañas */}
       <div className="flex items-center gap-4 border-b border-neutral-200 mb-6 overflow-x-auto">
@@ -143,19 +165,21 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
           <button
             type="button"
             onClick={() => cambiarPestana("eventos")}
+            aria-pressed={pestañaActiva === "eventos"}
             className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
               pestañaActiva === "eventos"
                 ? "border-[#7a132b] text-[#7a132b]"
                 : "border-transparent text-neutral-500 hover:text-neutral-900"
             }`}
           >
-            Mis Eventos ({misEventos.length})
+            Eventos ({misEventos.length})
           </button>
         )}
         {!soloSolicitudes && (
           <button
             type="button"
             onClick={() => cambiarPestana("arreglos")}
+            aria-pressed={pestañaActiva === "arreglos"}
             className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               pestañaActiva === "arreglos"
                 ? "border-[#7a132b] text-[#7a132b]"
@@ -164,20 +188,21 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
           >
             <Layers className="w-3.5 h-3.5 text-[#7a132b]" />
             <span>
-              Editor de Distribución de Asientos ({misArreglos.length})
+              Distribuciones ({misArreglos.length})
             </span>
           </button>
         )}
         <button
           type="button"
           onClick={() => cambiarPestana("solicitudes")}
+            aria-pressed={pestañaActiva === "solicitudes"}
           className={`pb-3 text-sm font-bold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
             pestañaActiva === "solicitudes"
               ? "border-[#7a132b] text-[#7a132b]"
               : "border-transparent text-neutral-500 hover:text-neutral-900"
           }`}
         >
-          Solicitudes en Trámite ({misSolicitudes.length})
+          Solicitudes ({misSolicitudes.length})
         </button>
       </div>
 
@@ -281,66 +306,34 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
-              {eventosFiltrados.map((evento) => {
-                const fechaPrincipal = evento.fechas[0];
-                const fechaControlada = evento.fechas.find(
-                  (f) => modalidadActividad(f, evento.modalidadAsistencia) === "controlado",
-                );
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {ordenarEventosOrganizador(eventosFiltrados).map(({ evento, actividadPrincipal: fechaPrincipal }) => {
+                const tieneLugares = (fecha: (typeof evento.fechas)[number]) =>
+                  !fecha.cancelada && modalidadActividad(fecha, evento.modalidadAsistencia) === "controlado";
+                const fechaConLugares = fechaPrincipal && tieneLugares(fechaPrincipal)
+                  ? fechaPrincipal : evento.fechas.find(tieneLugares);
                 return (
-                  <div
-                    key={evento.id}
-                    className="bg-white rounded-xl border border-neutral-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-neutral-900 text-sm">
-                          {evento.titulo}
-                        </span>
-                        <InsigniaEstado estado={evento.estado} />
-                        <InsigniaEstado estado={evento.modalidadAsistencia} />
-                        {evento.visibilidad === "privado" && <span className="rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-800">Privado</span>}
-                      </div>
-                      <p className="text-sm text-neutral-500 line-clamp-1">
-                        {evento.descripcion}
+                  <TarjetaGestion key={evento.id} titulo={evento.titulo} imagen={evento.urlImagen} estado={evento.estado}
+                    etiquetas={<>
+                      <span>{evento.categoria}</span>
+                      {evento.visibilidad === "privado" && <span className="rounded bg-rose-50 px-2 py-0.5">Privado</span>}
+                    </>}
+                    ficha={fechaPrincipal && <>
+                      <p className="flex items-start gap-2"><Calendar size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+                        <span>{fechaLegible(fechaPrincipal.fecha)}{evento.fechas.length > 1 ? ` · ${evento.fechas.length} actividades` : ""}</span>
                       </p>
-                      <div className="text-sm text-neutral-400">
-                        {evento.fechas.length} fecha(s) programada(s) ·
-                        Categoría: {evento.categoria} ·{" "}
-                        {fechaPrincipal
-                          ? obtenerNombreRecinto(fechaPrincipal.idRecinto)
-                          : ""}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                      {fechaControlada && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            navigate(
-                              `/organizador/eventos/${evento.id}/fechas/${fechaControlada.id}/arreglos`,
-                            )
-                          }
-                          className="px-3.5 py-2 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-800 hover:border-[#7a132b] hover:bg-neutral-50 flex items-center gap-1.5 transition-colors cursor-pointer"
-                        >
-                          <Layers className="w-3.5 h-3.5 text-[#7a132b]" />
-                          <span>Diseñar Butacas</span>
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          navigate(`/organizador/eventos/${evento.id}`)
-                        }
-                        className="px-4 py-2 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                      >
-                        <Settings className="w-3.5 h-3.5" />
-                        <span>Configurar y Publicar</span>
+                      <p className="flex items-start gap-2"><MapPin size={15} className="mt-0.5 shrink-0" aria-hidden="true" />{obtenerNombreRecinto(fechaPrincipal.idRecinto)}</p>
+                    </>}
+                    acciones={<>
+                      <button type="button" onClick={() => navigate(`/organizador/eventos/${evento.id}`)} className={accionPrincipal}>
+                        Gestionar evento <ArrowRight size={15} aria-hidden="true" />
                       </button>
-                    </div>
-                  </div>
+                      {fechaConLugares && <button type="button" className={accionSecundaria}
+                        onClick={() => navigate(`/organizador/eventos/${evento.id}/fechas/${fechaConLugares.id}/arreglos`)}>
+                        <Layers size={15} aria-hidden="true" /> Diseñar butacas
+                      </button>}
+                    </>}
+                  />
                 );
               })}
             </div>
@@ -477,45 +470,21 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
-              {solicitudesFiltradas.map((sol) => (
-                <div
-                  key={sol.id}
-                  className="bg-white rounded-xl border border-neutral-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-neutral-900 text-sm">
-                        {sol.tituloEvento}
-                      </span>
-                      <InsigniaEstado estado={sol.estado} />
-                      {sol.visibilidad === "privado" && <span className="rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-800">Privado</span>}
-                      {sol.esExcepcional && (
-                        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-sm font-bold">
-                          Excepcional
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-neutral-500 line-clamp-1">
-                      {sol.descripcionEvento}
-                    </p>
-                    <div className="text-sm text-neutral-400">
-                      Fecha de solicitud:{" "}
-                      {new Date(sol.fechaCreacion).toLocaleDateString("es-MX")}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate(`/organizador/solicitudes/${sol.id}`)
-                    }
-                    className="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-700 hover:bg-neutral-50 flex items-center gap-1 cursor-pointer shrink-0"
-                  >
-                    <span>Ver dictamen</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {ordenarSolicitudesRecientes(solicitudesFiltradas).map((sol) => (
+                <TarjetaGestion key={sol.id} titulo={sol.tituloEvento} imagen={sol.urlImagen} estado={sol.estado}
+                  etiquetas={(sol.visibilidad === "privado" || sol.esExcepcional) && <>
+                    {sol.visibilidad === "privado" && <span className="rounded bg-rose-50 px-2 py-0.5">Privado</span>}
+                    {sol.esExcepcional && <span className="rounded bg-amber-50 px-2 py-0.5 text-amber-900">Excepcional</span>}
+                  </>}
+                  ficha={<p className="flex items-start gap-2"><Calendar size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+                    <span>Solicitud del {new Date(sol.fechaCreacion).toLocaleDateString("es-MX")}</span>
+                  </p>}
+                  acciones={<button type="button" className={accionPrincipal}
+                    onClick={() => navigate(`/organizador/solicitudes/${sol.id}`)}>
+                    Ver solicitud <ArrowRight size={15} aria-hidden="true" />
+                  </button>}
+                />
               ))}
             </div>
           )}

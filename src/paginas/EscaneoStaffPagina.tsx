@@ -1,28 +1,17 @@
+import { EncabezadoPagina } from "../componentes/ui/EncabezadoPagina";
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
+import { useEscaneosPendientes } from "../contextos/useEscaneosPendientes";
 import { textoParaUsuario } from '../utilidades/textoParaUsuario.js';
 import { inicioEnMexico } from "../dominio/solicitudes";
+import { apiActiva } from "../servicios/modoDatos";
+import { ordenarEventosOrganizador } from "../dominio/filtrosOrganizador";
+import type { Evento, FechaEvento } from "../tipos";
 import { modalidadActividad, nombreActividad } from '../dominio/actividades';
-import { volverA, reemplazarParametrosUrl } from '../dominio/navegacion';
-import { REGLA_INGRESO_ACTIVIDAD, agruparActividadesPorDia, describirActividad, etiquetaOpcionActividad, fechaLegible, horaOficial } from '../dominio/presentacionActividad';
+import { volverASeccion, reemplazarParametrosUrl } from '../dominio/navegacion';
+import { REGLA_INGRESO_ACTIVIDAD, agruparActividadesPorDia, describirActividad, fechaLegible, horaOficial, horarioActividad } from '../dominio/presentacionActividad';
 import React, { useEffect, useRef, useState } from 'react';
-import { BrowserQRCodeReader, IScannerControls } from '@zxing/browser';
-import {
-  QrCode,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  RotateCcw,
-  Camera,
-  MapPin,
-  Calendar,
-  Clock,
-  UserCheck,
-  Search,
-  ArrowRight,
-  ShieldCheck,
-  Zap,
-  Users,
-  Lock
-} from 'lucide-react';
+import type { BrowserQRCodeReader, IScannerControls } from '@zxing/browser';
+import { ArrowRight, Camera, CheckCircle, Lock, QrCode, Users, XCircle } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { useNotificaciones } from '../contextos/NotificacionesContexto';
@@ -34,6 +23,9 @@ interface PropiedadesEscaneoStaff {
   initialEventId?: string;
   initialDateId?: string;
 }
+
+const validaBoleto = (fecha: FechaEvento, evento: Evento) =>
+  modalidadActividad(fecha, evento.modalidadAsistencia) !== "libre";
 
 const CLAVE_INTENTOS_MANUALES_CHECKIN = 'ticket_trade_checkin_intentos_manuales';
 
@@ -59,17 +51,21 @@ const guardarIntentoManualInexistente = (idOperador: string, ahora: number) => {
 
 export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate, initialEventId, initialDateId }) => {
   const { listaBoletos, procesarCheckIn, listaEventos, listaRecintos, listaBloqueos } = useDatos();
-  const { usuarioActual } = useAutenticacion();
+  const { usuarioActual, rolActivo } = useAutenticacion();
   const { mostrarNotificacion } = useNotificaciones();
+  const pendientes = useEscaneosPendientes(usuarioActual?.id);
 
   const [codigoIngresado, setCodigoIngresado] = useState('');
   const [errorCamara, setErrorCamara] = useState('');
   const [camaraActiva, setCamaraActiva] = useState(false);
+  const [abriendoCamara, setAbriendoCamara] = useState(false);
+  const [validando, setValidando] = useState(false);
+  const validacionEnCurso = useRef(false);
   const [faseControl, setFaseControl] = useState<'seleccion' | 'lector'>('seleccion');
   const [ahoraSistema, setAhoraSistema] = useState(Date.now());
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlesCamara = useRef<IScannerControls | null>(null);
-  const lectorQr = useRef(new BrowserQRCodeReader());
+  const lectorQr = useRef<BrowserQRCodeReader | null>(null);
   const leyendoQr = useRef(false);
   const reanudarCamaraAlContinuar = useRef(false);
 
@@ -78,22 +74,13 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     if (!usuarioActual) return false;
     const esResponsable =
       usuarioActual.roles.includes('admin') ||
-      (usuarioActual.roles.includes('organizador') && ev.idOrganizador === usuarioActual.id) ||
+      (!apiActiva && usuarioActual.roles.includes('organizador') && ev.idOrganizador === usuarioActual.id) ||
       (usuarioActual.roles.includes('staff') && Boolean(usuarioActual.eventosAsignadosStaff?.includes(ev.id)));
-    return esResponsable && ev.fechas.some(f=>modalidadActividad(f,ev.modalidadAsistencia)==='controlado');
+    return esResponsable && ev.fechas.some(fecha => validaBoleto(fecha, ev));
   });
 
-  // Se respeta la selección recibida por URL solo si el evento sigue permitido para la cuenta.
-  const [eventoActivoId, setEventoActivoId] = useState(() => {
-    if (initialEventId && eventosPermitidos.some((ev) => ev.id === initialEventId)) return initialEventId;
-    return eventosPermitidos[0]?.id || 'evt-simposio-ia';
-  });
-
-  const [fechaActivaId, setFechaActivaId] = useState(() => {
-    const evento = eventosPermitidos.find((ev) => ev.id === initialEventId);
-    if (evento && initialDateId && evento.fechas.some((f) => f.id === initialDateId)) return initialDateId;
-    return evento?.fechas[0]?.id || eventosPermitidos[0]?.fechas[0]?.id || 'fec-simposio-d1';
-  });
+  const [eventoActivoId, setEventoActivoId] = useState(initialEventId ?? '');
+  const [fechaActivaId, setFechaActivaId] = useState(initialDateId ?? '');
 
   // Resultado de escaneo activo (soft screen)
   const [ultimoResultado, setUltimoResultado] = useState<{
@@ -104,43 +91,28 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
     horaRegistro?: string;
   } | null>(null);
 
-  const eventoSeleccionado =
-    listaEventos.find((e) => e.id === eventoActivoId) || eventosPermitidos[0] || listaEventos[0];
-  const fechaSeleccionada =
-    eventoSeleccionado?.fechas.find((f) => f.id === fechaActivaId) || eventoSeleccionado?.fechas[0];
+  const eventoSeleccionado = eventosPermitidos.find(ev => ev.id === eventoActivoId)
+    ?? ordenarEventosOrganizador(eventosPermitidos, ahoraSistema)[0]?.evento;
+  const actividadesConBoleto = eventoSeleccionado?.fechas.filter(
+    fecha => validaBoleto(fecha, eventoSeleccionado),
+  ) ?? [];
+  const fechaSeleccionada = actividadesConBoleto.find(f => f.id === fechaActivaId)
+    ?? actividadesConBoleto.find(f => !f.cancelada && inicioEnMexico(f.fecha, f.horaFin) > ahoraSistema)
+    ?? actividadesConBoleto[0];
+  const idEventoSeleccionado = eventoSeleccionado?.id;
+  const idFechaSeleccionada = fechaSeleccionada?.id;
+  const estaAsignadoAEvento = Boolean(idEventoSeleccionado && idFechaSeleccionada);
 
-  // La URL refleja evento y actividad para que el regreso desde el historial los conserve.
   useEffect(() => {
-    if (eventoActivoId && fechaActivaId) reemplazarParametrosUrl({ eventId: eventoActivoId, dateId: fechaActivaId });
-  }, [eventoActivoId, fechaActivaId]);
+    if (idEventoSeleccionado && idFechaSeleccionada) {
+      reemplazarParametrosUrl({ eventId: idEventoSeleccionado, dateId: idFechaSeleccionada });
+    }
+  }, [idEventoSeleccionado, idFechaSeleccionada]);
 
   useEffect(() => {
-    const intervalo = window.setInterval(() => setAhoraSistema(Date.now()), 15_000);
+    const intervalo = window.setInterval(() => setAhoraSistema(Date.now()), 1_000);
     return () => window.clearInterval(intervalo);
   }, []);
-
-  // Mantener la selección válida cuando cambia el usuario activo o la asignación de eventos.
-  useEffect(() => {
-    const eventoValido = eventosPermitidos.some((evento) => evento.id === eventoActivoId);
-    const eventoActual = eventoValido
-      ? eventosPermitidos.find((evento) => evento.id === eventoActivoId)
-      : eventosPermitidos[0];
-
-    if (!eventoValido && eventoActual) {
-      setEventoActivoId(eventoActual.id);
-    }
-
-    const fechaValida = eventoActual?.fechas.some((fecha) => fecha.id === fechaActivaId);
-    if (!fechaValida) {
-      setFechaActivaId(eventoActual?.fechas[0]?.id || '');
-    }
-  }, [eventoActivoId, eventosPermitidos, fechaActivaId]);
-
-  // Verificación de si el operador tiene asignado este evento
-  const estaAsignadoAEvento = Boolean(usuarioActual && eventoSeleccionado &&
-    (usuarioActual.roles.includes('admin') ||
-    (usuarioActual.roles.includes('organizador') && eventoSeleccionado.idOrganizador === usuarioActual.id) ||
-    (usuarioActual.roles.includes('staff') && usuarioActual.eventosAsignadosStaff?.includes(eventoSeleccionado.id))));
 
   // Cálculo de aforo e ingresos en vivo en puerta
   const boletosEvento = listaBoletos.filter((b) => b.idEvento === eventoSeleccionado?.id && b.idFechaEvento === fechaSeleccionada?.id);
@@ -152,11 +124,13 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
   const indiceActividad = Math.max(0, eventoSeleccionado?.fechas.findIndex((f) => f.id === fechaSeleccionada?.id) ?? 0);
   const nombreActividadSeleccionada = fechaSeleccionada ? nombreActividad(fechaSeleccionada, indiceActividad) : 'Actividad no disponible';
   const resumenActividad = fechaSeleccionada ? describirActividad(fechaSeleccionada, recintoSeleccionado?.nombre) : '';
-  const consultaSeleccion = `eventId=${encodeURIComponent(eventoActivoId)}&dateId=${encodeURIComponent(fechaActivaId)}`;
+  const consultaSeleccion = `eventId=${encodeURIComponent(idEventoSeleccionado ?? '')}&dateId=${encodeURIComponent(idFechaSeleccionada ?? '')}`;
 
   const estadoActividad = (() => {
     if (!eventoSeleccionado || !fechaSeleccionada) return { disponible: false, etiqueta: 'Actividad no disponible', detalle: 'Selecciona un evento y una actividad válida.' };
-    if (fechaSeleccionada.cancelada || ['cancelado','finalizado'].includes(eventoSeleccionado.estado)) return { disponible: false, etiqueta: 'Cancelado', detalle: fechaSeleccionada.cancelada ? `La actividad «${nombreActividadSeleccionada}» fue cancelada.` : 'Este evento fue cancelado.' };
+    if (fechaSeleccionada.cancelada || eventoSeleccionado.estado === 'cancelado') return { disponible: false, etiqueta: 'Actividad cancelada', detalle: 'El registro de entradas está cerrado.' };
+    if (eventoSeleccionado.estado === 'finalizado') return { disponible: false, etiqueta: 'Evento finalizado', detalle: 'El registro de entradas está cerrado.' };
+    if (eventoSeleccionado.estado === 'configuracion' || eventoSeleccionado.estado === 'borrador') return { disponible: false, etiqueta: 'Evento sin publicar', detalle: 'El lector se habilita cuando se publica el evento y abre el acceso.' };
     const bloqueo = listaBloqueos.find((elemento) => {
       const aplicaRecinto = elemento.idRecinto === fechaSeleccionada.idRecinto || elemento.idRecinto === 'todos' || Boolean(elemento.idsRecintos?.includes(fechaSeleccionada.idRecinto));
       if (!aplicaRecinto || fechaSeleccionada.fecha < elemento.fechaInicio) return false;
@@ -164,15 +138,14 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       const finBloqueo = elemento.fechaFin || elemento.fechaInicio;
       return fechaSeleccionada.fecha <= finBloqueo && fechaSeleccionada.horaInicio < (elemento.horaFin || '23:59') && fechaSeleccionada.horaFin > (elemento.horaInicio || '00:00');
     });
-    if (bloqueo) return { disponible: false, etiqueta: 'Suspendido', detalle: `La actividad «${nombreActividadSeleccionada}» está suspendida por: ${bloqueo.titulo}.` };
-    if ((!fechaSeleccionada || modalidadActividad(fechaSeleccionada,eventoSeleccionado.modalidadAsistencia) !== 'controlado')) return { disponible: false, etiqueta: 'Sin control de acceso', detalle: 'La actividad no utiliza acceso con boleto.' };
+    if (bloqueo || fechaSeleccionada.suspendida) return { disponible: false, etiqueta: 'Actividad suspendida', detalle: bloqueo?.titulo || 'El registro de entradas está cerrado.' };
     const inicio = inicioEnMexico(fechaSeleccionada.fecha,fechaSeleccionada.horaInicio);
     const fin = inicioEnMexico(fechaSeleccionada.fecha,fechaSeleccionada.horaFin);
     const apertura = inicio - 30 * 60 * 1000;
     if (!Number.isFinite(inicio) || !Number.isFinite(fin) || fin <= inicio) return { disponible: false, etiqueta: 'Horario inválido', detalle: 'No se puede validar el horario de esta actividad.' };
-    if (ahoraSistema < apertura) return { disponible: false, etiqueta: 'Aún no disponible', detalle: `El registro de «${nombreActividadSeleccionada}» abre el ${fechaLegible(fechaSeleccionada.fecha)} a las ${horaOficial(apertura)} h, 30 minutos antes de su inicio (${fechaSeleccionada.horaInicio} h).` };
-    if (ahoraSistema >= fin) return { disponible: false, etiqueta: 'Finalizado', detalle: `«${nombreActividadSeleccionada}» terminó a las ${fechaSeleccionada.horaFin} h; ya no se registran entradas para esta actividad.` };
-    return { disponible: true, etiqueta: 'Disponible para Check-in', detalle: `Registro abierto hasta las ${fechaSeleccionada.horaFin} h. La cámara y la captura manual están habilitadas.` };
+    if (ahoraSistema < apertura) return { disponible: false, etiqueta: 'Aún no abre el acceso', detalle: `El lector se habilita el ${fechaLegible(fechaSeleccionada.fecha)} a las ${horaOficial(apertura)} h, 30 minutos antes de la actividad.` };
+    if (ahoraSistema >= fin) return { disponible: false, etiqueta: 'Finalizado', detalle: 'El registro de entradas está cerrado.' };
+    return { disponible: true, etiqueta: 'Acceso abierto', detalle: `Cierra a las ${fechaSeleccionada.horaFin} h.` };
   })();
 
   const fallosManualesActivos = obtenerIntentosManualesActivos(usuarioActual?.id, ahoraSistema);
@@ -181,29 +154,50 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
 
   useEffect(() => () => controlesCamara.current?.stop(), []);
 
+  const detenerCamara = () => {
+    controlesCamara.current?.stop();
+    controlesCamara.current = null;
+    setCamaraActiva(false);
+  };
+
   const iniciarCamara = async () => {
+    const video = videoRef.current;
+    if (!video || controlesCamara.current) return;
     setErrorCamara('');
+    setAbriendoCamara(true);
+    let codigoLeido = false;
     try {
-      const video = videoRef.current;
-      if (!video) return;
-      controlesCamara.current = await lectorQr.current.decodeFromVideoDevice(undefined, video, (resultado) => {
-        if (!resultado || leyendoQr.current) return;
+      lectorQr.current ??= new (await import("@zxing/browser")).BrowserQRCodeReader();
+      if (videoRef.current !== video) return;
+      const controles = await lectorQr.current.decodeFromVideoDevice(undefined, video, (resultado, _error, lectura) => {
+        if (!resultado || leyendoQr.current || videoRef.current !== video) return;
+        codigoLeido = true;
         leyendoQr.current = true;
-        controlesCamara.current?.stop();
+        lectura.stop();
+        controlesCamara.current = null;
         setCamaraActiva(false);
         reanudarCamaraAlContinuar.current = true;
-        ejecutarEscaneo(resultado.getText());
+        void ejecutarEscaneo(resultado.getText());
         window.setTimeout(() => { leyendoQr.current = false; }, 800);
       });
+      if (videoRef.current !== video || codigoLeido) {
+        controles.stop();
+        return;
+      }
+      controlesCamara.current = controles;
       setCamaraActiva(true);
     } catch {
-      setErrorCamara('No se pudo abrir la cámara. Revisa el permiso del navegador o captura el identificador manualmente.');
-      setCamaraActiva(false);
+      if (videoRef.current === video) {
+        setErrorCamara('No se pudo abrir la cámara. Revisa el permiso del navegador o usa el código de boleto.');
+        setCamaraActiva(false);
+      }
+    } finally {
+      setAbriendoCamara(false);
     }
   };
 
   const ejecutarEscaneo = async (codigoAProcesar: string, validarFormatoManual = false) => {
-    if (!codigoAProcesar.trim()) return;
+    if (!codigoAProcesar.trim() || validacionEnCurso.current) return;
     if (!/^(?:TT-[A-F0-9]{32}|[A-F0-9]{64}|[A-F0-9]{16})$/i.test(codigoAProcesar.trim())) {
       setUltimoResultado({ exito: false, resultado: 'codigo_no_reconocido', mensaje: 'Código no reconocido. Verifica que sea el identificador completo del boleto Ticket Trade.' });
       return;
@@ -212,8 +206,7 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       mostrarNotificacion('Límite de capturas excedido', `Espera ${segundosRestantesManual} s para volver a validar manualmente. La cámara permanece disponible.`, 'advertencia');
       return;
     }
-    controlesCamara.current?.stop();
-    setCamaraActiva(false);
+    detenerCamara();
 
     if (!estaAsignadoAEvento) {
       mostrarNotificacion(
@@ -224,29 +217,36 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       return;
     }
 
-    const res = (await procesarCheckIn(
-      codigoAProcesar.trim(),
-      usuarioActual?.nombre || 'Staff ESCOM',
-      fechaSeleccionada?.id,
-      usuarioActual || undefined,
-      eventoSeleccionado?.id
-    ));
-    const ahora = new Date().toLocaleTimeString('es-MX', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    if (validarFormatoManual && res.resultado === 'inexistente') {
-      const ahoraDelIntento = Date.now();
-      guardarIntentoManualInexistente(usuarioActual!.id, ahoraDelIntento);
-      setAhoraSistema(ahoraDelIntento);
+    if (pendientes.habilitado && !navigator.onLine && fechaSeleccionada) {
+      const guardado = pendientes.guardar(codigoAProcesar.trim(), fechaSeleccionada.id);
+      mostrarNotificacion(guardado ? 'Escaneo pendiente' : 'No se guardó el escaneo',
+        guardado ? 'Se enviará al recuperar conexión. El acceso aún no está validado.' : 'La cola está llena o el navegador no puede guardarla. Recupera la conexión antes de continuar.',
+        guardado ? 'advertencia' : 'error');
+      setCodigoIngresado('');
+      return;
     }
 
-    setUltimoResultado({
-      ...res,
-      horaRegistro: ahora
-    });
-    setCodigoIngresado('');
+    validacionEnCurso.current = true;
+    setValidando(true);
+    try {
+      const res = await procesarCheckIn(
+        codigoAProcesar.trim(), usuarioActual?.nombre || 'Staff ESCOM',
+        fechaSeleccionada?.id, usuarioActual || undefined, eventoSeleccionado?.id,
+      );
+      if (validarFormatoManual && res.resultado === 'inexistente' && usuarioActual) {
+        const instante = Date.now();
+        guardarIntentoManualInexistente(usuarioActual.id, instante);
+        setAhoraSistema(instante);
+      }
+      setUltimoResultado({ ...res, horaRegistro: horaOficial(Date.now()) });
+      setCodigoIngresado('');
+    } catch {
+      setUltimoResultado({ exito: false, resultado: 'validacion_no_confirmada',
+        mensaje: 'Comprueba si la entrada se registró antes de volver a escanear el mismo boleto.' });
+    } finally {
+      validacionEnCurso.current = false;
+      setValidando(false);
+    }
   };
 
   const limpiarParaSiguiente = () => {
@@ -266,292 +266,191 @@ export const EscaneoStaffPagina: React.FC<PropiedadesEscaneoStaff> = ({ navigate
       mostrarNotificacion('Control no disponible', estadoActividad.detalle, 'advertencia');
       return;
     }
+    // Conserva la actividad del lector aunque su ventana de acceso cierre.
+    setEventoActivoId(idEventoSeleccionado ?? '');
+    setFechaActivaId(idFechaSeleccionada ?? '');
     setUltimoResultado(null);
     setFaseControl('lector');
   };
 
   const terminarControl = () => {
-    controlesCamara.current?.stop();
-    setCamaraActiva(false);
+    detenerCamara();
     setUltimoResultado(null);
     setFaseControl('seleccion');
+    setCodigoIngresado('');
+    setErrorCamara('');
+    reanudarCamaraAlContinuar.current = false;
   };
 
-  if (eventosPermitidos.length === 0) {
-    return <main className="mx-auto max-w-xl px-4 py-20 text-center"><div className="rounded-3xl border border-neutral-200 bg-white p-8"><Lock className="mx-auto h-10 w-10 text-amber-700"/><h1 className="mt-4 text-xl font-black">No hay eventos asignados</h1><p className="mt-2 text-sm text-neutral-600">Para operar el lector, debes ser responsable o Staff asignado de un evento con aforo controlado.</p><button type="button" onClick={() => navigate(volverA('/eventos'))} className="mt-5 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-bold text-white">Volver a eventos</button></div></main>;
-  }
+  const botonPrimario = 'boton-primario inline-flex min-h-11 items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50';
+  const botonSecundario = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 hover:bg-neutral-50 disabled:opacity-50';
+  const alVolver = () => navigate(volverASeccion('/eventos'));
 
   return (
-    <div className="max-w-md mx-auto px-4 py-6 min-h-[85vh] flex flex-col justify-between animate-in fade-in duration-200">
-      {faseControl === 'seleccion' ? <section className="my-auto rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-[#7a132b]">Control de acceso</span>
-        <h1 className="mt-1 text-xl font-black text-neutral-900">Selecciona una actividad</h1>
-        <p className="mb-4 mt-1 text-sm text-neutral-600">Elige un evento autorizado y una actividad con aforo controlado para iniciar el control de acceso.</p>
-        <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">
-          Evento autorizado:
-        </label>
-        <select
-          value={eventoActivoId}
-          onChange={(e) => {
-            setEventoActivoId(e.target.value);
-            const ev = listaEventos.find((item) => item.id === e.target.value);
-            if (ev && ev.fechas.length > 0) {
-              setFechaActivaId(ev.fechas[0].id);
-            }
-            setFaseControl('seleccion');
-          }}
-          className="w-full text-xs font-bold text-neutral-800 bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 py-1.5 focus:border-[#7a132b]"
-        >
-          {eventosPermitidos.map((ev) => (
-            <option key={ev.id} value={ev.id}>
-              {ev.titulo}
-            </option>
-          ))}
-        </select>
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      {faseControl === 'seleccion' && <BotonRegresar destino="Volver a la cartelera" alVolver={alVolver} />}
+      <EncabezadoPagina titulo="Control de acceso"
+        descripcion={faseControl === 'seleccion' && eventosPermitidos.length ? 'Elige la actividad en la que registrarás entradas.' : undefined}
+        accion={faseControl === 'lector' && <button type="button" disabled={validando} onClick={terminarControl}
+          className={botonSecundario}>Cambiar actividad</button>}
+      />
 
-        {eventoSeleccionado && eventoSeleccionado.fechas.length > 0 && (
-          <div className="mt-2 flex items-center gap-2">
-            <Calendar className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-            <select
-              value={fechaSeleccionada?.id || ''}
-              onChange={(e) => { setFechaActivaId(e.target.value); setFaseControl('seleccion'); }}
-              className="flex-1 text-xs font-semibold text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 py-1.5 focus:border-[#7a132b]"
-              aria-label="Actividad del evento que se está validando"
-            >
-              {agruparActividadesPorDia(eventoSeleccionado.fechas).map((dia) => (
-                <optgroup key={dia.fecha} label={dia.etiqueta}>
-                  {dia.actividades.map(({ actividad, indice }) => (
-                    <option key={actividad.id} value={actividad.id}>
-                      {etiquetaOpcionActividad(actividad, indice, nombreRecinto(actividad.idRecinto))}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+      {!eventoSeleccionado || !fechaSeleccionada ? (
+        <section className="flex max-w-2xl items-start gap-4 rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6">
+          <Lock aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-[#7a132b]" />
+          <div>
+            <h2 className="font-bold text-neutral-900">No tienes actividades asignadas</h2>
+            <p className="mt-1 text-sm text-neutral-600">Pide al responsable del evento que te asigne como personal de acceso.</p>
           </div>
-        )}
-
-        {!estaAsignadoAEvento && (
-          <div className="mt-2 p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] flex items-center gap-1.5">
-            <Lock className="w-3.5 h-3.5 shrink-0" />
-            <span>No estás registrado como staff de este evento.</span>
-          </div>
-        )}
-        {eventoSeleccionado && fechaSeleccionada && <dl className="mt-3 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-xs">
-          <dt className="text-neutral-500">Actividad</dt><dd className="font-bold text-neutral-900">{nombreActividadSeleccionada}</dd>
-          <dt className="text-neutral-500">Fecha</dt><dd className="text-neutral-800">{fechaLegible(fechaSeleccionada.fecha)}</dd>
-          <dt className="text-neutral-500">Horario</dt><dd className="text-neutral-800">{fechaSeleccionada.horaInicio}–{fechaSeleccionada.horaFin} h</dd>
-          <dt className="text-neutral-500">Recinto</dt><dd className="text-neutral-800">{recintoSeleccionado?.nombre || 'Recinto por confirmar'}</dd>
-        </dl>}
-        {eventoSeleccionado && fechaSeleccionada && <div className={`mt-4 rounded-xl border p-3 text-sm ${estadoActividad.disponible ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
-          <strong className="block">{estadoActividad.etiqueta}</strong><span className="mt-0.5 block text-xs">{estadoActividad.detalle}</span>
-        </div>}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-4">
-          <div className="text-xs text-neutral-500">{REGLA_INGRESO_ACTIVIDAD}</div>
-          <button type="button" onClick={iniciarControl} disabled={!estaAsignadoAEvento || !estadoActividad.disponible} className="rounded-xl bg-[#7a132b] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">Iniciar control</button>
-        </div>
-      </section> : <>
-        <section className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
-          <div className="min-w-0"><span className="text-[10px] font-bold uppercase tracking-widest text-[#7a132b]">Control de acceso</span><strong className="block truncate text-sm">{eventoSeleccionado?.titulo}</strong><span className="block truncate text-xs font-semibold text-neutral-800">{nombreActividadSeleccionada}</span><span className="block text-xs text-neutral-500">{resumenActividad}</span></div>
-          <button type="button" onClick={terminarControl} className="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-bold text-neutral-700 hover:bg-neutral-50">Terminar control</button>
         </section>
-
-      {/* ========================================================================= */}
-      {/* CASO A: PANTALLA DE RESULTADO ULTRA-ENFOCADA (Soft Green / Soft Red)     */}
-      {/* ========================================================================= */}
-      {ultimoResultado ? (
-        <div
-          className={`my-auto p-7 rounded-3xl border text-center shadow-lg transition-all animate-in zoom-in-95 duration-150 flex flex-col justify-between min-h-[460px] ${
-            ultimoResultado.exito
-              ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
-              : 'bg-rose-50/90 border-rose-300 text-rose-950'
-          }`}
-        >
-          <div className="space-y-4">
-            {/* Icono de Verificación Suave */}
-            <div className="pt-2">
-              {ultimoResultado.exito ? (
-                <div className="w-20 h-20 rounded-full bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-md">
-                  <CheckCircle className="w-12 h-12 stroke-[2.5]" />
-                </div>
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-rose-600 text-white flex items-center justify-center mx-auto shadow-md">
-                  <XCircle className="w-12 h-12 stroke-[2.5]" />
-                </div>
-              )}
-            </div>
-
-            <div>
-              <h2 className="text-2xl font-black tracking-tight">
-                {ultimoResultado.exito ? '✓ Entrada válida' : '✕ Entrada no válida'}
-              </h2>
-              <p className="text-xs mt-1.5 opacity-90 max-w-xs mx-auto leading-relaxed">
-                {ultimoResultado.mensaje}
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-white/80 border border-black/10 p-3 text-left text-[11px]">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400">Actividad validada</span>
-              <span className="block font-bold text-neutral-900">{nombreActividadSeleccionada}</span>
-              <span className="block text-neutral-600">{resumenActividad}</span>
-              {ultimoResultado.resultado === 'fuera_de_horario' && <span className="mt-1 block text-neutral-600">{REGLA_INGRESO_ACTIVIDAD}</span>}
-            </div>
-
-            {/* Tarjeta del Asistente (legible sin saturación) */}
-            {ultimoResultado.boleto ? (
-              <div className="bg-white/90 backdrop-blur-xs p-4 rounded-2xl border border-black/10 text-left text-xs space-y-2.5 shadow-xs">
-                <div>
-                  <span className="text-[10px] text-neutral-400 block uppercase font-bold tracking-wider">
-                    Asistente
-                  </span>
-                  <span className="font-extrabold text-neutral-900 text-base">
-                    {ultimoResultado.boleto.nombreUsuario}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center pt-2 border-t border-neutral-100">
-                  <span className="text-neutral-500">Lugar Asignado:</span>
-                  <span className="font-mono font-black text-lg text-[#7a132b]">
-                    {ultimoResultado.boleto.etiquetaAsiento || 'General'}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center text-[11px] text-neutral-500 pt-1 border-t border-neutral-100">
-                  <span>Hora de ingreso:</span>
-                  <span className="font-mono font-semibold text-neutral-800">
-                    {ultimoResultado.horaRegistro} hrs
-                  </span>
-                </div>
-              </div>
-            ) : ['inexistente', 'codigo_no_reconocido', 'fecha_invalida'].includes(ultimoResultado.resultado) ? (
-              <div className="p-4 rounded-xl bg-white/70 border border-black/10 text-xs">
-                <span className="text-rose-900 font-semibold block">
-                  El código no corresponde a un boleto registrado para esta actividad.
-                </span>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Botón Principal para Continuar */}
-          <div className="pt-6">
-            <button
-              type="button"
-              autoFocus
-              onClick={limpiarParaSiguiente}
-              className={`w-full py-3.5 rounded-2xl text-sm font-bold text-white shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 ${
-                ultimoResultado.exito
-                  ? 'bg-emerald-700 hover:bg-emerald-800'
-                  : 'bg-rose-700 hover:bg-rose-800'
-              }`}
-            >
-              <span>Escanear siguiente</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
       ) : (
-        /* ========================================================================= */
-        /* CASO B: ESTADO INICIAL DE ESCANEO ACTIVO (Visor + Contador)               */
-        /* ========================================================================= */
-        <div className="space-y-4 my-auto">
-          {/* Identidad del Evento y Recinto */}
-          <div className="text-center space-y-0.5">
-            <span className="text-[10px] font-bold tracking-widest text-[#7a132b] uppercase">
-              Control de Acceso Operacional
-            </span>
-            <h1 className="text-base font-black text-neutral-900 line-clamp-1">
-              {eventoSeleccionado?.titulo}
-            </h1>
-            <p className="text-sm font-bold text-neutral-800 line-clamp-1">{nombreActividadSeleccionada}</p>
-            <div className="text-xs text-neutral-500 flex items-center justify-center gap-2">
-              <span className="font-semibold text-neutral-800">
-                {fechaLegible(fechaSeleccionada?.fecha)}
-              </span>
-                <span aria-hidden="true" className="text-neutral-300">·</span>
-                <span>{fechaSeleccionada?.horaInicio}–{fechaSeleccionada?.horaFin} h</span>
-              <span aria-hidden="true" className="text-neutral-300">·</span>
-                <span className="font-semibold text-neutral-700">{recintoSeleccionado?.nombre || 'Recinto por confirmar'}</span>
+        <>
+          {faseControl === 'seleccion' ? (
+            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.6fr)]">
+              <section className="min-w-0 rounded-2xl border border-neutral-200 bg-white p-4 sm:p-6">
+                {eventosPermitidos.length > 1 ? <label className="block text-sm font-semibold text-neutral-900">
+                  Evento
+                  <select value={idEventoSeleccionado} onChange={e => {
+                    setEventoActivoId(e.target.value);
+                    setFechaActivaId('');
+                  }} className="mt-2 block min-h-11 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm">
+                    {eventosPermitidos.map(ev => <option key={ev.id} value={ev.id}>{ev.titulo}</option>)}
+                  </select>
+                </label> : <h2 className="text-lg font-bold text-neutral-900">{eventoSeleccionado.titulo}</h2>}
+
+                <fieldset className="mt-5 min-w-0">
+                  <legend className="text-sm font-semibold text-neutral-900">Actividad</legend>
+                  {agruparActividadesPorDia(eventoSeleccionado.fechas).map(dia => {
+                    const actividades = dia.actividades.filter(({ actividad }) => actividadesConBoleto.includes(actividad));
+                    if (!actividades.length) return null;
+                    return <div key={dia.fecha} className="mt-3 space-y-2">
+                      <p className="text-sm text-neutral-600">{fechaLegible(dia.fecha)}</p>
+                      {actividades.map(({ actividad, indice }) => (
+                        <label key={actividad.id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-neutral-200 p-3.5 has-checked:border-[#7a132b] has-checked:bg-[#7a132b]/5 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#7a132b]">
+                          <input type="radio" name="actividad-control" checked={idFechaSeleccionada === actividad.id}
+                            onChange={() => setFechaActivaId(actividad.id)} className="mt-1 h-4 w-4 shrink-0 accent-[#7a132b]" />
+                          <span className="min-w-0 break-words text-sm">
+                            <strong className="block text-neutral-900">{nombreActividad(actividad, indice)}</strong>
+                            <span className="mt-1 block text-neutral-600">{horarioActividad(actividad)} · {nombreRecinto(actividad.idRecinto) || 'Recinto por confirmar'}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>;
+                  })}
+                </fieldset>
+              </section>
+
+              <section className="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6" aria-label="Disponibilidad del acceso">
+                <p className="flex items-center gap-2 text-sm font-semibold text-neutral-900" role="status">
+                  <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${estadoActividad.disponible ? 'bg-emerald-600' : 'bg-neutral-500'}`} />
+                  {estadoActividad.etiqueta}
+                </p>
+                <p className="mt-2 text-sm text-neutral-600">{estadoActividad.detalle}</p>
+                <button type="button" onClick={iniciarControl} disabled={!estadoActividad.disponible} className={`${botonPrimario} mt-5 w-full`}>
+                  <QrCode size={18} aria-hidden="true" /> Abrir lector
+                </button>
+              </section>
             </div>
-          </div>
+          ) : (
+            <>
+              <section className="mb-5 border-b border-neutral-200 pb-4" aria-label="Actividad en control">
+                <p className="text-sm font-medium text-neutral-600">{eventoSeleccionado.titulo}</p>
+                <h2 className="mt-1 text-xl font-bold leading-snug text-neutral-900">{nombreActividadSeleccionada}</h2>
+                <p className="mt-1 text-sm text-neutral-600">{resumenActividad}</p>
+              </section>
 
-          {/* Contador de Ingresos en Puerta */}
-          <div className="bg-white rounded-2xl border border-neutral-200 p-3.5 shadow-xs">
-            <div className="flex justify-between items-center text-xs mb-1.5">
-              <span className="font-bold text-neutral-800 flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-[#7a132b]" />
-                <span>Ingresos Registrados</span>
-              </span>
-              <span className="font-mono font-black text-neutral-900">
-                {totalIngresados} / {totalEmitidos} ({porcentajeIngreso}%)
-              </span>
-            </div>
-            <div className="w-full bg-neutral-100 h-2.5 rounded-full overflow-hidden">
-              <div
-                className="bg-emerald-600 h-full transition-all duration-300 rounded-full"
-                style={{ width: `${Math.max(5, porcentajeIngreso)}%` }}
-              />
-            </div>
-          </div>
+              {!estadoActividad.disponible && <p role="status" className="mb-4 rounded-xl border border-neutral-200 bg-white p-3 text-sm"><strong>{estadoActividad.etiqueta}.</strong> {estadoActividad.detalle}</p>}
 
-          {/* Lector real por cámara */}
-          <div className="bg-neutral-950 rounded-3xl p-5 text-white text-center relative overflow-hidden shadow-md">
-            <video ref={videoRef} className={`w-full max-h-64 rounded-xl object-cover ${camaraActiva ? '' : 'hidden'}`} muted playsInline />
-            {!camaraActiva && <div className="py-8"><Camera className="w-10 h-10 text-neutral-400 mx-auto mb-2" /><p className="text-xs">Lectura de QR con la cámara del dispositivo</p></div>}
-            <button type="button" disabled={!estaAsignadoAEvento} onClick={() => camaraActiva ? (controlesCamara.current?.stop(), setCamaraActiva(false)) : void iniciarCamara()} className="mt-3 rounded-xl bg-white px-4 py-2 text-xs font-bold text-neutral-900 disabled:opacity-50">{camaraActiva ? 'Detener cámara' : 'Activar cámara'}</button>
-            {errorCamara && <p role="alert" className="mt-2 text-xs text-rose-200">{textoParaUsuario(errorCamara)}</p>}
-          </div>
+              <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.6fr)]">
+                {ultimoResultado ? (
+                  <section aria-label="Resultado de validación" className="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6">
+                    <div className="flex items-start gap-3" role="status">
+                      {ultimoResultado.exito
+                        ? <CheckCircle className="mt-0.5 h-6 w-6 shrink-0 text-emerald-700" aria-hidden="true" />
+                        : <XCircle className="mt-0.5 h-6 w-6 shrink-0 text-rose-700" aria-hidden="true" />}
+                      <div>
+                        <h3 className="text-xl font-bold text-neutral-900">{ultimoResultado.exito ? 'Entrada válida' : ultimoResultado.resultado === 'validacion_no_confirmada' ? 'Validación sin confirmar' : 'Entrada no válida'}</h3>
+                        <p className="mt-1 text-sm text-neutral-600">{ultimoResultado.mensaje}</p>
+                        {ultimoResultado.resultado === 'fuera_de_horario' && <p className="mt-2 text-sm text-neutral-600">{REGLA_INGRESO_ACTIVIDAD}</p>}
+                      </div>
+                    </div>
+                    {ultimoResultado.boleto && <dl className="my-4 divide-y divide-neutral-200 border-y border-neutral-200 text-sm">
+                      <div className="grid gap-1 py-2.5 sm:grid-cols-[8rem_1fr]"><dt className="text-neutral-600">Asistente</dt><dd className="font-semibold text-neutral-900">{ultimoResultado.boleto.nombreUsuario}</dd></div>
+                      <div className="grid gap-1 py-2.5 sm:grid-cols-[8rem_1fr]"><dt className="text-neutral-600">Lugar</dt><dd className="font-semibold text-neutral-900">{ultimoResultado.boleto.etiquetaAsiento || 'General'}</dd></div>
+                      {ultimoResultado.exito && <div className="grid gap-1 py-2.5 sm:grid-cols-[8rem_1fr]"><dt className="text-neutral-600">Hora de ingreso</dt><dd>{ultimoResultado.horaRegistro} h</dd></div>}
+                    </dl>}
+                    <button type="button" autoFocus onClick={limpiarParaSiguiente} className={`${botonPrimario} mt-4 w-full sm:w-auto`}>
+                      {ultimoResultado.resultado === 'validacion_no_confirmada' ? 'Volver al lector' : 'Escanear siguiente'} <ArrowRight size={16} aria-hidden="true" />
+                    </button>
+                  </section>
+                ) : (
+                  <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white" aria-label="Lector QR">
+                    <div className="relative grid min-h-52 place-items-center overflow-hidden bg-neutral-950 text-white sm:min-h-64">
+                      <video ref={videoRef} className={`max-h-[55svh] w-full object-contain ${camaraActiva ? '' : 'hidden'}`} muted playsInline />
+                      {camaraActiva && <span aria-hidden="true" className="pointer-events-none absolute aspect-square w-1/2 max-w-48 rounded-xl border-2 border-white/80" />}
+                      {!camaraActiva && <div className="grid justify-items-center gap-3 p-5 text-center">
+                        <QrCode size={44} strokeWidth={1.25} aria-hidden="true" />
+                        <p className="text-sm">{validando ? 'Validando boleto…' : 'Cámara desactivada'}</p>
+                      </div>}
+                    </div>
+                    <div className="p-4">
+                      <button type="button" disabled={validando || abriendoCamara || (!camaraActiva && !estadoActividad.disponible)}
+                        onClick={() => camaraActiva ? detenerCamara() : void iniciarCamara()}
+                        className={`${camaraActiva ? botonSecundario : botonPrimario} w-full sm:w-auto`}>
+                        <Camera size={18} aria-hidden="true" /> {camaraActiva ? 'Detener cámara' : abriendoCamara ? 'Abriendo cámara…' : 'Activar cámara'}
+                      </button>
+                      {errorCamara && <p role="alert" className="mt-3 text-sm text-rose-800">{textoParaUsuario(errorCamara)}</p>}
+                    </div>
+                  </section>
+                )}
 
-          {/* Ingreso Manual de Código o Simulador Rápido */}
-          <div className="bg-white rounded-2xl border border-neutral-200 p-4 shadow-xs space-y-3">
-              <span className="text-xs font-bold text-neutral-800 block">
-              Identificador del boleto:
-            </span>
-            <p className="text-[11px] text-neutral-600">
-              Se validará para <strong className="text-neutral-900">{nombreActividadSeleccionada}</strong> · {resumenActividad}
-            </p>
+                <aside className="min-w-0 divide-y divide-neutral-200 rounded-2xl border border-neutral-200 bg-white">
+                  <section className="p-4 sm:p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="flex items-center gap-2 text-sm font-bold text-neutral-900"><Users size={17} aria-hidden="true" /> Entradas registradas</h3>
+                      <span className="font-bold tabular-nums text-neutral-900">{totalIngresados} de {totalEmitidos}</span>
+                    </div>
+                    <progress className="mt-2 block h-2 w-full overflow-hidden rounded-full accent-[#7a132b]" max={100}
+                      value={porcentajeIngreso} aria-label="Porcentaje de entradas registradas" />
+                  </section>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                ejecutarEscaneo(codigoIngresado, true);
-              }}
-              className="flex gap-2"
-            >
-              <input
-                type="text"
-                required
-                minLength={16}
-                maxLength={64}
-                value={codigoIngresado}
-                disabled={!estaAsignadoAEvento}
-                onChange={(e) => setCodigoIngresado(e.target.value)}
-                placeholder="Código QR (TT-...) o código manual de 16 caracteres"
-                className="flex-1 px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-mono focus:outline-none focus:border-[#7a132b]"
-              />
-              <button
-                type="submit"
-                disabled={!estaAsignadoAEvento || segundosRestantesManual > 0}
-                className="px-4 py-2 bg-neutral-900 hover:bg-[#7a132b] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                Validar
-              </button>
-            </form>
-            <p className="text-[11px] text-neutral-500">Se cuentan identificadores inexistentes. Al llegar a 20 capturas manuales fallidas en un minuto, se pausa la captura manual durante el tiempo restante.</p>
-            {segundosRestantesManual > 0 && <p role="status" className="text-xs font-semibold text-amber-800">Límite de capturas excedido. Podrás volver a validar manualmente en {segundosRestantesManual} s; la cámara permanece disponible.</p>}
+                  <form className="space-y-3 p-4 sm:p-5" onSubmit={e => {
+                    e.preventDefault();
+                    void ejecutarEscaneo(codigoIngresado, true);
+                  }}>
+                    <label htmlFor="codigo-boleto-staff" className="block font-semibold text-neutral-900">Código de boleto</label>
+                    <input id="codigo-boleto-staff" type="text" required minLength={16} maxLength={64}
+                      value={codigoIngresado} disabled={validando || abriendoCamara || Boolean(ultimoResultado) || !estadoActividad.disponible}
+                      onChange={e => setCodigoIngresado(e.target.value)} autoComplete="off" spellCheck={false}
+                      className="block min-h-11 w-full rounded-xl border border-neutral-300 px-3 py-2 font-mono text-base disabled:bg-neutral-100" />
+                    <button type="submit" aria-busy={validando}
+                      disabled={validando || abriendoCamara || Boolean(ultimoResultado) || !estadoActividad.disponible || !codigoIngresado.trim() || segundosRestantesManual > 0}
+                      className={botonSecundario}>{validando ? 'Validando…' : 'Validar código'}</button>
+                    {segundosRestantesManual > 0 && <p role="status" className="text-sm text-neutral-700">Puedes volver a capturar un código en {segundosRestantesManual} s.</p>}
+                  </form>
+                </aside>
+              </div>
 
-          </div>
-        </div>
+              <div className="mt-5">
+                <button type="button"
+                  onClick={() => navigate(rolActivo === 'staff' ? `/staff/ocupacion?${consultaSeleccion}` : `/staff/historial?${consultaSeleccion}`)}
+                  className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#7a132b] hover:underline">
+                  {rolActivo === 'staff' ? 'Ver ocupación de lugares' : 'Ver historial de accesos'}
+                  <ArrowRight size={16} aria-hidden="true" />
+                </button>
+              </div>
+            </>
+          )}
+        </>
       )}
-      </>}
 
-      {/* Pie Operativo */}
-      {faseControl === 'lector' && <div className="pt-3 text-center">
-        {usuarioActual?.roles.some((rol) => ['organizador', 'subdireccion', 'admin'].includes(rol)) ? (
-          <button type="button" onClick={() => navigate(`/staff/historial?${consultaSeleccion}`)} className="text-xs font-semibold text-[#7a132b] hover:underline cursor-pointer">Consultar historial de accesos →</button>
-        ) : (
-          <button type="button" onClick={() => navigate(`/staff/ocupacion?${consultaSeleccion}`)} className="text-xs font-semibold text-[#7a132b] hover:underline cursor-pointer">Ver ocupación de la sala →</button>
-        )}
-      </div>}
+      {pendientes.habilitado && (pendientes.cantidad > 0 || pendientes.aviso) && (
+        <aside role="status" className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-700">
+          {pendientes.cantidad > 0 && <strong>Escaneos por sincronizar ({pendientes.cantidad})</strong>}
+          {pendientes.aviso && <span>{pendientes.aviso}</span>}
+          {pendientes.cantidad > 0 && <button type="button" onClick={() => void pendientes.sincronizar()} className={botonSecundario}>Sincronizar</button>}
+        </aside>
+      )}
     </div>
   );
 };

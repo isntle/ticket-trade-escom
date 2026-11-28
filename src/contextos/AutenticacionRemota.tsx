@@ -4,7 +4,8 @@ import type {
   DatosRegistroUsuario,
   TipoAutenticacion,
 } from "./AutenticacionContexto.js";
-import { transporteApi, ErrorApi } from "../servicios/http.js";
+import { suscribirActualizacionVisible } from "../servicios/actualizacionVisible.js";
+import { transporteApi, ErrorApi, esFalloTemporal } from "../servicios/http.js";
 import { modoDemostracionActivo } from "../dominio/demostracion.js";
 import type { Usuario, RolUsuario } from "../tipos/index.js";
 import type { PeriodoIdentidad } from "../dominio/periodosIdentidad.js";
@@ -31,53 +32,83 @@ export function ProveedorAutenticacionRemota({
   const [periodos, setPeriodos] = useState<PeriodoIdentidad[]>([]),
     [listo, setListo] = useState(false),
     [error, setError] = useState("");
-  const vigente = useRef(true),
-    cuentaRef = useRef<string | null>(null);
+  const vigente = useRef(true);
+  const cuentaRef = useRef<string | null>(null);
+  const secuencia = useRef(0);
+  const lecturasActivas = useRef(0);
+  const ultimaLectura = useRef(0);
+  const sesionConsultada = useRef(false);
+  const fallosLectura = useRef(0);
+
   async function refrescar() {
-    const [sesion, p, demostracion] = await Promise.all([
-      api<{ usuario: Usuario }>("/auth/yo").catch((e) => {
+    const orden = ++secuencia.current;
+    const esVigente = () => vigente.current && orden === secuencia.current;
+    const opciones = { signal: AbortSignal.timeout(15_000) };
+    lecturasActivas.current++;
+    try {
+      const sesion = await api<{ usuario: Usuario }>("/auth/yo", opciones).catch((e) => {
         if (e instanceof ErrorApi && e.estado === 401) return null;
         throw e;
-      }),
-      api<PeriodoIdentidad[]>("/auth/periodos"),
-      modoDemostracionActivo()
-        ? api<Usuario[]>("/auth/demo")
-        : Promise.resolve([]),
-    ]);
-    const u = sesion?.usuario || null;
-    // Las tarjetas de presentación no son el directorio de revisión.
-    const lista = u?.roles.some((r) => ["admin", "subdireccion"].includes(r))
-      ? await api<Usuario[]>("/auth/usuarios")
-      : u ? [u] : [];
-    if (vigente.current) {
-      setUsuario(u);
-      setUsuariosPresentacion(demostracion);
-      setUsuarios(lista.map((u) => ({ ...u, rolActivo: principal(u) })));
-      setPeriodos(p);
+      });
+      const u = sesion?.usuario ?? null;
+      if (!esVigente()) return u;
+
       const anterior = cuentaRef.current;
-      cuentaRef.current = u?.id || null;
-      setRol((actual) =>
-        u && anterior === u.id && u.roles.includes(actual)
-          ? actual
-          : u
-            ? principal(u)
-            : "asistente",
-      );
+      const nuevaCuenta = u?.id ?? null;
+      cuentaRef.current = nuevaCuenta;
+      setUsuario(u);
+      if (anterior !== nuevaCuenta || !u?.roles.some(r => r === "admin" || r === "subdireccion")) {
+        setUsuarios(u ? [u] : []);
+      }
+      setRol(actual => u && anterior === u.id && u.roles.includes(actual)
+        ? actual : u ? principal(u) : "asistente");
+      ultimaLectura.current = Date.now();
+      sesionConsultada.current = true;
+      fallosLectura.current = 0;
+      setError("");
+      setListo(true);
+
+      // La agenda y la sesión pueden seguir operando si falla un catálogo auxiliar.
+      const [periodosLeidos, demo, directorio] = await Promise.allSettled([
+        api<PeriodoIdentidad[]>("/auth/periodos", opciones),
+        modoDemostracionActivo() ? api<Usuario[]>("/auth/demo", opciones) : Promise.resolve([]),
+        u?.roles.some(r => r === "admin" || r === "subdireccion")
+          ? api<Usuario[]>("/auth/usuarios", opciones) : Promise.resolve(u ? [u] : []),
+      ]);
+      if (esVigente()) {
+        if (periodosLeidos.status === "fulfilled") setPeriodos(periodosLeidos.value);
+        if (demo.status === "fulfilled") setUsuariosPresentacion(demo.value);
+        if (directorio.status === "fulfilled") {
+          setUsuarios(directorio.value.map(persona => ({ ...persona, rolActivo: principal(persona) })));
+        }
+      }
+      return u;
+    } finally {
+      lecturasActivas.current--;
     }
-    return u;
   }
+
+  const consultarSesion = () => {
+    const consulta = refrescar();
+    const orden = secuencia.current;
+    void consulta.catch((e: unknown) => {
+      if (!vigente.current || orden !== secuencia.current) return;
+      if (!sesionConsultada.current || !esFalloTemporal(e) || ++fallosLectura.current >= 2) {
+        setError(errorDe(e).mensaje);
+      }
+    }).finally(() => { if (vigente.current) setListo(true); });
+  };
+
   useEffect(() => {
     vigente.current = true;
-    void refrescar()
-      .then(() => setError(""))
-      .catch((e) => setError(e.message))
-      .finally(() => setListo(true));
-    const actualizacion = window.setInterval(() => {
-      void refrescar().catch((e) => setError(e.message));
-    }, 15000);
+    consultarSesion();
+    const detener = suscribirActualizacionVisible(() => {
+      if (!lecturasActivas.current && Date.now() - ultimaLectura.current >= 15_000) consultarSesion();
+    }, 30_000);
     return () => {
       vigente.current = false;
-      window.clearInterval(actualizacion);
+      secuencia.current++;
+      detener();
     };
   }, []);
   const operacion = async (ruta: string, datos?: unknown) => {
@@ -86,8 +117,17 @@ export function ProveedorAutenticacionRemota({
       if (ruta === "/auth/expediente" && r.usuario?.id === cuentaRef.current && vigente.current) {
         // La escritura ya se confirmó. La siguiente lectura periódica actualiza el resto.
         setUsuario(r.usuario as Usuario);
+      } else if (ruta === "/auth/login" || ruta === "/auth/logout") {
+        const cuenta = ruta === "/auth/logout" ? null : r.usuario as Usuario;
+        secuencia.current++;
+        cuentaRef.current = cuenta?.id ?? null;
+        setUsuario(cuenta);
+        setUsuarios(cuenta ? [{ ...cuenta, rolActivo: principal(cuenta) }] : []);
+        setRol(cuenta ? principal(cuenta) : "asistente");
+        setError("");
+        consultarSesion();
       } else {
-        await refrescar();
+        await refrescar().catch(() => {});
       }
       window.dispatchEvent(new Event("tt:datos-remotos"));
       return {
@@ -328,12 +368,10 @@ export function ProveedorAutenticacionRemota({
       value={acciones as unknown as TipoAutenticacion}
     >
       {error && (
-        <p
-          role="alert"
-          className="m-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
-        >
-          {error}
-        </p>
+        <div role="status" className="m-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <p>{sesionConsultada.current ? "No se pudo actualizar la sesión. Se conserva la vista actual." : error}</p>
+          <button type="button" className="font-semibold underline" onClick={consultarSesion}>Volver a consultar</button>
+        </div>
       )}
       {children}
     </ContextoAutenticacion.Provider>

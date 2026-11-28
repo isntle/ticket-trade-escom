@@ -9,6 +9,7 @@ import { DetalleEventoPagina } from '../src/paginas/DetalleEventoPagina';
 import { SeleccionAsientoPagina } from '../src/paginas/SeleccionAsientoPagina';
 import { EVENTOS_INICIALES, USUARIOS_INICIALES } from '../src/datos/datosIniciales';
 import { impedimentoActividad, rutaReservaActividad, rutaAccesoConRegreso } from '../src/dominio/participacionActividad';
+import { avisoOperacionReserva } from '../src/dominio/taquilla';
 import { resolverRutaDocumentacion } from '../src/dominio/navegacionDocumentacion';
 import type { Evento, FechaEvento, Usuario } from '../src/tipos';
 
@@ -114,4 +115,22 @@ test('login conserva el identificador y la clave privada; Documentación elige l
   const ruta = resolverRutaDocumentacion({ id: 'CU-MT-03', ruta: '/eventos/evt-ejemplo/reservar?dateId=anterior&interfaz=UI-40&caso=CU-MT-03' }, [evento], futuro)!;
   assert.equal(new URL('https://prueba.test' + ruta).searchParams.get('dateId'), a.id);
   assert.equal(new URL('https://prueba.test' + ruta).searchParams.get('interfaz'), 'UI-40');
+});
+
+test('una actividad con lugar asignado y sin plano no ofrece cupo general', () => {
+  const c = preparar();
+  const html = c.render(React.createElement(SeleccionAsientoPagina, { eventId: evento.id, dateId: a.id, navigate: () => {} }));
+  assert.match(html, /Plano de lugares no disponible/);
+  assert.doesNotMatch(html, /Reservación de Cupo General|Confirmar mi reservación|Elige un lugar libre/);
+});
+
+test('taquilla distingue un conflicto, un fallo del servidor y una confirmación incierta', () => {
+  const ocupado = avisoOperacionReserva('apartar', { codigoError: 'LUGAR_OCUPADO', error: 'Elige otro lugar disponible.' });
+  assert.deepEqual(ocupado, { titulo: 'Lugar ocupado', mensaje: 'Elige otro lugar disponible.' });
+  const consulta = avisoOperacionReserva('apartar', { codigoError: 'SOLICITUD_RECHAZADA', error: 'Revisa los datos.' });
+  assert.match(consulta.mensaje, /Consulta la disponibilidad/);
+  assert.doesNotMatch(consulta.mensaje, /Revisa los datos|ocupado/);
+  const incierto = avisoOperacionReserva('confirmar', { codigoError: 'ERROR_RED' });
+  assert.match(incierto.titulo, /verificar el resultado/);
+  assert.match(incierto.mensaje, /Mis boletos/);
 });

@@ -71,14 +71,32 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
     return !d.disponible ? d.motivo || 'Conflicto en el horario consultado' : d.tipoConflicto === 'clase' ? 'Clase informativa: decide Subdirección' : `Sin conflictos de ${horaInicioConsulta} a ${horaFinConsulta}`;
   };
 
-  // Fechas de prueba rápidas para facilitar la evaluación
-  const fechasRapidas = [
-    { fecha: '2026-10-15', label: '15 Oct (Simposio IA)' },
-    { fecha: '2026-10-16', label: '16 Oct (Día 2)' },
-    { fecha: '2026-10-20', label: '20 Oct (Feria Empleo)' },
-    { fecha: '2026-10-22', label: '22 Oct (Taller DevOps)' },
-    { fecha: '2026-10-24', label: '24 Oct (Hackathon Lab 3)' }
-  ];
+  const [vista, setVista] = useState<'dia' | 'semana' | 'mes'>('dia');
+  const seleccion = new Date(fechaConsulta + 'T12:00:00Z');
+  const diaHoy = fechaHoyMexico();
+  const inicio = new Date(seleccion);
+  if (vista === 'mes') inicio.setUTCDate(1);
+  if (vista === 'semana') inicio.setUTCDate(inicio.getUTCDate() - (inicio.getUTCDay() + 6) % 7);
+  const desplazar = (direccion: number) => {
+    const fecha = new Date(vista === 'mes' ? inicio : seleccion);
+    if (vista === 'mes') fecha.setUTCMonth(fecha.getUTCMonth() + direccion);
+    else fecha.setUTCDate(fecha.getUTCDate() + direccion * (vista === 'semana' ? 7 : 1));
+    setFechaConsulta(fecha.toISOString().slice(0, 10));
+  };
+  const dias = vista === 'mes'
+    ? new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth() + 1, 0)).getUTCDate()
+    : vista === 'semana' ? 7 : 0;
+  const formatoDia = new Intl.DateTimeFormat('es-MX', { weekday: 'short', day: 'numeric', timeZone: 'UTC' });
+  const formatoMes = new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const formatoFecha = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const finSemana = new Date(inicio);
+  finSemana.setUTCDate(finSemana.getUTCDate() + 6);
+  const periodo = vista === 'mes' ? formatoMes.format(seleccion)
+    : vista === 'semana' ? formatoFecha.formatRange(inicio, finSemana)
+    : formatoFecha.format(seleccion);
+  const unidad = vista === 'mes' ? 'mes' : vista === 'semana' ? 'semana' : 'día';
+  const focoControl = 'focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#7a132b]';
+  const flecha = `grid size-8 place-items-center text-neutral-700 hover:bg-neutral-100 sm:size-7 ${focoControl}`;
 
   return (
     <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs space-y-6">
@@ -111,7 +129,7 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
               type="date"
               aria-label="Fecha de consulta de la agenda"
               value={fechaConsulta}
-              onChange={(e) => setFechaConsulta(e.target.value)}
+              onChange={(e) => e.target.value && setFechaConsulta(e.target.value)}
               className="bg-transparent font-bold text-neutral-900 focus:outline-none cursor-pointer"
             />
           </div>
@@ -137,26 +155,52 @@ export const VisorDisponibilidadRecintos: React.FC<PropiedadesVisorDisponibilida
         </div>
       </div>
 
-      {/* Píldoras de Acceso Rápido a Fechas de Demostración */}
-      {!consulta.remota && <div className="flex items-center gap-2 overflow-x-auto pb-1 text-sm">
-        <span className="text-sm font-semibold text-neutral-400  shrink-0">
-          Fechas Clave:
-        </span>
-        {fechasRapidas.map((item) => (
-          <button
-            key={item.fecha}
-            type="button"
-            onClick={() => setFechaConsulta(item.fecha)}
-            className={`px-3 py-1 rounded-lg text-sm font-medium transition-all shrink-0 cursor-pointer ${
-              fechaConsulta === item.fecha
-                ? 'bg-[#7a132b] text-white shadow-2xs font-bold'
-                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>}
+      <div className="space-y-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 sm:flex sm:flex-wrap">
+          <h3 className="min-w-0 text-sm font-bold leading-tight text-neutral-900 first-letter:uppercase" aria-live="polite">
+            {periodo}
+          </h3>
+          <div className="flex shrink-0 items-center gap-1.5" role="group" aria-label="Navegar por fecha">
+            <div className="inline-flex divide-x divide-neutral-200 rounded-lg border border-neutral-200 bg-white">
+              <button type="button" className={`${flecha} rounded-l-[7px]`} onClick={() => desplazar(-1)} aria-label={`Anterior por ${unidad}`}>
+                <ChevronLeft size={16} aria-hidden="true" />
+              </button>
+              <button type="button" className={`${flecha} rounded-r-[7px]`} onClick={() => desplazar(1)} aria-label={`Siguiente por ${unidad}`}>
+                <ChevronRight size={16} aria-hidden="true" />
+              </button>
+            </div>
+            <button type="button" className={`min-h-8 rounded-lg px-2 text-xs font-semibold text-[#7a132b] hover:bg-[#7a132b]/5 sm:min-h-7 ${focoControl}`}
+              onClick={() => { setFechaConsulta(diaHoy); setVista('dia'); }}>Hoy</button>
+          </div>
+          <div className="col-span-2 inline-grid w-fit grid-flow-col gap-0.5 rounded-lg border border-neutral-200 bg-neutral-100 p-0.5 sm:ml-auto"
+            role="group" aria-label="Vista de la agenda">
+            {([{ id: 'dia', nombre: 'Día' }, { id: 'semana', nombre: 'Semana' }, { id: 'mes', nombre: 'Mes' }] as const).map(opcion => (
+              <button key={opcion.id} type="button" aria-pressed={vista === opcion.id} onClick={() => setVista(opcion.id)}
+                className={`min-h-8 rounded-md px-3 text-xs font-semibold text-neutral-600 hover:text-neutral-900 aria-pressed:bg-white aria-pressed:text-[#7a132b] aria-pressed:shadow-xs sm:min-h-7 ${focoControl}`}>
+                {opcion.nombre}
+              </button>
+            ))}
+          </div>
+        </div>
+        {dias > 0 && <>
+          <p className="text-sm text-neutral-600">Elige un día para consultar sus horarios y recintos.</p>
+          <div className="grid grid-cols-7 gap-1.5" aria-label="Días del periodo">
+            {vista === 'mes' && ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(dia => (
+              <span key={dia} className="text-center text-xs font-semibold text-neutral-600">{dia}</span>
+            ))}
+            {vista === 'mes' && Array.from({ length: (inicio.getUTCDay() + 6) % 7 }, (_, i) => <span key={i} aria-hidden="true" />)}
+            {Array.from({ length: dias }, (_, i) => {
+              const fecha = new Date(inicio);
+              fecha.setUTCDate(fecha.getUTCDate() + i);
+              const iso = fecha.toISOString().slice(0, 10);
+              return <button key={iso} type="button" aria-label={formatoDia.format(fecha)} aria-pressed={fechaConsulta === iso} onClick={() => setFechaConsulta(iso)}
+                className="min-h-10 rounded-lg border border-neutral-200 text-xs font-semibold capitalize hover:bg-neutral-100 aria-pressed:bg-[#7a132b] aria-pressed:text-white">
+                {vista === 'mes' ? fecha.getUTCDate() : formatoDia.format(fecha)}
+              </button>;
+            })}
+          </div>
+        </>}
+      </div>
       <EstadoConsultaAgenda {...consulta}/>
       {consulta.remota && consulta.estado === 'listo' && <p className="text-xs text-neutral-500">Agenda consultada a las {new Date(consulta.agenda!.consultadoEn).toLocaleTimeString('es-MX',{timeZone:'America/Mexico_City'})} h · hora de Ciudad de México. <button type="button" onClick={consulta.recargar} className="ml-2 rounded-lg border border-neutral-300 px-3 py-2 font-semibold text-[#7a132b]">Actualizar agenda</button></p>}
 

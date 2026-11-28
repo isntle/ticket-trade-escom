@@ -85,13 +85,11 @@ routerAvisosCupo.post(camino, exigirSesion, ruta(async (req, res) => {
   if (!cuenta.correoConfirmado) fallo("Confirma tu correo para recibir el aviso.",403);
   await conTransaccion(async c => {
     await liberarApartadosVencidos(c);
-    const elegible = await c.query(`SELECT 1 FROM (${actividadesElegibles}) a
-      JOIN ticket_trade."PerfilUsuario" p ON p.id_cuenta=$2 WHERE a.id_actividad=$1`, [id,cuenta.id]);
+    const elegible = await c.query(`SELECT 1 FROM (${actividadesElegibles}) a WHERE a.id_actividad=$1`, [id]);
     if (!elegible.rowCount) fallo("El aviso no está disponible para esta actividad.",404);
     await c.query(`WITH elegibles AS (${actividadesElegibles})
       INSERT INTO ticket_trade."AvisoDisponibilidad"(id_cuenta,id_actividad,solicitado_en)
-      SELECT p.id_cuenta,a.id_actividad,clock_timestamp() FROM elegibles a
-      JOIN ticket_trade."PerfilUsuario" p ON p.id_cuenta=$2 WHERE a.id_actividad=$1
+      SELECT $2,a.id_actividad,clock_timestamp() FROM elegibles a WHERE a.id_actividad=$1
       AND NOT (${hayCupo})
       ON CONFLICT (id_cuenta,id_actividad) DO NOTHING`, [id,cuenta.id]);
     await despacharAvisosCupo(c);

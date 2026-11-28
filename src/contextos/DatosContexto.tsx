@@ -161,7 +161,7 @@ export interface ContextoDatosTipo {
   crearEventoInstitucionalDirecto: (datosEvento: Partial<Evento>) => Evento;
   cancelarUnidadEvento: (idEvento:string,idFecha:string|undefined,motivo:string,retirar:boolean,versionEsperada:string) => {exito:boolean;error?:string};
   revisarCambioRecinto: (peticion: Omit<PeticionCambioRecinto, 'idArreglo'>) => {exito:boolean; error?:string; propuesta?:PropuestaCambioRecinto};
-  confirmarCambioRecinto: (propuesta: PropuestaCambioRecinto, aceptarReduccion:boolean) => {exito:boolean; error?:string};
+  confirmarCambioRecinto: (propuesta: PropuestaCambioRecinto, aceptarReduccion:boolean) => {exito:boolean; error?:string; pendiente?:boolean};
   actualizarEvento: (idEvento: string, parcial: Partial<Evento>, versionEsperada?: string) => { exito: boolean; error?: string };
   publicarEvento: (idEvento: string) => { exito: boolean; error?: string };
   agregarFechaEvento: (
@@ -183,12 +183,12 @@ export interface ContextoDatosTipo {
     idUsuario: string,
     nombreUsuario: string,
     correoUsuario: string
-  ) => { exito: boolean; reservacion?: Reservacion; error?: string };
+  ) => { exito: boolean; reservacion?: Reservacion; error?: string; codigoError?: string };
 
-  liberarApartadoAsiento: (idReservacion: string) => void;
+  liberarApartadoAsiento: (idReservacion: string) => void | Promise<{ exito: boolean; error?: string; codigoError?: string }>;
   confirmarReservacion: (
     idReservacion: string
-  ) => { exito: boolean; boleto?: BoletoDigital; error?: string };
+  ) => { exito: boolean; boleto?: BoletoDigital; error?: string; codigoError?: string };
   cancelarReservacion: (idReservacion: string, idUsuario: string, motivo: string) => { exito: boolean; error?: string };
   cancelarReservacionPorEvento: (
     idReservacion: string,

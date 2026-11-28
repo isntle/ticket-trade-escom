@@ -5,6 +5,9 @@ export const cabecerasModo = (): Record<string,string> => modoDemostracionActivo
 export class ErrorApi extends Error {
   constructor(public estado: number, public codigo: string, mensaje: string, public campos?: Record<string, string>) { super(textoParaUsuario(mensaje)); }
 }
+export const esFalloTemporal = (error: unknown): boolean =>
+  error instanceof ErrorApi && (error.estado === 0 || error.estado === 429 || error.estado >= 500);
+
 export function transporteApi(base = '/api', ejecutar: typeof fetch = fetch) {
   return async function solicitar<T>(ruta: string, opciones: { metodo?: string; datos?: unknown; signal?: AbortSignal; idPeticion?: string; enlacePrivado?: string } = {}): Promise<T> {
     const metodo = opciones.metodo || 'GET';
@@ -17,7 +20,7 @@ export function transporteApi(base = '/api', ejecutar: typeof fetch = fetch) {
         body,
       });
     } catch (error) {
-      if (error instanceof Error && error.name === 'TimeoutError') {
+      if ((error instanceof Error && error.name === 'TimeoutError') || opciones.signal?.reason?.name === 'TimeoutError') {
         throw new ErrorApi(0, 'TIEMPO_RED', 'La consulta tardó demasiado. Vuelve a consultar cuando se restablezca la conexión.');
       }
       if (opciones.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error;

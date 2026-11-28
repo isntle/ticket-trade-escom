@@ -21,3 +21,10 @@ test('un corte de red distingue la lectura fallida de una escritura con resultad
     error instanceof ErrorApi && error.codigo === 'ERROR_RED' && /antes de repetir/i.test(error.message));
   assert.equal(llamadas, 2, 'cada operación realiza una única llamada');
 });
+
+test('normaliza el tiempo agotado aunque el navegador rechace con TypeError', async () => {
+  const transporte = transporteApi('/api', async () => { throw new TypeError('Failed to fetch'); });
+  const signal = AbortSignal.abort(new DOMException('Tiempo agotado', 'TimeoutError'));
+  await assert.rejects(transporte('/auth/yo', { signal }), (error: unknown) =>
+    error instanceof ErrorApi && error.codigo === 'TIEMPO_RED');
+});

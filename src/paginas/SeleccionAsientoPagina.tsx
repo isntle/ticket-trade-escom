@@ -1,13 +1,14 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { AvisoCupo } from "../componentes/taquilla/AvisoCupo";
 import { eventoParaActividad, nombreActividad, modalidadActividad } from '../dominio/actividades';
 import { apiActiva } from '../servicios/modoDatos';
 import { REGLA_INGRESO_ACTIVIDAD, describirActividad } from '../dominio/presentacionActividad';
-import { capacidadActividad } from '../dominio/taquilla';
+import { avisoOperacionReserva, capacidadActividad } from '../dominio/taquilla';
 import { impedimentoActividad, impedimentoParticipante, rutaAccesoConRegreso, rutaDetalleEvento, rutaReservaActividad } from '../dominio/participacionActividad';
-import { volverA } from '../dominio/navegacion';
+import { volverA, volverASeccion } from '../dominio/navegacion';
 import React, { useState, useEffect, useRef } from 'react';
 import { useDisponibilidadTaquilla } from '../contextos/useDisponibilidadTaquilla';
-import { Clock, ArrowLeft, CheckCircle, AlertTriangle, ShieldCheck, Ticket, Users, Lock } from 'lucide-react';
+import { Clock, CheckCircle, AlertTriangle, ShieldCheck, Ticket, Users, Lock } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { useNotificaciones } from '../contextos/NotificacionesContexto';
@@ -64,7 +65,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
   const [reservacionActiva, setReservacionActiva] = useState<Reservacion | null>(null);
   const [segundosRestantes, setSegundosRestantes] = useState<number | null>(null);
   const [confirmando, setConfirmando] = useState(false);
-  const [errorColision, setErrorColision] = useState<string | null>(null);
+  const [avisoReserva, setAvisoReserva] = useState<ReturnType<typeof avisoOperacionReserva> | null>(null);
   
   const accesoPrivado = evento?.visibilidad !== 'privado' ||
     (apiActiva && evento.accesoPorEnlace === true) ||
@@ -76,14 +77,15 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     !impedimentoActividad(evento, fecha, listaBloqueos);
   const disponibilidad = useDisponibilidadTaquilla(consultarCupo, eventId, dateId);
   const operacionEnCurso = useRef(false);
-  const operar = async (accion: () => Promise<void>) => {
+  const operar = async (operacion: 'apartar' | 'confirmar', accion: () => Promise<void>) => {
     if (operacionEnCurso.current) return;
     operacionEnCurso.current = true;
+    setAvisoReserva(null);
     setConfirmando(true);
     try {
       await accion();
-    } catch (error) {
-      setErrorColision(error instanceof Error ? error.message : 'No se pudo completar la operación.');
+    } catch {
+      setAvisoReserva(avisoOperacionReserva(operacion, { codigoError: 'RESPUESTA_INVALIDA' }));
     } finally {
       operacionEnCurso.current = false;
       setConfirmando(false);
@@ -159,19 +161,17 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     return <div className="max-w-4xl mx-auto px-4 py-16"><EstadoVacio titulo="Esta actividad no requiere reservación" descripcion="Registra o cancela tu intención de asistencia desde la ficha del evento. No se genera boleto." textoAccion="Ver actividad" alHacerAccion={() => navigate(rutaDetalle)} /></div>;
   }
 
-  const esSinMapa = !arregloFinal;
+  const esSinMapa = modalidadActividad(fecha, evento.modalidadAsistencia) !== 'controlado';
+  const faltaMapa = !esSinMapa && !arregloFinal?.asientos.length;
+  const consultandoDisponibilidad = consultarCupo && !disponibilidad.datos && !disponibilidad.error;
+  const seleccionEnPausa = consultandoDisponibilidad || !!disponibilidad.error;
   const capacidad = capacidadActividad(eventoBase!, fecha, { recintos: listaRecintos, arreglos: listaArreglos });
   const impedimento = impedimentoActividad(evento, fecha, listaBloqueos);
   if (impedimento) {
     const msg = obtenerMensaje('ERR-MT-02');
     return (
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
-        <button
-          type="button"
-          onClick={() => navigate(volverA(rutaDetalle))}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
+        <BotonRegresar destino="Volver al evento" alVolver={() => navigate(volverASeccion(rutaDetalle))} />
         <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-xs">
           <div className="w-12 h-12 rounded-xl bg-neutral-100 text-neutral-600 flex items-center justify-center mb-4">
             <Lock className="w-6 h-6" />
@@ -251,11 +251,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
       return;
     }
 
-    if (cupoAgotado || disponibilidad.error) {
-      setErrorColision(disponibilidad.error || 'No quedan cupos disponibles por ahora.');
-      return;
-    }
-    setErrorColision(null);
+    if (cupoAgotado || seleccionEnPausa) return;
 
     const yaTieneReservacionEnElDia = listaReservaciones.some(
       (reservacion) =>
@@ -266,8 +262,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
 
     if (yaTieneReservacionEnElDia) {
       const msg = obtenerMensaje('ERR-MT-06');
-      setErrorColision(msg.descripcion);
-      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+      setAvisoReserva(avisoOperacionReserva('apartar', { codigoError: 'RESERVA_EXISTENTE', error: msg.descripcion }));
       return;
     }
 
@@ -275,13 +270,16 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     const conflicto = obtenerConflicto();
     if (conflicto) {
       const mensaje = obtenerMensajeErrorCruce(conflicto);
-      setErrorColision(mensaje);
-      mostrarNotificacion('Conflicto de Horario', mensaje, 'error');
+      setAvisoReserva({ titulo: 'Cruce de horarios', mensaje });
       return;
     }
 
     if (reservacionActiva) {
-      await liberarApartadoAsiento(reservacionActiva.id);
+      const liberacion = await liberarApartadoAsiento(reservacionActiva.id);
+      if (liberacion && !liberacion.exito) {
+        setAvisoReserva(avisoOperacionReserva('liberar', liberacion));
+        return;
+      }
       setReservacionActiva(null);
     }
 
@@ -303,10 +301,16 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     } else {
       setAsientoSeleccionado(null);
       setReservacionActiva(null);
-      const msg = obtenerMensaje('MSG-BOOKING-002');
-      setErrorColision(resultado.error || msg.descripcion);
-      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+      setAvisoReserva(avisoOperacionReserva('apartar', resultado));
     }
+  };
+
+  const mostrarFalloConfirmacion = (resultado: { error?: string; codigoError?: string }) => {
+    if (resultado.codigoError === 'APARTADO_VENCIDO' || resultado.codigoError === 'APARTADO_NO_DISPONIBLE') {
+      setReservacionActiva(null);
+      setAsientoSeleccionado(null);
+    }
+    setAvisoReserva(avisoOperacionReserva('confirmar', resultado));
   };
 
   // Confirmar reservación con mapa
@@ -324,20 +328,17 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         setAsientoSeleccionado(null);
         setReservacionActiva(null);
       }
-      setErrorColision(resultado.error || 'No se pudo confirmar el apartado.');
+      mostrarFalloConfirmacion(resultado);
     }
   };
 
   // Confirmar reservación directa sin mapa (Cupo General)
   const manejarConfirmacionGeneral = async () => {
     if (!usuarioActual) return;
-    setErrorColision(null);
-
     const conflicto = obtenerConflicto();
     if (conflicto) {
       const mensaje = obtenerMensajeErrorCruce(conflicto);
-      setErrorColision(mensaje);
-      mostrarNotificacion('Conflicto de Horario', mensaje, 'error');
+      setAvisoReserva({ titulo: 'Cruce de horarios', mensaje });
       return;
     }
 
@@ -348,9 +349,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     ).length;
 
     if (cupoAgotado || (!apiActiva && lugaresOcupados >= capacidad)) {
-      const msgAgotado = obtenerMensaje('ERR-MT-03');
-      setErrorColision(msgAgotado.descripcion);
-      mostrarNotificacion(msgAgotado.titulo, msgAgotado.descripcion, msgAgotado.tipo);
+      setAvisoReserva(avisoOperacionReserva('apartar', { codigoError: 'CUPO_AGOTADO', error: obtenerMensaje('ERR-MT-03').descripcion }));
       return;
     }
 
@@ -363,8 +362,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
 
     if (yaTieneReservacionEnElDia) {
       const msg = obtenerMensaje('ERR-MT-06');
-      setErrorColision(msg.descripcion);
-      mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
+      setAvisoReserva(avisoOperacionReserva('apartar', { codigoError: 'RESERVA_EXISTENTE', error: msg.descripcion }));
       return;
     }
 
@@ -374,7 +372,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         const msg = obtenerMensaje('OK-MT-01', { día: nombreActividad(fecha) });
         mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
         navigate(evento.visibilidad === 'privado' ? '/mis-reservaciones' : rutaDetalle);
-      } else setErrorColision(confirmacion.error || 'No se pudo confirmar tu apartado.');
+      } else mostrarFalloConfirmacion(confirmacion);
       return;
     }
 
@@ -397,12 +395,10 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         mostrarNotificacion(msg.titulo, msg.descripcion, msg.tipo);
         navigate(evento.visibilidad === 'privado' ? '/mis-reservaciones' : rutaDetalle);
       } else {
-        setErrorColision(confirmacion.error || 'Error al generar el boleto.');
+        mostrarFalloConfirmacion(confirmacion);
       }
     } else {
-      const msgAgotado = obtenerMensaje('ERR-MT-03');
-      setErrorColision(msgAgotado.descripcion);
-      mostrarNotificacion(msgAgotado.titulo, msgAgotado.descripcion, msgAgotado.tipo);
+      setAvisoReserva(avisoOperacionReserva('apartar_cupo', resultadoApartado));
     }
   };
 
@@ -412,17 +408,11 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const msgCupoAgotado = obtenerMensaje('ERR-MT-03');
 
   return (
     <div data-interfaz="UI-40" tabIndex={-1} className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       {/* Botón Volver */}
-      <button
-        type="button"
-        onClick={() => navigate(volverA(rutaDetalle))}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
-      >
-        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
+      <BotonRegresar destino="Volver al evento" alVolver={() => navigate(volverASeccion(rutaDetalle))} />
 
       {/* Cabecera de la Taquilla */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs mb-6">
@@ -444,52 +434,31 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
         </div>
       </div>
 
-      {errorColision && (
-        <div className="mb-6 space-y-3">
-          <AlertaMensaje
-            tipo="error"
-            titulo="Aviso de Taquilla"
-            mensaje={errorColision}
-            alCerrar={() => setErrorColision(null)}
-          />
-          {/* Opción de Lista de Espera si se agotó el cupo (CU-MT-04) */}
-          {!apiActiva && errorColision === msgCupoAgotado.descripcion && usuarioActual && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <span className="text-xs text-amber-900 font-medium">
-                El cupo de esta actividad se ha agotado. ¿Deseas ingresar a la lista de espera por si se libera un lugar?
-              </span>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => navigate(rutaDetalle)}
-                  className="px-3.5 py-2 bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50 rounded-xl text-xs font-semibold cursor-pointer"
-                >
-                  Abandonar proceso
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModalEsperaAbierto(true)}
-                  className="px-3.5 py-2 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold cursor-pointer"
-                >
-                  Unirse a la lista de espera
-                </button>
-              </div>
-            </div>
-          )}
+      {avisoReserva && (
+        <div className="mb-6">
+          <AlertaMensaje tipo="advertencia" titulo={avisoReserva.titulo}
+            mensaje={avisoReserva.mensaje} alCerrar={() => setAvisoReserva(null)} />
         </div>
       )}
 
+      {consultandoDisponibilidad && (
+        <p role="status" className="mb-6 rounded-xl border border-neutral-200 bg-white p-4 text-sm">Consultando lugares y cupo disponibles…</p>
+      )}
       {disponibilidad.error && (
-        <div role="status" className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
-          <span>{disponibilidad.error}</span>
-          <button type="button" className="font-semibold underline" onClick={disponibilidad.reconsultar}>Consultar disponibilidad</button>
+        <div role="status" className="mb-6 rounded-xl border border-neutral-200 bg-white p-4 text-sm">
+          <p className="font-semibold">No se pudo verificar la disponibilidad</p>
+          <p className="mt-1">{disponibilidad.error}</p>
+          <button type="button" className="mt-2 font-semibold underline" onClick={disponibilidad.reconsultar}>Volver a consultar</button>
         </div>
       )}
 
-      {!esSinMapa && !hayLugaresDisponibles && usuarioActual && (
-        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span className="text-xs text-amber-900 font-medium">Todos los lugares disponibles para asistentes están ocupados o apartados.</span>
-          {!apiActiva && <button type="button" onClick={() => setModalEsperaAbierto(true)} className="px-3.5 py-2 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold cursor-pointer">
+      {!seleccionEnPausa && avisoReserva?.titulo !== 'Cupo agotado' && (cupoAgotado || (!esSinMapa && !faltaMapa && !hayLugaresDisponibles)) && (
+        <div role="status" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-4 text-sm">
+          <div>
+            <p className="font-semibold">{cupoAgotado ? 'Cupo agotado' : 'Sin lugares para reservar'}</p>
+            <p>{cupoAgotado ? 'La actividad alcanzó su capacidad. Si se libera un cupo, aparecerá aquí.' : 'Los lugares para asistentes están apartados, ocupados o fuera de servicio.'}</p>
+          </div>
+          {!apiActiva && <button type="button" onClick={() => setModalEsperaAbierto(true)} className="boton-primario px-3 py-2 text-xs font-semibold">
             Unirme a la lista de espera
           </button>}
         </div>
@@ -497,7 +466,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
 
       {apiActiva && evento.visibilidad === 'publico' && usuarioActual?.correoConfirmado && (
         <AvisoCupo key={usuarioActual.id + ':' + dateId} actividad={dateId}
-          agotado={cupoAgotado || (!esSinMapa && !hayLugaresDisponibles)} />
+          agotado={!seleccionEnPausa && avisoReserva?.titulo !== 'Cupo agotado' && (cupoAgotado || (!esSinMapa && !faltaMapa && !hayLugaresDisponibles))} />
       )}
 
       {/* Modal de Confirmación para Lista de Espera */}
@@ -540,13 +509,16 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
                  <Users className="w-8 h-8 text-neutral-400" />
                </div>
                <h3 className="text-lg font-bold text-neutral-900">Modalidad de Cupo General</h3>
-               {disponibilidad.datos && <p className="mt-2 font-semibold text-neutral-800">
-                 {disponibilidad.datos.disponibles === 0 ? 'Sin cupos libres por ahora' : `Cupos libres: ${disponibilidad.datos.disponibles}`}
+               {!seleccionEnPausa && disponibilidad.datos && disponibilidad.datos.disponibles > 0 && <p className="mt-2 font-semibold text-neutral-800">
+                 Cupos libres: {disponibilidad.datos.disponibles}
                </p>}
                <p className="text-sm text-neutral-500 text-center max-w-md mt-2">
                  Esta actividad tiene aforo controlado y no requiere selección de butaca en un mapa. Al confirmar, el sistema comprobará la disponibilidad del recinto para esta actividad.
                </p>
             </div>
+          ) : faltaMapa ? (
+            <EstadoVacio titulo="Plano de lugares no disponible"
+              descripcion="Esta actividad requiere un lugar asignado. Vuelve al evento para consultar sus actividades." />
           ) : (
             <MapaAsientos
               asientos={asientosMapa ?? []}
@@ -556,7 +528,8 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
               idAsientoSeleccionado={asientoSeleccionado?.id}
               idsAsientosApartados={idsAsientosApartados}
               idsAsientosReservados={idsAsientosReservados}
-              alSeleccionarAsiento={asiento => void operar(() => manejarSeleccionAsiento(asiento))}
+              reservaDeshabilitada={confirmando || seleccionEnPausa || cupoAgotado}
+              alSeleccionarAsiento={asiento => void operar('apartar', () => manejarSeleccionAsiento(asiento))}
               permiteEliminar={recinto?.permiteEliminarAsientos}
             />
           )}
@@ -603,7 +576,7 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
                     <span className="font-semibold text-neutral-900">{usuarioActual?.nombre || 'Asistente'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Correo institucional:</span>
+                    <span>Correo de tu cuenta:</span>
                     <span className="font-semibold text-neutral-900 truncate max-w-[170px]">{usuarioActual?.correo || 'correo@ipn.mx'}</span>
                   </div>
                   <div className="flex justify-between">
@@ -618,18 +591,18 @@ export const SeleccionAsientoPagina: React.FC<PropiedadesSeleccionAsiento> = ({
 
                 <button
                   type="button"
-                  disabled={confirmando || (esSinMapa && !reservacionActiva && (cupoAgotado || !!disponibilidad.error))}
-                  onClick={() => void operar(esSinMapa ? manejarConfirmacionGeneral : manejarConfirmacion)}
+                  disabled={confirmando || (esSinMapa && !reservacionActiva && (cupoAgotado || seleccionEnPausa))}
+                  onClick={() => void operar('confirmar', esSinMapa ? manejarConfirmacionGeneral : manejarConfirmacion)}
                   className="w-full py-3 bg-[#7a132b] hover:bg-[#630f23] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2"
                 >
                   <CheckCircle className="w-4 h-4" />
-                  <span>{confirmando ? 'Generando boleto...' : 'Confirmar mi Reservación'}</span>
+                  <span>{confirmando ? 'Procesando reservación…' : 'Confirmar mi reservación'}</span>
                 </button>
               </div>
             ) : (
               <div className="text-center py-8 text-neutral-400">
                 <Ticket className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-xs">Haz clic en una butaca libre del mapa para apartar tu lugar.</p>
+                <p className="text-xs">{faltaMapa || seleccionEnPausa || !hayLugaresDisponibles ? 'Podrás elegir un lugar cuando esté disponible para reservar.' : 'Elige un lugar libre en el mapa para apartarlo.'}</p>
               </div>
             )}
           </div>

@@ -37,7 +37,23 @@ export async function procesarCorreos(
   transporte?: Pick<ReturnType<typeof transporteCorreo>, "sendMail">,
 ) {
   if (!correoHabilitado()) return { procesados: 0 };
-  const smtp = transporte || transporteCorreo();
+  if (transporte) return enviarLote(limite, transporte);
+  const lote = nodemailer.createTransport({
+    ...configuracionSmtp(),
+    pool: true,
+    maxConnections: 1,
+  });
+  try {
+    return await enviarLote(limite, lote);
+  } finally {
+    lote.close();
+  }
+}
+
+async function enviarLote(
+  limite: number,
+  smtp: Pick<ReturnType<typeof transporteCorreo>, "sendMail">,
+) {
   const limiteTiempo=Date.now()+40000;
   let procesados = 0;
   for (let i = 0; i < limite && Date.now()<limiteTiempo; i++) {
@@ -168,6 +184,7 @@ export async function procesarCorreos(
           new URL(d.ruta, origenCorreo()).href,
         ));
       } else throw Error("Tipo inválido");
+      const inicioEnvio = Date.now();
       const r = await smtp.sendMail({
         from: process.env.SMTP_FROM,
         to,
@@ -183,7 +200,13 @@ export async function procesarCorreos(
       if (!r.accepted?.length)
         throw Object.assign(Error("No aceptado"), { responseCode: 550 });
       enviado = true;
+      const smtpMs = Date.now() - inicioEnvio;
       await finalizar(job.id, "aceptado", undefined, r.messageId);
+      console.info("Correo aceptado por SMTP", {
+        tipo: d.tipo,
+        esperaMs: Math.max(0, inicioEnvio - new Date(job.creada_en).getTime()),
+        smtpMs,
+      });
     } catch (e: any) {
       // SMTP no garantiza idempotencia: timeout/caída tras DATA puede haber entregado.
       const temporal =

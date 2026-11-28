@@ -549,6 +549,7 @@ export type ResultadoEscaneo =
   | "reservacion_no_vigente"
   | "codigo_no_reconocido"
   | "inexistente"
+  | "validacion_no_confirmada"
   | "no_autorizado"
   | "fuera_de_horario"
   | "suspendido";

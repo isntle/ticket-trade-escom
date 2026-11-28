@@ -1,3 +1,4 @@
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { afiliacionLegible } from "../utilidades/afiliacion";
 import { textoParaUsuario } from "../utilidades/textoParaUsuario.js";
 import {
@@ -6,12 +7,11 @@ import {
   nombreActividad,
 } from "../dominio/actividades";
 import { VistaItinerarios } from "../componentes/eventos/EditorItinerarios";
-import { volverA } from "../dominio/navegacion";
-import React, { useState, useEffect } from "react";
+import { volverASeccion } from "../dominio/navegacion";
+import React, { useState, useEffect, useRef } from "react";
 import { interfazSolicitada } from "../dominio/pantallasDocumentacion";
 import { ProgramaDia } from "../componentes/eventos/EditorPrograma";
 import {
-  ArrowLeft,
   CalendarDays,
   MapPin,
   Image as Imagen,
@@ -100,6 +100,7 @@ export const DetalleSolicitudPagina: React.FC<{
   const [guardando, setGuardando] = useState(false);
   const [actualizarDisponibilidad, setActualizarDisponibilidad] = useState(0);
   const [versionConsultada, setVersionConsultada] = useState(1);
+  const irADisponibilidad = useRef(false);
 
   const solicitud = listaSolicitudes.find((s) => s.id === requestId);
   const evento = listaEventos.find((e) => e.idSolicitud === solicitud?.id);
@@ -131,8 +132,8 @@ export const DetalleSolicitudPagina: React.FC<{
         <EstadoVacio
           titulo="Solicitud no disponible"
           descripcion="Inicia sesión con la cuenta solicitante o con un perfil autorizado para consultar este expediente."
-          textoAccion="Volver"
-          alHacerAccion={() => navigate(regreso)}
+          textoAccion={regreso === "/subdireccion" ? "Volver a solicitudes de Subdirección" : "Volver a mis eventos y solicitudes"}
+          alHacerAccion={() => navigate(volverASeccion(regreso))}
         />
       </div>
     );
@@ -204,7 +205,7 @@ export const DetalleSolicitudPagina: React.FC<{
                   );
 
       if (!resultado.exito) {
-        setError(resultado.error || "No se pudo completar la operación.");
+        setError(resultado.error || "Vuelve a abrir la solicitud para comprobar si el cambio se registró.");
         if (accion === "autorizar") {
           setActualizarDisponibilidad((n) => n + 1);
         }
@@ -212,8 +213,10 @@ export const DetalleSolicitudPagina: React.FC<{
       }
 
       mostrarNotificacion(
-        "Solicitud actualizada",
-        "La operación y la versión revisada quedaron registradas.",
+        accion === "devolver" ? "Correcciones enviadas" : "Solicitud actualizada",
+        accion === "devolver"
+          ? "La persona solicitante puede consultar tus indicaciones y editar su propuesta."
+          : "La operación y la versión revisada quedaron registradas.",
         "exito",
       );
       setAccion(null);
@@ -221,7 +224,7 @@ export const DetalleSolicitudPagina: React.FC<{
       setError(
         e instanceof Error
           ? e.message
-          : "No se pudo completar la operación. Consulta el estado antes de reintentar.",
+          : "Se interrumpió el trámite. Vuelve a abrir la solicitud para comprobar si el cambio se registró.",
       );
       if (accion === "autorizar") {
         setActualizarDisponibilidad((n) => n + 1);
@@ -317,13 +320,7 @@ export const DetalleSolicitudPagina: React.FC<{
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <button
-        onClick={() => navigate(volverA(regreso))}
-        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-semibold text-neutral-800 hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-[#7a132b]"
-      >
-        <ArrowLeft size={17} />
-        <span>Regresar</span>
-      </button>
+      <BotonRegresar destino={regreso === "/subdireccion" ? "Volver a solicitudes de Subdirección" : "Volver a mis eventos y solicitudes"} alVolver={() => navigate(volverASeccion(regreso))} />
 
       <header className="mb-7 flex flex-wrap justify-between gap-4">
         <div className="min-w-0">
@@ -491,14 +488,6 @@ export const DetalleSolicitudPagina: React.FC<{
               Horarios de las actividades en Ciudad de México.
             </p>
             {renderItinerario()}
-            {Boolean(solicitud.itinerarios?.length) && (
-              <div className="mt-6 border-t pt-5">
-                <h3 className="text-sm font-bold text-neutral-800">
-                  Itinerarios registrados por fecha
-                </h3>
-                <VistaItinerarios itinerarios={solicitud.itinerarios} />
-              </div>
-            )}
             {pendientes.length > 0 && (
               <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
                 <h3 className="font-bold">Solicitudes coincidentes</h3>
@@ -514,6 +503,13 @@ export const DetalleSolicitudPagina: React.FC<{
               </div>
             )}
           </section>
+
+          {Boolean(solicitud.itinerarios?.length) && (
+            <section className={seccion}>
+              <h2 className="mb-3 text-lg font-bold">Itinerarios por fecha</h2>
+              <VistaItinerarios itinerarios={solicitud.itinerarios} />
+            </section>
+          )}
 
           <section className={seccion}>
             <h2 className="text-lg font-bold">Solicitante y contacto</h2>
@@ -687,11 +683,6 @@ export const DetalleSolicitudPagina: React.FC<{
           <section className="overflow-hidden rounded-2xl border bg-white">
             <div className="border-b p-5">
               <h2 className="text-lg font-bold">Cartel del evento</h2>
-              <p className="mt-1 text-sm text-neutral-500">
-                {evento
-                  ? "Imagen promocional del evento asociado."
-                  : "Vista previa del cartel capturado; no publica el evento."}
-              </p>
             </div>
             {archivoSeguro(imagenCartel) ? (
               <img
@@ -705,16 +696,7 @@ export const DetalleSolicitudPagina: React.FC<{
                 <span className="text-sm">Sin cartel adjunto</span>
               </div>
             )}
-            <div className="p-5 sm:p-6">
-              <h3 className="text-lg font-extrabold">
-                {solicitud.tituloEvento || "Título por completar"}
-              </h3>
-              {solicitud.nombreBanner && (
-                <p className="mt-2 text-xs text-neutral-500">
-                  Archivo de cartel: {solicitud.nombreBanner}
-                </p>
-              )}
-            </div>
+            {solicitud.nombreBanner && <p className="px-5 py-3 text-sm text-neutral-600">{solicitud.nombreBanner}</p>}
           </section>
 
           {["en_revision", "requiere_correccion", "autorizada"].includes(
@@ -737,7 +719,7 @@ export const DetalleSolicitudPagina: React.FC<{
             {solicitud.observacionesCorreccion && (
               <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
                 <h3 className="font-bold">Correcciones solicitadas</h3>
-                <p className="mt-2">{solicitud.observacionesCorreccion}</p>
+                <p className="mt-2 whitespace-pre-line break-words">{solicitud.observacionesCorreccion}</p>
                 {solicitud.fechaLimiteCorreccion && (
                   <p className="mt-2">
                     Plazo: {formatoFecha(solicitud.fechaLimiteCorreccion)}
@@ -828,6 +810,11 @@ export const DetalleSolicitudPagina: React.FC<{
       {accion && (
         <VentanaModal
           estaAbierto
+          destinoFocoAlCerrar={() => {
+            if (!irADisponibilidad.current) return null;
+            irADisponibilidad.current = false;
+            return document.getElementById("titulo-disponibilidad");
+          }}
           alCerrar={() => {
             if (!guardando) setAccion(null);
           }}
@@ -870,7 +857,6 @@ export const DetalleSolicitudPagina: React.FC<{
                   ? "Qué debe corregir el solicitante"
                   : "Motivo del rechazo"}
                 <textarea
-                  autoFocus
                   rows={4}
                   required
                   value={motivo}
@@ -879,7 +865,7 @@ export const DetalleSolicitudPagina: React.FC<{
                 />
                 {accion === "devolver" && (
                   <span className="mt-2 block font-normal text-neutral-600">
-                    Tendrá 24 horas para corregir y reenviar.
+                    La persona solicitante recibirá estas indicaciones y tendrá 24 horas para corregir y reenviar. Se conservarán los datos de su propuesta.
                   </span>
                 )}
               </label>
@@ -896,9 +882,13 @@ export const DetalleSolicitudPagina: React.FC<{
               <button
                 type="button"
                 className={boton}
-                onClick={() => setAccion(null)}
+                disabled={guardando}
+                onClick={() => {
+                  irADisponibilidad.current = true;
+                  setAccion(null);
+                }}
               >
-                Revisar disponibilidad y alternativas
+                Ver disponibilidad
               </button>
             )}
             <div className="flex flex-wrap justify-end gap-3">

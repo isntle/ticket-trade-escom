@@ -1,8 +1,10 @@
+import { EncabezadoPagina } from "../componentes/ui/EncabezadoPagina";
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { aforoActividad, nombreActividad } from '../dominio/actividades';
 import { agruparActividadesPorDia, describirActividad, etiquetaOpcionActividad } from '../dominio/presentacionActividad';
-import { volverA } from '../dominio/navegacion';
+import { volverASeccion } from '../dominio/navegacion';
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Users, CheckCircle, Clock, MapPin, RefreshCw } from 'lucide-react';
+import { Users, CheckCircle, Clock, MapPin, RefreshCw } from 'lucide-react';
 import { useDatos } from '../contextos/DatosContexto';
 import { MapaAsientos } from '../componentes/asientos/MapaAsientos';
 import { EstadoVacio } from '../componentes/ui/EstadoVacio';
@@ -82,29 +84,13 @@ export const OcupabilidadVivoPagina: React.FC<PropiedadesOcupabilidadVivo> = ({
     : 0;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Botón Volver */}
-      <button
-        type="button"
-        onClick={() => navigate(volverA('/staff'))}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 mb-6 transition-colors cursor-pointer"
-      >
-        <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
+      <BotonRegresar destino="Volver al control de acceso" alVolver={() => navigate(volverASeccion('/staff'))} />
 
-      {/* Cabecera del Monitor */}
-      <div className="bg-white rounded-2xl border border-neutral-200 p-6 shadow-xs mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <span className="text-[11px] font-bold text-[#7a132b] uppercase tracking-wider">
-            Monitor de Control en Puerta
-          </span>
-          <h1 className="text-xl sm:text-2xl font-bold text-neutral-900 mt-0.5">
-            Ocupación de lugares
-          </h1>
-          <p className="text-xs text-neutral-500 mt-1">
-            Actividad: <span className="font-semibold text-neutral-800">{nombreActividad(fechaSeleccionada, indiceActividad)}</span> · {describirActividad(fechaSeleccionada, recinto?.nombre)}
-          </p>
-        </div>
-
+      <EncabezadoPagina titulo="Ocupación de lugares"
+        descripcion={<><strong>{nombreActividad(fechaSeleccionada, indiceActividad)}</strong> · {describirActividad(fechaSeleccionada, recinto?.nombre)}</>} />
+      <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-4">
         {/* Selectores de Evento y Fecha */}
         <div className="flex flex-wrap items-center gap-2">
           <select

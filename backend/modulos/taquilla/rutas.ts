@@ -155,7 +155,9 @@ routerTaquilla.post(
         [u.id, id],
       );
       if (existente.rowCount)
-        fallo("Ya tienes una reservación para esta actividad.", 409);
+        fallo("Ya tienes una reservación para esta actividad. Puedes encontrarla en Mis boletos.", 409, "RESERVA_EXISTENTE");
+      if (a.acceso === "Reservación con lugar asignado" && !b.idLugar)
+        fallo("Elige un lugar en el mapa para apartarlo.", 422, "LUGAR_REQUERIDO");
       const idLugar = a.acceso === "Reservación con lugar asignado"
         ? idEntero(b.idLugar)
         : null;
@@ -178,16 +180,34 @@ routerTaquilla.post(
       if (idLugar) {
         const lugar = await c.query(
           `SELECT 1 FROM ticket_trade."LugarActividad" la JOIN ticket_trade."CategoriaLugarActividad" cl USING(id_categoria_lugar_actividad)
-        WHERE la.id_lugar_actividad=$1 AND la.id_actividad=$2 AND cl.nombre='Asistente'`,
+        LEFT JOIN ticket_trade."EstacionComputo" pc USING(id_lugar_recinto)
+        LEFT JOIN ticket_trade."EstadoFuncionamiento" ef USING(id_estado_funcionamiento)
+        WHERE la.id_lugar_actividad=$1 AND la.id_actividad=$2 AND cl.nombre='Asistente'
+          AND ef.nombre IS DISTINCT FROM 'Fuera de servicio'`,
           [idLugar, id],
         );
-        if (!lugar.rowCount) fallo("Selecciona un asiento para asistentes.");
+        if (!lugar.rowCount) fallo("Este lugar ya no está habilitado para asistentes. Elige otro lugar disponible.", 409, "LUGAR_NO_HABILITADO");
+        const ocupado = await c.query(
+          `SELECT 1 FROM ticket_trade."AsignacionAsiento" aa
+           JOIN ticket_trade."CompromisoCupo" cp USING (id_compromiso_cupo)
+           JOIN ticket_trade."EstadoCompromisoCupo" ec USING (id_estado_compromiso_cupo)
+           WHERE aa.id_lugar_actividad=$1 AND ec.nombre='Activo'`,
+          [idLugar],
+        );
+        if (ocupado.rowCount) fallo("Ese lugar ya está ocupado. Elige otro lugar disponible.", 409, "LUGAR_OCUPADO");
       }
       const cp = await c.query(
         `INSERT INTO ticket_trade."CompromisoCupo"(id_actividad,id_estado_compromiso_cupo)
-      VALUES($1,(SELECT id_estado_compromiso_cupo FROM ticket_trade."EstadoCompromisoCupo" WHERE nombre='Activo')) RETURNING id_compromiso_cupo::text id`,
-        [id],
+        SELECT $1, activo.id_estado_compromiso_cupo
+        FROM ticket_trade."EstadoCompromisoCupo" activo
+        WHERE activo.nombre = 'Activo' AND (
+          SELECT count(*) FROM ticket_trade."CompromisoCupo" cp
+          WHERE cp.id_actividad = $1 AND cp.id_estado_compromiso_cupo = activo.id_estado_compromiso_cupo
+        ) < $2::int
+        RETURNING id_compromiso_cupo::text id`,
+        [id, a.aforo_solicitado],
       );
+      if (!cp.rowCount) fallo("Ya no quedan cupos disponibles para esta actividad.", 409, "CUPO_AGOTADO");
       const idCupo = cp.rows[0].id;
       const ap = await c.query(
         `INSERT INTO ticket_trade."Apartado"(id_compromiso_cupo,id_cuenta,creado_en,id_estado_apartado)
@@ -251,7 +271,7 @@ routerTaquilla.post(
         [id, u.id],
       );
       if (!ap.rowCount)
-        fallo("El apartado venció, ya se confirmó o no te pertenece.", 409);
+        fallo("El apartado ya no está disponible. Si ya lo confirmaste, revisa Mis boletos. Si venció, vuelve a elegir un lugar o cupo.", 409, "APARTADO_NO_DISPONIBLE");
       const a = await actividad(c, ap.rows[0].actividad);
       reservable(a, req.body?.token);
       const cruce = await c.query(
@@ -310,7 +330,12 @@ routerTaquilla.post(
         `INSERT INTO ticket_trade."Reservacion"(id_boleto_evento,id_compromiso_cupo,confirmada_en,id_estado_reservacion)
       VALUES($1,$2,clock_timestamp(),(SELECT id_estado_reservacion FROM ticket_trade."EstadoReservacion" WHERE nombre='Confirmada')) RETURNING id_reservacion::text id`,
         [pase.id, id],
-      );
+      ).catch((error: unknown) => {
+        if (error instanceof Error && "code" in error && error.code === "23514" && error.message.startsWith("TT042:")) {
+          fallo("Tu apartado venció. Vuelve a elegir un lugar o cupo disponible.", 409, "APARTADO_VENCIDO");
+        }
+        throw error;
+      });
       const ocupacion = await c.query(
         `SELECT count(*)::int confirmadas FROM ticket_trade."Reservacion" r
          JOIN ticket_trade."CompromisoCupo" cp USING(id_compromiso_cupo)
@@ -436,6 +461,8 @@ routerTaquilla.post(
     const u = res.locals.usuario,
       id = idEntero(req.body?.idActividad),
       codigo = texto(req.body?.codigo, "el código", 200);
+    if (req.body.idOperadorEsperado !== undefined && String(u.id) !== req.body.idOperadorEsperado)
+      fallo("Vuelve a iniciar sesión con la cuenta que capturó los escaneos.", 401);
     const resultado = await conTransaccion(async (c) => {
       await bloquear(c);
       const a = await actividad(c, id);

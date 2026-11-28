@@ -1,11 +1,11 @@
-import { volverA } from '../dominio/navegacion';
+import { BotonRegresar } from "../componentes/ui/BotonRegresar";
+import { volverASeccion } from '../dominio/navegacion';
 import { apiActiva } from '../servicios/modoDatos';
 import { DistribucionActividadRemota } from './DistribucionActividadRemota';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { generarAsientosAuditorio, generarAsientosSala14, generarEstacionesLaboratorio } from '../datos/datosIniciales';
 import React, { useState } from 'react';
 import {
-  ArrowLeft,
   CheckCircle,
   Copy,
   Layers,
@@ -115,7 +115,7 @@ const EditorArreglosLocal: React.FC<PropiedadesEditorArreglos> = ({
       });
       setIdArregloActivo(nuevo.id);
     };
-    return <div className="mx-auto max-w-3xl px-5 py-12"><button onClick={() => navigate('/organizador/eventos/' + evento.id)} className="mb-5 text-sm font-semibold text-neutral-600">Volver al evento</button><section className="rounded-2xl border bg-white p-7"><h1 className="text-2xl font-bold">Configurar distribución de lugares</h1><p className="mt-3 text-sm leading-7 text-neutral-600">{evento.titulo} · {fecha.fecha} · {recinto.nombre}. Este día todavía no tiene una distribución guardada. Crea la primera versión para configurar categorías y lugares.</p><button onClick={iniciarDistribucion} className="mt-5 rounded-xl bg-[#7a132b] px-5 py-3 text-sm font-bold text-white">Crear primera distribución</button></section></div>;
+    return <div className="mx-auto max-w-3xl px-5 py-12"><BotonRegresar destino="Volver al evento" alVolver={() => navigate(volverASeccion('/organizador/eventos/' + evento.id))} /><section className="rounded-2xl border bg-white p-7"><h1 className="text-2xl font-bold">Configurar distribución de lugares</h1><p className="mt-3 text-sm leading-7 text-neutral-600">{evento.titulo} · {fecha.fecha} · {recinto.nombre}. Este día todavía no tiene una distribución guardada. Crea la primera versión para configurar categorías y lugares.</p><button onClick={iniciarDistribucion} className="mt-5 rounded-xl bg-[#7a132b] px-5 py-3 text-sm font-bold text-white">Crear primera distribución</button></section></div>;
   }
 
   // Aplicar acción al hacer clic en un asiento del mapa (100% interactivo)
@@ -257,12 +257,7 @@ const EditorArreglosLocal: React.FC<PropiedadesEditorArreglos> = ({
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Botón Volver con contexto del evento */}
       <div className="flex items-center justify-between mb-6">
-        <button
-          type="button"
-          onClick={() => navigate(volverA(`/organizador/eventos/${eventId}`))}
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" /><span>Regresar</span></button>
+        <BotonRegresar destino="Volver al evento" alVolver={() => navigate(volverASeccion(`/organizador/eventos/${eventId}`))} />
 
         <div className="text-sm text-neutral-400 font-mono">
           Recinto: <span className="font-semibold text-neutral-700">{recinto.nombre}</span> · Día: <span className="font-semibold text-neutral-700">{fecha.fecha}</span>

@@ -49,6 +49,7 @@ interface PropiedadesMapaAsientos {
   editorDeshabilitado?: boolean;
   ocultarOrganizador?: boolean;
   mostrarLeyendaOcupado?: boolean;
+  reservaDeshabilitada?: boolean;
 }
 
 export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
@@ -63,6 +64,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
   editorDeshabilitado,
   ocultarOrganizador = false,
   mostrarLeyendaOcupado = false,
+  reservaDeshabilitada = false,
   alSeleccionarAsiento,
   permiteEliminar = false,
   permitirVip = true
@@ -316,10 +318,15 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
         textoAyuda = `${lugar.etiqueta} — ${esAuditorio ? 'Reservado para uso interno' : 'Reservado para comité técnico o docente'}`;
       }
 
+      if (reservaDeshabilitada && !noDisponible && !estaSeleccionado) {
+        estiloBoton = 'bg-neutral-50 border-neutral-200 text-neutral-500 cursor-not-allowed';
+        textoAyuda = `${lugar.etiqueta} — Selección no disponible por el momento`;
+      }
+
       return (
         <button
           type="button"
-          disabled={noDisponible}
+          disabled={noDisponible || reservaDeshabilitada}
           onClick={() => alSeleccionarAsiento && alSeleccionarAsiento(lugar)}
           title={textoAyuda}
           className={`relative shrink-0 rounded-md border font-mono flex flex-col items-center justify-center transition-all ${claseTamañoBoton} ${estiloBoton}`}
@@ -635,15 +642,18 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
           className={`w-max px-2 sm:px-4 ${esAuditorio ? 'pb-7' : ''} ${medido ? 'absolute left-0 top-0 origin-top-left' : 'mx-auto'}`}
           style={medido && nivelZoom !== 1 ? { transform: `scale(${nivelZoom})` } : undefined}
         >
-          {/* CASO A: LABORATORIO DE CÓMPUTO SEGÚN BOCETO CON PIZARRÓN A LA DERECHA DE PC-28 */}
+          {/* CASO A: LABORATORIO DE CÓMPUTO */}
           {esLaboratorio ? (
             <div className="p-2 sm:p-4">
               <div className="flex items-center gap-3 sm:gap-6">
+                <span className="min-h-36 shrink-0 rotate-180 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1.5 text-center text-xs font-semibold leading-none tracking-wide text-white [writing-mode:vertical-rl]">
+                  Pizarrón
+                </span>
                 {/* Bloque Principal de Mesas e Islas de Cómputo */}
                 <div className="flex flex-col items-center gap-3 sm:gap-4">
                   {/* 1. FILA NORTE: 5 Módulos Verticales de 2 Equipos */}
                   <div className="flex items-center justify-center gap-2 sm:gap-3">
-                    {mesasNorte.map((mesa, idx) => (
+                    {mesasNorte.map((mesa, idx) => mesa.length > 0 && (
                       <div
                         key={`mesa-norte-${idx}`}
                         className="flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-xl bg-neutral-50/90 border border-neutral-200/80 shadow-2xs hover:border-[#7a132b]/40 transition-colors"
@@ -755,7 +765,7 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
 
                   {/* 3. FILA SUR: 5 Módulos Verticales de 2 Equipos */}
                   <div className="flex items-center justify-center gap-2 sm:gap-3">
-                    {mesasSur.map((mesa, idx) => (
+                    {mesasSur.map((mesa, idx) => mesa.length > 0 && (
                       <div
                         key={`mesa-sur-${idx}`}
                         className="flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-xl bg-neutral-50/90 border border-neutral-200/80 shadow-2xs hover:border-[#7a132b]/40 transition-colors"
@@ -773,38 +783,6 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
                         <span className="text-[8px] font-mono text-neutral-400 font-semibold">{mesa.length} equipos</span>
                       </div>
                     ))}
-                  </div>
-                </div>
-
-                {/* Muro Frontal: Pizarrón Blanco y Estrado Docente ubicado exactamente a la derecha de PC-28 */}
-                <div className="flex flex-col items-center justify-between p-3 sm:p-4 rounded-2xl bg-neutral-900 border-2 border-neutral-800 text-white shadow-md w-32 sm:w-40 shrink-0 self-stretch min-h-[300px]">
-                  {/* Pizarrón / Pantalla */}
-                  <div className="w-full flex flex-col items-center text-center">
-                    <span className="text-[9px] font-mono tracking-wider font-bold text-emerald-400 uppercase flex items-center gap-1.5 mb-1.5">
-                      <Tv className="w-3.5 h-3.5" />
-                      PIZARRÓN & PROYECCIÓN
-                    </span>
-                    <div className="w-full h-24 sm:h-28 bg-neutral-800 rounded-xl border border-neutral-700 flex flex-col items-center justify-center p-2 text-center shadow-inner">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mb-1" />
-                      <span className="text-[9px] font-mono font-bold text-neutral-200 uppercase leading-snug">
-                        PANTALLA DE PROYECCIÓN 4K
-                      </span>
-                      <span className="text-[8px] font-mono text-neutral-400 mt-0.5">Pizarrón Blanco Frontal</span>
-                    </div>
-                  </div>
-
-                  {/* Línea divisoria */}
-                  <div className="h-px w-4/5 bg-neutral-700/80 my-2" />
-
-                  {/* Estrado del Docente */}
-                  <div className="w-full flex flex-col items-center text-center bg-neutral-800/80 p-2 rounded-xl border border-neutral-700/60">
-                    <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-white uppercase">
-                      <Cpu className="w-3.5 h-3.5 text-[#7a132b]" />
-                      <span>ESTRADO DOCENTE</span>
-                    </div>
-                    <span className="text-[8px] font-mono text-neutral-400 mt-1 leading-tight">
-                      A la derecha de Cabecera (PC-28)
-                    </span>
                   </div>
                 </div>
               </div>
