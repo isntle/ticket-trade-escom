@@ -1,87 +1,125 @@
-# Ticket Trade: interfaz, PostgreSQL y presentación
+# Ticket Trade: Backend, PostgreSQL y Despliegue
 
-Se conservan las pantallas, colores, filtros y navegación originales de `main`. La imagen del acceso está integrada en el panel guinda existente. Los eventos temáticos y sus imágenes se mantienen dentro de esa interfaz.
+Se conservan las pantallas, colores, filtros y navegación originales de `main`. La aplicación conectada utiliza Express (`backend/app.ts`), PostgreSQL 16 (`pg` + `AsyncLocalStorage`) y la función serverless ESM `api/index.ts` para Vercel.
 
-## Ejecutar
+---
 
-1. `npm ci`.
-2. Copiar `.env.example` a `.env` y configurar dos conexiones distintas: `DATABASE_URL` para cuentas normales y `DATABASE_URL_DEMO` para demostración. Ambas bases deben existir. No publicar credenciales.
-3. `npm run db:init` instala el esquema y las migraciones de infraestructura en la base normal, **sin insertar cuentas ni eventos**.
-4. `npm run db:demo` instala y prepara exclusivamente la base demo. Rechaza una conexión igual a la normal y nunca utiliza `DATABASE_URL` como destino de la semilla. La base demo debe estar vacía o contener las seis cuentas ficticias de la instalación académica original.
-5. `npm start`; abrir <http://localhost:3000> o <http://localhost:3000/?demo=1>.
+## 1. Arranque local y bases de datos
 
-También pueden ejecutarse `npm run server` y `npm run dev` por separado. `APP_ORIGIN` debe coincidir exactamente con el origen del navegador. El proxy de Vite dirige `/api` a 4000.
+1. Instalar dependencias:
+   ```bash
+   npm ci
+   ```
+2. Copiar `.env.example` a `.env` y configurar dos conexiones distintas: `DATABASE_URL` para operación normal y `DATABASE_URL_DEMO` para demostración aislada (`TT_DEMO=1`, `TT_DEMO_COMPARTIDA=0`). Ambas bases deben existir previamente. No publicar credenciales.
+3. Inicializar esquemas y migraciones:
+   ```bash
+   # Instala el esquema (73 tablas) y migraciones en la base normal (sin datos semilla)
+   npm run db:init
 
-## Presentación compartida en Supabase
+   # Instala el esquema y siembra catálogo/cuentas demo exclusivamente en DATABASE_URL_DEMO
+   npm run db:demo
 
-En el despliegue vigente `TT_DEMO_COMPARTIDA=1`: `?demo=1` consulta la **misma base y sesión** que el acceso normal. Únicamente añade tarjetas protegidas por una clave privada de presentación. Las cuentas están persistidas, sus contraseñas no son las públicas de la semilla y sus correos usan alias del buzón del proyecto. Los cambios desde presentación afectan a los mismos registros. No usar la semilla local para sobrescribir esta base.
+   # Verifica tablas, columnas, tipos, nulabilidad, 96 FKs e integridad referencial
+   npm run db:verify
+   npm run db:verify:demo
+   ```
+   - `npm run db:demo` rechaza una conexión igual a `DATABASE_URL` y nunca escribe en la base normal.
+   - Opcional: `npm run db:recintos` carga únicamente los 5 recintos físicos en la base configurada.
+4. Levantar API (`:4000`) y frontend (`:3000`) juntos:
+   ```bash
+   npm start
+   ```
+   - Uso normal: `http://localhost:3000/` (cookie `tt_sesion_id`).
+   - Demostración: `http://localhost:3000/?demo=1` (cookie `tt_sesion_demo`).
+   - Alternativa en dos terminales: `npm run server` y `npm run dev` (`APP_ORIGIN` debe coincidir exactamente con el origen del navegador; el proxy de Vite dirige `/api` a `:4000`).
 
-El correo lo envía la API de Vercel mediante Gmail. Supabase almacena cuentas, tokens, archivos y cola; no se ha sustituido la autenticación del proyecto por Supabase Auth. Ver [configuración vigente](../docs/SUPABASE_CONEXION.md).
+---
 
-## Modo aislado opcional para desarrollo
+## 2. Modo aislado vs. Presentación compartida
 
-- Sin `demo=1`, se consulta y escribe en la base normal. No se insertan ejemplos automáticamente.
-- Con `?demo=1`, se usa una base distinta, con su propia cookie `tt_sesion_demo`. La navegación conserva el parámetro. Salir de demo vuelve a la conexión normal y no borra registros.
-- `TT_DEMO=1` habilita este modo únicamente si existe la conexión independiente. El selector consulta cuentas reales de la base demo. Cambiar de cuenta inicia una sesión HTTP real.
-- Las cuentas creadas durante una demostración quedan en PostgreSQL demo. Las creadas desde la URL normal quedan en PostgreSQL normal. Ninguna cookie de un modo autentica en el otro.
-- `TT_MOSTRAR_CODIGOS=1` permite usar el código generado por la aplicación durante la práctica; no demuestra acceso a un buzón. El envío real de correo aún no está conectado.
+### Modo aislado local (`TT_DEMO=1`, `TT_DEMO_COMPARTIDA=0`)
+- Sin `?demo=1`, las peticiones consultan `DATABASE_URL` (base normal limpia).
+- Con `?demo=1`, el frontend envía la cabecera `x-tickettrade-demo: 1` (y `?demo=1` en descargas `/api/archivos/:id`) y `backend/bd/pool.ts` enruta la petición mediante `AsyncLocalStorage` hacia `DATABASE_URL_DEMO` con cookie `tt_sesion_demo`.
+- Ninguna cookie de un modo autentica en el otro.
+- `TT_MOSTRAR_CODIGOS=1` permite visualizar tokens de confirmación/recuperación en desarrollo local sin SMTP real.
 
-La demo incluye accesos con asiento, registro sin asiento y entrada libre; eventos de una sola actividad y otros con varios días y recintos. El catálogo contiene IA, Expo ESCOM, programación, robótica, ciberseguridad, vinculación, Game Jam y STEM. Son escenarios académicos realistas, no convocatorias oficiales. Se conservaron las imágenes recibidas de Antigravity; esta revisión no las generó ni atribuye su generación a Nano Banana.
+### Presentación compartida (`TT_DEMO=1`, `TT_DEMO_COMPARTIDA=1`)
+- En despliegues compartidos (Vercel + Supabase), `?demo=1` consulta la misma base que el acceso normal y protege las tarjetas rápidas con `TT_PRESENTACION_CLAVE` (`POST /api/auth/presentacion`) y `TT_PRESENTACION_PASSWORD`. No usar `npm run db:demo` contra esta base. Ver [SUPABASE_CONEXION.md](../docs/SUPABASE_CONEXION.md).
 
-Contraseña demo: `Password123!`, comprobada contra el hash normal de cada cuenta. No existe contraseña universal para cuentas registradas.
-
+### Cuentas demo locales (contraseña: `Password123!`)
 | Perfil | Cuenta demo |
 | --- | --- |
-| Administración | cuenta1001@example.invalid |
-| Subdirección | cuenta1002@example.invalid |
-| Organizador verificado | cuenta1003@example.invalid |
-| Estudiante | cuenta1004@example.invalid |
-| Externa con expediente pendiente | cuenta1005@example.invalid |
-| Staff del simposio | cuenta1006@example.invalid |
-| Estudiante con correo pendiente | ltorres.demo@alumno.ipn.mx |
+| Administración | `cuenta1001@example.invalid` |
+| Subdirección | `cuenta1002@example.invalid` |
+| Organizador verificado | `cuenta1003@example.invalid` |
+| Estudiante | `cuenta1004@example.invalid` |
+| Externa con expediente pendiente | `cuenta1005@example.invalid` |
+| Staff del simposio | `cuenta1006@example.invalid` |
+| Estudiante con correo pendiente | `ltorres.demo@alumno.ipn.mx` |
 
-## Recorridos conectados a las pantallas originales
+---
 
-Registro con acentos, dominio exacto, boleta/RFC, hash scrypt, confirmación por token de un solo uso, login/logout revocable y recuperación. PDF privado, expediente por perfil y revisión por Subdirección. Solicitudes con cartel, varias actividades y aforos, borrador, devolución/corrección, reenvío, cancelación y resolución con versión. Selección sobre lugares físicos, apartado de dos minutos conforme al SQL, confirmación, pase por evento, cancelación, QR/manual y ocupación consultada cada 15 segundos.
+## 3. Módulos y avisos en PostgreSQL
 
-En estos recorridos, las pantallas esperan las respuestas remotas antes de mostrar éxito. Los proveedores remotos no guardan cuentas o reservaciones en localStorage. No existe alternativa automática local cuando la API falla.
+- **Identidad (`backend/modulos/identidad/`):** Registro con validación de dominio exacto, boleta/RFC, hash `scrypt` asíncrono, tokens de un solo uso, sesiones HTTP revocables en `infra.sesion_http`, carga privada de PDF en `infra.archivo_contenido`, dictamen de expedientes, jefaturas y restricciones.
+- **Organización (`backend/modulos/organizacion/`):** Solicitudes de evento (ordinarias/extraordinarias), verificación de disponibilidad y separación de 30 min, dictamen de Subdirección, distribución editable de lugares por actividad (`Asistente`, `VIP`, `Staff`, `Bloqueado`) y publicación.
+- **Taquilla (`backend/modulos/taquilla/`):** Consulta de lugares y disponibilidad, apartado temporal de 2 minutos (`Apartado` + `CompromisoCupo`), confirmación de boleto digital QR/PDF, cancelación voluntaria, boletos especiales, check-in e intenciones de asistencia.
+- **Bandeja de notificaciones y avisos de cupo:**
+  - `backend/modulos/correos/avisos.ts` (`registrarAvisoBandeja`) persiste avisos idempotentes en `ticket_trade."Notificacion"` con `referencia_destino` exacta (`/mi-expediente`, `/organizador/solicitudes/:id`, `/organizador/eventos/:id`).
+  - `backend/modulos/taquilla/avisosCupo.ts` registra suscripciones en `ticket_trade."AvisoDisponibilidad"` y despacha notificaciones de liberación de cupo (`tipo='disponibilidad'`, enlazando a `/eventos/:id`) al cancelar o liberar apartados vencidos.
+  - `backend/modulos/lecturas/estado.ts` expone la bandeja en `GET /api/estado` y el marcado idempotente por titular en `PATCH /api/estado/notificaciones/:id/leida`.
 
-El modelo de negocio mantiene las 73 tablas del HTML. `infra` contiene sesiones, bytes privados y datos de perfil preparados antes de enviar el expediente. Los documentos se vinculan mediante las tablas de verificación del ER; solo su titular o un revisor autorizado pueden abrirlos.
+---
 
-Los comandos avanzados que todavía no tienen adaptador (por ejemplo, publicación institucional directa, edición de versiones de arreglos, listas de espera, pases especiales, invitaciones Staff y administración de jefaturas) responden que no se guardaron cambios. La distribución muestra los lugares reales en modo consulta. El prototipo local completo sigue accesible con `?modo=local&demo=1`, con aviso explícito y almacenamiento separado del modo normal.
+## 4. Inspección directa en PostgreSQL
 
-## Mostrar tablas directamente en PostgreSQL
-
-```powershell
+```bash
 npm run db:ver
 npm run db:ver:demo
 npm run db:ver -- Cuenta
 npm run db:ver:demo -- Evento
 ```
 
-El menú muestra las 73 tablas y sus conteos, y ejecuta `SELECT *` con **psql**, el cliente nativo conectado directamente a la base elegida. También están `base-de-datos/postgresql/Ver-Tablas.ps1` y las consultas de `12_consultar_para_exposicion.sql` para pgAdmin. Si psql no está en PATH, configurar `PSQL_PATH`.
+El menú muestra las 73 tablas del esquema `ticket_trade` y sus conteos usando `psql` directamente. Si `psql` no está en `PATH`, configurar `PSQL_PATH` en `.env`.
 
-## Comprobaciones
+---
 
-```powershell
+## 5. Pruebas locales y verificación de despliegue
+
+### Pruebas locales
+```bash
 npm run lint
-npm test
 npm run build
+npm test
 npm run db:verify
 npm run db:verify:demo
 npm run test:postgres
 ```
 
-La verificación lee el HTML de referencia y compara las 73 tablas, sus columnas/tipos/nulabilidad y las 96 relaciones contra PostgreSQL, además de ejecutar `validar_integridad()`.
+- `npm run lint`: valida tipado TypeScript (`tsc --noEmit`).
+- `npm run build`: compila el bundle de producción en `dist/`.
+- `npm test`: ejecuta la suite unitaria y de contratos en `tests/*.test.ts`.
+- `npm run test:postgres`: crea una base local desechable `tt_pruebas_<hex>`, instala el esquema desde cero, ejecuta `04_pruebas_integridad.sql` y corre en serie las 11 suites PostgreSQL:
+  - `api-auth.test.ts`
+  - `api-password.test.ts`
+  - `api-correos-postgres.test.ts`
+  - `api-flujos-postgres.test.ts`
+  - `api-eventos-postgres.test.ts`
+  - `api-demo-aislamiento.test.ts`
+  - `api-disponibilidad-postgres.test.ts`
+  - `api-calendario-bloqueos-postgres.test.ts`
+  - `api-distribucion-postgres.test.ts`
+  - `api-dictamen-disponibilidad-postgres.test.ts`
+  - `api-notificaciones-postgres.test.ts`
+  - Requiere permisos locales para `CREATE DATABASE` / `DROP DATABASE` y **nunca debe ejecutarse contra Supabase remoto**.
 
-`test:postgres` crea y elimina bases desechables, instala desde cero, ejecuta `04_pruebas_integridad.sql` y comprueba HTTP → PostgreSQL: confirmación/vencimiento, PDF y permisos, solicitud/publicación, cupo concurrente, expiración, cancelación, ingreso/QR reutilizado y persistencia. También prueba que normal y demo no comparten cuentas, eventos ni sesiones, y que el catálogo tiene las tres modalidades y variedad de recintos. Requiere permiso local para crear bases y rechaza destinos ajenos a este ejecutor.
-
-## Vercel y Supabase
-
-Se prepararon el punto de entrada `api/index.ts` y las rutas de Vercel. La base y las variables de producción ya están configuradas en el proyecto autorizado. La presentación compartida reemplaza la separación descrita en las notas iniciales para el despliegue; el modo aislado sigue disponible en desarrollo. La guía está en [POSTGRESQL_DEMO_Y_SUPABASE.md](../docs/POSTGRESQL_DEMO_Y_SUPABASE.md).
-
-Sin `VITE_MODO_DATOS=api`, el alojamiento estático conserva el prototipo y avisa que es local. Fuera de demo rechaza crear cuentas locales: no muestra un registro exitoso como si hubiese llegado a PostgreSQL.
-
-## Aportes revisados
-
-Se revisó `backend_Regina` hasta `a54528f`. Se recuperó el registro y la confirmación persistentes, conservando sesiones aleatorias revocables y scrypt asíncrono de `main`. Se excluyeron acceso universal, contraseñas en claro y cookies con clave predeterminada. De Antigravity se conservaron imágenes, semillas, UTF-8 y adaptación de carteles; se corrigieron itinerarios, secuencias y guardados que ignoraban errores. El rediseño inicial de esta revisión se retiró.
+### Verificación de despliegue (Vercel + Supabase)
+```bash
+# Compila api/index.ts como ESM estricto y comprueba la carga en Node sin tsx
+npm run verify:api
+```
+Comprobaciones adicionales tras desplegar:
+1. Verificar `GET https://<dominio>/api/salud` (`HTTP 200`, `estado: "en_linea"`).
+2. Confirmar que `DATABASE_URL` usa el pooler transaccional (`6543`) sin parámetros `sslmode`, con `TT_POSTGRES_CA_PEM` / `TT_POSTGRES_CA_FILE` configurado y `VITE_MODO_DATOS=api`.
+3. Confirmar `APP_ORIGIN`, `APP_ORIGIN_ALIASES`, `CRON_SECRET` (`>= 32` chars) y variables `SMTP_*` / `TT_CORREO_CLAVE` solo en servidor (sin prefijo `VITE_`).
+4. Para correo transaccional, validar configuración con `npm run correos:verificar -- --sin-conexion` y `npm run correos:preview`. Ver [POSTGRESQL_DEMO_Y_SUPABASE.md](../docs/POSTGRESQL_DEMO_Y_SUPABASE.md) y [SUPABASE_CONEXION.md](../docs/SUPABASE_CONEXION.md).
