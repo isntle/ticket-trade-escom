@@ -1,6 +1,7 @@
 import { BotonRegresar } from "../componentes/ui/BotonRegresar";
 import { volverASeccion } from '../dominio/navegacion';
 import { apiActiva } from '../servicios/modoDatos';
+import { DistribucionActividadRemota } from './DistribucionActividadRemota';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { generarAsientosAuditorio, generarAsientosSala14, generarEstacionesLaboratorio } from '../datos/datosIniciales';
 import React, { useState } from 'react';
@@ -34,7 +35,18 @@ interface PropiedadesEditorArreglos {
   navigate: (ruta: string) => void;
 }
 
-export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = ({
+export const EditorArreglosPagina: React.FC<PropiedadesEditorArreglos> = (props) =>
+  apiActiva ? (
+    <DistribucionActividadRemota
+      eventId={props.eventId}
+      dateId={props.dateId}
+      navigate={props.navigate}
+    />
+  ) : (
+    <EditorArreglosLocal {...props} />
+  );
+
+const EditorArreglosLocal: React.FC<PropiedadesEditorArreglos> = ({
   eventId,
   dateId,
   navigate

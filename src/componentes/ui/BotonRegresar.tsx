@@ -1,3 +1,4 @@
+import React from "react";
 import { ArrowLeft } from "lucide-react";
 
 export function BotonRegresar({ destino, alVolver }: { destino: string; alVolver: () => void }) {
