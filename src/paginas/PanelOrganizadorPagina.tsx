@@ -2,6 +2,7 @@ import {
   filtrarPorTituloYEstado,
   nombreEstadoOrganizador,
 } from "../dominio/filtrosOrganizador";
+import { modalidadActividad } from "../dominio/actividades";
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Plus,
@@ -283,6 +284,9 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
             <div className="space-y-4">
               {eventosFiltrados.map((evento) => {
                 const fechaPrincipal = evento.fechas[0];
+                const fechaControlada = evento.fechas.find(
+                  (f) => modalidadActividad(f, evento.modalidadAsistencia) === "controlado",
+                );
                 return (
                   <div
                     key={evento.id}
@@ -310,12 +314,12 @@ export const PanelOrganizadorPagina: React.FC<PropiedadesPanelOrganizador> = ({
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                      {fechaPrincipal && (
+                      {fechaControlada && (
                         <button
                           type="button"
                           onClick={() =>
                             navigate(
-                              `/organizador/eventos/${evento.id}/fechas/${fechaPrincipal.id}/arreglos`,
+                              `/organizador/eventos/${evento.id}/fechas/${fechaControlada.id}/arreglos`,
                             )
                           }
                           className="px-3.5 py-2 border border-neutral-300 rounded-lg text-sm font-semibold text-neutral-800 hover:border-[#7a132b] hover:bg-neutral-50 flex items-center gap-1.5 transition-colors cursor-pointer"

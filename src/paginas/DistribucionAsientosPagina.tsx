@@ -29,7 +29,7 @@ interface PropiedadesDistribucionAsientos {
 }
 
 export const DistribucionAsientosPagina: React.FC<PropiedadesDistribucionAsientos> = props =>
-  apiActiva ? <DistribucionActividadRemota /> : <DistribucionAsientosLocal {...props} />;
+  apiActiva ? <DistribucionActividadRemota navigate={props.navigate} /> : <DistribucionAsientosLocal {...props} />;
 
 const DistribucionAsientosLocal: React.FC<PropiedadesDistribucionAsientos> = ({
   navigate

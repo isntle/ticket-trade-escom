@@ -47,6 +47,8 @@ interface PropiedadesMapaAsientos {
   permitirVip?: boolean;
   motivosNoEditables?: ReadonlyMap<string, string>;
   editorDeshabilitado?: boolean;
+  ocultarOrganizador?: boolean;
+  mostrarLeyendaOcupado?: boolean;
 }
 
 export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
@@ -59,6 +61,8 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
   idsAsientosCheckIn = [],
   motivosNoEditables,
   editorDeshabilitado,
+  ocultarOrganizador = false,
+  mostrarLeyendaOcupado = false,
   alSeleccionarAsiento,
   permiteEliminar = false,
   permitirVip = true
@@ -374,11 +378,15 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
     }
 
     // 4. Modo Editor de Arreglos (Organizador y Subdirección)
+    const estaOcupadoEnEditor = idsAsientosReservados.includes(lugar.id);
     let estiloEditor =
       'bg-white border-neutral-300 text-neutral-700 hover:border-neutral-500 hover:shadow-2xs cursor-pointer';
     let textoAyuda = `${lugar.etiqueta} — Asistente General`;
 
-    if (lugar.estaBloqueado) {
+    if (estaOcupadoEnEditor) {
+      estiloEditor = 'bg-sky-100 border-sky-400 text-sky-900 font-bold shadow-2xs ring-1 ring-sky-200';
+      textoAyuda = `${lugar.etiqueta} — Tiene un apartado o una reserva`;
+    } else if (lugar.estaBloqueado) {
       estiloEditor = 'bg-neutral-100 border-neutral-300 text-neutral-400 line-through';
       textoAyuda = `${lugar.etiqueta} — Bloqueada para logística`;
     } else if (lugar.categoria === 'vip') {
@@ -406,11 +414,11 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
         title={textoAyuda}
         className={`relative shrink-0 rounded-md border font-mono flex flex-col items-center justify-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 transition-all active:scale-95 ${claseTamañoBoton} ${estiloEditor}`}
       >
-        {esLaboratorio && !lugar.estaBloqueado && (
+        {esLaboratorio && (!lugar.estaBloqueado || estaOcupadoEnEditor) && (
           <Monitor className="w-3 h-3 mb-0.5 opacity-60 shrink-0" />
         )}
 
-        {lugar.estaBloqueado ? (
+        {lugar.estaBloqueado && !estaOcupadoEnEditor ? (
           <Ban className="w-3 h-3 text-red-600" />
         ) : (
           <span className="font-bold leading-none">
@@ -419,13 +427,13 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
         )}
 
         {/* Punto distintivo de rol */}
-        {lugar.categoria === 'vip' && !lugar.estaBloqueado && (
+        {lugar.categoria === 'vip' && !lugar.estaBloqueado && !estaOcupadoEnEditor && (
           <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500 border border-white" />
         )}
-        {!esAuditorio && lugar.categoria === 'organizador' && !lugar.estaBloqueado && (
+        {!esAuditorio && !ocultarOrganizador && lugar.categoria === 'organizador' && !lugar.estaBloqueado && !estaOcupadoEnEditor && (
           <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-indigo-600 border border-white" />
         )}
-        {lugar.categoria === 'staff' && !lugar.estaBloqueado && (
+        {lugar.categoria === 'staff' && !lugar.estaBloqueado && !estaOcupadoEnEditor && (
           <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-purple-600 border border-white" />
         )}
       </button>
@@ -986,13 +994,13 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
           <>
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded border border-neutral-300 bg-white" />
-              <span>Lugar / Estación Libre</span>
+              <span>{ocultarOrganizador ? 'Asistente (Libre)' : 'Lugar / Estación Libre'}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded border border-amber-400 bg-amber-100" />
               <span className="font-semibold text-amber-900">★ VIP</span>
             </div>
-            {!esAuditorio && <div className="flex items-center gap-1.5">
+            {!esAuditorio && !ocultarOrganizador && <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded border border-indigo-400 bg-indigo-100" />
               <span className="font-semibold text-indigo-900">Comité / Docente</span>
             </div>}
@@ -1002,9 +1010,15 @@ export const MapaAsientos: React.FC<PropiedadesMapaAsientos> = ({
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded border border-neutral-300 bg-neutral-100 line-through" />
-              <span>Bloqueado</span>
+              <span>{ocultarOrganizador ? 'Bloqueado / Fuera de servicio' : 'Bloqueado'}</span>
             </div>
-            {esSalaModular && (
+            {(mostrarLeyendaOcupado || idsAsientosReservados.length > 0) && (
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded border border-sky-400 bg-sky-100" />
+                <span className="font-semibold text-sky-900">Ocupado (no editable)</span>
+              </div>
+            )}
+            {esSalaModular && permiteEliminar && (
               <div className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded border border-dashed border-neutral-300 bg-neutral-50/50" />
                 <span>Módulo Suprimido</span>

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { MapaAsientos } from '../componentes/asientos/MapaAsientos';
 import { useAutenticacion } from '../contextos/AutenticacionContexto';
 import { useDatos } from '../contextos/DatosContexto';
 import { modalidadActividad } from '../dominio/actividades';
+import { volverA } from '../dominio/navegacion';
 import { etiquetaActividad } from '../dominio/taquilla';
 import { ErrorApi, transporteApi } from '../servicios/http';
 import type { ConfiguracionAsiento } from '../tipos';
@@ -27,12 +29,71 @@ type Distribucion = {
   version: string;
   lugares: Lugar[];
 };
-const boton = 'rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50';
+const boton = 'rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed';
 
-export function DistribucionActividadRemota() {
+/** Conserva los cambios locales tras recargar después de un 409 y descarta solo los que ya coinciden con el servidor. */
+export function conciliarPendientesDistribucion(
+  anteriores: Record<string, Categoria>,
+  lugaresActuales: Pick<Lugar, 'idLugarRecinto' | 'categoria'>[],
+): Record<string, Categoria> {
+  const porId = new Map(lugaresActuales.map(lugar => [lugar.idLugarRecinto, lugar]));
+  return Object.fromEntries(
+    Object.entries(anteriores).filter(([id, valor]) => porId.get(id)?.categoria !== valor),
+  );
+}
+
+export function evaluarMapaDistribucion(
+  distribucion: Pick<Distribucion, 'editable' | 'lugares'> | undefined,
+  pendientes: Record<string, Categoria>,
+) {
+  const lugares = distribucion?.lugares ?? [];
+  const motivosNoEditables = new Map<string, string>();
+  const idsOcupados: string[] = [];
+  const conteos = { asistente: 0, vip: 0, staff: 0, bloqueado: 0, ocupados: 0 };
+  const mapa = lugares.map<ConfiguracionAsiento>((lugar, indice) => {
+    const valor = pendientes[lugar.idLugarRecinto] ?? lugar.categoria;
+    const motivo = lugar.ocupado ? 'Tiene un apartado o una reserva' : lugar.fueraDeServicio
+      ? 'Fuera de servicio' : !distribucion?.editable ? 'Actividad en solo lectura' : '';
+    if (motivo) motivosNoEditables.set(lugar.idLugarRecinto, motivo);
+    if (lugar.ocupado) {
+      idsOcupados.push(lugar.idLugarRecinto);
+      conteos.ocupados++;
+    }
+    if (lugar.fueraDeServicio || valor === 'bloqueado') conteos.bloqueado++;
+    else conteos[valor]++;
+    return {
+      id: lugar.idLugarRecinto,
+      etiqueta: lugar.codigo,
+      fila: lugar.fila ?? '',
+      numero: Number(lugar.codigo.match(/\d+$/)?.[0] ?? indice + 1),
+      posicionX: lugar.x,
+      posicionY: lugar.y,
+      categoria: valor === 'bloqueado' ? 'asistente' : valor,
+      estaBloqueado: valor === 'bloqueado' || lugar.fueraDeServicio,
+    };
+  });
+  const cambios = Object.entries(pendientes);
+  const cambiosImpedidos = cambios.filter(([id]) =>
+    !lugares.some(lugar => lugar.idLugarRecinto === id) || motivosNoEditables.has(id),
+  );
+  return { lugares, mapa, motivosNoEditables, idsOcupados, conteos, cambios, cambiosImpedidos };
+}
+
+export interface PropiedadesDistribucionRemota {
+  eventId?: string;
+  dateId?: string;
+  navigate?: (ruta: string) => void;
+}
+
+export function DistribucionActividadRemota({
+  eventId,
+  dateId,
+  navigate,
+}: PropiedadesDistribucionRemota) {
   const { usuarioActual, rolActivo } = useAutenticacion();
   const { listaEventos, listaRecintos } = useDatos();
-  const [seleccion, setSeleccion] = useState('');
+  const claveInicial = eventId && dateId ? `${eventId}/${dateId}` : '';
+  const [seleccion, setSeleccion] = useState(claveInicial);
   const [distribucion, setDistribucion] = useState<Distribucion>();
   const [pendientes, setPendientes] = useState<Record<string, Categoria>>({});
   const [categoria, setCategoria] = useState<Categoria>('vip');
@@ -41,6 +102,17 @@ export function DistribucionActividadRemota() {
   const [requiereConsulta, setRequiereConsulta] = useState(false);
   const [aviso, setAviso] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!claveInicial) return;
+    setSeleccion(claveInicial);
+    setDistribucion(undefined);
+    setPendientes({});
+    setAviso('');
+    setError('');
+    setRequiereConsulta(false);
+  }, [claveInicial]);
+
   const opciones = usuarioActual && ['organizador', 'subdireccion', 'admin'].includes(rolActivo)
     ? listaEventos.filter(evento =>
         evento.idOrganizador === usuarioActual.id || usuarioActual.roles.includes('subdireccion')
@@ -58,6 +130,26 @@ export function DistribucionActividadRemota() {
     ? `/organizacion/eventos/${encodeURIComponent(evento)}/actividades/${encodeURIComponent(actividad)}/distribucion`
     : '';
 
+  const eventoSolicitado = eventId ? listaEventos.find(e => e.id === eventId) : undefined;
+  const actividadSolicitada = dateId ? eventoSolicitado?.fechas.find(f => f.id === dateId) : undefined;
+  const mensajeContextoSolicitado = (() => {
+    if (!eventId || !dateId || ruta) return '';
+    if (!usuarioActual) return 'Inicia sesión para consultar o editar la distribución de esta actividad.';
+    if (!eventoSolicitado || !actividadSolicitada) {
+      return 'La actividad solicitada no existe o no está disponible para tu cuenta.';
+    }
+    const autorizado =
+      eventoSolicitado.idOrganizador === usuarioActual.id ||
+      usuarioActual.roles.includes('subdireccion');
+    if (!autorizado) {
+      return 'Solo el organizador responsable o Subdirección pueden administrar la distribución de esta actividad.';
+    }
+    if (modalidadActividad(actividadSolicitada, eventoSolicitado.modalidadAsistencia) !== 'controlado') {
+      return 'Esta actividad no utiliza lugares asignados; solo las actividades con reservación con lugar asignado tienen distribución editable.';
+    }
+    return '';
+  })();
+
   useEffect(() => {
     if (!ruta) return;
     const carga = new AbortController();
@@ -66,11 +158,7 @@ export function DistribucionActividadRemota() {
     void api<Distribucion>(ruta, { signal: carga.signal }).then(datos => {
       if (carga.signal.aborted) return;
       setDistribucion(datos);
-      setPendientes(anteriores => {
-        const lugares = new Map(datos.lugares.map(lugar => [lugar.idLugarRecinto, lugar]));
-        // Conserva el borrador y exige una acción explícita si un lugar quedó inhabilitado.
-        return Object.fromEntries(Object.entries(anteriores).filter(([id, valor]) => lugares.get(id)?.categoria !== valor));
-      });
+      setPendientes(anteriores => conciliarPendientesDistribucion(anteriores, datos.lugares));
       setRequiereConsulta(false);
     }).catch((fallo: Error) => {
       if (!carga.signal.aborted) {
@@ -83,29 +171,16 @@ export function DistribucionActividadRemota() {
     return () => carga.abort();
   }, [ruta, lectura]);
 
-  const cambios = Object.entries(pendientes);
   const recinto = listaRecintos.find(r => r.id === distribucion?.idRecinto);
-  const lugares = distribucion?.lugares ?? [];
-  const motivosNoEditables = new Map<string, string>();
-  const mapa = lugares.map<ConfiguracionAsiento>((lugar, indice) => {
-    const valor = pendientes[lugar.idLugarRecinto] ?? lugar.categoria;
-    const motivo = lugar.ocupado ? 'Tiene un apartado o una reserva' : lugar.fueraDeServicio
-      ? 'Fuera de servicio' : !distribucion?.editable ? 'Actividad en solo lectura' : '';
-    if (motivo) motivosNoEditables.set(lugar.idLugarRecinto, motivo);
-    return {
-      id: lugar.idLugarRecinto,
-      etiqueta: lugar.codigo,
-      fila: lugar.fila ?? '',
-      numero: Number(lugar.codigo.match(/\d+$/)?.[0] ?? indice + 1),
-      posicionX: lugar.x,
-      posicionY: lugar.y,
-      categoria: valor === 'bloqueado' ? 'asistente' : valor,
-      estaBloqueado: valor === 'bloqueado' || lugar.fueraDeServicio || lugar.ocupado,
-    };
-  });
-  const cambiosImpedidos = cambios.filter(([id]) =>
-    !lugares.some(lugar => lugar.idLugarRecinto === id) || motivosNoEditables.has(id)
-  );
+  const {
+    lugares,
+    mapa,
+    motivosNoEditables,
+    idsOcupados,
+    conteos,
+    cambios,
+    cambiosImpedidos,
+  } = evaluarMapaDistribucion(distribucion, pendientes);
 
   async function guardar() {
     if (!ruta || ocupado || !distribucion?.editable || requiereConsulta || !cambios.length || cambiosImpedidos.length) return;
@@ -134,12 +209,28 @@ export function DistribucionActividadRemota() {
 
   return (
     <main className="mx-auto max-w-7xl space-y-5 px-4 py-8">
+      {eventId && navigate && (
+        <button
+          type="button"
+          onClick={() => navigate(volverA(`/organizador/eventos/${eventId}`))}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Regresar al evento</span>
+        </button>
+      )}
       <h1 className="text-2xl font-bold">Distribución de espacios</h1>
       <label className="block space-y-1 text-sm font-semibold">
         <span>Evento y actividad</span>
         <select className="block w-full rounded-lg border p-2 disabled:opacity-50"
           value={ruta ? seleccion : ''} disabled={ocupado || cambios.length > 0} onChange={e => {
-            setSeleccion(e.target.value);
+            const nuevoValor = e.target.value;
+            if (eventId && dateId && navigate && nuevoValor) {
+              const [nuevoEvento, nuevaActividad] = nuevoValor.split('/');
+              navigate(`/organizador/eventos/${encodeURIComponent(nuevoEvento)}/fechas/${encodeURIComponent(nuevaActividad)}/arreglos`);
+              return;
+            }
+            setSeleccion(nuevoValor);
             setDistribucion(undefined);
             setAviso('');
             setError('');
@@ -149,7 +240,12 @@ export function DistribucionActividadRemota() {
           {opciones.map(opcion => <option key={opcion.valor} value={opcion.valor}>{opcion.etiqueta}</option>)}
         </select>
       </label>
-      {!opciones.length && <p>No hay actividades con lugares asignados disponibles para tu cuenta.</p>}
+      {mensajeContextoSolicitado && (
+        <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+          {mensajeContextoSolicitado}
+        </p>
+      )}
+      {!opciones.length && !mensajeContextoSolicitado && <p>No hay actividades con lugares asignados disponibles para tu cuenta.</p>}
       {ocupado && <p role="status">Procesando distribución…</p>}
       {aviso && <p role="status" className="text-emerald-800">{aviso}</p>}
       {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-rose-900">{error}</p>}
@@ -158,8 +254,23 @@ export function DistribucionActividadRemota() {
       {ruta && requiereConsulta && <p className="text-sm">Vuelve a consultar y revisa los cambios pendientes antes de guardar.</p>}
       {ruta && distribucion && (
         <section className="space-y-4">
-          <p className="text-sm">{recinto?.nombre} · Aforo de la actividad {distribucion.aforo}</p>
-          {!distribucion.editable && <p>La actividad está en solo lectura.</p>}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-medium text-neutral-700">{recinto?.nombre} · Aforo de la actividad {distribucion.aforo}</p>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold">
+              <span className="rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-neutral-700">Asistente: {conteos.asistente}</span>
+              <span className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-amber-900">VIP: {conteos.vip}</span>
+              <span className="rounded-md border border-purple-300 bg-purple-50 px-2.5 py-1 text-purple-900">Staff: {conteos.staff}</span>
+              <span className="rounded-md border border-neutral-300 bg-neutral-100 px-2.5 py-1 text-neutral-700">Bloqueado: {conteos.bloqueado}</span>
+              {conteos.ocupados > 0 && (
+                <span className="rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1 text-sky-900">Ocupados (protegidos): {conteos.ocupados}</span>
+              )}
+            </div>
+          </div>
+          {!distribucion.editable && (
+            <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+              La actividad está en solo lectura. No se pueden modificar lugares en actividades canceladas, pasadas, suspendidas o con bloqueo vigente.
+            </p>
+          )}
           {distribucion.editable && <label className="block text-sm font-semibold">
             Categoría para asignar
             <select className="ml-2 rounded-lg border p-2" value={categoria} disabled={ocupado || requiereConsulta}
@@ -169,25 +280,69 @@ export function DistribucionActividadRemota() {
           </label>}
           {cambios.length > 0 && (
             <div className="space-y-2 rounded-lg border p-3 text-sm">
-              <p className="font-semibold">Cambios pendientes</p>
-              <ul>
+              <p className="font-semibold">Cambios pendientes ({cambios.length})</p>
+              <ul className="space-y-1">
                 {cambios.map(([id, valor]) => {
                   const lugar = lugares.find(lugar => lugar.idLugarRecinto === id);
-                  return <li key={id}>{lugar?.codigo ?? id} · {lugar ? categorias[lugar.categoria] : 'Sin lugar'} → {categorias[valor]}</li>;
+                  const impedimento = motivosNoEditables.get(id);
+                  return (
+                    <li key={id} className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        {lugar?.codigo ?? id} · {lugar ? categorias[lugar.categoria] : 'Sin lugar'} → {categorias[valor]}
+                        {impedimento && <span className="ml-2 font-semibold text-rose-700">({impedimento})</span>}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={ocupado}
+                        onClick={() => setPendientes(prev => {
+                          const siguiente = { ...prev };
+                          delete siguiente[id];
+                          return siguiente;
+                        })}
+                        className="text-xs font-semibold text-neutral-600 underline hover:text-neutral-900 disabled:opacity-50 cursor-pointer"
+                      >
+                        Quitar
+                      </button>
+                    </li>
+                  );
                 })}
               </ul>
-              {!!cambiosImpedidos.length && <p role="alert">Hay lugares pendientes que ya no se pueden editar. Descarta los cambios para continuar.</p>}
+              {!!cambiosImpedidos.length && (
+                <p role="alert" className="text-rose-800 font-medium">
+                  Hay lugares pendientes que ya no se pueden editar. Quita los lugares impedidos o descarta los cambios para continuar.
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
                 <button type="button" className={boton + ' bg-[#7a132b] text-white'}
                   disabled={ocupado || requiereConsulta || !distribucion.editable || cambiosImpedidos.length > 0}
                   onClick={() => void guardar()}>Guardar cambios</button>
+                {!!cambiosImpedidos.length && (
+                  <button
+                    type="button"
+                    className={boton + ' border-amber-300 bg-amber-50 text-amber-950'}
+                    disabled={ocupado}
+                    onClick={() => setPendientes(prev => {
+                      const impedidos = new Set(cambiosImpedidos.map(([id]) => id));
+                      return Object.fromEntries(Object.entries(prev).filter(([id]) => !impedidos.has(id)));
+                    })}
+                  >
+                    Quitar no editables
+                  </button>
+                )}
                 <button type="button" className={boton} disabled={ocupado} onClick={() => setPendientes({})}>Descartar cambios</button>
               </div>
             </div>
           )}
           {mapa.length ? (
-            <MapaAsientos asientos={mapa} modo="editor" tipoRecinto={recinto?.tipo}
-              motivosNoEditables={motivosNoEditables} editorDeshabilitado={ocupado || requiereConsulta}
+            <MapaAsientos
+              asientos={mapa}
+              modo="editor"
+              tipoRecinto={recinto?.tipo}
+              idsAsientosReservados={idsOcupados}
+              motivosNoEditables={motivosNoEditables}
+              editorDeshabilitado={ocupado || requiereConsulta || !distribucion.editable}
+              ocultarOrganizador
+              mostrarLeyendaOcupado
               alSeleccionarAsiento={asiento => {
                 const lugar = lugares.find(fila => fila.idLugarRecinto === asiento.id);
                 if (!lugar || motivosNoEditables.has(asiento.id) || ocupado || requiereConsulta) return;
@@ -198,7 +353,8 @@ export function DistribucionActividadRemota() {
                   else siguiente[asiento.id] = categoria;
                   return siguiente;
                 });
-              }} />
+              }}
+            />
           ) : <p>El recinto todavía no tiene lugares configurados.</p>}
         </section>
       )}
